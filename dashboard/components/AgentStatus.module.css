@@ -1,0 +1,60 @@
+.wrap {
+  margin-top: 8px;
+}
+
+.heading {
+  font-family: var(--font-dm-mono), monospace;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 12px;
+}
+
+.grid {
+  border: 0.5px solid var(--hairline);
+  background: #fff;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 1.5fr 0.8fr 1.2fr 0.8fr;
+  gap: 12px;
+  padding: 10px 12px;
+  border-bottom: 0.5px solid var(--hairline);
+  align-items: center;
+}
+
+.row:last-child {
+  border-bottom: none;
+}
+
+.name {
+  font-family: var(--font-dm-mono), monospace;
+  font-size: 12px;
+}
+
+.meta {
+  font-family: var(--font-dm-mono), monospace;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.badge {
+  font-family: var(--font-dm-mono), monospace;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.idle {
+  color: var(--ink);
+}
+
+.running {
+  color: var(--accent);
+}
+
+.error {
+  color: #c0341d;
+}
