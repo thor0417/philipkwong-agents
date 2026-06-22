@@ -7,6 +7,10 @@ import type { RawLead } from './scraper';
 const APP_ID = process.env.ADZUNA_APP_ID;
 const APP_KEY = process.env.ADZUNA_APP_KEY;
 
+// Location filter. Defaults to BC (Philip's home market); set ADZUNA_WHERE=''
+// to search Canada-wide, or to another province/city to refocus.
+const WHERE = process.env.ADZUNA_WHERE ?? 'British Columbia';
+
 const RESULTS_PER_PAGE = 20;
 
 // One search per term. Kept small to stay within Adzuna's free-tier limits.
@@ -66,6 +70,7 @@ export async function scrapeAdzuna(): Promise<RawLead[]> {
       `?app_id=${APP_ID}&app_key=${APP_KEY}` +
       `&results_per_page=${RESULTS_PER_PAGE}` +
       `&what=${encodeURIComponent(what)}` +
+      (WHERE ? `&where=${encodeURIComponent(WHERE)}` : '') +
       `&content-type=application/json`;
 
     try {
@@ -93,6 +98,9 @@ export async function scrapeAdzuna(): Promise<RawLead[]> {
   }
 
   const leads = [...byUrl.values()];
-  console.log(`Adzuna: ${leads.length} unique postings across ${QUERIES.length} queries`);
+  console.log(
+    `Adzuna: ${leads.length} unique postings across ${QUERIES.length} queries` +
+      ` (where: ${WHERE || 'Canada-wide'})`
+  );
   return leads;
 }
