@@ -1,4 +1,4 @@
-// Haiku scoring logic for the Upwork scraper.
+// Haiku scoring logic. Scores each lead as a potential consulting engagement.
 
 import Anthropic from '@anthropic-ai/sdk';
 import type { RawLead } from './scraper';
@@ -12,17 +12,21 @@ Philip's services:
 - AI automation systems and agent infrastructure
 - Professional web presence for regulated businesses
 
-Score this Upwork job posting from 0 to 100 based on fit.
+The lead below is ONE of:
+(a) a Canadian government tender / RFP (source: canadabuys) — an organization actively seeking an outside contractor or consultant, or
+(b) an employer job posting (source: adzuna) — a company hiring, which is a softer signal that the organization has a need Philip could pitch advisory/interim services against.
+
+Score the lead 0 to 100 on how good a fit it is as a paid engagement Philip could win or pitch. Tenders that directly seek compliance, regulatory, QMS, strategy, or automation services should score highest. A full-time junior job posting unrelated to his services should score low.
 
 Scoring criteria:
-- 80 to 100: Direct match. Compliance, regulatory, QMS, ISO, cannabis regulation, market entry Canada, AI automation for business
-- 60 to 79: Strong match. Strategy consulting, operations, regulated industry work, professional services web
-- 40 to 59: Partial match. General consulting, business strategy, web development for professional firms
-- 0 to 39: Poor match. Unrelated industries, too junior, budget too low
+- 80 to 100: Direct match. A tender or engagement for compliance, regulatory affairs, QMS, ISO, licensing, market entry, strategy, or AI automation.
+- 60 to 79: Strong match. Adjacent advisory/consulting need in a regulated or professional-services context.
+- 40 to 59: Partial match. General consulting or strategy need, or a relevant employer hiring signal.
+- 0 to 39: Poor match. Unrelated, too junior, or a staff role with no consulting angle.
 
 Also extract:
-- jurisdiction: the client's country or region if mentioned
-- budget: the posted budget or rate if mentioned
+- jurisdiction: the client's country, province, or region if mentioned (Canadian tenders are usually Canada)
+- budget: the contract value, salary, or rate if mentioned, else null
 
 Respond in JSON only. No preamble. No markdown.
 
@@ -33,7 +37,7 @@ Respond in JSON only. No preamble. No markdown.
   "budget": "extracted budget or null"
 }
 
-Job posting:
+Lead:
 `;
 
 // Anthropic() reads ANTHROPIC_API_KEY from the environment automatically.
@@ -53,7 +57,9 @@ export async function scoreLead(lead: RawLead): Promise<ScoredLead> {
     messages: [
       {
         role: 'user',
-        content: SCORING_PROMPT + `\nTitle: ${lead.title}\n\nDescription: ${lead.content}`,
+        content:
+          SCORING_PROMPT +
+          `\nSource: ${lead.source}\nTitle: ${lead.title}\n\n${lead.content}`,
       },
     ],
   });

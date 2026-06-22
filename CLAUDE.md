@@ -5,7 +5,10 @@ Lead acquisition system for Philip Kwong (regulatory compliance + corporate stra
 ## Components
 
 - **Supabase** (`supabase/schema.sql`) — shared memory: `leads`, `outreach`, `agents` tables + RLS.
-- **Upwork scraper** (`agents/upwork-scraper/`) — fetches Upwork RSS, scores each posting with Claude Haiku, writes leads scoring ≥ 60 to Supabase.
+- **Lead scraper** (`agents/lead-scraper/`) — pulls from two live sources, scores each with Claude Haiku, writes leads scoring ≥ 60 to Supabase:
+  - `canadabuys.ts` — federal tender/RFP notices (open-data CSV, keyless). Direct consulting leads.
+  - `adzuna.ts` — Canadian employer postings (free API key). Secondary signal; skipped if keys unset.
+  - (Upwork RSS was the original source but those feeds are dead — see Deviations.)
 - **Dashboard** (`dashboard/`) — Next.js 14 App Router. Supabase auth login, pipeline table, agent status panel.
 
 ## Layout
@@ -19,7 +22,7 @@ This is a two-package repo:
 
 Secrets live in `.env.local` (gitignored). Copy `.env.example` → `.env.local`.
 
-- Agents read: `ANTHROPIC_API_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`.
+- Agents read: `ANTHROPIC_API_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and (optional) `ADZUNA_APP_ID` + `ADZUNA_APP_KEY`.
 - Dashboard reads: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`
   (locally via `dashboard/.env.local`; on Vercel via project env vars).
 
@@ -31,7 +34,7 @@ Secrets live in `.env.local` (gitignored). Copy `.env.example` → `.env.local`.
 # Agents (root)
 npm install
 npm run typecheck          # tsc --noEmit
-npm run scrape:upwork      # runs the scraper once (needs .env.local, Node >= 20.6)
+npm run scrape:leads       # runs the scraper once (needs .env.local, Node >= 20.6)
 
 # Dashboard
 cd dashboard
@@ -53,3 +56,4 @@ npm run dev                # http://localhost:3000
 - Standardized agent env var on `SUPABASE_URL` (spec mixed it with `NEXT_PUBLIC_SUPABASE_URL`).
 - Fixed the `outreach` RLS policy (spec had an extra `)`), made the schema idempotent.
 - Added `tsx` to run TypeScript agents directly; centralized the admin client in `lib/supabase-admin.ts`.
+- Replaced the dead Upwork RSS source with CanadaBuys tenders + Adzuna postings (verified live June 2026); renamed the agent `upwork-scraper` → `lead-scraper`.

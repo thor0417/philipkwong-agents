@@ -44,7 +44,7 @@ create table if not exists agents (
 -- ── Seed agent records (idempotent) ───────────────────────
 
 insert into agents (name, status) values
-  ('upwork-scraper', 'idle'),
+  ('lead-scraper', 'idle'),
   ('indeed-scraper', 'idle'),
   ('merx-scraper', 'idle'),
   ('outreach-drafter', 'idle'),

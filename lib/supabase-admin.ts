@@ -4,12 +4,14 @@
 
 import { createClient } from '@supabase/supabase-js';
 
-const url = process.env.SUPABASE_URL;
+// Accept either name for the project URL — the dashboard env uses the
+// NEXT_PUBLIC_ prefix, and the same value is fine here.
+const url = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
 const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 if (!url || !serviceKey) {
   throw new Error(
-    'Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY. Set them in .env.local.'
+    'Missing SUPABASE_URL (or NEXT_PUBLIC_SUPABASE_URL) or SUPABASE_SERVICE_ROLE_KEY. Set them in .env.local.'
   );
 }
 

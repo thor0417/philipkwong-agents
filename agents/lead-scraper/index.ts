@@ -1,22 +1,24 @@
-// Upwork scraper entry point.
-// Run with: npm run scrape:upwork
+// Lead scraper entry point (CanadaBuys tenders + Adzuna postings).
+// Run with: npm run scrape:leads
 
 import { supabaseAdmin } from '../../lib/supabase-admin';
-import { scrapeUpwork, UPWORK_FEEDS } from './scraper';
+import { scrapeAll } from './scraper';
 import { scoreLead } from './scorer';
 import { writeLeads } from './writer';
 
+const AGENT_NAME = 'lead-scraper';
+
 async function run(): Promise<void> {
-  console.log('Upwork scraper starting...');
+  console.log('Lead scraper starting...');
 
   await supabaseAdmin
     .from('agents')
     .update({ status: 'running', last_run: new Date().toISOString() })
-    .eq('name', 'upwork-scraper');
+    .eq('name', AGENT_NAME);
 
   try {
-    const raw = await scrapeUpwork(UPWORK_FEEDS);
-    console.log(`Fetched ${raw.length} postings`);
+    const raw = await scrapeAll();
+    console.log(`Fetched ${raw.length} candidate leads`);
 
     const scored = await Promise.all(raw.map(scoreLead));
     const written = await writeLeads(scored);
@@ -25,13 +27,13 @@ async function run(): Promise<void> {
     await supabaseAdmin
       .from('agents')
       .update({ status: 'idle', leads_found: written, error: null })
-      .eq('name', 'upwork-scraper');
+      .eq('name', AGENT_NAME);
   } catch (error) {
     console.error('Scraper failed:', error);
     await supabaseAdmin
       .from('agents')
       .update({ status: 'error', error: String(error) })
-      .eq('name', 'upwork-scraper');
+      .eq('name', AGENT_NAME);
     process.exitCode = 1;
   }
 }

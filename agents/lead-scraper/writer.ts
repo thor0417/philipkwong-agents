@@ -1,4 +1,4 @@
-// Supabase write logic for the Upwork scraper.
+// Supabase write logic. Upserts qualified leads (score >= threshold) by URL.
 
 import { supabaseAdmin } from '../../lib/supabase-admin';
 import type { ScoredLead } from './scorer';
