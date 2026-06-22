@@ -12,6 +12,7 @@ dashboard/out/
 
 # build output
 dist/
+*.tsbuildinfo
 
 # misc
 .vercel
