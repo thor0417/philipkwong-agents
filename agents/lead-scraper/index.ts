@@ -21,6 +21,16 @@ async function run(): Promise<void> {
     console.log(`Fetched ${raw.length} candidate leads`);
 
     const scored = await Promise.all(raw.map(scoreLead));
+
+    // Opt-in: DEBUG_SCORES=1 prints every lead's score before the >=60 filter.
+    if (process.env.DEBUG_SCORES === '1') {
+      console.log('--- scored leads (pre-threshold, high to low) ---');
+      for (const s of [...scored].sort((a, b) => b.score - a.score)) {
+        console.log(`[${String(s.score).padStart(3)}] ${s.source} | ${s.title.slice(0, 70)} :: ${s.score_reason}`);
+      }
+      console.log('--- end scored leads ---');
+    }
+
     const written = await writeLeads(scored);
     console.log(`Wrote ${written} qualified leads`);
 

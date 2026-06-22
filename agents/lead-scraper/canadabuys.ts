@@ -49,6 +49,11 @@ const KEYWORDS = [
 
 const RELEVANCE = new RegExp(`\\b(${KEYWORDS.join('|')})\\b`, 'i');
 
+// Dominant federal-tender noise that matches RELEVANCE only incidentally
+// (construction RFPs cite "ISO"/"compliance"). Drop before the scorer so these
+// don't starve the MAX_TENDERS cap. The Haiku scorer still gates the rest.
+const EXCLUDE = /construction source list|source list for construction/i;
+
 // Verified English column headers from the CanadaBuys data dictionary.
 const COL = {
   title: 'title-titre-eng',
@@ -109,6 +114,7 @@ export async function scrapeCanadaBuys(): Promise<RawLead[]> {
       COL.category
     )}`;
     if (!RELEVANCE.test(haystack)) continue;
+    if (EXCLUDE.test(title)) continue;
 
     const content = [
       `Tender: ${title}`,

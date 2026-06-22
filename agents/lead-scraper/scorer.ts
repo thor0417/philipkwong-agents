@@ -50,6 +50,38 @@ export interface ScoredLead extends RawLead {
   budget: string | null;
 }
 
+interface ParsedScore {
+  score: number;
+  score_reason: string;
+  jurisdiction: string | null;
+  budget: string | null;
+}
+
+// Haiku sometimes wraps the JSON in ```json fences or adds a sentence. Strip
+// any fence and fall back to the outermost {...} before parsing.
+function parseScore(text: string): ParsedScore | null {
+  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  let body = (fenced ? fenced[1] : text).trim();
+
+  const first = body.indexOf('{');
+  const last = body.lastIndexOf('}');
+  if (first !== -1 && last > first) {
+    body = body.slice(first, last + 1);
+  }
+
+  try {
+    const parsed = JSON.parse(body);
+    return {
+      score: typeof parsed.score === 'number' ? parsed.score : 0,
+      score_reason: parsed.score_reason || '',
+      jurisdiction: parsed.jurisdiction || null,
+      budget: parsed.budget || null,
+    };
+  } catch {
+    return null;
+  }
+}
+
 export async function scoreLead(lead: RawLead): Promise<ScoredLead> {
   const response = await client.messages.create({
     model: 'claude-haiku-4-5-20251001',
@@ -65,24 +97,15 @@ export async function scoreLead(lead: RawLead): Promise<ScoredLead> {
   });
 
   const block = response.content[0];
-  const text = block && block.type === 'text' ? block.text : '{}';
+  const text = block && block.type === 'text' ? block.text : '';
 
-  try {
-    const parsed = JSON.parse(text);
-    return {
-      ...lead,
-      score: typeof parsed.score === 'number' ? parsed.score : 0,
-      score_reason: parsed.score_reason || '',
-      jurisdiction: parsed.jurisdiction || null,
-      budget: parsed.budget || null,
-    };
-  } catch {
-    return {
-      ...lead,
-      score: 0,
-      score_reason: 'Parse error',
-      jurisdiction: null,
-      budget: null,
-    };
+  const parsed = parseScore(text);
+  if (!parsed) {
+    console.error(
+      `Score parse failed for "${lead.title.slice(0, 50)}". Raw: ${JSON.stringify(text.slice(0, 200))}`
+    );
+    return { ...lead, score: 0, score_reason: 'Parse error', jurisdiction: null, budget: null };
   }
+
+  return { ...lead, ...parsed };
 }
