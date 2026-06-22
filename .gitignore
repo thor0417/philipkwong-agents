@@ -1,0 +1,19 @@
+# dependencies
+node_modules/
+
+# secrets — never commit
+.env
+.env.local
+.env*.local
+
+# next.js
+dashboard/.next/
+dashboard/out/
+
+# build output
+dist/
+
+# misc
+.vercel
+*.log
+.DS_Store

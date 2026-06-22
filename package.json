@@ -1,0 +1,24 @@
+{
+  "name": "philipkwong-agents",
+  "version": "1.0.0",
+  "description": "Lead acquisition agents for Philip Kwong",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20.6.0"
+  },
+  "scripts": {
+    "scrape:upwork": "node --env-file=.env.local --import tsx agents/upwork-scraper/index.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.20.0",
+    "@supabase/supabase-js": "^2.39.0",
+    "rss-parser": "^3.13.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "tsx": "^4.19.2",
+    "typescript": "^5"
+  }
+}
