@@ -57,3 +57,11 @@ npm run dev                # http://localhost:3000
 - Fixed the `outreach` RLS policy (spec had an extra `)`), made the schema idempotent.
 - Added `tsx` to run TypeScript agents directly; centralized the admin client in `lib/supabase-admin.ts`.
 - Replaced the dead Upwork RSS source with CanadaBuys tenders + Adzuna postings (verified live June 2026); renamed the agent `upwork-scraper` → `lead-scraper`.
+
+## Lead-source landscape (verified June 2026)
+
+- **Dead:** Upwork RSS, Indeed Job-Search API, GitHub Jobs, Workopolis — do not revive.
+- **CanadaBuys** (federal tenders, keyless CSV): works, but **low yield for Philip's niche** — federal procurement skews construction/defence/IT; compliance/QMS/cannabis/strategy barely appear. Cannabis is provincial, so it never appears federally.
+- **Adzuna** (free key): employer postings, location-filtered to BC by default. Softer signal than tenders.
+- **BC Bid:** no open-data feed for open opportunities (gated portal; catalogue has historical awards only).
+- **MERX** (`merx-scraper`, still seeded but unbuilt): **deferred** — public BC listings exist but the site is a JS/.NET app with no clean rows/JSON/RSS; reliable scraping needs a headless browser (Playwright). Revisit only if BC tenders prove important; a paid aggregator API (e.g. ProcureData) is the lower-maintenance alternative.
