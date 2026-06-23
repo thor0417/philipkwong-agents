@@ -3,7 +3,7 @@
 
 import { supabaseAdmin } from '../../lib/supabase-admin';
 import { scrapeAll } from './scraper';
-import { scoreLead } from './scorer';
+import { scoreLeads } from './scorer';
 import { writeLeads } from './writer';
 
 const AGENT_NAME = 'lead-scraper';
@@ -20,7 +20,7 @@ async function run(): Promise<void> {
     const raw = await scrapeAll();
     console.log(`Fetched ${raw.length} candidate leads`);
 
-    const scored = await Promise.all(raw.map(scoreLead));
+    const scored = await scoreLeads(raw);
 
     // Opt-in: DEBUG_SCORES=1 prints every lead's score before the >=60 filter.
     if (process.env.DEBUG_SCORES === '1') {

@@ -82,19 +82,41 @@ function parseScore(text: string): ParsedScore | null {
   }
 }
 
+// Cap on simultaneous Anthropic connections. The API rejects bursts of too
+// many concurrent connections with a 429 (distinct from the per-minute request
+// budget), so we score in a bounded pool rather than all at once.
+const MAX_CONCURRENCY = 6;
+// Retries for transient 429s, with exponential backoff (1s, 2s, 4s).
+const MAX_RETRIES = 3;
+
+const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
+
 export async function scoreLead(lead: RawLead): Promise<ScoredLead> {
-  const response = await client.messages.create({
-    model: 'claude-haiku-4-5-20251001',
-    max_tokens: 200,
-    messages: [
-      {
-        role: 'user',
-        content:
-          SCORING_PROMPT +
-          `\nSource: ${lead.source}\nTitle: ${lead.title}\n\n${lead.content}`,
-      },
-    ],
-  });
+  let response;
+  for (let attempt = 0; ; attempt++) {
+    try {
+      response = await client.messages.create({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 200,
+        messages: [
+          {
+            role: 'user',
+            content:
+              SCORING_PROMPT +
+              `\nSource: ${lead.source}\nTitle: ${lead.title}\n\n${lead.content}`,
+          },
+        ],
+      });
+      break;
+    } catch (err) {
+      const status = (err as { status?: number })?.status;
+      if (status === 429 && attempt < MAX_RETRIES) {
+        await sleep(1000 * 2 ** attempt);
+        continue;
+      }
+      throw err;
+    }
+  }
 
   const block = response.content[0];
   const text = block && block.type === 'text' ? block.text : '';
@@ -108,4 +130,22 @@ export async function scoreLead(lead: RawLead): Promise<ScoredLead> {
   }
 
   return { ...lead, ...parsed };
+}
+
+// Score every lead through a fixed-size worker pool so we never open more than
+// MAX_CONCURRENCY connections at once. Results preserve input order.
+export async function scoreLeads(leads: RawLead[]): Promise<ScoredLead[]> {
+  const results = new Array<ScoredLead>(leads.length);
+  let next = 0;
+
+  async function worker(): Promise<void> {
+    while (next < leads.length) {
+      const i = next++;
+      results[i] = await scoreLead(leads[i]);
+    }
+  }
+
+  const workers = Array.from({ length: Math.min(MAX_CONCURRENCY, leads.length) }, worker);
+  await Promise.all(workers);
+  return results;
 }
