@@ -23,6 +23,16 @@ const QUERIES = [
   'corporate strategy',
   'business process automation',
   'AI automation',
+  'management consultant',
+  'business consultant',
+  'policy consultant',
+  'health consultant',
+  'pharmaceutical consultant',
+  'technology consultant',
+  'operations consultant',
+  'project manager consultant',
+  'advisory services',
+  'business analyst Canada',
 ];
 
 interface AdzunaResult {

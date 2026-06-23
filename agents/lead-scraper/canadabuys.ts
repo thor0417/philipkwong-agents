@@ -14,7 +14,7 @@ const CSV_URL =
 // Cap how many filtered tenders we forward to the scorer (controls LLM spend).
 // The keyword filter is deliberately loose; the Haiku scorer is the real gate,
 // so this only needs to be high enough not to starve relevant tenders.
-const MAX_TENDERS = 100;
+const MAX_TENDERS = 200;
 
 // Relevance keywords matched (word-boundary, case-insensitive) against the
 // title, description, and category columns.
@@ -45,6 +45,20 @@ const KEYWORDS = [
   'market entry',
   'automation',
   'artificial intelligence',
+  'management consulting',
+  'professional services',
+  'business analysis',
+  'policy',
+  'training',
+  'research',
+  'audit',
+  'assessment',
+  'review',
+  'health',
+  'technology',
+  'digital',
+  'transformation',
+  'government relations',
 ];
 
 const RELEVANCE = new RegExp(`\\b(${KEYWORDS.join('|')})\\b`, 'i');
