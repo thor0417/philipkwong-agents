@@ -53,6 +53,10 @@ insert into agents (name, status) values
   ('geo-content-agent', 'idle')
 on conflict (name) do nothing;
 
+-- The source was renamed upwork-scraper -> lead-scraper. Drop the stale row so
+-- re-running this file leaves the agents table showing only lead-scraper.
+delete from agents where name = 'upwork-scraper';
+
 -- ── Row Level Security ────────────────────────────────────
 
 alter table leads enable row level security;
@@ -72,6 +76,6 @@ create policy "Authenticated full access" on outreach
 create policy "Authenticated full access" on agents
   for all using (auth.role() = 'authenticated');
 
--- Note: the upwork-scraper writes with the SERVICE ROLE key, which bypasses
+-- Note: the lead-scraper writes with the SERVICE ROLE key, which bypasses
 -- RLS entirely, so the agent does not need a policy. These policies govern the
 -- dashboard, which connects with the anon key as an authenticated user.
