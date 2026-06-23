@@ -2,104 +2,138 @@
 
 import { useState } from 'react';
 import type { Lead } from '@/lib/types';
+import {
+  STATUS_OPTIONS,
+  formatDate,
+  leadClosing,
+  leadOrg,
+  normalizeStatus,
+  scoreTier,
+  sourceLabel,
+} from '@/lib/leads';
 import styles from './PipelineTable.module.css';
 
 const COLUMNS = [
   'Score',
   'Source',
   'Title',
+  'Company / Dept',
   'Jurisdiction',
   'Budget',
+  'Closing',
+  'Found',
   'Status',
-  'Date Found',
+  '',
 ];
 
-function formatDate(iso: string): string {
-  // Deterministic YYYY-MM-DD to avoid hydration mismatches.
-  return iso ? iso.slice(0, 10) : '—';
-}
-
-export default function PipelineTable({ leads }: { leads: Lead[] }) {
+export default function PipelineTable({
+  leads,
+  onStatusChange,
+}: {
+  leads: Lead[];
+  onStatusChange: (id: string, status: string) => void;
+}) {
   const [expanded, setExpanded] = useState<string | null>(null);
 
   return (
     <section className={styles.wrap}>
-      <div className={styles.heading}>Pipeline — {leads.length} leads</div>
-      <table className={styles.table}>
-        <thead>
-          <tr>
-            {COLUMNS.map((c) => (
-              <th key={c}>{c}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {leads.length === 0 && (
+      <div className={styles.heading}>
+        <span className="bracket">[</span> Pipeline — {leads.length} leads{' '}
+        <span className="bracket">]</span>
+      </div>
+      <div className={styles.scroll}>
+        <table className={styles.table}>
+          <thead>
             <tr>
-              <td className={styles.empty} colSpan={COLUMNS.length}>
-                No leads yet. Run the upwork-scraper to populate.
-              </td>
+              {COLUMNS.map((c, i) => (
+                <th key={c || `col-${i}`}>{c}</th>
+              ))}
             </tr>
-          )}
-          {leads.map((lead) => {
-            const score = lead.score ?? 0;
-            const isOpen = expanded === lead.id;
-            return (
-              <FragmentRow
+          </thead>
+          <tbody>
+            {leads.length === 0 && (
+              <tr>
+                <td className={styles.empty} colSpan={COLUMNS.length}>
+                  No leads yet. Run the scraper to populate.
+                </td>
+              </tr>
+            )}
+            {leads.map((lead) => (
+              <LeadRow
                 key={lead.id}
                 lead={lead}
-                score={score}
-                isOpen={isOpen}
-                onToggle={() => setExpanded(isOpen ? null : lead.id)}
+                isOpen={expanded === lead.id}
+                onToggle={() =>
+                  setExpanded(expanded === lead.id ? null : lead.id)
+                }
+                onStatusChange={onStatusChange}
               />
-            );
-          })}
-        </tbody>
-      </table>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </section>
   );
 }
 
-function FragmentRow({
+function LeadRow({
   lead,
-  score,
   isOpen,
   onToggle,
+  onStatusChange,
 }: {
   lead: Lead;
-  score: number;
   isOpen: boolean;
   onToggle: () => void;
+  onStatusChange: (id: string, status: string) => void;
 }) {
+  const score = lead.score ?? 0;
+  const tier = scoreTier(score);
+
   return (
     <>
-      <tr className={styles.row} onClick={onToggle}>
+      <tr className={styles.row}>
         <td>
-          <span
-            className={`${styles.score} ${score >= 80 ? styles.scoreHot : ''}`}
-          >
-            {score}
-          </span>
+          <span className={`${styles.score} ${styles[tier]}`}>{score}</span>
         </td>
-        <td className={styles.meta}>{lead.source}</td>
-        <td className={styles.title}>{lead.title ?? '—'}</td>
+        <td className={styles.meta}>{sourceLabel(lead.source)}</td>
+        <td className={styles.titleCell} onClick={onToggle} title="Show scoring reason">
+          {lead.title ?? '—'}
+        </td>
+        <td className={styles.meta}>{leadOrg(lead)}</td>
         <td className={styles.meta}>{lead.jurisdiction ?? '—'}</td>
         <td className={styles.meta}>{lead.budget ?? '—'}</td>
-        <td className={styles.meta}>{lead.status ?? '—'}</td>
+        <td className={styles.meta}>{leadClosing(lead)}</td>
         <td className={styles.meta}>{formatDate(lead.date_found)}</td>
+        <td>
+          <select
+            className={styles.statusSelect}
+            value={normalizeStatus(lead.status)}
+            onChange={(e) => onStatusChange(lead.id, e.target.value)}
+          >
+            {STATUS_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        </td>
+        <td>
+          <a
+            className={styles.view}
+            href={lead.url}
+            target="_blank"
+            rel="noreferrer"
+          >
+            View
+          </a>
+        </td>
       </tr>
       {isOpen && (
         <tr className={styles.expand}>
-          <td colSpan={7}>
-            <strong>Reason:</strong> {lead.score_reason ?? '—'}
-            <br />
-            <br />
-            <strong>Raw:</strong> {lead.raw_content ?? '—'}
-            <br />
-            <br />
-            <a href={lead.url} target="_blank" rel="noreferrer">
-              {lead.url}
-            </a>
+          <td colSpan={COLUMNS.length}>
+            <span className={styles.expandLabel}>Scoring reason</span>
+            <p className={styles.expandBody}>{lead.score_reason ?? '—'}</p>
           </td>
         </tr>
       )}

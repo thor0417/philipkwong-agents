@@ -3,14 +3,13 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
-import type { Lead, Agent } from '@/lib/types';
+import type { Lead } from '@/lib/types';
 import PipelineTable from '@/components/PipelineTable';
-import AgentStatus from '@/components/AgentStatus';
+import StatsBar from '@/components/StatsBar';
 
 export default function PipelinePage() {
   const router = useRouter();
   const [leads, setLeads] = useState<Lead[]>([]);
-  const [agents, setAgents] = useState<Agent[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -23,14 +22,13 @@ export default function PipelinePage() {
         return;
       }
 
-      const [leadsRes, agentsRes] = await Promise.all([
-        supabase.from('leads').select('*').order('score', { ascending: false }),
-        supabase.from('agents').select('*').order('name', { ascending: true }),
-      ]);
+      const { data } = await supabase
+        .from('leads')
+        .select('*')
+        .order('score', { ascending: false });
 
       if (!active) return;
-      setLeads((leadsRes.data as Lead[]) ?? []);
-      setAgents((agentsRes.data as Agent[]) ?? []);
+      setLeads((data as Lead[]) ?? []);
       setLoading(false);
     }
 
@@ -40,13 +38,27 @@ export default function PipelinePage() {
     };
   }, [router]);
 
+  async function handleStatusChange(id: string, status: string) {
+    const previous = leads;
+    // Optimistic update; revert if the write fails.
+    setLeads((cur) => cur.map((l) => (l.id === id ? { ...l, status } : l)));
+    const { error } = await supabase
+      .from('leads')
+      .update({ status })
+      .eq('id', id);
+    if (error) {
+      console.error('Status update failed:', error.message);
+      setLeads(previous);
+    }
+  }
+
   async function signOut() {
     await supabase.auth.signOut();
     router.replace('/login');
   }
 
   return (
-    <main style={{ maxWidth: 1200, margin: '0 auto', padding: '40px 24px' }}>
+    <main style={{ maxWidth: 1360, margin: '0 auto', padding: '40px 24px' }}>
       <header
         style={{
           display: 'flex',
@@ -68,8 +80,8 @@ export default function PipelinePage() {
         </p>
       ) : (
         <>
-          <AgentStatus agents={agents} />
-          <PipelineTable leads={leads} />
+          <StatsBar leads={leads} />
+          <PipelineTable leads={leads} onStatusChange={handleStatusChange} />
         </>
       )}
     </main>

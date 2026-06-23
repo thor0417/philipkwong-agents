@@ -11,11 +11,17 @@
   margin-bottom: 12px;
 }
 
+/* Many columns — let the table scroll horizontally rather than crush cells. */
+.scroll {
+  overflow-x: auto;
+  border: 0.5px solid var(--hairline);
+}
+
 .table {
   width: 100%;
   border-collapse: collapse;
   background: #fff;
-  border: 0.5px solid var(--hairline);
+  min-width: 1100px;
 }
 
 .table th {
@@ -26,8 +32,9 @@
   text-align: left;
   color: var(--muted);
   font-weight: 500;
-  padding: 10px 12px;
+  padding: 11px 12px;
   border-bottom: 0.5px solid var(--hairline);
+  white-space: nowrap;
 }
 
 .row td {
@@ -38,34 +45,108 @@
 
 .row:hover {
   background: rgba(10, 10, 10, 0.02);
+}
+
+/* Score chip — bordered, tinted, zero radius. */
+.score {
+  display: inline-block;
+  min-width: 32px;
+  text-align: center;
+  padding: 2px 7px;
+  font-family: var(--font-dm-mono), monospace;
+  font-size: 12px;
+  font-weight: 500;
+  border: 0.5px solid var(--hairline);
+}
+
+.hot {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: rgba(179, 71, 0, 0.08);
+}
+
+.warm {
+  color: #8a6d00;
+  border-color: #8a6d00;
+  background: rgba(138, 109, 0, 0.1);
+}
+
+.cold {
+  color: var(--muted);
+  border-color: var(--hairline);
+  background: transparent;
+}
+
+.titleCell {
+  max-width: 360px;
+  min-width: 240px;
   cursor: pointer;
 }
 
-.score {
-  font-family: var(--font-dm-mono), monospace;
-  font-weight: 500;
-}
-
-.scoreHot {
+.titleCell:hover {
   color: var(--accent);
-}
-
-.title {
-  max-width: 360px;
 }
 
 .meta {
   font-family: var(--font-dm-mono), monospace;
   font-size: 11px;
   color: var(--muted);
+  white-space: nowrap;
+}
+
+.statusSelect {
+  font-family: var(--font-dm-mono), monospace;
+  font-size: 11px;
+  color: var(--ink);
+  background: #fff;
+  border: 0.5px solid var(--hairline);
+  border-radius: 0;
+  padding: 5px 8px;
+  cursor: pointer;
+}
+
+.statusSelect:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.view {
+  font-family: var(--font-dm-mono), monospace;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-decoration: none;
+  color: var(--ink);
+  border: 0.5px solid var(--ink);
+  padding: 5px 12px;
+  white-space: nowrap;
+}
+
+.view:hover {
+  background: var(--ink);
+  color: var(--bg);
 }
 
 .expand td {
   background: rgba(10, 10, 10, 0.03);
   padding: 16px;
-  font-size: 12px;
+  border-bottom: 0.5px solid var(--hairline);
+}
+
+.expandLabel {
+  font-family: var(--font-dm-mono), monospace;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.expandBody {
+  margin: 8px 0 0;
+  font-size: 13px;
   line-height: 1.6;
   color: var(--ink);
+  max-width: 900px;
 }
 
 .empty {
