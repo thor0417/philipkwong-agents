@@ -42,11 +42,11 @@ const TRANSACTIONAL_SENDERS = [
   'no-reply@',
   'notifications@',
   'mailer@',
-  'calendly.com',
+  'apolloemails.com',
   'apollo.io',
+  'calendly.com',
   'formspree.io',
-  'wise.com',
-  'interac.ca',
+  'mailchimp.com',
 ];
 
 type Classification = 'INTERESTED' | 'NEEDS_MORE_INFO' | 'NOT_INTERESTED';
