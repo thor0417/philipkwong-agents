@@ -254,41 +254,18 @@ async function classifyEmail(email: ParsedEmail): Promise<ClassifiedEmail> {
   }
 }
 
-function draftInstruction(classification: Classification): string {
-  switch (classification) {
-    case 'INTERESTED':
-      return 'The sender is interested. Draft a warm, professional reply that thanks them, confirms Philip can help, and proposes a short intro call to scope the work.';
-    case 'NEEDS_MORE_INFO':
-      return 'The sender is a possible prospect but details are thin. Draft a polite reply that expresses interest and asks 2-3 specific clarifying questions about their needs, timeline, and jurisdiction.';
-    case 'NOT_INTERESTED':
-      return 'This is not a viable lead. Draft a brief, courteous reply that politely declines or closes the thread without committing Philip to anything.';
-  }
-}
+// Fixed acknowledgement reply — identical for every classification. Sonnet is
+// used only for classification/scoring, never for drafting replies. The draft
+// still queues as pending for manual review; nothing is sent automatically.
+function draftResponse(email: ParsedEmail): string {
+  return `Subject: Re: ${email.subject}
 
-async function draftResponse(email: ParsedEmail, classification: Classification): Promise<string> {
-  const response = await anthropic.messages.create({
-    model: SONNET_MODEL,
-    max_tokens: 600,
-    messages: [
-      {
-        role: 'user',
-        content: `You are drafting an email reply on behalf of Philip Kwong, a regulatory compliance and corporate strategy consultant. ${draftInstruction(
-          classification
-        )}
+Thank you for your email. A member of our team will be in touch with you within 24 hours.
 
-Write only the reply body (no subject line, no placeholders like [Name] unless the sender is unknown). Keep it concise and professional. Sign off as "Philip Kwong".
-
---- Incoming email ---
-From: ${email.sender}
-Subject: ${email.subject}
-
-${email.body}
---- End ---`,
-      },
-    ],
-  });
-
-  return textOf(response).trim();
+Philip Kwong
+Principal
+philipkwong.com
+hello@philipkwong.com`;
 }
 
 // ── Supabase persistence ──────────────────────────────────
@@ -385,8 +362,8 @@ async function run(): Promise<void> {
       console.log(`  ↳ classified ${classified.classification} — ${classified.reason}`);
       if (classified.jurisdiction) console.log(`  ↳ jurisdiction: ${classified.jurisdiction}`);
 
-      const draft = await draftResponse(email, classified.classification);
-      console.log(`  ↳ drafted ${draft.length}-char reply`);
+      const draft = draftResponse(email);
+      console.log(`  ↳ queued fixed acknowledgement reply`);
 
       const result = await persist(email, classified, draft);
       if (result.written) written++;

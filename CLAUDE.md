@@ -48,7 +48,7 @@ npm run dev                # http://localhost:3000
 - One commit per component. Never combine schema / scraper / dashboard.
 - No secrets in git. `tsc --noEmit` clean before every commit.
 - Targeted edits only — never modify working code to fix something unrelated.
-- Scrape-and-display only. No outreach is sent from this repo yet.
+- No outreach is sent automatically from this repo. The lead scraper is scrape-and-display only; the intake agent drafts replies, but every draft queues as `pending` in Supabase `outreach` for manual review and is never sent.
 
 ## Deviations from spec v1.0 (intentional fixes)
 
