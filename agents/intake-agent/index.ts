@@ -34,6 +34,22 @@ const TOKEN_PATH = process.env.GMAIL_TOKEN_PATH ?? './token.json';
 // Most recent unread inbox messages to scan per run.
 const MAX_MESSAGES = 25;
 
+// Transactional senders are skipped before any Sonnet call — they are never
+// prospects. Entries ending in "@" match the start of the address (local-part
+// prefixes); the rest match the sender's domain (including subdomains).
+const TRANSACTIONAL_SENDERS = [
+  'noreply@',
+  'no-reply@',
+  'notifications@',
+  'mailer@',
+  'calendly.com',
+  'apollo.io',
+  'formspree.io',
+  'wise.com',
+  'interac.ca',
+  'bancity.ca',
+];
+
 type Classification = 'INTERESTED' | 'NEEDS_MORE_INFO' | 'NOT_INTERESTED';
 
 const SCORE_BY_CLASSIFICATION: Record<Classification, number> = {
@@ -130,6 +146,23 @@ async function authorize(): Promise<OAuth2Client> {
 }
 
 // ── Gmail reading ─────────────────────────────────────────
+
+// Pull the bare address out of a From header like `Name <addr@domain>`.
+function emailAddress(sender: string): string {
+  const angle = sender.match(/<([^>]+)>/);
+  return (angle ? angle[1] : sender).trim().toLowerCase();
+}
+
+// True if the sender is a known transactional source we skip before classifying.
+function isTransactionalSender(sender: string): boolean {
+  const address = emailAddress(sender);
+  const domain = address.split('@')[1] ?? '';
+  return TRANSACTIONAL_SENDERS.some((pattern) =>
+    pattern.endsWith('@')
+      ? address.startsWith(pattern)
+      : domain === pattern || domain.endsWith(`.${pattern}`)
+  );
+}
 
 function headerValue(headers: gmail_v1.Schema$MessagePartHeader[], name: string): string {
   const found = headers.find((h) => (h.name ?? '').toLowerCase() === name.toLowerCase());
@@ -355,12 +388,29 @@ async function run(): Promise<void> {
     const emails = await fetchUnread(gmail);
 
     let written = 0;
+    let skippedTransactional = 0;
+    let skippedNotInterested = 0;
     for (const email of emails) {
       console.log(`\nProcessing: "${email.subject}" from ${email.sender}`);
+
+      // Pre-classification filter: transactional senders are never prospects.
+      // Skip them entirely — no Sonnet call, no Supabase record.
+      if (isTransactionalSender(email.sender)) {
+        console.log(`  ↳ transactional sender — skipped (no classification, not persisted)`);
+        skippedTransactional++;
+        continue;
+      }
 
       const classified = await classifyEmail(email);
       console.log(`  ↳ classified ${classified.classification} — ${classified.reason}`);
       if (classified.jurisdiction) console.log(`  ↳ jurisdiction: ${classified.jurisdiction}`);
+
+      // Only real prospects are persisted. NOT_INTERESTED is logged and dropped.
+      if (classified.classification === 'NOT_INTERESTED') {
+        console.log(`  ↳ NOT_INTERESTED — logged only, not persisted`);
+        skippedNotInterested++;
+        continue;
+      }
 
       const draft = draftResponse(email);
       console.log(`  ↳ queued fixed acknowledgement reply`);
@@ -369,7 +419,10 @@ async function run(): Promise<void> {
       if (result.written) written++;
     }
 
-    console.log(`\nDone. Queued ${written} new lead(s) + draft(s) for manual review.`);
+    console.log(
+      `\nDone. Queued ${written} new lead(s) + draft(s) for manual review. ` +
+        `Skipped ${skippedTransactional} transactional, ${skippedNotInterested} NOT_INTERESTED.`
+    );
 
     await supabaseAdmin
       .from('agents')
