@@ -47,7 +47,6 @@ const TRANSACTIONAL_SENDERS = [
   'formspree.io',
   'wise.com',
   'interac.ca',
-  'bancity.ca',
 ];
 
 type Classification = 'INTERESTED' | 'NEEDS_MORE_INFO' | 'NOT_INTERESTED';
