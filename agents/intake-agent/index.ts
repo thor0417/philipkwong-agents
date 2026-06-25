@@ -45,9 +45,13 @@ const TRANSACTIONAL_SENDERS = [
   'apolloemails.com',
   'apollo.io',
   'calendly.com',
-  'formspree.io',
   'mailchimp.com',
 ];
+
+// Formspree forwards website contact-form submissions from noreply@formspree.io.
+// Those are real inbound leads (NOT transactional), so they are handled before
+// the transactional filter — see isFormspreeSubmission / parseFormspreeSubmission.
+const FORMSPREE_DOMAIN = 'formspree.io';
 
 type Classification = 'INTERESTED' | 'NEEDS_MORE_INFO' | 'NOT_INTERESTED';
 
@@ -62,6 +66,9 @@ interface ParsedEmail {
   subject: string;
   sender: string;
   body: string;
+  // Reply-To header, when present. Formspree sets this to the submitter's
+  // address when the form collects one, so it's our fallback reply target.
+  replyTo?: string;
 }
 
 interface ClassifiedEmail {
@@ -163,6 +170,77 @@ function isTransactionalSender(sender: string): boolean {
   );
 }
 
+// True if the message is a Formspree contact-form submission.
+function isFormspreeSubmission(sender: string): boolean {
+  const domain = emailAddress(sender).split('@')[1] ?? '';
+  return domain === FORMSPREE_DOMAIN || domain.endsWith(`.${FORMSPREE_DOMAIN}`);
+}
+
+// Formspree's plain-text body lays each form field out as a "label:" line
+// followed by its value on the next line(s), with a preamble ending in
+// "had to say:" and a "Submitted ..." footer. Parse the field blocks between
+// those markers into a lowercased map; return null if nothing parses.
+function parseFormspreeSubmission(body: string): Record<string, string> | null {
+  const startIdx = body.indexOf('had to say:');
+  const region = startIdx === -1 ? body : body.slice(startIdx + 'had to say:'.length);
+  const endIdx = region.search(/\nSubmitted\b/);
+  const fieldsText = (endIdx === -1 ? region : region.slice(0, endIdx)).trim();
+
+  const fields: Record<string, string> = {};
+  let key: string | null = null;
+  let valueLines: string[] = [];
+  const flush = () => {
+    if (key && valueLines.length) fields[key] = valueLines.join('\n').trim();
+    valueLines = [];
+  };
+
+  for (const rawLine of fieldsText.split('\n')) {
+    const line = rawLine.trim();
+    // "label: value" on one line, or "label:" with the value on following lines.
+    const inline = line.match(/^([A-Za-z_][\w \-]*):\s+(.+)$/);
+    const labelOnly = line.match(/^([A-Za-z_][\w \-]*):$/);
+    if (inline) {
+      flush();
+      fields[inline[1].trim().toLowerCase()] = inline[2].trim();
+      key = null;
+    } else if (labelOnly) {
+      flush();
+      key = labelOnly[1].trim().toLowerCase();
+    } else if (key && line) {
+      valueLines.push(line);
+    }
+  }
+  flush();
+
+  return Object.keys(fields).length ? fields : null;
+}
+
+// Build a synthetic ParsedEmail representing the prospect (not the Formspree
+// wrapper) so classification and the draft act on the real submission. The
+// reply target is the form's email field if present, else the Reply-To header.
+function formspreeToEmail(
+  email: ParsedEmail,
+  fields: Record<string, string>
+): { email: ParsedEmail; replyTo: string | null } {
+  const name = fields.name ?? fields['full name'] ?? 'Website visitor';
+  const replyTo =
+    fields.email ?? fields['e-mail'] ?? fields._replyto ?? email.replyTo ?? null;
+  const body = Object.entries(fields)
+    .map(([k, v]) => `${k}: ${v}`)
+    .join('\n');
+
+  return {
+    email: {
+      id: email.id,
+      subject: `Website inquiry from ${name}`,
+      sender: replyTo ? `${name} <${replyTo}>` : `${name} (no email provided)`,
+      body,
+      replyTo: replyTo ?? undefined,
+    },
+    replyTo,
+  };
+}
+
 function headerValue(headers: gmail_v1.Schema$MessagePartHeader[], name: string): string {
   const found = headers.find((h) => (h.name ?? '').toLowerCase() === name.toLowerCase());
   return found?.value ?? '';
@@ -215,6 +293,7 @@ async function fetchUnread(gmail: gmail_v1.Gmail): Promise<ParsedEmail[]> {
       subject: headerValue(headers, 'Subject') || '(no subject)',
       sender: headerValue(headers, 'From') || '(unknown sender)',
       body: extractBody(full.data.payload),
+      replyTo: headerValue(headers, 'Reply-To') || undefined,
     });
   }
   return parsed;
@@ -289,8 +368,9 @@ async function classifyEmail(email: ParsedEmail): Promise<ClassifiedEmail> {
 // Fixed acknowledgement reply — identical for every classification. Sonnet is
 // used only for classification/scoring, never for drafting replies. The draft
 // still queues as pending for manual review; nothing is sent automatically.
-function draftResponse(email: ParsedEmail): string {
-  return `Subject: Re: ${email.subject}
+function draftResponse(email: ParsedEmail, replyTo: string | null = null): string {
+  const toLine = replyTo ? `To: ${replyTo}\n` : '';
+  return `${toLine}Subject: Re: ${email.subject}
 
 Thank you for your email. A member of our team will be in touch with you within 48 hours.
 
@@ -392,15 +472,38 @@ async function run(): Promise<void> {
     for (const email of emails) {
       console.log(`\nProcessing: "${email.subject}" from ${email.sender}`);
 
-      // Pre-classification filter: transactional senders are never prospects.
-      // Skip them entirely — no Sonnet call, no Supabase record.
-      if (isTransactionalSender(email.sender)) {
+      // `prospect` is what we classify/draft/persist. For most mail it's the
+      // email itself; for Formspree it's the parsed submission. `replyTo` is the
+      // address the queued draft should be sent to on manual review, if known.
+      let prospect = email;
+      let replyTo: string | null = null;
+
+      if (isFormspreeSubmission(email.sender)) {
+        // Website contact-form submission — a real lead. Handle it before the
+        // transactional filter, which would otherwise drop it on the noreply@
+        // prefix. Classify the submitter's content, not the Formspree wrapper.
+        const fields = parseFormspreeSubmission(email.body);
+        if (!fields) {
+          console.log(`  ↳ Formspree email with no parseable submission — skipped`);
+          skippedTransactional++;
+          continue;
+        }
+        const converted = formspreeToEmail(email, fields);
+        prospect = converted.email;
+        replyTo = converted.replyTo;
+        console.log(`  ↳ Formspree contact-form submission — ${prospect.sender}`);
+        if (!replyTo) {
+          console.log(`  ↳ note: form provided no email address — draft cannot be addressed`);
+        }
+      } else if (isTransactionalSender(email.sender)) {
+        // Pre-classification filter: transactional senders are never prospects.
+        // Skip them entirely — no Sonnet call, no Supabase record.
         console.log(`  ↳ transactional sender — skipped (no classification, not persisted)`);
         skippedTransactional++;
         continue;
       }
 
-      const classified = await classifyEmail(email);
+      const classified = await classifyEmail(prospect);
       console.log(`  ↳ classified ${classified.classification} — ${classified.reason}`);
       if (classified.jurisdiction) console.log(`  ↳ jurisdiction: ${classified.jurisdiction}`);
 
@@ -411,10 +514,10 @@ async function run(): Promise<void> {
         continue;
       }
 
-      const draft = draftResponse(email);
+      const draft = draftResponse(prospect, replyTo);
       console.log(`  ↳ queued fixed acknowledgement reply`);
 
-      const result = await persist(email, classified, draft);
+      const result = await persist(prospect, classified, draft);
       if (result.written) written++;
     }
 
