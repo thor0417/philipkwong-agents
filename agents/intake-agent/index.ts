@@ -292,7 +292,7 @@ async function classifyEmail(email: ParsedEmail): Promise<ClassifiedEmail> {
 function draftResponse(email: ParsedEmail): string {
   return `Subject: Re: ${email.subject}
 
-Thank you for your email. A member of our team will be in touch with you within 24 hours.
+Thank you for your email. A member of our team will be in touch with you within 48 hours.
 
 Philip Kwong
 Principal
