@@ -16,6 +16,8 @@ create table if not exists leads (
   jurisdiction text,
   budget text,
   notes text,
+  next_action text,
+  next_action_date timestamp with time zone,
   date_found timestamp with time zone default now(),
   outreach_drafted boolean default false,
   outreach_approved boolean default false,
@@ -42,8 +44,10 @@ create table if not exists agents (
   created_at timestamp with time zone default now()
 );
 
--- Notes column for existing leads tables created before this column was added.
+-- Columns added to leads after initial creation (idempotent for existing DBs).
 alter table leads add column if not exists notes text;
+alter table leads add column if not exists next_action text;
+alter table leads add column if not exists next_action_date timestamp with time zone;
 
 -- ── CRM tables (contacts / deals / activities) ────────────
 -- The pipeline is driven by `deals`. A deal optionally links to a `lead`
