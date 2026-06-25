@@ -1,0 +1,31 @@
+.nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 28px;
+}
+
+.toggle {
+  display: flex;
+  border: 0.5px solid var(--hairline);
+}
+
+.toggle button {
+  border: none;
+  border-right: 0.5px solid var(--hairline);
+}
+
+.toggle button:last-child {
+  border-right: none;
+}
+
+.right {
+  display: flex;
+  gap: 10px;
+}
+
+.active {
+  background: var(--ink);
+  color: var(--bg);
+}
