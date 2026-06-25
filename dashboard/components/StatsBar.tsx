@@ -1,13 +1,19 @@
 'use client';
 
-import type { Lead } from '@/lib/types';
+import type { Lead, Outreach } from '@/lib/types';
 import styles from './StatsBar.module.css';
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
-export default function StatsBar({ leads }: { leads: Lead[] }) {
+export default function StatsBar({
+  leads,
+  outreach,
+}: {
+  leads: Lead[];
+  outreach: Outreach[];
+}) {
   const total = leads.length;
-  const hot = leads.filter((l) => (l.score ?? 0) >= 80).length;
+  const outreachPending = outreach.filter((o) => o.status === 'pending').length;
 
   const cutoff = Date.now() - WEEK_MS;
   const thisWeek = leads.filter(
@@ -22,7 +28,7 @@ export default function StatsBar({ leads }: { leads: Lead[] }) {
 
   const stats = [
     { label: 'Total Leads', value: total, accent: false },
-    { label: 'Scored 80+', value: hot, accent: true },
+    { label: 'Outreach Pending', value: outreachPending, accent: true },
     { label: 'Leads This Week', value: thisWeek, accent: false },
     { label: 'Outreach Sent', value: outreachSent, accent: false },
   ];

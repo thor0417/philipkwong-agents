@@ -120,7 +120,7 @@ export default function PipelinePage() {
         </p>
       ) : (
         <>
-          <StatsBar leads={leads} />
+          <StatsBar leads={leads} outreach={outreach} />
           {agentsOpen && <AgentPanel agents={agents} onRefresh={load} />}
 
           {view === 'kanban' ? (
