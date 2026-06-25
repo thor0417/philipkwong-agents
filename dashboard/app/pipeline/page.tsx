@@ -9,6 +9,7 @@ import StatsBar from '@/components/StatsBar';
 import AgentPanel from '@/components/AgentPanel';
 import Kanban from '@/components/Kanban';
 import PipelineTable from '@/components/PipelineTable';
+import OutreachQueue from '@/components/OutreachQueue';
 import DealRecord from '@/components/DealRecord';
 
 export default function PipelinePage() {
@@ -95,11 +96,18 @@ export default function PipelinePage() {
           {view === 'kanban' ? (
             <Kanban leads={leads} onSelect={(l) => setSelectedId(l.id)} />
           ) : (
-            <PipelineTable
-              leads={leads}
-              onStatusChange={handleStatusChange}
-              onSelect={(l) => setSelectedId(l.id)}
-            />
+            <>
+              <PipelineTable
+                leads={leads}
+                onStatusChange={handleStatusChange}
+                onSelect={(l) => setSelectedId(l.id)}
+              />
+              <OutreachQueue
+                leads={leads}
+                outreach={outreach}
+                onRefresh={load}
+              />
+            </>
           )}
 
           <DealRecord
