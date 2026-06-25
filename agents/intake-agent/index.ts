@@ -34,6 +34,11 @@ const TOKEN_PATH = process.env.GMAIL_TOKEN_PATH ?? './token.json';
 // Most recent unread inbox messages to scan per run.
 const MAX_MESSAGES = 25;
 
+// Only messages received at or after this instant are processed; anything older
+// (the pre-existing inbox backlog) is skipped entirely, regardless of sender.
+// Boundary is UTC midnight on 2026-06-25, so 2026-06-25 onward is kept.
+const RECEIVED_AFTER_MS = Date.parse('2026-06-25T00:00:00Z');
+
 // Transactional senders are skipped before any Sonnet call — they are never
 // prospects. Entries ending in "@" match the start of the address (local-part
 // prefixes); the rest match the sender's domain (including subdomains).
@@ -69,6 +74,8 @@ interface ParsedEmail {
   // Reply-To header, when present. Formspree sets this to the submitter's
   // address when the form collects one, so it's our fallback reply target.
   replyTo?: string;
+  // Gmail internalDate (epoch ms, UTC) — when the message was received.
+  receivedAt: number;
 }
 
 interface ClassifiedEmail {
@@ -236,6 +243,7 @@ function formspreeToEmail(
       sender: replyTo ? `${name} <${replyTo}>` : `${name} (no email provided)`,
       body,
       replyTo: replyTo ?? undefined,
+      receivedAt: email.receivedAt,
     },
     replyTo,
   };
@@ -294,6 +302,7 @@ async function fetchUnread(gmail: gmail_v1.Gmail): Promise<ParsedEmail[]> {
       sender: headerValue(headers, 'From') || '(unknown sender)',
       body: extractBody(full.data.payload),
       replyTo: headerValue(headers, 'Reply-To') || undefined,
+      receivedAt: Number(full.data.internalDate ?? 0),
     });
   }
   return parsed;
@@ -467,10 +476,19 @@ async function run(): Promise<void> {
     const emails = await fetchUnread(gmail);
 
     let written = 0;
+    let skippedOld = 0;
     let skippedTransactional = 0;
     let skippedNotInterested = 0;
     for (const email of emails) {
       console.log(`\nProcessing: "${email.subject}" from ${email.sender}`);
+
+      // Date filter first: skip the pre-existing inbox backlog entirely, before
+      // any sender handling, so old mail is never processed as a lead.
+      if (email.receivedAt < RECEIVED_AFTER_MS) {
+        console.log(`  ↳ received before cutoff — skipped (no classification, not persisted)`);
+        skippedOld++;
+        continue;
+      }
 
       // `prospect` is what we classify/draft/persist. For most mail it's the
       // email itself; for Formspree it's the parsed submission. `replyTo` is the
@@ -523,7 +541,7 @@ async function run(): Promise<void> {
 
     console.log(
       `\nDone. Queued ${written} new lead(s) + draft(s) for manual review. ` +
-        `Skipped ${skippedTransactional} transactional, ${skippedNotInterested} NOT_INTERESTED.`
+        `Skipped ${skippedOld} pre-cutoff, ${skippedTransactional} transactional, ${skippedNotInterested} NOT_INTERESTED.`
     );
 
     await supabaseAdmin
