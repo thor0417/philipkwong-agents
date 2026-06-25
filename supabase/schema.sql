@@ -41,6 +41,49 @@ create table if not exists agents (
   created_at timestamp with time zone default now()
 );
 
+-- ── CRM tables (contacts / deals / activities) ────────────
+-- The pipeline is driven by `deals`. A deal optionally links to a `lead`
+-- (for the original score/source) and to a `contact` (the person).
+
+create table if not exists contacts (
+  id uuid default gen_random_uuid() primary key,
+  name text,
+  email text,
+  phone text,
+  company text,
+  role text,
+  source text,
+  notes text,
+  created_at timestamp with time zone default now()
+);
+
+create table if not exists deals (
+  id uuid default gen_random_uuid() primary key,
+  contact_id uuid references contacts(id),
+  lead_id uuid references leads(id),
+  title text not null,
+  stage text default 'new_lead',
+  value_estimate numeric,
+  source text,
+  service_tier text,
+  notes text,
+  next_action text,
+  next_action_date timestamp with time zone,
+  created_at timestamp with time zone default now(),
+  updated_at timestamp with time zone default now()
+);
+
+create table if not exists activities (
+  id uuid default gen_random_uuid() primary key,
+  deal_id uuid references deals(id),
+  contact_id uuid references contacts(id),
+  type text not null,
+  direction text,
+  subject text,
+  content text,
+  created_at timestamp with time zone default now()
+);
+
 -- ── Seed agent records (idempotent) ───────────────────────
 
 insert into agents (name, status) values
@@ -62,10 +105,16 @@ delete from agents where name = 'upwork-scraper';
 alter table leads enable row level security;
 alter table outreach enable row level security;
 alter table agents enable row level security;
+alter table contacts enable row level security;
+alter table deals enable row level security;
+alter table activities enable row level security;
 
 drop policy if exists "Authenticated full access" on leads;
 drop policy if exists "Authenticated full access" on outreach;
 drop policy if exists "Authenticated full access" on agents;
+drop policy if exists "Authenticated full access" on contacts;
+drop policy if exists "Authenticated full access" on deals;
+drop policy if exists "Authenticated full access" on activities;
 
 create policy "Authenticated full access" on leads
   for all using (auth.role() = 'authenticated');
@@ -74,6 +123,15 @@ create policy "Authenticated full access" on outreach
   for all using (auth.role() = 'authenticated');
 
 create policy "Authenticated full access" on agents
+  for all using (auth.role() = 'authenticated');
+
+create policy "Authenticated full access" on contacts
+  for all using (auth.role() = 'authenticated');
+
+create policy "Authenticated full access" on deals
+  for all using (auth.role() = 'authenticated');
+
+create policy "Authenticated full access" on activities
   for all using (auth.role() = 'authenticated');
 
 -- Note: the lead-scraper writes with the SERVICE ROLE key, which bypasses
