@@ -1,0 +1,69 @@
+.bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+  margin-top: 32px;
+  margin-bottom: 4px;
+}
+
+.search {
+  flex: 1 1 280px;
+  min-width: 220px;
+  font-family: var(--font-dm-mono), monospace;
+  font-size: 12px;
+  border: 0.5px solid var(--hairline);
+  background: #fff;
+  border-radius: 0;
+  padding: 9px 11px;
+}
+
+.search:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-dm-mono), monospace;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.control select {
+  font-family: var(--font-dm-mono), monospace;
+  font-size: 11px;
+  color: var(--ink);
+  background: #fff;
+  border: 0.5px solid var(--hairline);
+  border-radius: 0;
+  padding: 6px 8px;
+  cursor: pointer;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.control select:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.score {
+  width: 72px;
+  font-family: var(--font-dm-mono), monospace;
+  font-size: 11px;
+  color: var(--ink);
+  background: #fff;
+  border: 0.5px solid var(--hairline);
+  border-radius: 0;
+  padding: 6px 8px;
+}
+
+.score:focus {
+  outline: none;
+  border-color: var(--accent);
+}
