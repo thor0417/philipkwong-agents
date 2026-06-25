@@ -23,7 +23,7 @@ const COLUMNS = [
   'Closing',
   'Found',
   'Status',
-  '',
+  'Posting',
 ];
 
 export default function PipelineTable({
@@ -125,7 +125,7 @@ function LeadRow({
             target="_blank"
             rel="noreferrer"
           >
-            View
+            View Posting
           </a>
         </td>
       </tr>
