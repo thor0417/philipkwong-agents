@@ -3,31 +3,20 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
-import type {
-  Activity,
-  Agent,
-  DealWithRelations,
-  Lead,
-  Outreach,
-} from '@/lib/types';
+import type { Agent, Lead, Outreach } from '@/lib/types';
 import Nav, { type View } from '@/components/Nav';
 import StatsBar from '@/components/StatsBar';
 import AgentPanel from '@/components/AgentPanel';
 import Kanban from '@/components/Kanban';
-import DealList from '@/components/DealList';
+import PipelineTable from '@/components/PipelineTable';
 import DealRecord from '@/components/DealRecord';
-
-const DEAL_SELECT =
-  '*, contacts(*), leads(score, source, title, url, date_found)';
 
 export default function PipelinePage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
 
   const [leads, setLeads] = useState<Lead[]>([]);
-  const [deals, setDeals] = useState<DealWithRelations[]>([]);
   const [outreach, setOutreach] = useState<Outreach[]>([]);
-  const [activities, setActivities] = useState<Activity[]>([]);
   const [agents, setAgents] = useState<Agent[]>([]);
 
   const [view, setView] = useState<View>('kanban');
@@ -35,19 +24,14 @@ export default function PipelinePage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    const [leadRes, dealRes, outreachRes, activityRes, agentRes] =
-      await Promise.all([
-        supabase.from('leads').select('*').order('score', { ascending: false }),
-        supabase.from('deals').select(DEAL_SELECT),
-        supabase.from('outreach').select('*'),
-        supabase.from('activities').select('*'),
-        supabase.from('agents').select('*').order('name'),
-      ]);
+    const [leadRes, outreachRes, agentRes] = await Promise.all([
+      supabase.from('leads').select('*').order('score', { ascending: false }),
+      supabase.from('outreach').select('*'),
+      supabase.from('agents').select('*').order('name'),
+    ]);
 
     setLeads((leadRes.data as Lead[]) ?? []);
-    setDeals((dealRes.data as unknown as DealWithRelations[]) ?? []);
     setOutreach((outreachRes.data as Outreach[]) ?? []);
-    setActivities((activityRes.data as Activity[]) ?? []);
     setAgents((agentRes.data as Agent[]) ?? []);
   }, []);
 
@@ -68,12 +52,26 @@ export default function PipelinePage() {
     };
   }, [router, load]);
 
+  async function handleStatusChange(id: string, status: string) {
+    const previous = leads;
+    // Optimistic update; revert if the write fails.
+    setLeads((cur) => cur.map((l) => (l.id === id ? { ...l, status } : l)));
+    const { error } = await supabase
+      .from('leads')
+      .update({ status })
+      .eq('id', id);
+    if (error) {
+      console.error('Status update failed:', error.message);
+      setLeads(previous);
+    }
+  }
+
   async function signOut() {
     await supabase.auth.signOut();
     router.replace('/login');
   }
 
-  const selected = deals.find((d) => d.id === selectedId) ?? null;
+  const selected = leads.find((l) => l.id === selectedId) ?? null;
 
   return (
     <main style={{ maxWidth: 1360, margin: '0 auto', padding: '40px 24px' }}>
@@ -91,19 +89,18 @@ export default function PipelinePage() {
         </p>
       ) : (
         <>
-          <StatsBar leads={leads} deals={deals} outreach={outreach} />
+          <StatsBar leads={leads} />
           {agentsOpen && <AgentPanel agents={agents} onRefresh={load} />}
 
           {view === 'kanban' ? (
-            <Kanban deals={deals} onSelect={(d) => setSelectedId(d.id)} />
+            <Kanban leads={leads} onSelect={(l) => setSelectedId(l.id)} />
           ) : (
-            <DealList deals={deals} onSelect={(d) => setSelectedId(d.id)} />
+            <PipelineTable leads={leads} onStatusChange={handleStatusChange} />
           )}
 
           <DealRecord
-            deal={selected}
+            lead={selected}
             outreach={outreach}
-            activities={activities}
             onClose={() => setSelectedId(null)}
             onRefresh={load}
           />

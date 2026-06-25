@@ -11,6 +11,7 @@ export interface Lead {
   status: string | null;
   jurisdiction: string | null;
   budget: string | null;
+  notes: string | null;
   date_found: string;
   outreach_drafted: boolean;
   outreach_approved: boolean;

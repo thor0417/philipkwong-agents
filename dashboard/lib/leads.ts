@@ -78,3 +78,18 @@ const STATUS_VALUES = new Set(STATUS_OPTIONS.map((o) => o.value));
 export function normalizeStatus(status: string | null): string {
   return status && STATUS_VALUES.has(status) ? status : 'new';
 }
+
+// Which kanban column a lead lands in, derived from its lifecycle status.
+// Several statuses fold onto the same column (reviewing + outreach_sent ->
+// Contacted). Stages with no mapped status simply render empty.
+const STATUS_TO_STAGE: Record<string, string> = {
+  new: 'new_lead',
+  reviewing: 'contacted',
+  outreach_sent: 'contacted',
+  won: 'won',
+  lost: 'lost',
+};
+
+export function leadStage(status: string | null): string {
+  return STATUS_TO_STAGE[normalizeStatus(status)] ?? 'new_lead';
+}
