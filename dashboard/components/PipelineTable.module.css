@@ -37,6 +37,10 @@
   white-space: nowrap;
 }
 
+.row {
+  cursor: pointer;
+}
+
 .row td {
   padding: 10px 12px;
   border-bottom: 0.5px solid var(--hairline);

@@ -95,7 +95,11 @@ export default function PipelinePage() {
           {view === 'kanban' ? (
             <Kanban leads={leads} onSelect={(l) => setSelectedId(l.id)} />
           ) : (
-            <PipelineTable leads={leads} onStatusChange={handleStatusChange} />
+            <PipelineTable
+              leads={leads}
+              onStatusChange={handleStatusChange}
+              onSelect={(l) => setSelectedId(l.id)}
+            />
           )}
 
           <DealRecord
