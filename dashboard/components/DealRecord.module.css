@@ -189,6 +189,13 @@
   margin: 4px 0 10px;
 }
 
+.overdue {
+  font-family: var(--font-dm-mono), monospace;
+  font-size: 11px;
+  color: var(--accent);
+  margin: 10px 0;
+}
+
 .draft {
   border: 0.5px solid var(--hairline);
   background: #fff;

@@ -111,6 +111,7 @@ function Body({
 
       <LeadDetails lead={lead} />
       <OutreachQueue drafts={drafts} onRefresh={onRefresh} />
+      <NextActionSection lead={lead} onRefresh={onRefresh} />
       <NotesSection lead={lead} onRefresh={onRefresh} />
     </>
   );
@@ -276,6 +277,72 @@ function DraftCard({
         </div>
       )}
     </div>
+  );
+}
+
+function NextActionSection({
+  lead,
+  onRefresh,
+}: {
+  lead: Lead;
+  onRefresh: () => void;
+}) {
+  const [text, setText] = useState(lead.next_action ?? '');
+  const [date, setDate] = useState(
+    lead.next_action_date ? lead.next_action_date.slice(0, 10) : ''
+  );
+  const [saving, setSaving] = useState(false);
+
+  // Overdue = the saved due date is strictly before today.
+  const overdue =
+    !!lead.next_action_date &&
+    new Date(lead.next_action_date).getTime() < Date.now();
+
+  async function save() {
+    setSaving(true);
+    await supabase
+      .from('leads')
+      .update({
+        next_action: text || null,
+        next_action_date: date ? new Date(date).toISOString() : null,
+      })
+      .eq('id', lead.id);
+    setSaving(false);
+    onRefresh();
+  }
+
+  return (
+    <Section title="Next Action">
+      <label className={styles.field}>
+        <span className={styles.fieldLabel}>Action</span>
+        <input
+          className={styles.inlineInput}
+          value={text}
+          placeholder="Describe the next step…"
+          onChange={(e) => setText(e.target.value)}
+        />
+      </label>
+      <label className={styles.field} style={{ marginTop: 12 }}>
+        <span className={styles.fieldLabel}>Due Date</span>
+        <input
+          className={styles.inlineInput}
+          type="date"
+          value={date}
+          onChange={(e) => setDate(e.target.value)}
+        />
+      </label>
+      {lead.next_action_date && (
+        <p className={overdue ? styles.overdue : styles.note}>
+          Due {formatDate(lead.next_action_date)}
+          {overdue ? ' — overdue' : ''}
+        </p>
+      )}
+      <div className={styles.draftActions}>
+        <button className={styles.save} onClick={save} disabled={saving}>
+          {saving ? 'Saving…' : 'Save Next Action'}
+        </button>
+      </div>
+    </Section>
   );
 }
 
