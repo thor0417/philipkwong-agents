@@ -1,13 +1,15 @@
 // Industry profile config for the scraper engine.
 //
-// Each profile pairs a set of relevance keywords with the sources to pull from,
-// a scoring floor, and a module tag. The orchestrator runs only profiles whose
-// `active` flag is true, fetches their `sources`, and tags every surviving lead
-// with the profile `module` and `name` (industry).
+// Each profile pairs relevance keywords with the sources to pull from, a scoring
+// floor, and a module tag. The orchestrator runs only profiles whose `active`
+// flag is true, fetches their `sources`, and tags every surviving lead with the
+// profile `module` and `name` (industry).
 //
 // Prefilter threshold is per-profile via `minKeywordMatches` (default 3 when
-// absent). The fuel profile drops to 1 because fuel tenders are terse and also
-// gated by the broker-noise filter and by HS/CPV procurement codes.
+// absent). All profiles run at 1: the keyword lists below mix domain phrases
+// with common single-word terms so a single hit lets a lead through to Haiku,
+// which is the real relevance gate. This keeps genuine tenders (whose wording
+// rarely contains three narrow phrases) from being filtered out for free.
 
 export interface IndustryProfile {
   // Stored on each lead as `industry`.
@@ -30,6 +32,35 @@ export interface IndustryProfile {
   cpvCodes?: string[];
 }
 
+// Source groupings. Tender portals + job boards (broadest reach), tender portals
+// only, and job boards only.
+const TENDER_AND_JOB = [
+  'canadabuys',
+  'adzuna',
+  'jooble',
+  'reed',
+  'careerjet',
+  'arbeitnow',
+  'samgov',
+  'tedeu',
+  'austender',
+  'uktenders',
+  'thailandgpp',
+  'gebiz',
+  'ungm',
+];
+const TENDER_SOURCES = [
+  'canadabuys',
+  'samgov',
+  'tedeu',
+  'austender',
+  'uktenders',
+  'thailandgpp',
+  'gebiz',
+  'ungm',
+];
+const JOB_SOURCES = ['adzuna', 'jooble', 'reed', 'careerjet', 'arbeitnow'];
+
 export const PROFILES: IndustryProfile[] = [
   {
     name: 'healthcare_pharma',
@@ -39,19 +70,25 @@ export const PROFILES: IndustryProfile[] = [
       'NAPRA',
       'FDA',
       'regulatory submission',
+      'regulatory',
       'pharmaceutical',
+      'pharma',
       'medical device',
       'ISO 13485',
       'quality assurance',
       'clinical',
       'natural health products',
       'nutraceutical',
+      'biotech',
+      'validation',
+      'compliance',
     ],
     excludeKeywords: [],
-    sources: ['canadabuys', 'adzuna', 'jooble', 'reed', 'careerjet', 'arbeitnow', 'samgov', 'tedeu', 'austender', 'uktenders', 'thailandgpp', 'gebiz', 'ungm'],
+    sources: TENDER_AND_JOB,
     minScore: 60,
     module: 'healthcare_pharma',
     active: true,
+    minKeywordMatches: 1,
   },
   {
     name: 'cannabis',
@@ -61,29 +98,39 @@ export const PROFILES: IndustryProfile[] = [
       'ACMPR',
       'Health Canada cannabis',
       'quality management cannabis',
+      'cannabis',
+      'cultivation',
+      'dispensary',
     ],
     excludeKeywords: [],
-    sources: ['canadabuys', 'adzuna', 'jooble', 'careerjet', 'arbeitnow'],
+    sources: ['canadabuys', 'adzuna', 'jooble', 'careerjet', 'arbeitnow', 'ungm'],
     minScore: 60,
     module: 'cannabis',
     active: true,
+    minKeywordMatches: 1,
   },
   {
     name: 'technology_ai',
     keywords: [
       'AI implementation',
+      'AI',
+      'artificial intelligence',
       'automation',
       'digital transformation',
+      'digital',
       'technology strategy',
       'AI governance',
       'machine learning',
       'process automation',
+      'software',
+      'analytics',
     ],
     excludeKeywords: [],
-    sources: ['canadabuys', 'adzuna', 'jooble', 'reed', 'careerjet', 'arbeitnow', 'samgov', 'tedeu', 'austender', 'uktenders', 'thailandgpp', 'gebiz', 'ungm'],
+    sources: TENDER_AND_JOB,
     minScore: 60,
     module: 'technology_ai',
     active: true,
+    minKeywordMatches: 1,
   },
   {
     name: 'construction_infrastructure',
@@ -92,84 +139,110 @@ export const PROFILES: IndustryProfile[] = [
       'quality control',
       'ISO 9001',
       'standards compliance',
+      'standards',
       'feasibility study',
+      'feasibility',
       'infrastructure',
+      'engineering',
     ],
     excludeKeywords: [],
-    sources: ['canadabuys', 'samgov', 'tedeu', 'austender', 'uktenders', 'thailandgpp', 'gebiz', 'ungm'],
+    sources: TENDER_SOURCES,
     minScore: 60,
     module: 'construction_infrastructure',
     active: true,
+    minKeywordMatches: 1,
   },
   {
     name: 'financial_services',
     keywords: [
       'regulatory compliance',
+      'compliance',
       'risk management',
+      'risk',
       'audit',
       'governance',
       'AML',
       'fintech compliance',
+      'fintech',
       'KYC',
+      'financial',
     ],
     excludeKeywords: [],
-    sources: ['canadabuys', 'adzuna', 'jooble', 'reed', 'careerjet', 'arbeitnow', 'samgov', 'tedeu', 'austender', 'uktenders', 'thailandgpp', 'gebiz', 'ungm'],
+    sources: TENDER_AND_JOB,
     minScore: 60,
     module: 'financial_services',
     active: true,
+    minKeywordMatches: 1,
   },
   {
     name: 'food_beverage_hospitality',
     keywords: [
       'feasibility study',
+      'feasibility',
       'F&B',
       'food safety',
+      'food',
       'HACCP',
       'hospitality',
       'amusement',
       'leisure',
       'restaurant concept',
+      'restaurant',
+      'catering',
+      'tourism',
       'market study',
     ],
     excludeKeywords: [],
-    sources: ['canadabuys', 'adzuna', 'jooble', 'reed', 'careerjet', 'arbeitnow', 'samgov', 'tedeu', 'austender', 'uktenders', 'thailandgpp', 'gebiz', 'ungm'],
+    sources: TENDER_AND_JOB,
     minScore: 60,
     module: 'food_beverage_hospitality',
     active: true,
+    minKeywordMatches: 1,
   },
   {
     name: 'web_digital',
     keywords: [
       'website',
       'web design',
+      'web development',
+      'web',
       'digital presence',
+      'digital',
       'SEO',
       'redesign',
       'no website',
-      'web development',
+      'ecommerce',
+      'marketing',
+      'branding',
     ],
     excludeKeywords: [],
-    sources: ['adzuna', 'jooble', 'reed', 'careerjet', 'arbeitnow'],
+    sources: JOB_SOURCES,
     minScore: 60,
     module: 'web_digital',
     active: true,
+    minKeywordMatches: 1,
   },
   {
     name: 'general_consulting',
     keywords: [
       'strategy',
+      'strategic',
       'market entry',
       'business development',
       'advisory',
+      'consulting',
+      'consultant',
       'fractional',
       'interim',
       'transformation',
+      'feasibility',
     ],
     excludeKeywords: [],
-    sources: ['canadabuys', 'adzuna', 'jooble', 'reed', 'careerjet', 'arbeitnow', 'samgov', 'tedeu', 'austender', 'uktenders', 'thailandgpp', 'gebiz', 'ungm'],
+    sources: TENDER_AND_JOB,
     minScore: 60,
     module: 'general_consulting',
     active: true,
+    minKeywordMatches: 1,
   },
   {
     name: 'fuel_tenders',
@@ -182,6 +255,15 @@ export const PROFILES: IndustryProfile[] = [
       'petroleum supply',
       'fuel management',
       'bulk fuel',
+      'diesel',
+      'gasoline',
+      'petroleum',
+      'kerosene',
+      'jet fuel',
+      'marine fuel',
+      'natural gas',
+      'fuel oil',
+      'fuel supply',
     ],
     excludeKeywords: [
       'ICPO',
@@ -199,7 +281,7 @@ export const PROFILES: IndustryProfile[] = [
       'Rotterdam allocation',
       'performance bond',
     ],
-    sources: ['canadabuys', 'samgov', 'tedeu', 'austender', 'uktenders', 'thailandgpp', 'gebiz', 'ungm'],
+    sources: TENDER_SOURCES,
     minScore: 60,
     module: 'fuel_tenders',
     active: true,
