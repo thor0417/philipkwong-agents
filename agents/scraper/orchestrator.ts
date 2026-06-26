@@ -194,6 +194,26 @@ export async function orchestrate(): Promise<ScrapeReport> {
     source: p.lead.source,
     industry: p.profile.name,
   }));
+  // DRY_RUN=1 measures volume without spending: skip Haiku scoring and writes.
+  if (process.env.DRY_RUN === '1') {
+    console.log(`DRY_RUN: ${prepared.length} leads would be scored by Haiku (skipped).`);
+    return {
+      fetchedPerSource,
+      totalFetched: all.length,
+      deduped: deduped.length,
+      prefilterFiltered,
+      brokerExcluded,
+      scored: prepared.length,
+      written: 0,
+      writtenPerSource: {},
+      writtenPerModule: {},
+      writtenPerIndustry: {},
+      fuelFound,
+      fuelBrokerExcluded,
+      fuelReachedHaiku,
+    };
+  }
+
   const scores = await scoreLeads(inputs);
 
   // DEBUG_SCORES=1 prints every scored lead (pre-threshold, high to low).
