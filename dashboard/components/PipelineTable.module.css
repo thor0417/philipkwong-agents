@@ -150,23 +150,6 @@
   border-color: var(--accent);
 }
 
-.view {
-  font-family: var(--font-dm-mono), monospace;
-  font-size: 10px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  text-decoration: none;
-  color: var(--ink);
-  border: 0.5px solid var(--ink);
-  padding: 5px 12px;
-  white-space: nowrap;
-}
-
-.view:hover {
-  background: var(--ink);
-  color: var(--bg);
-}
-
 .expand td {
   background: rgba(10, 10, 10, 0.03);
   padding: 16px;
