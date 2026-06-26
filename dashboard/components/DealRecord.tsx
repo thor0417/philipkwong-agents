@@ -110,6 +110,7 @@ function Body({
       </div>
 
       <LeadDetails lead={lead} />
+      <LeadDetailSection lead={lead} />
       <OutreachQueue drafts={drafts} onRefresh={onRefresh} />
       <NextActionSection lead={lead} onRefresh={onRefresh} />
       <NotesSection lead={lead} onRefresh={onRefresh} />
@@ -162,6 +163,51 @@ function LeadDetails({ lead }: { lead: Lead }) {
           View source
         </a>
       )}
+    </Section>
+  );
+}
+
+// Scraper-engine fields. Each row renders only when its value is non-null and
+// non-empty (matched_counterparty renders Yes/No, but is skipped when null).
+function LeadDetailSection({ lead }: { lead: Lead }) {
+  const rows: { label: string; value: string }[] = [];
+  const push = (label: string, value: string | null | undefined) => {
+    if (value !== null && value !== undefined && value !== '') {
+      rows.push({ label, value });
+    }
+  };
+
+  push('Module', lead.module);
+  push('Industry', lead.industry);
+  push('Region', lead.region);
+  push('Lead Type', lead.lead_type);
+  push('Company', lead.company);
+  push('Deadline', lead.deadline ? lead.deadline.slice(0, 10) : null);
+  push('Value Estimate', lead.value_estimate);
+  push('Location', lead.location);
+  push('License Type', lead.license_type);
+  push('Port', lead.port);
+  push(
+    'Matched Counterparty',
+    lead.matched_counterparty === null || lead.matched_counterparty === undefined
+      ? null
+      : lead.matched_counterparty
+        ? 'Yes'
+        : 'No'
+  );
+
+  if (rows.length === 0) return null;
+
+  return (
+    <Section title="Lead Detail">
+      <div className={styles.grid}>
+        {rows.map((r) => (
+          <div key={r.label} className={styles.field}>
+            <span className={styles.fieldLabel}>{r.label}</span>
+            <span className={styles.tag}>{r.value}</span>
+          </div>
+        ))}
+      </div>
     </Section>
   );
 }
