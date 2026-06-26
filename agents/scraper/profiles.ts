@@ -26,10 +26,12 @@ export interface IndustryProfile {
   active: boolean;
   // Prefilter keyword-match threshold. Defaults to 3 when omitted.
   minKeywordMatches?: number;
-  // Fuel only: HS commodity codes for code-driven tender matching.
-  hsCodes?: string[];
-  // CPV procurement codes passed to code-aware tender sources (e.g. TED EU).
-  cpvCodes?: string[];
+  // Code systems by family, routed by source: CPV is European (TED / TenderNed
+  // only), UNSPSC is for Singapore (GeBIZ) and UNGM, HS is customs (phase 2,
+  // unused). Never send CPV to GeBIZ or any non-European source.
+  tscodes?: { cpv?: string[]; unspsc?: string[]; hs?: string[] };
+  // ISO region codes this profile targets (e.g. ['NL', 'SG']).
+  regions?: string[];
 }
 
 // Source groupings. Tender portals + job boards (broadest reach), tender portals
@@ -281,13 +283,21 @@ export const PROFILES: IndustryProfile[] = [
       'Rotterdam allocation',
       'performance bond',
     ],
-    sources: TENDER_SOURCES,
+    // TenderNed (NL) added alongside the shared tender sources for Rotterdam.
+    sources: [...TENDER_SOURCES, 'tenderned'],
     minScore: 60,
-    module: 'fuel_tenders',
+    module: 'fuel',
     active: true,
     minKeywordMatches: 1,
-    hsCodes: ['2709', '2710', '271012', '271019'],
-    cpvCodes: ['09100000', '09130000', '09132000', '09134000'],
+    regions: ['NL', 'SG'],
+    tscodes: {
+      // CPV: Rotterdam (TED / TenderNed) only.
+      cpv: ['09100000', '09130000', '09131000', '09132000', '09134000', '09134100', '09134200'],
+      // UNSPSC: Singapore (GeBIZ) and UNGM.
+      unspsc: ['15100000', '15101500', '15101505', '15101506', '15101508', '15101509'],
+      // HS: customs, phase 2 only. Not used yet.
+      hs: ['2709', '2710', '271012', '271019', '2711'],
+    },
   },
 ];
 

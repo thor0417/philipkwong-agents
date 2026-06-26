@@ -36,7 +36,7 @@ import { scrapeGeBiz } from './sources/gebiz';
 import { scrapeUngm } from './sources/ungm';
 import { scrapeGooglePlaces } from './sources/googleplaces';
 
-const FUEL_MODULE = 'fuel_tenders';
+const FUEL_MODULE = 'fuel';
 const AGENT_NAME = 'lead-scraper';
 
 // CPV codes for TED EU are profile-driven: fuel profile contributes its own
@@ -46,7 +46,7 @@ function tedCpvCodes(profiles: IndustryProfile[]): string[] {
   const codes = new Set<string>();
   for (const p of profiles) {
     if (!p.sources.includes('tedeu')) continue;
-    if (p.module === FUEL_MODULE) (p.cpvCodes ?? []).forEach((c) => codes.add(c));
+    if (p.module === FUEL_MODULE) (p.tscodes?.cpv ?? []).forEach((c) => codes.add(c));
     else CONSULTING_CPV_CODES.forEach((c) => codes.add(c));
   }
   return [...codes];
