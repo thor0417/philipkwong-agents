@@ -16,6 +16,20 @@ export interface NormalizedLead {
   source: string;
 }
 
+// Track B: registry leads. Entities licensed to physically handle fuel.
+// These skip the broker-filter and Haiku scoring (licensed = legitimate) and
+// are written with a fixed baseline score.
+export interface RegistryLead {
+  company: string;
+  license_type: string; // 'bunker supplier' | 'bunker craft operator' | 'terminal operator'
+  port: string;
+  region: string; // 'NL' | 'SG'
+  status: string;
+  url: string;
+  source: string;
+  raw_content: string;
+}
+
 // Parse a loosely-formatted date into an ISO string, or null if unusable.
 export function toIso(value: string | undefined | null): string | null {
   if (!value) return null;
