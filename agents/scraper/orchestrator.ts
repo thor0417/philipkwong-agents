@@ -20,6 +20,8 @@ import {
 import { bestProfileFor, passesPrefilter } from './prefilter';
 import { isBrokerNoise } from './broker-filter';
 import { scoreLeads, type ScorerInput } from './scorer';
+import { crossReference, normalizeCompany } from './cross-reference';
+import type { RegistryLead } from './sources/types';
 
 import { scrapeCanadaBuys } from './sources/canadabuys';
 import { scrapeAdzuna } from './sources/adzuna';
@@ -35,9 +37,40 @@ import { scrapeThailandGpp } from './sources/thailandgpp';
 import { scrapeGeBiz } from './sources/gebiz';
 import { scrapeUngm } from './sources/ungm';
 import { scrapeGooglePlaces } from './sources/googleplaces';
+import { scrapeTenderNed } from './sources/tenderned';
+import { scrapeMpaRegistry } from './sources/mpa';
+import { scrapeRotterdamRegistry } from './sources/portofrotterdam';
 
 const FUEL_MODULE = 'fuel';
 const AGENT_NAME = 'lead-scraper';
+// Fixed baseline score for Track B registry leads (licensed = legitimate).
+const REGISTRY_BASELINE = 70;
+
+// Region tag per source for tender leads.
+const SOURCE_REGION: Record<string, string> = {
+  tenderned: 'NL',
+  tedeu: 'EU',
+  gebiz: 'SG',
+  ungm: 'GLOBAL',
+  canadabuys: 'CA',
+  adzuna: 'CA',
+  jooble: 'CA',
+  reed: 'UK',
+  careerjet: 'CA',
+  arbeitnow: 'EU',
+  samgov: 'US',
+  austender: 'AU',
+  uktenders: 'UK',
+  thailandgpp: 'TH',
+  googleplaces: 'GLOBAL',
+};
+const regionOf = (source: string): string => SOURCE_REGION[source] ?? 'GLOBAL';
+
+// Fuel CPV codes only (for TenderNed, which is fuel/Rotterdam-specific).
+function fuelCpvCodes(profiles: IndustryProfile[]): string[] {
+  const fuel = profiles.find((p) => p.module === FUEL_MODULE);
+  return fuel?.tscodes?.cpv ?? [];
+}
 
 // CPV codes for TED EU are profile-driven: fuel profile contributes its own
 // codes, consulting profiles contribute the consulting set. The adapter is
@@ -80,6 +113,8 @@ function fetchSource(id: string, profiles: IndustryProfile[]): Promise<Normalize
       return scrapeGeBiz();
     case 'ungm':
       return scrapeUngm();
+    case 'tenderned':
+      return scrapeTenderNed(fuelCpvCodes(profiles));
     case 'googleplaces':
       return scrapeGooglePlaces();
     default:
@@ -109,9 +144,17 @@ export interface ScrapeReport {
   writtenPerSource: Record<string, number>;
   writtenPerModule: Record<string, number>;
   writtenPerIndustry: Record<string, number>;
+  writtenPerRegion: Record<string, number>;
+  writtenPerLeadType: Record<string, number>;
   fuelFound: number;
   fuelBrokerExcluded: number;
   fuelReachedHaiku: number;
+  // Track B registry pass.
+  registryWritten: number;
+  registryPerSource: Record<string, number>;
+  registryPerRegion: Record<string, number>;
+  // Cross-reference post-pass.
+  matchedCounterparty: number;
 }
 
 const inc = (m: Record<string, number>, k: string): void => {
@@ -144,7 +187,19 @@ export async function orchestrate(): Promise<ScrapeReport> {
   for (const l of all) {
     if (l.url && !dedupedMap.has(l.url)) dedupedMap.set(l.url, l);
   }
-  const deduped = [...dedupedMap.values()];
+  let deduped = [...dedupedMap.values()];
+
+  // 2b. NL publishes to both TED and TenderNed. Drop TenderNed rows whose
+  // normalized title + buyer already appears in a TED row.
+  const xKey = (l: NormalizedLead): string =>
+    `${normalizeCompany(l.title)}|${normalizeCompany(l.company ?? '')}`;
+  const tedKeys = new Set(deduped.filter((l) => l.source === 'tedeu').map(xKey));
+  const beforeXdedupe = deduped.length;
+  deduped = deduped.filter((l) => !(l.source === 'tenderned' && tedKeys.has(xKey(l))));
+  const tenderNedDropped = beforeXdedupe - deduped.length;
+  if (tenderNedDropped > 0) {
+    console.log(`TenderNed: ${tenderNedDropped} rows dropped as duplicates of TED.`);
+  }
 
   // 3. Per-lead: profile match -> fuel tag -> broker-filter -> prefilter.
   const fuelProfile = profiles.find((p) => p.module === FUEL_MODULE);
@@ -208,9 +263,15 @@ export async function orchestrate(): Promise<ScrapeReport> {
       writtenPerSource: {},
       writtenPerModule: {},
       writtenPerIndustry: {},
+      writtenPerRegion: {},
+      writtenPerLeadType: {},
       fuelFound,
       fuelBrokerExcluded,
       fuelReachedHaiku,
+      registryWritten: 0,
+      registryPerSource: {},
+      registryPerRegion: {},
+      matchedCounterparty: 0,
     };
   }
 
@@ -231,16 +292,19 @@ export async function orchestrate(): Promise<ScrapeReport> {
     console.log('--- end scored leads ---');
   }
 
-  // 5. Write leads scoring >= the matched profile's minScore.
+  // 5. Write tender leads scoring >= the matched profile's minScore.
   const writtenPerSource: Record<string, number> = {};
   const writtenPerModule: Record<string, number> = {};
   const writtenPerIndustry: Record<string, number> = {};
+  const writtenPerRegion: Record<string, number> = {};
+  const writtenPerLeadType: Record<string, number> = {};
   let written = 0;
 
   for (let i = 0; i < prepared.length; i++) {
     const { lead, profile } = prepared[i];
     const { score, score_reason } = scores[i];
     if (score < profile.minScore) continue;
+    const region = regionOf(lead.source);
 
     const { error } = await supabaseAdmin.from('leads').upsert(
       {
@@ -257,6 +321,8 @@ export async function orchestrate(): Promise<ScrapeReport> {
         location: lead.location,
         deadline: lead.deadline,
         value_estimate: lead.value_estimate,
+        lead_type: 'tender',
+        region,
       },
       { onConflict: 'url' }
     );
@@ -268,7 +334,19 @@ export async function orchestrate(): Promise<ScrapeReport> {
     inc(writtenPerSource, lead.source);
     inc(writtenPerModule, profile.module);
     inc(writtenPerIndustry, profile.name);
+    inc(writtenPerRegion, region);
+    inc(writtenPerLeadType, 'tender');
   }
+
+  // 6. Track B registry pass: separate write path, no broker-filter, no Haiku.
+  const registry = await runRegistryPass();
+  for (const region of Object.keys(registry.perRegion)) {
+    writtenPerRegion[region] = (writtenPerRegion[region] ?? 0) + registry.perRegion[region];
+  }
+  if (registry.written > 0) writtenPerLeadType['registry'] = registry.written;
+
+  // 7. Cross-reference post-pass: match registries against tenders.
+  const xref = await crossReference();
 
   return {
     fetchedPerSource,
@@ -281,10 +359,74 @@ export async function orchestrate(): Promise<ScrapeReport> {
     writtenPerSource,
     writtenPerModule,
     writtenPerIndustry,
+    writtenPerRegion,
+    writtenPerLeadType,
     fuelFound,
     fuelBrokerExcluded,
     fuelReachedHaiku,
+    registryWritten: registry.written,
+    registryPerSource: registry.perSource,
+    registryPerRegion: registry.perRegion,
+    matchedCounterparty: xref.matched,
   };
+}
+
+interface RegistryPassResult {
+  written: number;
+  perSource: Record<string, number>;
+  perRegion: Record<string, number>;
+}
+
+// Fetch and write Track B registry leads. Licensed entities are legitimate by
+// definition: no broker-filter, no Haiku, written with a fixed baseline score.
+async function runRegistryPass(): Promise<RegistryPassResult> {
+  const settled = await Promise.allSettled([scrapeMpaRegistry(), scrapeRotterdamRegistry()]);
+  const all: RegistryLead[] = [];
+  for (const r of settled) {
+    if (r.status === 'fulfilled') all.push(...r.value);
+    else console.error('Registry source failed:', r.reason);
+  }
+
+  // Dedupe by URL (unique per company).
+  const byUrl = new Map<string, RegistryLead>();
+  for (const l of all) {
+    if (l.url && !byUrl.has(l.url)) byUrl.set(l.url, l);
+  }
+
+  const perSource: Record<string, number> = {};
+  const perRegion: Record<string, number> = {};
+  let written = 0;
+  for (const l of byUrl.values()) {
+    const { error } = await supabaseAdmin.from('leads').upsert(
+      {
+        source: l.source,
+        url: l.url,
+        title: l.company,
+        raw_content: l.raw_content,
+        score: REGISTRY_BASELINE,
+        score_reason: 'Licensed fuel entity (Track B registry); not Haiku-scored.',
+        status: 'new',
+        module: FUEL_MODULE,
+        industry: 'fuel_supply',
+        company: l.company,
+        location: l.port,
+        lead_type: 'registry',
+        license_type: l.license_type,
+        port: l.port,
+        region: l.region,
+      },
+      { onConflict: 'url' }
+    );
+    if (error) {
+      console.error(`Registry write failed for ${l.url}: ${error.message}`);
+      continue;
+    }
+    written++;
+    inc(perSource, l.source);
+    inc(perRegion, l.region);
+  }
+  console.log(`Registry pass: wrote ${written} registry leads.`);
+  return { written, perSource, perRegion };
 }
 
 function printReport(r: ScrapeReport): void {
@@ -310,6 +452,17 @@ function printReport(r: ScrapeReport): void {
   console.log(table(r.writtenPerModule));
   console.log('Written per industry:');
   console.log(table(r.writtenPerIndustry));
+  console.log('Written per region:');
+  console.log(table(r.writtenPerRegion));
+  console.log('Written per lead_type:');
+  console.log(table(r.writtenPerLeadType));
+  console.log('--- Track B registry ---');
+  console.log(`  Registry leads written: ${r.registryWritten}`);
+  console.log('  Registry per source:');
+  console.log(table(r.registryPerSource));
+  console.log('  Registry per region:');
+  console.log(table(r.registryPerRegion));
+  console.log(`Matched counterparty (registry <-> tender): ${r.matchedCounterparty}`);
   console.log('--- Fuel module ---');
   console.log(`  Fuel tenders found:          ${r.fuelFound}`);
   console.log(`  Excluded by broker-filter:   ${r.fuelBrokerExcluded}`);
