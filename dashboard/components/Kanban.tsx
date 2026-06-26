@@ -74,6 +74,12 @@ function LeadCard({
       <div className={styles.tags}>
         <span className={styles.tag}>{sourceLabel(lead.source)}</span>
       </div>
+      {(lead.module || lead.region) && (
+        <div className={styles.cardFoot}>
+          {lead.module && <span className={styles.meta}>{lead.module}</span>}
+          {lead.region && <span className={styles.meta}>{lead.region}</span>}
+        </div>
+      )}
     </button>
   );
 }
