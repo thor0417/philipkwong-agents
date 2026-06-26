@@ -1,5 +1,6 @@
 'use client';
 
+import { useMemo, useState } from 'react';
 import type { Lead } from '@/lib/types';
 import {
   STATUS_OPTIONS,
@@ -21,9 +22,21 @@ const COLUMNS = [
   'Budget',
   'Closing',
   'Found',
+  'Module',
+  'Industry',
+  'Region',
+  'Lead Type',
+  'Company',
+  'Deadline',
+  'Value',
   'Status',
   'Posting',
 ];
+
+// Null/empty cell placeholder.
+function dash(value: string | null | undefined): string {
+  return value === null || value === undefined || value === '' ? '--' : value;
+}
 
 export default function PipelineTable({
   leads,
@@ -34,11 +47,71 @@ export default function PipelineTable({
   onStatusChange: (id: string, status: string) => void;
   onSelect: (lead: Lead) => void;
 }) {
+  const [moduleFilter, setModuleFilter] = useState('all');
+  const [regionFilter, setRegionFilter] = useState('all');
+  const [leadTypeFilter, setLeadTypeFilter] = useState('all');
+
+  // Distinct module / region values present in the data.
+  const modules = useMemo(() => {
+    const set = new Set<string>();
+    leads.forEach((l) => l.module && set.add(l.module));
+    return Array.from(set).sort();
+  }, [leads]);
+  const regions = useMemo(() => {
+    const set = new Set<string>();
+    leads.forEach((l) => l.region && set.add(l.region));
+    return Array.from(set).sort();
+  }, [leads]);
+
+  // Client-side filtering of displayed rows.
+  const rows = useMemo(
+    () =>
+      leads.filter((l) => {
+        if (moduleFilter !== 'all' && l.module !== moduleFilter) return false;
+        if (regionFilter !== 'all' && l.region !== regionFilter) return false;
+        if (leadTypeFilter !== 'all' && l.lead_type !== leadTypeFilter) return false;
+        return true;
+      }),
+    [leads, moduleFilter, regionFilter, leadTypeFilter]
+  );
+
   return (
     <section className={styles.wrap}>
       <div className={styles.heading}>
-        <span className="bracket">[</span> Pipeline — {leads.length} leads{' '}
+        <span className="bracket">[</span> Pipeline — {rows.length} leads{' '}
         <span className="bracket">]</span>
+      </div>
+      <div className={styles.controls}>
+        <label className={styles.control}>
+          <span>Module</span>
+          <select value={moduleFilter} onChange={(e) => setModuleFilter(e.target.value)}>
+            <option value="all">All</option>
+            {modules.map((m) => (
+              <option key={m} value={m}>
+                {m}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className={styles.control}>
+          <span>Region</span>
+          <select value={regionFilter} onChange={(e) => setRegionFilter(e.target.value)}>
+            <option value="all">All</option>
+            {regions.map((r) => (
+              <option key={r} value={r}>
+                {r}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className={styles.control}>
+          <span>Lead Type</span>
+          <select value={leadTypeFilter} onChange={(e) => setLeadTypeFilter(e.target.value)}>
+            <option value="all">All</option>
+            <option value="tender">tender</option>
+            <option value="registry">registry</option>
+          </select>
+        </label>
       </div>
       <div className={styles.scroll}>
         <table className={styles.table}>
@@ -50,14 +123,14 @@ export default function PipelineTable({
             </tr>
           </thead>
           <tbody>
-            {leads.length === 0 && (
+            {rows.length === 0 && (
               <tr>
                 <td className={styles.empty} colSpan={COLUMNS.length}>
                   No leads yet. Run the scraper to populate.
                 </td>
               </tr>
             )}
-            {leads.map((lead) => (
+            {rows.map((lead) => (
               <LeadRow
                 key={lead.id}
                 lead={lead}
@@ -100,6 +173,13 @@ function LeadRow({
       <td className={styles.meta}>{lead.budget ?? '—'}</td>
       <td className={styles.meta}>{leadClosing(lead)}</td>
       <td className={styles.meta}>{formatDate(lead.date_found)}</td>
+      <td className={styles.meta}>{dash(lead.module)}</td>
+      <td className={styles.meta}>{dash(lead.industry)}</td>
+      <td className={styles.meta}>{dash(lead.region)}</td>
+      <td className={styles.meta}>{dash(lead.lead_type)}</td>
+      <td className={styles.meta}>{dash(lead.company)}</td>
+      <td className={styles.meta}>{lead.deadline ? lead.deadline.slice(0, 10) : '--'}</td>
+      <td className={styles.meta}>{dash(lead.value_estimate)}</td>
       <td>
         {/* Stop propagation so changing status does not open the panel. */}
         <select
