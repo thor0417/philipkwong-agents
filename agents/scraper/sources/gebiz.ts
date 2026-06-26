@@ -1,14 +1,27 @@
 // Singapore GeBIZ source (gebiz.gov.sg business opportunity listing).
 //
+// CODE SYSTEM: Singapore uses UNSPSC + English keywords. NEVER send CPV codes
+// here (CPV is European, Rotterdam-only). This adapter accepts codes.unspsc and
+// keywords; it never accepts CPV.
+//
 // FRAGILE / best-effort. GeBIZ is a JSF app: pagination and detail pages happen
 // via postback (no GET detail URL), so only the first page of most-recent
-// opportunities is reachable statically. That page DOES carry, per card, the
-// title+reference, agency, date, and procurement category, which is enough for a
-// lead. The per-notice URL is synthesized from the reference (anchored on the
-// listing page) since GeBIZ exposes no stable GET detail link. On any parse
-// failure this logs and returns [] without throwing.
+// opportunities is reachable statically, and that page is not UNSPSC-queryable
+// over GET. So UNSPSC is the declared/retained code system (used by UNGM and the
+// GeBIZ advanced-search path) while relevance over the scraped listing is
+// applied via English keywords: when `keywords` are passed the cards are
+// filtered to keyword matches, otherwise the full first page is returned for the
+// orchestrator's per-profile prefilter. On any parse failure: log + [].
 
 import type { NormalizedLead } from './types';
+
+export interface GeBizOptions {
+  // UNSPSC codes for Singapore (declared/retained; the open listing is not
+  // code-queryable over GET). Never CPV.
+  unspsc?: string[];
+  // English keywords; when present, parsed cards are filtered to matches.
+  keywords?: string[];
+}
 
 const LISTING_URL =
   process.env.GEBIZ_URL ?? 'https://www.gebiz.gov.sg/ptn/opportunity/BOListing.xhtml?origin=menu';
@@ -24,7 +37,12 @@ function reference(title: string): string | null {
   return m ? m[1] : null;
 }
 
-export async function scrapeGeBiz(): Promise<NormalizedLead[]> {
+export async function scrapeGeBiz(opts: GeBizOptions = {}): Promise<NormalizedLead[]> {
+  if (opts.unspsc?.length) {
+    console.log(`GeBIZ: code system UNSPSC (${opts.unspsc.length} codes); CPV is never used here.`);
+  }
+  const kw = (opts.keywords ?? []).map((k) => k.toLowerCase()).filter(Boolean);
+
   let html: string;
   try {
     const res = await fetch(LISTING_URL, { headers: { 'User-Agent': UA } });
@@ -53,6 +71,12 @@ export async function scrapeGeBiz(): Promise<NormalizedLead[]> {
     const agency = vals[0] || null;
     const date = vals[1] || '';
     const category = vals[2] || '';
+
+    // English-keyword relevance filter (when configured).
+    if (kw.length) {
+      const hay = `${title} ${category} ${agency ?? ''}`.toLowerCase();
+      if (!kw.some((k) => hay.includes(k))) continue;
+    }
 
     const ref = reference(title);
     const url = `${LISTING_URL}#${encodeURIComponent(ref ?? title)}`;
