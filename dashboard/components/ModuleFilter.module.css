@@ -1,0 +1,35 @@
+.strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0;
+  margin-top: 24px;
+  border: 0.5px solid var(--hairline);
+  background: #fff;
+}
+
+.btn {
+  font-family: var(--font-dm-mono), monospace;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  background: #fff;
+  border: none;
+  border-right: 0.5px solid var(--hairline);
+  border-radius: 0;
+  padding: 10px 16px;
+  cursor: pointer;
+}
+
+.btn:last-child {
+  border-right: none;
+}
+
+.btn:hover {
+  color: var(--ink);
+}
+
+.active {
+  color: var(--accent);
+  background: rgba(179, 71, 0, 0.08);
+}

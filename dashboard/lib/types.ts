@@ -18,6 +18,18 @@ export interface Lead {
   outreach_drafted: boolean;
   outreach_approved: boolean;
   outreach_sent: boolean;
+  // Scraper engine fields (populated by agents/scraper).
+  module: string | null;
+  industry: string | null;
+  region: string | null;
+  lead_type: string | null;
+  company: string | null;
+  deadline: string | null;
+  value_estimate: string | null;
+  location: string | null;
+  license_type: string | null;
+  port: string | null;
+  matched_counterparty: boolean | null;
 }
 
 export interface Agent {

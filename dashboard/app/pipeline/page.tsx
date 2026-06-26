@@ -13,6 +13,7 @@ import PipelineTable from '@/components/PipelineTable';
 import Filters, { EMPTY_FILTERS, type LeadFilters } from '@/components/Filters';
 import OutreachQueue from '@/components/OutreachQueue';
 import DealRecord from '@/components/DealRecord';
+import ModuleFilter, { matchesModule, type ModuleKey } from '@/components/ModuleFilter';
 
 export default function PipelinePage() {
   const router = useRouter();
@@ -26,6 +27,13 @@ export default function PipelinePage() {
   const [agentsOpen, setAgentsOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [filters, setFilters] = useState<LeadFilters>(EMPTY_FILTERS);
+  const [activeModule, setActiveModule] = useState<ModuleKey>('all');
+
+  // Module filter applies to the leads array before it reaches any child view.
+  const moduleLeads = useMemo(
+    () => leads.filter((l) => matchesModule(l, activeModule)),
+    [leads, activeModule]
+  );
 
   // Distinct sources present, for the source filter dropdown.
   const sources = useMemo(() => {
@@ -38,7 +46,7 @@ export default function PipelinePage() {
   const filteredLeads = useMemo(() => {
     const q = filters.q.trim().toLowerCase();
     const min = filters.minScore.trim() === '' ? 0 : Number(filters.minScore);
-    return leads.filter((l) => {
+    return moduleLeads.filter((l) => {
       if (q) {
         const haystack = `${l.title ?? ''} ${leadOrg(l)}`.toLowerCase();
         if (!haystack.includes(q)) return false;
@@ -52,7 +60,7 @@ export default function PipelinePage() {
       if (!Number.isNaN(min) && (l.score ?? 0) < min) return false;
       return true;
     });
-  }, [leads, filters]);
+  }, [moduleLeads, filters]);
 
   const load = useCallback(async () => {
     const [leadRes, outreachRes, agentRes] = await Promise.all([
@@ -120,11 +128,12 @@ export default function PipelinePage() {
         </p>
       ) : (
         <>
-          <StatsBar leads={leads} outreach={outreach} />
+          <ModuleFilter active={activeModule} onChange={setActiveModule} />
+          <StatsBar leads={moduleLeads} outreach={outreach} />
           {agentsOpen && <AgentPanel agents={agents} onRefresh={load} />}
 
           {view === 'kanban' ? (
-            <Kanban leads={leads} onSelect={(l) => setSelectedId(l.id)} />
+            <Kanban leads={moduleLeads} onSelect={(l) => setSelectedId(l.id)} />
           ) : (
             <>
               <Filters
