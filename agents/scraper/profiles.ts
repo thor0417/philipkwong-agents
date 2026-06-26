@@ -285,7 +285,11 @@ export const PROFILES: IndustryProfile[] = [
     ],
     // TenderNed (NL) added alongside the shared tender sources for Rotterdam.
     sources: [...TENDER_SOURCES, 'tenderned'],
-    minScore: 60,
+    // Lower than the consulting floor: Haiku scores fuel-supply procurement
+    // modestly (Philip advises buyers, he is not the supplier), so 40 captures
+    // genuine fuel tenders for the cross-reference pass while broker noise is
+    // already removed upstream by the broker-filter.
+    minScore: 40,
     module: 'fuel',
     active: true,
     minKeywordMatches: 1,
