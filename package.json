@@ -9,6 +9,7 @@
   },
   "scripts": {
     "scrape:leads": "node --env-file=.env.local --import tsx agents/lead-scraper/index.ts",
+    "scrape:all": "node --env-file=.env.local --import tsx agents/scraper/orchestrator.ts",
     "intake": "node --env-file=.env.local --import tsx agents/intake-agent/index.ts",
     "typecheck": "tsc --noEmit"
   },
