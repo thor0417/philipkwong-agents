@@ -34,3 +34,34 @@
   color: var(--muted);
   margin-top: 10px;
 }
+
+/* Compact per-module / per-region count rows. No cards. */
+.countsRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding: 10px 22px;
+  border: 0.5px solid var(--hairline);
+  border-top: none;
+  background: #fff;
+}
+
+.countItem {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.countLabel {
+  font-family: var(--font-dm-mono), monospace;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.countValue {
+  font-family: var(--font-dm-mono), monospace;
+  font-size: 11px;
+  color: var(--ink);
+}
