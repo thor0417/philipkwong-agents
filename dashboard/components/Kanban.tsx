@@ -2,6 +2,7 @@
 
 import type { Lead } from '@/lib/types';
 import { leadOrg, normalizeStatus, scoreTier, sourceLabel } from '@/lib/leads';
+import SourceLink from './SourceLink';
 import styles from './Kanban.module.css';
 
 // Kanban columns map directly to the lead lifecycle status. Statuses without a
@@ -73,6 +74,7 @@ function LeadCard({
       {company !== '—' && <div className={styles.company}>{company}</div>}
       <div className={styles.tags}>
         <span className={styles.tag}>{sourceLabel(lead.source)}</span>
+        <SourceLink url={lead.url} />
       </div>
       {(lead.module || lead.region) && (
         <div className={styles.cardFoot}>

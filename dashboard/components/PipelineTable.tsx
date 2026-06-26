@@ -11,6 +11,7 @@ import {
   scoreTier,
   sourceLabel,
 } from '@/lib/leads';
+import SourceLink from './SourceLink';
 import styles from './PipelineTable.module.css';
 
 const COLUMNS = [
@@ -196,15 +197,7 @@ function LeadRow({
         </select>
       </td>
       <td>
-        <a
-          className={styles.view}
-          href={lead.url}
-          target="_blank"
-          rel="noreferrer"
-          onClick={(e) => e.stopPropagation()}
-        >
-          View Posting
-        </a>
+        <SourceLink url={lead.url} />
       </td>
     </tr>
   );

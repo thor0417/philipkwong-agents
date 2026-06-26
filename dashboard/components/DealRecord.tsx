@@ -12,6 +12,7 @@ import {
   scoreTier,
   sourceLabel,
 } from '@/lib/leads';
+import SourceLink from './SourceLink';
 import styles from './DealRecord.module.css';
 
 export default function DealRecord({
@@ -153,16 +154,7 @@ function LeadDetails({ lead }: { lead: Lead }) {
       {lead.score_reason && (
         <p className={styles.note}>{lead.score_reason}</p>
       )}
-      {lead.url && (
-        <a
-          className={styles.tag}
-          href={lead.url}
-          target="_blank"
-          rel="noreferrer"
-        >
-          View source
-        </a>
-      )}
+      <SourceLink url={lead.url} />
     </Section>
   );
 }
