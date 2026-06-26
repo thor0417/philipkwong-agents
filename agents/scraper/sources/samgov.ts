@@ -94,9 +94,18 @@ export async function scrapeSamGov(): Promise<NormalizedLead[]> {
       `&limit=${LIMIT}`;
 
     try {
-      const res = await fetch(url);
+      const res = await fetch(url, {
+        headers: {
+          'User-Agent': 'philipkwong-agents/1.0 (+scraper)',
+          Accept: 'application/json',
+        },
+      });
       if (!res.ok) {
-        console.error(`SAM.gov "${title}" failed: HTTP ${res.status}`);
+        const hint =
+          res.status === 404
+            ? ' (api.sam.gov returned a gateway 404 with no body; the host is commonly unreachable from datacenter/cloud egress. Verify from an allowed network.)'
+            : '';
+        console.error(`SAM.gov "${title}" failed: HTTP ${res.status}${hint}`);
         continue;
       }
       const data = (await res.json()) as SamResponse;
