@@ -196,6 +196,21 @@ export async function orchestrate(): Promise<ScrapeReport> {
   }));
   const scores = await scoreLeads(inputs);
 
+  // DEBUG_SCORES=1 prints every scored lead (pre-threshold, high to low).
+  if (process.env.DEBUG_SCORES === '1') {
+    console.log('--- scored leads (pre-threshold) ---');
+    const rows = prepared
+      .map((p, i) => ({ p, s: scores[i] }))
+      .sort((a, b) => b.s.score - a.s.score);
+    for (const { p, s } of rows) {
+      console.log(
+        `[${String(s.score).padStart(3)}] ${p.profile.module}/${p.lead.source} | ` +
+          `${p.lead.title.slice(0, 60)} :: ${s.score_reason}`
+      );
+    }
+    console.log('--- end scored leads ---');
+  }
+
   // 5. Write leads scoring >= the matched profile's minScore.
   const writtenPerSource: Record<string, number> = {};
   const writtenPerModule: Record<string, number> = {};
