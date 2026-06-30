@@ -46,6 +46,10 @@ import { scrapeTenderNed } from './sources/tenderned';
 
 const FUEL_MODULE = 'fuel';
 const AGENT_NAME = 'lead-scraper';
+// Fuel leads are captured on legitimacy (broker-filtered, CPV/UNSPSC-routed),
+// not on consulting fit. They are written with a fixed high score so the
+// supplier sees them prioritized; they are never Haiku-scored.
+const FUEL_CAPTURE_SCORE = 100;
 // PARKED (Track B registry): fixed baseline score for licensed registry leads.
 // const REGISTRY_BASELINE = 70;
 
@@ -135,10 +139,19 @@ function haystack(lead: NormalizedLead): string {
   return [lead.title, lead.raw_content, lead.company ?? '', lead.location ?? ''].join('\n');
 }
 
+// A lead is expired only when it states a deadline already in the past. A
+// missing/unparseable deadline is NOT expired (we keep it; many buy-side notices
+// publish no deadline).
+function isExpired(deadline: string | null, now: number): boolean {
+  if (!deadline) return false;
+  const t = new Date(deadline).getTime();
+  if (Number.isNaN(t)) return false;
+  return t < now;
+}
+
 interface PreparedLead {
   lead: NormalizedLead;
   profile: IndustryProfile;
-  fuel: boolean;
 }
 
 export interface ScrapeReport {
@@ -156,7 +169,10 @@ export interface ScrapeReport {
   writtenPerLeadType: Record<string, number>;
   fuelFound: number;
   fuelBrokerExcluded: number;
-  fuelReachedHaiku: number;
+  fuelExpired: number;
+  fuelWritten: number;
+  fuelWrittenPerSource: Record<string, number>;
+  fuelWrittenPerRegion: Record<string, number>;
   // Track B registry pass.
   registryWritten: number;
   registryPerSource: Record<string, number>;
@@ -209,14 +225,22 @@ export async function orchestrate(): Promise<ScrapeReport> {
     console.log(`TenderNed: ${tenderNedDropped} rows dropped as duplicates of TED.`);
   }
 
-  // 3. Per-lead: profile match -> fuel tag -> broker-filter -> prefilter.
+  // 3. Per-lead routing.
+  //  - Fuel-tagged leads take the CAPTURE path: broker-filter, then
+  //    expired-deadline filter, then write everything that passes. No Haiku,
+  //    no consulting fit, no minimum value. Any real, current buy-side fuel
+  //    buyer is brought in; the supplier decides what is worth pursuing.
+  //  - Everything else takes the non-fuel path: prefilter -> Haiku scorer,
+  //    written only at/above the matched profile's minScore (unchanged).
   const fuelProfile = profiles.find((p) => p.module === FUEL_MODULE);
   const prepared: PreparedLead[] = [];
+  const fuelPrepared: NormalizedLead[] = [];
   let prefilterFiltered = 0;
   let brokerExcluded = 0;
   let fuelFound = 0;
   let fuelBrokerExcluded = 0;
-  let fuelReachedHaiku = 0;
+  let fuelExpired = 0;
+  const now = Date.now();
 
   for (const lead of deduped) {
     const text = haystack(lead);
@@ -227,27 +251,32 @@ export async function orchestrate(): Promise<ScrapeReport> {
     const fuelCandidate =
       fuelProfile && candidates.includes(fuelProfile) ? fuelProfile : undefined;
     const isFuel = !!fuelCandidate && passesPrefilter(text, fuelCandidate).passed;
-    if (isFuel) fuelFound++;
 
-    // Broker-filter runs on fuel-tagged leads before prefilter/Haiku.
     if (isFuel) {
-      const broker = isBrokerNoise(text);
-      if (broker.isNoise) {
+      fuelFound++;
+      // Broker noise: hard exclude (the only legitimacy gate besides the codes).
+      if (isBrokerNoise(text).isNoise) {
         brokerExcluded++;
         fuelBrokerExcluded++;
-        continue; // hard exclude, score 0, never scored or written
+        continue;
       }
+      // Drop only clearly expired notices; keep those with no deadline stated.
+      if (isExpired(lead.deadline, now)) {
+        fuelExpired++;
+        continue;
+      }
+      fuelPrepared.push(lead); // captured; never goes to the Haiku scorer
+      continue;
     }
 
-    // Prefilter gate: assign to the best matching profile clearing its threshold.
+    // Non-fuel prefilter gate: assign to the best matching profile clearing its
+    // threshold, then score with Haiku.
     const best = bestProfileFor(text, candidates);
     if (!best) {
       prefilterFiltered++;
       continue;
     }
-
-    if (isFuel) fuelReachedHaiku++;
-    prepared.push({ lead, profile: best.profile, fuel: isFuel });
+    prepared.push({ lead, profile: best.profile });
   }
 
   // 4. Score survivors with Haiku.
@@ -259,7 +288,10 @@ export async function orchestrate(): Promise<ScrapeReport> {
   }));
   // DRY_RUN=1 measures volume without spending: skip Haiku scoring and writes.
   if (process.env.DRY_RUN === '1') {
-    console.log(`DRY_RUN: ${prepared.length} leads would be scored by Haiku (skipped).`);
+    console.log(
+      `DRY_RUN: ${prepared.length} non-fuel leads would be Haiku-scored; ` +
+        `${fuelPrepared.length} fuel leads would be written directly (no Haiku).`
+    );
     return {
       fetchedPerSource,
       totalFetched: all.length,
@@ -275,7 +307,10 @@ export async function orchestrate(): Promise<ScrapeReport> {
       writtenPerLeadType: {},
       fuelFound,
       fuelBrokerExcluded,
-      fuelReachedHaiku,
+      fuelExpired,
+      fuelWritten: 0,
+      fuelWrittenPerSource: {},
+      fuelWrittenPerRegion: {},
       registryWritten: 0,
       registryPerSource: {},
       registryPerRegion: {},
@@ -388,6 +423,50 @@ export async function orchestrate(): Promise<ScrapeReport> {
     inc(writtenPerLeadType, 'tender');
   }
 
+  // 5b. Fuel capture write path: broker-filtered, non-expired buy-side fuel
+  // tenders written directly with a fixed capture score (no Haiku fit scoring).
+  const fuelWrittenPerSource: Record<string, number> = {};
+  const fuelWrittenPerRegion: Record<string, number> = {};
+  let fuelWritten = 0;
+  const fuelIndustry = fuelProfile?.name ?? 'fuel_tenders';
+  for (const lead of fuelPrepared) {
+    const region = regionOf(lead.source);
+    const { error } = await supabaseAdmin.from('leads').upsert(
+      {
+        source: lead.source,
+        url: lead.url,
+        title: lead.title,
+        raw_content: lead.raw_content,
+        score: FUEL_CAPTURE_SCORE,
+        score_reason:
+          'Buy-side fuel tender captured on legitimacy (broker-filtered, CPV/UNSPSC-routed); not fit-scored.',
+        status: 'new',
+        module: FUEL_MODULE,
+        industry: fuelIndustry,
+        company: lead.company,
+        location: lead.location,
+        deadline: lead.deadline,
+        value_estimate: lead.value_estimate,
+        lead_type: 'tender',
+        region,
+      },
+      { onConflict: 'url' }
+    );
+    if (error) {
+      console.error(`Fuel write failed for ${lead.url}: ${error.message}`);
+      continue;
+    }
+    fuelWritten++;
+    written++;
+    inc(fuelWrittenPerSource, lead.source);
+    inc(fuelWrittenPerRegion, region);
+    inc(writtenPerSource, lead.source);
+    inc(writtenPerModule, FUEL_MODULE);
+    inc(writtenPerIndustry, fuelIndustry);
+    inc(writtenPerRegion, region);
+    inc(writtenPerLeadType, 'tender');
+  }
+
   // 6. Track B registry pass: PARKED. The MPA/Rotterdam registry write path is
   // disabled; it no longer writes registry leads on a run. Re-enable by
   // restoring runRegistryPass() and its imports below.
@@ -415,7 +494,10 @@ export async function orchestrate(): Promise<ScrapeReport> {
     writtenPerLeadType,
     fuelFound,
     fuelBrokerExcluded,
-    fuelReachedHaiku,
+    fuelExpired,
+    fuelWritten,
+    fuelWrittenPerSource,
+    fuelWrittenPerRegion,
     // Track B registry pass parked: always zero until re-enabled.
     registryWritten: 0,
     registryPerSource: {},
@@ -501,8 +583,8 @@ function printReport(r: ScrapeReport): void {
   console.log(`Total fetched: ${r.totalFetched}  ->  deduped: ${r.deduped}`);
   console.log(`Prefilter filtered (zero API cost): ${r.prefilterFiltered}`);
   console.log(`Broker-noise excluded: ${r.brokerExcluded}`);
-  console.log(`Reached Haiku scoring: ${r.scored}`);
-  console.log(`Written to Supabase (>= minScore): ${r.written}`);
+  console.log(`Reached Haiku scoring (non-fuel): ${r.scored}`);
+  console.log(`Written to Supabase (tenders, incl. fuel capture): ${r.written}`);
   console.log('Written per source:');
   console.log(table(r.writtenPerSource));
   console.log('Written per module:');
@@ -520,10 +602,15 @@ function printReport(r: ScrapeReport): void {
   console.log('  Registry per region:');
   console.log(table(r.registryPerRegion));
   console.log(`Matched counterparty (registry <-> tender): ${r.matchedCounterparty}`);
-  console.log('--- Fuel module ---');
+  console.log('--- Fuel module (legitimacy capture, no fit scoring) ---');
   console.log(`  Fuel tenders found:          ${r.fuelFound}`);
   console.log(`  Excluded by broker-filter:   ${r.fuelBrokerExcluded}`);
-  console.log(`  Reached Haiku scoring:       ${r.fuelReachedHaiku}`);
+  console.log(`  Dropped (expired deadline):  ${r.fuelExpired}`);
+  console.log(`  Written (all legit buy-side): ${r.fuelWritten}`);
+  console.log('  Fuel written per source:');
+  console.log(table(r.fuelWrittenPerSource));
+  console.log('  Fuel written per region:');
+  console.log(table(r.fuelWrittenPerRegion));
   if (r.fuelFound === 0) {
     console.log('  ** FAILURE: zero fuel tenders found. This is a reportable failure, not a pass. **');
   }
