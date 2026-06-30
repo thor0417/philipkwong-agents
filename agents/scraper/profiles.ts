@@ -6,10 +6,20 @@
 // profile `module` and `name` (industry).
 //
 // Prefilter threshold is per-profile via `minKeywordMatches` (default 3 when
-// absent). All profiles run at 1: the keyword lists below mix domain phrases
-// with common single-word terms so a single hit lets a lead through to Haiku,
-// which is the real relevance gate. This keeps genuine tenders (whose wording
-// rarely contains three narrow phrases) from being filtered out for free.
+// absent). The keyword lists mix domain phrases with common single-word terms.
+//
+// Profiles whose genuine leads turn on one strong domain term (fuel, cannabis,
+// healthcare_pharma, financial_services, technology_ai) run at 1: a single hit
+// lets a lead through to Haiku, the real relevance gate. Real writers in these
+// profiles frequently match only one keyword (e.g. a regulatory advisory tender
+// matching just "regulatory"), so raising them would drop real leads.
+//
+// The broad, generic catch-all profiles (general_consulting,
+// construction_infrastructure, food_beverage_hospitality, web_digital) run at 2:
+// their single-word terms (strategy, consulting, infrastructure, food, web,
+// digital, marketing) light up on generic job-board noise, so they require two
+// hits before paying for a Haiku call. Genuine leads in these areas almost
+// always carry two or more of the terms.
 
 export interface IndustryProfile {
   // Stored on each lead as `industry`.
@@ -153,7 +163,9 @@ export const PROFILES: IndustryProfile[] = [
     minScore: 60,
     module: 'construction_infrastructure',
     active: true,
-    minKeywordMatches: 1,
+    // Generic catch-all: require two hits to cut job-board noise (no real
+    // writers; "infrastructure"/"engineering"/"standards" alone are too broad).
+    minKeywordMatches: 2,
   },
   {
     name: 'financial_services',
@@ -200,7 +212,9 @@ export const PROFILES: IndustryProfile[] = [
     minScore: 60,
     module: 'food_beverage_hospitality',
     active: true,
-    minKeywordMatches: 1,
+    // Generic catch-all: require two hits ("food"/"tourism"/"restaurant" alone
+    // match unrelated postings).
+    minKeywordMatches: 2,
   },
   {
     name: 'web_digital',
@@ -223,7 +237,9 @@ export const PROFILES: IndustryProfile[] = [
     minScore: 60,
     module: 'web_digital',
     active: true,
-    minKeywordMatches: 1,
+    // Generic catch-all: require two hits ("web"/"digital"/"marketing" alone
+    // are pervasive on job boards).
+    minKeywordMatches: 2,
   },
   {
     name: 'general_consulting',
@@ -245,7 +261,10 @@ export const PROFILES: IndustryProfile[] = [
     minScore: 60,
     module: 'general_consulting',
     active: true,
-    minKeywordMatches: 1,
+    // Broadest catch-all and the single largest noise source: require two hits
+    // ("strategy"/"consulting"/"advisory"/"transformation" alone match almost
+    // any white-collar posting). No real writers depend on it.
+    minKeywordMatches: 2,
   },
   {
     name: 'fuel_tenders',
