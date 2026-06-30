@@ -21,7 +21,8 @@ import { bestProfileFor, passesPrefilter } from './prefilter';
 import { isBrokerNoise } from './broker-filter';
 import { scoreLeads, type ScorerInput } from './scorer';
 import { crossReference, normalizeCompany } from './cross-reference';
-import type { RegistryLead } from './sources/types';
+// PARKED (Track B registry): import re-enabled when the registry pass returns.
+// import type { RegistryLead } from './sources/types';
 
 import { scrapeCanadaBuys } from './sources/canadabuys';
 import { scrapeAdzuna } from './sources/adzuna';
@@ -39,13 +40,14 @@ import { scrapeGeBiz } from './sources/gebiz';
 import { scrapeUngm } from './sources/ungm';
 import { scrapeGooglePlaces } from './sources/googleplaces';
 import { scrapeTenderNed } from './sources/tenderned';
-import { scrapeMpaRegistry } from './sources/mpa';
-import { scrapeRotterdamRegistry } from './sources/portofrotterdam';
+// PARKED (Track B registry): re-enable these imports with the registry pass.
+// import { scrapeMpaRegistry } from './sources/mpa';
+// import { scrapeRotterdamRegistry } from './sources/portofrotterdam';
 
 const FUEL_MODULE = 'fuel';
 const AGENT_NAME = 'lead-scraper';
-// Fixed baseline score for Track B registry leads (licensed = legitimate).
-const REGISTRY_BASELINE = 70;
+// PARKED (Track B registry): fixed baseline score for licensed registry leads.
+// const REGISTRY_BASELINE = 70;
 
 // Region tag per source for tender leads.
 const SOURCE_REGION: Record<string, string> = {
@@ -342,12 +344,14 @@ export async function orchestrate(): Promise<ScrapeReport> {
     inc(writtenPerLeadType, 'tender');
   }
 
-  // 6. Track B registry pass: separate write path, no broker-filter, no Haiku.
-  const registry = await runRegistryPass();
-  for (const region of Object.keys(registry.perRegion)) {
-    writtenPerRegion[region] = (writtenPerRegion[region] ?? 0) + registry.perRegion[region];
-  }
-  if (registry.written > 0) writtenPerLeadType['registry'] = registry.written;
+  // 6. Track B registry pass: PARKED. The MPA/Rotterdam registry write path is
+  // disabled; it no longer writes registry leads on a run. Re-enable by
+  // restoring runRegistryPass() and its imports below.
+  // const registry = await runRegistryPass();
+  // for (const region of Object.keys(registry.perRegion)) {
+  //   writtenPerRegion[region] = (writtenPerRegion[region] ?? 0) + registry.perRegion[region];
+  // }
+  // if (registry.written > 0) writtenPerLeadType['registry'] = registry.written;
 
   // 7. Cross-reference post-pass: match registries against tenders.
   const xref = await crossReference();
@@ -368,13 +372,17 @@ export async function orchestrate(): Promise<ScrapeReport> {
     fuelFound,
     fuelBrokerExcluded,
     fuelReachedHaiku,
-    registryWritten: registry.written,
-    registryPerSource: registry.perSource,
-    registryPerRegion: registry.perRegion,
+    // Track B registry pass parked: always zero until re-enabled.
+    registryWritten: 0,
+    registryPerSource: {},
+    registryPerRegion: {},
     matchedCounterparty: xref.matched,
   };
 }
 
+/* PARKED (Track B registry): the MPA/Rotterdam registry write path is disabled.
+   Re-enable by uncommenting this block plus the imports and REGISTRY_BASELINE
+   above, and the call site in orchestrate().
 interface RegistryPassResult {
   written: number;
   perSource: Record<string, number>;
@@ -432,6 +440,7 @@ async function runRegistryPass(): Promise<RegistryPassResult> {
   console.log(`Registry pass: wrote ${written} registry leads.`);
   return { written, perSource, perRegion };
 }
+*/
 
 function printReport(r: ScrapeReport): void {
   const table = (m: Record<string, number>): string =>
