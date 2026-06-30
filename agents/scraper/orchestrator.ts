@@ -29,6 +29,7 @@ import { scrapeJooble } from './sources/jooble';
 import { scrapeReed } from './sources/reed';
 import { scrapeCareerjet } from './sources/careerjet';
 import { scrapeArbeitnow } from './sources/arbeitnow';
+import { scrapeJSearch } from './sources/jsearch';
 import { scrapeSamGov } from './sources/samgov';
 import { scrapeTedEu } from './sources/tedeu';
 import { scrapeAusTender } from './sources/austender';
@@ -58,6 +59,7 @@ const SOURCE_REGION: Record<string, string> = {
   reed: 'UK',
   careerjet: 'CA',
   arbeitnow: 'EU',
+  jsearch: 'CA',
   samgov: 'US',
   austender: 'AU',
   uktenders: 'UK',
@@ -99,6 +101,8 @@ function fetchSource(id: string, profiles: IndustryProfile[]): Promise<Normalize
       return scrapeCareerjet();
     case 'arbeitnow':
       return scrapeArbeitnow();
+    case 'jsearch':
+      return scrapeJSearch();
     case 'samgov':
       return scrapeSamGov();
     case 'tedeu':

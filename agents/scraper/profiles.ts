@@ -43,6 +43,7 @@ const TENDER_AND_JOB = [
   'reed',
   'careerjet',
   'arbeitnow',
+  'jsearch',
   'samgov',
   'tedeu',
   'austender',
@@ -61,7 +62,7 @@ const TENDER_SOURCES = [
   'gebiz',
   'ungm',
 ];
-const JOB_SOURCES = ['adzuna', 'jooble', 'reed', 'careerjet', 'arbeitnow'];
+const JOB_SOURCES = ['adzuna', 'jooble', 'reed', 'careerjet', 'arbeitnow', 'jsearch'];
 
 export const PROFILES: IndustryProfile[] = [
   {
