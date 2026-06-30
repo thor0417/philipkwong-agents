@@ -300,6 +300,48 @@ export async function orchestrate(): Promise<ScrapeReport> {
     console.log('--- end scored leads ---');
   }
 
+  // TED_DEBUG=1 prints the Haiku score for every TED lead, plus where TED rows
+  // are lost (dedupe vs prefilter vs scoring below floor). Diagnostic only: it
+  // does not change the write threshold.
+  if (process.env.TED_DEBUG === '1') {
+    const tedFetched = fetchedPerSource['tedeu'] ?? 0;
+    const tedDeduped = deduped.filter((l) => l.source === 'tedeu').length;
+    const tedRows = prepared
+      .map((p, i) => ({ p, s: scores[i] }))
+      .filter((r) => r.p.lead.source === 'tedeu')
+      .sort((a, b) => b.s.score - a.s.score);
+
+    console.log('\n--- TED score debug pass ---');
+    console.log(`TED fetched (raw):  ${tedFetched}`);
+    console.log(`TED after dedupe:   ${tedDeduped}  (dropped at dedupe: ${tedFetched - tedDeduped})`);
+    console.log(
+      `TED reached Haiku:  ${tedRows.length}  (dropped at prefilter/no-profile: ${tedDeduped - tedRows.length})`
+    );
+
+    const buckets = { hi: 0, mid: 0, low: 0, under: 0 };
+    let wouldWrite = 0;
+    for (const { p, s } of tedRows) {
+      const floor = p.profile.minScore;
+      const pass = s.score >= floor;
+      if (pass) wouldWrite++;
+      if (s.score >= 80) buckets.hi++;
+      else if (s.score >= 60) buckets.mid++;
+      else if (s.score >= 40) buckets.low++;
+      else buckets.under++;
+      console.log(
+        `  [${String(s.score).padStart(3)}] ${p.profile.module}/${p.profile.name} floor=${floor} ` +
+          `${pass ? 'PASS' : 'fail'} :: ${p.lead.title.slice(0, 70)} :: ${s.score_reason}`
+      );
+    }
+    console.log(
+      `Distribution: >=80:${buckets.hi}  60-79:${buckets.mid}  40-59:${buckets.low}  <40:${buckets.under}`
+    );
+    console.log(
+      `Would write (score >= matched profile floor): ${wouldWrite} of ${tedRows.length} scored`
+    );
+    console.log('--- end TED score debug pass ---\n');
+  }
+
   // 5. Write tender leads scoring >= the matched profile's minScore.
   const writtenPerSource: Record<string, number> = {};
   const writtenPerModule: Record<string, number> = {};
