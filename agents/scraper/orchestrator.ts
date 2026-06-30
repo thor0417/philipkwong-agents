@@ -76,17 +76,19 @@ function fuelCpvCodes(profiles: IndustryProfile[]): string[] {
   return fuel?.tscodes?.cpv ?? [];
 }
 
-// CPV codes for TED EU are profile-driven: fuel profile contributes its own
-// codes, consulting profiles contribute the consulting set. The adapter is
-// fetched once with the union; profile matching then sorts the notices.
-function tedCpvCodes(profiles: IndustryProfile[]): string[] {
-  const codes = new Set<string>();
-  for (const p of profiles) {
-    if (!p.sources.includes('tedeu')) continue;
-    if (p.module === FUEL_MODULE) (p.tscodes?.cpv ?? []).forEach((c) => codes.add(c));
-    else CONSULTING_CPV_CODES.forEach((c) => codes.add(c));
-  }
-  return [...codes];
+// CPV codes for TED EU are profile-driven and split by group so each gets its
+// own result budget in the adapter. Fuel: the fuel profile's own CPV codes
+// (only if it pulls from TED). Consulting: the shared consulting set (only if
+// some non-fuel profile pulls from TED).
+function tedFuelCpvCodes(profiles: IndustryProfile[]): string[] {
+  const fuel = profiles.find((p) => p.module === FUEL_MODULE && p.sources.includes('tedeu'));
+  return fuel?.tscodes?.cpv ?? [];
+}
+function tedConsultingCpvCodes(profiles: IndustryProfile[]): string[] {
+  const anyConsulting = profiles.some(
+    (p) => p.module !== FUEL_MODULE && p.sources.includes('tedeu')
+  );
+  return anyConsulting ? [...CONSULTING_CPV_CODES] : [];
 }
 
 function fetchSource(id: string, profiles: IndustryProfile[]): Promise<NormalizedLead[]> {
@@ -108,7 +110,7 @@ function fetchSource(id: string, profiles: IndustryProfile[]): Promise<Normalize
     case 'samgov':
       return scrapeSamGov();
     case 'tedeu':
-      return scrapeTedEu(tedCpvCodes(profiles));
+      return scrapeTedEu(tedFuelCpvCodes(profiles), tedConsultingCpvCodes(profiles));
     case 'austender':
       return scrapeAusTender();
     case 'uktenders':
