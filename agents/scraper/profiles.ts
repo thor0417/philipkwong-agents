@@ -395,10 +395,8 @@ export const PROFILES: IndustryProfile[] = [
     tscodes: {
       // CPV: routed to the code-gated EU portals (TED EU / TenderNed), which
       // skip the profile without codes. The petroleum-family fuel codes proven
-      // in fuel_tenders, plus 24322220 (ethyl alcohol) as the closest
-      // ethanol-specific heading; CPV has no dedicated bioethanol-fuel code.
-      // Non-fuel ethanol these could pull (beverage/industrial/pharma) is
-      // dropped by the fuel-path excludeKeywords.
+      // in fuel_tenders. The generic ethyl-alcohol chemical code (24322220) was
+      // dropped: it only pulled a non-fuel wastewater false positive.
       cpv: [
         '09100000',
         '09130000',
@@ -407,7 +405,6 @@ export const PROFILES: IndustryProfile[] = [
         '09134000',
         '09134100',
         '09134200',
-        '24322220',
       ],
       // HS: fuel/denatured ethanol customs headings (phase 2, descriptive).
       hs: ['220710', '220720'],
