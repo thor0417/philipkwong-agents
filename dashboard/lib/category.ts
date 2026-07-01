@@ -9,7 +9,7 @@
 
 import type { Lead } from './types';
 
-export type CategoryKey = 'all' | 'fuel' | 'consulting' | 'tenders' | 'hiring';
+export type CategoryKey = 'all' | 'fuel' | 'consulting' | 'feasibility' | 'tenders' | 'hiring' | 'jobs';
 
 export interface Option {
   key: string;
@@ -20,8 +20,10 @@ export const CATEGORY_OPTIONS: { key: CategoryKey; label: string }[] = [
   { key: 'all', label: 'All' },
   { key: 'fuel', label: 'Fuel' },
   { key: 'consulting', label: 'Consulting' },
+  { key: 'feasibility', label: 'Feasibility' },
   { key: 'tenders', label: 'Government Tenders' },
   { key: 'hiring', label: 'Hiring' },
+  { key: 'jobs', label: 'Jobs' },
 ];
 
 // Fuel notice type (leads.subcategory). 'all' hides Award/dead by default but it
@@ -49,13 +51,25 @@ export const FUEL_PRODUCT_OPTIONS: Option[] = [
   { key: 'other', label: 'Other' },
 ];
 
-// Consulting work type (leads.subcategory).
+// Consulting work type (leads.subcategory). Feasibility is no longer here: it
+// is its own top-level category with a sector sub-filter.
 export const CONSULTING_SUB_OPTIONS: Option[] = [
   { key: 'all', label: 'All work' },
   { key: 'compliance', label: 'Compliance' },
-  { key: 'feasibility', label: 'Feasibility' },
   { key: 'document_writing', label: 'Document writing' },
   { key: 'strategy', label: 'Strategy' },
+  { key: 'other', label: 'Other' },
+];
+
+// Feasibility sector (leads.subcategory) for the feasibility category.
+export const FEASIBILITY_SECTOR_OPTIONS: Option[] = [
+  { key: 'all', label: 'All sectors' },
+  { key: 'energy', label: 'Energy' },
+  { key: 'water', label: 'Water' },
+  { key: 'transport', label: 'Transport' },
+  { key: 'health', label: 'Health' },
+  { key: 'agriculture', label: 'Agriculture' },
+  { key: 'infrastructure', label: 'Infrastructure' },
   { key: 'other', label: 'Other' },
 ];
 
@@ -65,6 +79,7 @@ export interface CategoryFilter {
   fuelNotice: string; // 'all' | subcategory
   fuelProduct: string; // 'all' | product_type
   consultingSub: string; // 'all' | subcategory
+  feasibilitySector: string; // 'all' | sector subcategory
   cargo: boolean; // fuel cargo experiment view
 }
 
@@ -73,6 +88,7 @@ export const EMPTY_CATEGORY_FILTER: CategoryFilter = {
   fuelNotice: 'all',
   fuelProduct: 'all',
   consultingSub: 'all',
+  feasibilitySector: 'all',
   cargo: false,
 };
 
@@ -90,6 +106,10 @@ export function matchesCategory(lead: Lead, key: CategoryKey): boolean {
         lead.category === 'consulting' ||
         (lead.category == null && lead.module != null && lead.module !== 'fuel')
       );
+    case 'feasibility':
+      return lead.category === 'feasibility';
+    case 'jobs':
+      return lead.category === 'jobs';
     case 'tenders':
       return lead.lead_type === 'tender';
     case 'hiring':
@@ -129,6 +149,13 @@ export function applyCategoryFilter(leads: Lead[], f: CategoryFilter): Lead[] {
     if (f.consultingSub !== 'all') {
       out = out.filter((l) => (l.subcategory ?? 'other') === f.consultingSub);
     }
+  } else if (f.category === 'feasibility') {
+    if (f.feasibilitySector !== 'all') {
+      out = out.filter((l) => (l.subcategory ?? 'other') === f.feasibilitySector);
+    }
+    // Feasibility RFPs are captured on legitimacy (score null), so surface them
+    // by soonest deadline like the fuel lane.
+    out = [...out].sort(byDeadline);
   }
 
   return out;
@@ -145,3 +172,5 @@ export const noticeLabel = (sub: string | null | undefined): string =>
   label(FUEL_NOTICE_OPTIONS, sub);
 export const consultingLabel = (sub: string | null | undefined): string =>
   label(CONSULTING_SUB_OPTIONS, sub);
+export const feasibilitySectorLabel = (sub: string | null | undefined): string =>
+  label(FEASIBILITY_SECTOR_OPTIONS, sub);

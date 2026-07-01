@@ -5,14 +5,15 @@ import {
   FUEL_NOTICE_OPTIONS,
   FUEL_PRODUCT_OPTIONS,
   CONSULTING_SUB_OPTIONS,
+  FEASIBILITY_SECTOR_OPTIONS,
   type CategoryFilter,
 } from '@/lib/category';
 import styles from './CategoryNav.module.css';
 
 // Top-level category tree plus the cascading sub-filters. Fuel shows two
 // dimensions (notice type + product type) and a distinct Cargo toggle;
-// Consulting shows a single work-type dimension. Everything else shows just the
-// top-level strip.
+// Consulting shows a work-type dimension; Feasibility shows a sector dimension.
+// Everything else shows just the top-level strip.
 export default function CategoryNav({
   filter,
   onChange,
@@ -29,6 +30,7 @@ export default function CategoryNav({
       fuelNotice: 'all',
       fuelProduct: 'all',
       consultingSub: 'all',
+      feasibilitySector: 'all',
       cargo: false,
     });
 
@@ -91,6 +93,21 @@ export default function CategoryNav({
               key={o.key}
               className={`${styles.sub} ${filter.consultingSub === o.key ? styles.active : ''}`}
               onClick={() => set({ consultingSub: o.key })}
+            >
+              {o.label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {filter.category === 'feasibility' && (
+        <div className={styles.substrip}>
+          <span className={styles.dim}>Sector</span>
+          {FEASIBILITY_SECTOR_OPTIONS.map((o) => (
+            <button
+              key={o.key}
+              className={`${styles.sub} ${filter.feasibilitySector === o.key ? styles.active : ''}`}
+              onClick={() => set({ feasibilitySector: o.key })}
             >
               {o.label}
             </button>

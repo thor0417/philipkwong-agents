@@ -16,6 +16,8 @@ import {
   FUEL_NOTICE_OPTIONS,
   FUEL_PRODUCT_OPTIONS,
   CONSULTING_SUB_OPTIONS,
+  FEASIBILITY_SECTOR_OPTIONS,
+  type Option,
 } from '@/lib/category';
 import SourceLink from './SourceLink';
 import styles from './DealRecord.module.css';
@@ -222,9 +224,17 @@ function ClassificationSection({
   onRefresh: () => void;
 }) {
   const isFuel = lead.category === 'fuel';
-  const subOptions = (isFuel ? FUEL_NOTICE_OPTIONS : CONSULTING_SUB_OPTIONS).filter(
-    (o) => o.key !== 'all'
-  );
+  // Subcategory choices follow the category: fuel notice types, feasibility
+  // sectors, or consulting work types (jobs carry no subcategory).
+  const subSource: Option[] =
+    lead.category === 'fuel'
+      ? FUEL_NOTICE_OPTIONS
+      : lead.category === 'feasibility'
+        ? FEASIBILITY_SECTOR_OPTIONS
+        : lead.category === 'jobs'
+          ? []
+          : CONSULTING_SUB_OPTIONS;
+  const subOptions = subSource.filter((o) => o.key !== 'all');
   const productOptions = FUEL_PRODUCT_OPTIONS.filter((o) => o.key !== 'all');
 
   async function update(
@@ -247,6 +257,9 @@ function ClassificationSection({
             <option value="">—</option>
             <option value="fuel">Fuel</option>
             <option value="consulting">Consulting</option>
+            <option value="feasibility">Feasibility</option>
+            <option value="jobs">Jobs</option>
+            <option value="excluded">Excluded</option>
           </select>
         </label>
         <label className={styles.field}>
