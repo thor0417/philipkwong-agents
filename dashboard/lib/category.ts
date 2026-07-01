@@ -61,9 +61,17 @@ export const CONSULTING_SUB_OPTIONS: Option[] = [
   { key: 'other', label: 'Other' },
 ];
 
-// Feasibility sector (leads.subcategory) for the feasibility category.
+// Feasibility sector (leads.subcategory) for the feasibility category. Mirrors
+// the scraper's sector tags (agents/scraper/classify.ts): the leisure/culture
+// family first, then the hard-infrastructure sectors.
 export const FEASIBILITY_SECTOR_OPTIONS: Option[] = [
   { key: 'all', label: 'All sectors' },
+  { key: 'tourism', label: 'Tourism' },
+  { key: 'hospitality', label: 'Hospitality' },
+  { key: 'gaming', label: 'Gaming' },
+  { key: 'entertainment', label: 'Entertainment' },
+  { key: 'cultural', label: 'Cultural' },
+  { key: 'leisure', label: 'Leisure' },
   { key: 'energy', label: 'Energy' },
   { key: 'water', label: 'Water' },
   { key: 'transport', label: 'Transport' },
