@@ -287,6 +287,21 @@ export const PROFILES: IndustryProfile[] = [
       'natural gas',
       'fuel oil',
       'fuel supply',
+      // Cargo-scale demand (bulk import / vessel lots): the experiment bucket.
+      // Broad trade terms, so they widen fuel capture; the is_cargo flag and the
+      // dashboard separate genuine cargo lots from noise.
+      'cargo',
+      'metric tonnes',
+      'MT',
+      'CIF',
+      'FOB',
+      'vessel',
+      'bulk supply',
+      'import of diesel',
+      'import of jet',
+      'gasoil cargo',
+      'bulk fuel import',
+      'tender for supply and delivery',
     ],
     excludeKeywords: [
       'ICPO',
