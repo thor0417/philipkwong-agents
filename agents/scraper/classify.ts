@@ -132,13 +132,21 @@ function statedVolumes(text: string): { text: string; mt: number }[] {
   return out;
 }
 
-function fuelCargo(text: string): { is_cargo: boolean; volume_estimate: string | null } {
+// is_cargo fires only for genuine cargo-scale fuel: a stated volume at or above
+// the threshold, OR cargo language on a lead that resolved to a real fuel
+// product_type. A lead with product_type 'other' (cargo trailer, ship refit,
+// vessel charter) never flags on language alone.
+function fuelCargo(
+  text: string,
+  productType: string
+): { is_cargo: boolean; volume_estimate: string | null } {
   const vols = statedVolumes(text);
   const largest = vols.reduce((a, b) => (b.mt > a.mt ? b : a), { text: '', mt: 0 });
-  const hasCargoTerms = keywordMatches(text, CARGO_TERMS).length > 0;
   const bigVolume = largest.mt >= VOLUME_MT_MIN;
+  const hasCargoTerms = keywordMatches(text, CARGO_TERMS).length > 0;
+  const realProduct = productType !== 'other';
   return {
-    is_cargo: hasCargoTerms || bigVolume,
+    is_cargo: bigVolume || (hasCargoTerms && realProduct),
     volume_estimate: largest.mt > 0 ? largest.text : null,
   };
 }
@@ -152,11 +160,12 @@ function fuelSector(company: string | null): string | null {
 // plus the cargo flag, stated volume, and NOC/state buyer sector.
 export function classifyFuel(lead: NormalizedLead): Classification {
   const text = haystack(lead);
-  const cargo = fuelCargo(text);
+  const product_type = fuelProductType(text);
+  const cargo = fuelCargo(text, product_type);
   return {
     category: 'fuel',
     subcategory: fuelSubcategory(lead.source, text),
-    product_type: fuelProductType(text),
+    product_type,
     is_cargo: cargo.is_cargo,
     volume_estimate: cargo.volume_estimate,
     sector: fuelSector(lead.company),
