@@ -1,25 +1,26 @@
 // Category / subcategory / product_type tagging, applied at write time so the
-// dashboard can organize leads by category and subcategory.
+// dashboard can organize leads.
 //
-// Routing is deliberate, not just keyword-counting:
-//   - Fuel means SUPPLY of the commodity. A lead is fuel only when it names a
-//     fuel commodity AND carries supply intent AND is not a service/equipment
-//     job. "Fuel meter repair" or "stern crane" is hard-excluded from fuel.
-//   - Consulting means a contract/RFP for advisory work, not an employment ad;
-//     job vacancies are excluded.
-//   - A lead that is neither routes to category 'excluded' (shown under All /
-//     Government Tenders on the dashboard, never Fuel or Consulting).
+// Routing is deliberate, not keyword-counting:
+//   - Fuel means SUPPLY of the commodity. A lead is fuel only when it is NOT an
+//     equipment / construction / maintenance / fire-safety job, AND it names a
+//     fuel commodity, AND it carries supply-of-commodity intent. A fire-pump
+//     replacement, stern crane, refueling-center construction, or submarine
+//     spares tender is not fuel.
+//   - Consulting means an advisory contract / RFP / EOI, never an employment ad.
+//   - Employment postings route to their own category 'jobs' (never consulting).
+//   - Anything else routes to 'excluded' (shown under All / Government Tenders,
+//     never Fuel or Consulting).
 //
-// Pure keyword + source heuristics, no network and no scoring: best-guess only
-// (the dashboard lets the user override). Does not change fuel capture or the
-// consulting scorer; the orchestrator just stamps these tags onto each row it
-// writes, and the backfill re-runs them over existing rows.
+// Pure keyword + source heuristics, no network and no scoring. Does not change
+// fuel capture or the consulting scorer; the orchestrator stamps these tags on
+// write and the backfill re-runs them over existing rows.
 
 import type { NormalizedLead } from './sources/types';
 import { keywordMatches } from './prefilter';
 
 // Government / institutional tender portals (baseline fuel subcategory). Private
-// and corporate sources (Ariba, aggregators) fall through to 'private_tender'.
+// and corporate sources fall through to 'private_tender'.
 const GOV_SOURCES = new Set([
   'tedeu',
   'tenderned',
@@ -31,6 +32,10 @@ const GOV_SOURCES = new Set([
   'samgov',
   'texasesbd',
   'thailandgpp',
+  'worldbank',
+  'adb',
+  'afdb',
+  'undp',
 ]);
 
 export interface Classification {
@@ -42,17 +47,16 @@ export interface Classification {
   sector: string | null;
 }
 
-// A lead that is neither genuine fuel supply nor consulting advisory (service
-// tender, equipment job, or employment ad). Kept off the Fuel/Consulting views.
+// Neither fuel supply, advisory work, nor an employment ad (equipment,
+// construction, maintenance). Kept off the Fuel / Consulting views.
 function excluded(): Classification {
-  return {
-    category: 'excluded',
-    subcategory: null,
-    product_type: null,
-    is_cargo: false,
-    volume_estimate: null,
-    sector: null,
-  };
+  return { category: 'excluded', subcategory: null, product_type: null, is_cargo: false, volume_estimate: null, sector: null };
+}
+
+// Employment postings get their own category so they never appear under
+// consulting.
+function jobs(): Classification {
+  return { category: 'jobs', subcategory: null, product_type: null, is_cargo: false, volume_estimate: null, sector: null };
 }
 
 function haystack(lead: NormalizedLead): string {
@@ -60,23 +64,18 @@ function haystack(lead: NormalizedLead): string {
 }
 
 // ---- Fuel product_type: strongest (most specific) match wins. ----
-// Ordered most-specific-first so a multi-fuel notice is tagged by its most
-// distinctive product rather than by a generic road fuel. Every named product is
-// checked before the 'other' fallthrough, so a lead naming a product (ethanol,
-// diesel, ...) lands in that bucket and only genuinely unspecified fuel is 'other'.
+// Ordered most-specific-first; every named product is checked before the 'other'
+// fallthrough, so a lead naming a product lands in that bucket.
 const FUEL_PRODUCTS: { type: string; keywords: string[] }[] = [
   { type: 'jet_a1', keywords: ['jet a-1', 'jet a1', 'aviation turbine fuel', 'avtur', 'jet fuel'] },
   { type: 'crude', keywords: ['crude oil', 'crude', 'brent', 'WTI', 'bonny light'] },
   { type: 'lng', keywords: ['LNG', 'liquefied natural gas'] },
   { type: 'lpg', keywords: ['LPG', 'liquefied petroleum gas', 'propane', 'butane'] },
   { type: 'ethanol', keywords: ['ethanol', 'bioethanol', 'E85', 'E10', 'denatured'] },
-  {
-    type: 'fuel_oil',
-    keywords: ['fuel oil', 'HFO', 'heavy fuel oil', 'bunker', 'marine fuel', 'IFO', 'MGO'],
-  },
+  { type: 'fuel_oil', keywords: ['fuel oil', 'HFO', 'heavy fuel oil', 'bunker', 'marine fuel', 'IFO', 'MGO'] },
   {
     type: 'diesel',
-    keywords: ['diesel', 'EN590', 'ULSD', 'ultra low sulphur', 'gasoil', 'gas oil', 'automotive gas oil', 'AGO'],
+    keywords: ['diesel', 'EN590', 'EN 590', 'ULSD', 'ultra low sulphur', 'gasoil', 'gas oil', 'automotive gas oil', 'AGO', 'HVO', 'HVO100'],
   },
   { type: 'gasoline', keywords: ['gasoline', 'petrol', 'mogas', 'unleaded'] },
 ];
@@ -88,85 +87,102 @@ function fuelProductType(text: string): string {
   return 'other';
 }
 
-// ---- Fuel routing: service/equipment exclusion + supply intent. ----
-// Maintenance/repair/equipment work on fuel infrastructure is NOT fuel supply.
-// Any match here hard-excludes the lead from fuel, regardless of other keywords.
-const FUEL_SERVICE_EXCLUDE = [
-  'fuel meter',
-  'fuel head',
-  'fuel system',
-  'fuel tank cleaning',
-  'tank cleaning',
+// ---- Hard exclusions: equipment / construction / maintenance / fire-safety and
+// non-fuel additives. Any match => not fuel, regardless of other keywords. ----
+const FUEL_EXCLUDE = [
+  'fire pump',
+  'fire system',
+  'fire suppression',
+  'sprinkler',
+  'fire safety',
+  'pump replacement',
+  'distribution station',
+  'refueling center',
+  'refueling centre',
+  'refueling station',
+  'refuelling station',
+  'pipeline construction',
+  'spares',
+  'spare parts',
+  'superchargers',
+  'engine components',
+  'crane',
+  'mask',
+  'belt',
+  'trucks',
+  'vehicle',
+  'drydock',
+  'refit',
   'repair',
   'maintenance',
   'servicing',
   'replacement',
-  'install',
   'installation',
+  'install',
   'upgrade',
-  'refit',
-  'drydock',
-  'crane',
-  'pump repair',
+  'construction',
+  'overhaul',
   'calibration',
   'inspection',
-  'overhaul',
-  'spare parts',
+  'exhaust fluid',
+  'DEF',
+  'AdBlue',
+  'fuel meter',
+  'fuel head',
+  'fuel system',
+  'tank cleaning',
 ];
 
-// Supply intent: the lead is about buying/delivering the commodity. English
-// procurement phrasing plus common procurement verbs on non-English (TED/EU)
-// notices, so genuine EU fuel-supply tenders are not dropped for language alone.
+// Fuel commodity terms. Multilingual because EU notices name the fuel in
+// Dutch / French / Spanish / German.
+const FUEL_COMMODITY = [
+  'diesel', 'EN590', 'EN 590', 'ULSD', 'gasoil', 'gas oil', 'HVO', 'HVO100',
+  'jet a-1', 'jet a1', 'jet fuel', 'aviation turbine fuel', 'avtur', 'kerosene',
+  'gasoline', 'petrol', 'mogas', 'unleaded',
+  'crude', 'crude oil', 'brent',
+  'fuel oil', 'HFO', 'heavy fuel oil', 'bunker', 'marine fuel', 'MGO', 'IFO',
+  'LNG', 'liquefied natural gas', 'LPG', 'liquefied petroleum gas', 'propane', 'butane',
+  'ethanol', 'bioethanol', 'E85', 'E10',
+  'fuel', 'petroleum', 'naphtha',
+  'brandstof', 'brandstoffen', 'combustible', 'carburant', 'kraftstoff',
+];
+
+// Supply-of-commodity intent (buying/delivering the fuel), incl. common
+// non-English procurement verbs.
 const SUPPLY_INTENT = [
-  'supply of',
-  'supply and delivery',
-  'provision of',
-  'purchase of',
-  'procurement of',
-  'delivery of',
-  'supply',
-  'supplies',
-  'provision',
-  'procurement',
-  'purchase',
-  'purchasing',
-  'tender for supply',
-  'levering', // nl
-  'fourniture', // fr
-  'suministro', // es
-  'lieferung', // de
-  'approvisionnement', // fr
+  'supply of', 'supply and delivery', 'provision of', 'purchase of', 'procurement of',
+  'delivery of', 'bulk fuel', 'fuel supply contract', 'fuel supply',
+  'supply', 'supplies', 'provision', 'procurement', 'purchase', 'purchasing', 'tender for supply',
+  'levering', 'leveren', 'fourniture', 'livraison', 'suministro', 'lieferung', 'approvisionnement',
 ];
 
-// Generic fuel commodity present (a fuel supply lead need not name a specific
-// product: "supply of fuel" is fuel with product_type 'other').
-function hasFuelCommodity(text: string): boolean {
-  return (
-    fuelProductType(text) !== 'other' ||
-    keywordMatches(text, ['fuel', 'petroleum', 'kerosene', 'naphtha']).length > 0
-  );
-}
-
-// A lead is genuine fuel supply only when a fuel commodity and supply intent are
-// both present and it is not a service/equipment job.
+// A lead is genuine fuel supply only when it clears the hard exclusions AND names
+// a fuel commodity AND carries supply intent.
 function isFuelSupply(text: string): boolean {
-  if (keywordMatches(text, FUEL_SERVICE_EXCLUDE).length > 0) return false;
-  return hasFuelCommodity(text) && keywordMatches(text, SUPPLY_INTENT).length > 0;
+  if (keywordMatches(text, FUEL_EXCLUDE).length > 0) return false;
+  return keywordMatches(text, FUEL_COMMODITY).length > 0 && keywordMatches(text, SUPPLY_INTENT).length > 0;
 }
 
 // ---- Fuel subcategory: source baseline, refined by clear notice-type text. ----
 const RFP_TERMS = ['RFP', 'RFQ', 'request for proposal', 'request for quotation', 'invitation to tender'];
-const DEAD_TERMS = ['award', 'awarded', 'contract award', 'cancelled', 'canceled', 'withdrawn'];
+const DEAD_TERMS = [
+  'award',
+  'awarded',
+  'contract award',
+  'contract award notice',
+  'advance contract award notice',
+  'award notice',
+  'notice of intent',
+  'cancelled',
+  'canceled',
+  'withdrawn',
+];
 const FRAMEWORK_TERMS = ['framework agreement'];
 
 function fuelSubcategory(source: string, text: string): string {
-  // Pass 2 (notice text) refines the pass-1 source baseline where the type is
-  // clear. Precedence: terminal status (awarded/dead) first, then structure
-  // (framework), then live solicitation (rfp).
   if (keywordMatches(text, DEAD_TERMS).length > 0) return 'award_or_dead';
   if (keywordMatches(text, FRAMEWORK_TERMS).length > 0) return 'framework';
   if (keywordMatches(text, RFP_TERMS).length > 0) return 'rfp';
-  // Pass 1 baseline by source.
   return GOV_SOURCES.has(source) ? 'gov_tender' : 'private_tender';
 }
 
@@ -187,9 +203,6 @@ function statedVolumes(text: string): { text: string; mt: number }[] {
   return out;
 }
 
-// is_cargo fires only for genuine cargo-scale fuel: a stated volume at or above
-// the threshold, OR cargo language on a lead that resolved to a real fuel
-// product_type. A lead with product_type 'other' never flags on language alone.
 function fuelCargo(
   text: string,
   productType: string
@@ -210,27 +223,15 @@ function fuelSector(company: string | null): string | null {
   return keywordMatches(company, NOC_BUYERS).length > 0 ? 'noc' : null;
 }
 
-// ---- Consulting subcategory: work type by keyword, first match wins. ----
-// Feasibility is checked FIRST so a feasibility study is not swallowed by a
-// broader compliance or strategy keyword also present in the notice.
+// ---- Consulting subcategory: work type by keyword. Feasibility first so a
+// feasibility study is not swallowed by a broader compliance/strategy keyword. ----
 const CONSULTING_SUBCATS: { sub: string; keywords: string[] }[] = [
   {
     sub: 'feasibility',
     keywords: [
-      'feasibility study',
-      'feasibility',
-      'prefeasibility',
-      'pre-feasibility',
-      'techno-economic',
-      'viability',
-      'business case',
-      'bankable feasibility',
-      'options appraisal',
-      'scoping study',
-      'needs assessment',
-      'situational analysis',
-      'market study',
-      'market assessment',
+      'feasibility study', 'feasibility', 'prefeasibility', 'pre-feasibility', 'techno-economic',
+      'viability', 'business case', 'bankable feasibility', 'options appraisal', 'scoping study',
+      'needs assessment', 'situational analysis', 'market study', 'market assessment',
     ],
   },
   { sub: 'compliance', keywords: ['compliance', 'regulatory', 'QMS', 'ISO', 'GMP', 'audit', 'accreditation'] },
@@ -248,14 +249,15 @@ function consultingSubcategory(text: string): string {
   return 'other';
 }
 
-// ---- Job-posting exclusion (consulting). ----
-// An employment ad is not a consulting engagement. Any match here excludes the
-// lead from consulting.
+// ---- Employment-posting detection (routes to category 'jobs'). ----
 const JOB_TERMS = [
   'applying for a role',
+  'job vacancy',
   'employment position',
   'full-time',
   'full time',
+  'part-time',
+  'part time',
   'permanent position',
   'we are hiring',
   'join our team',
@@ -269,8 +271,7 @@ function isJobPosting(text: string): boolean {
   return keywordMatches(text, JOB_TERMS).length > 0;
 }
 
-// Fuel-module leads: fuel supply -> category 'fuel' with notice-type subcategory,
-// product_type, cargo flag, and NOC sector; otherwise excluded.
+// Fuel-module leads: real fuel supply -> category 'fuel'; otherwise excluded.
 export function classifyFuel(lead: NormalizedLead): Classification {
   const text = haystack(lead);
   if (!isFuelSupply(text)) return excluded();
@@ -286,11 +287,11 @@ export function classifyFuel(lead: NormalizedLead): Classification {
   };
 }
 
-// Non-fuel leads: advisory contract -> category 'consulting' with work-type
-// subcategory; employment ads are excluded.
+// Non-fuel leads: employment ads -> 'jobs'; otherwise an advisory contract ->
+// category 'consulting' with a work-type subcategory.
 export function classifyConsulting(lead: NormalizedLead): Classification {
   const text = haystack(lead);
-  if (isJobPosting(text)) return excluded();
+  if (isJobPosting(text)) return jobs();
   return {
     category: 'consulting',
     subcategory: consultingSubcategory(text),
