@@ -12,6 +12,11 @@ import {
   scoreTier,
   sourceLabel,
 } from '@/lib/leads';
+import {
+  FUEL_NOTICE_OPTIONS,
+  FUEL_PRODUCT_OPTIONS,
+  CONSULTING_SUB_OPTIONS,
+} from '@/lib/category';
 import SourceLink from './SourceLink';
 import styles from './DealRecord.module.css';
 
@@ -111,6 +116,7 @@ function Body({
       </div>
 
       <LeadDetails lead={lead} />
+      <ClassificationSection lead={lead} onRefresh={onRefresh} />
       <LeadDetailSection lead={lead} />
       <OutreachQueue drafts={drafts} onRefresh={onRefresh} />
       <NextActionSection lead={lead} onRefresh={onRefresh} />
@@ -200,6 +206,98 @@ function LeadDetailSection({ lead }: { lead: Lead }) {
           </div>
         ))}
       </div>
+    </Section>
+  );
+}
+
+// Classification tags with inline override. Category / subcategory /
+// product_type are editable dropdowns written straight back to Supabase (the
+// dashboard already updates leads with the anon client); is_cargo / volume /
+// sector are read-only context shown for fuel leads.
+function ClassificationSection({
+  lead,
+  onRefresh,
+}: {
+  lead: Lead;
+  onRefresh: () => void;
+}) {
+  const isFuel = lead.category === 'fuel';
+  const subOptions = (isFuel ? FUEL_NOTICE_OPTIONS : CONSULTING_SUB_OPTIONS).filter(
+    (o) => o.key !== 'all'
+  );
+  const productOptions = FUEL_PRODUCT_OPTIONS.filter((o) => o.key !== 'all');
+
+  async function update(
+    patch: Partial<Pick<Lead, 'category' | 'subcategory' | 'product_type'>>
+  ) {
+    await supabase.from('leads').update(patch).eq('id', lead.id);
+    onRefresh();
+  }
+
+  return (
+    <Section title="Classification">
+      <div className={styles.grid}>
+        <label className={styles.field}>
+          <span className={styles.fieldLabel}>Category</span>
+          <select
+            className={styles.select}
+            value={lead.category ?? ''}
+            onChange={(e) => update({ category: e.target.value || null })}
+          >
+            <option value="">—</option>
+            <option value="fuel">Fuel</option>
+            <option value="consulting">Consulting</option>
+          </select>
+        </label>
+        <label className={styles.field}>
+          <span className={styles.fieldLabel}>Subcategory</span>
+          <select
+            className={styles.select}
+            value={lead.subcategory ?? ''}
+            onChange={(e) => update({ subcategory: e.target.value || null })}
+          >
+            <option value="">—</option>
+            {subOptions.map((o) => (
+              <option key={o.key} value={o.key}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        {isFuel && (
+          <label className={styles.field}>
+            <span className={styles.fieldLabel}>Product Type</span>
+            <select
+              className={styles.select}
+              value={lead.product_type ?? ''}
+              onChange={(e) => update({ product_type: e.target.value || null })}
+            >
+              <option value="">—</option>
+              {productOptions.map((o) => (
+                <option key={o.key} value={o.key}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+      </div>
+      {isFuel && (
+        <div className={styles.grid}>
+          <div className={styles.field}>
+            <span className={styles.fieldLabel}>Cargo</span>
+            <span className={styles.tag}>{lead.is_cargo ? 'Yes' : 'No'}</span>
+          </div>
+          <div className={styles.field}>
+            <span className={styles.fieldLabel}>Volume</span>
+            <span className={styles.tag}>{lead.volume_estimate ?? '—'}</span>
+          </div>
+          <div className={styles.field}>
+            <span className={styles.fieldLabel}>Sector</span>
+            <span className={styles.tag}>{lead.sector ?? '—'}</span>
+          </div>
+        </div>
+      )}
     </Section>
   );
 }
