@@ -13,6 +13,14 @@ const API = 'https://search.worldbank.org/api/v2/procnotices';
 const ROWS = Number(process.env.WORLDBANK_ROWS ?? '100');
 const UA = 'philipkwong-agents/1.0 (+scraper)';
 
+// Keyword (qterm) queries run in addition to the recent-notices pull, so
+// feasibility / tourism / leisure work is returned specifically rather than by
+// chance of being in the most-recent window. Override with a comma-separated list.
+const QUERIES = (process.env.WORLDBANK_QUERIES ?? 'tourism,feasibility,attraction,leisure')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
+
 interface WbNotice {
   id?: string;
   notice_type?: string;
@@ -59,43 +67,53 @@ function buildContent(n: WbNotice): string {
   ].join('\n');
 }
 
-export async function scrapeWorldBank(): Promise<NormalizedLead[]> {
-  const url = `${API}?format=json&rows=${ROWS}&procurement_group=CS`;
-  let data: WbResponse;
+// One CS-notices fetch: the recent pull (no qterm) or a keyword query.
+async function fetchNotices(qterm?: string): Promise<WbNotice[]> {
+  const url =
+    `${API}?format=json&rows=${ROWS}&procurement_group=CS` +
+    (qterm ? `&qterm=${encodeURIComponent(qterm)}` : '');
   try {
-    const res = await fetch(url, {
-      headers: { 'User-Agent': UA, Accept: 'application/json' },
-    });
+    const res = await fetch(url, { headers: { 'User-Agent': UA, Accept: 'application/json' } });
     if (!res.ok) {
-      console.error(`World Bank: HTTP ${res.status}`);
+      console.error(`World Bank${qterm ? ` "${qterm}"` : ''}: HTTP ${res.status}`);
       return [];
     }
-    data = (await res.json()) as WbResponse;
+    const data = (await res.json()) as WbResponse;
+    return data.procnotices ?? [];
   } catch (error) {
-    console.warn(`World Bank: fetch failed (${String(error).slice(0, 80)}); skipping (0 leads).`);
+    console.warn(`World Bank${qterm ? ` "${qterm}"` : ''}: fetch failed (${String(error).slice(0, 60)}).`);
     return [];
   }
+}
+
+export async function scrapeWorldBank(): Promise<NormalizedLead[]> {
+  // Recent CS notices plus a keyword query per term, deduped by URL.
+  const batches = await Promise.all([fetchNotices(), ...QUERIES.map((q) => fetchNotices(q))]);
 
   const byUrl = new Map<string, NormalizedLead>();
-  for (const n of data.procnotices ?? []) {
-    if (!n.id) continue;
-    const title = titleOf(n);
-    if (!title) continue;
-    const link = `https://projects.worldbank.org/en/projects-operations/procurement-detail/${n.id}`;
-    if (byUrl.has(link)) continue;
-    byUrl.set(link, {
-      title,
-      url: link,
-      raw_content: buildContent(n),
-      company: n.contact_organization ?? null,
-      location: n.project_ctry_name ?? null,
-      deadline: toIso(n.submission_deadline_date),
-      value_estimate: null,
-      source: 'worldbank',
-    });
+  for (const notices of batches) {
+    for (const n of notices) {
+      if (!n.id) continue;
+      const title = titleOf(n);
+      if (!title) continue;
+      const link = `https://projects.worldbank.org/en/projects-operations/procurement-detail/${n.id}`;
+      if (byUrl.has(link)) continue;
+      byUrl.set(link, {
+        title,
+        url: link,
+        raw_content: buildContent(n),
+        company: n.contact_organization ?? null,
+        location: n.project_ctry_name ?? null,
+        deadline: toIso(n.submission_deadline_date),
+        value_estimate: null,
+        source: 'worldbank',
+      });
+    }
   }
 
   const leads = [...byUrl.values()];
-  console.log(`World Bank: ${leads.length} consulting-services notices`);
+  console.log(
+    `World Bank: ${leads.length} consulting-services notices (recent + ${QUERIES.length} keyword queries)`
+  );
   return leads;
 }
