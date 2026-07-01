@@ -38,8 +38,9 @@ export interface IndustryProfile {
   minKeywordMatches?: number;
   // Code systems by family, routed by source: CPV is European (TED / TenderNed
   // only), UNSPSC is for Singapore (GeBIZ) and UNGM, HS is customs (phase 2,
-  // unused). Never send CPV to GeBIZ or any non-European source.
-  tscodes?: { cpv?: string[]; unspsc?: string[]; hs?: string[] };
+  // unused), NAICS is US (SAM.gov / Texas ESBD; descriptive for now). Never send
+  // CPV to GeBIZ or any non-European source.
+  tscodes?: { cpv?: string[]; unspsc?: string[]; hs?: string[]; naics?: string[] };
   // ISO region codes this profile targets (e.g. ['NL', 'SG']).
   regions?: string[];
 }
@@ -321,6 +322,68 @@ export const PROFILES: IndustryProfile[] = [
       unspsc: ['15100000', '15101500', '15101505', '15101506', '15101508', '15101509'],
       // HS: customs, phase 2 only. Not used yet.
       hs: ['2709', '2710', '271012', '271019', '2711'],
+    },
+  },
+  {
+    // Contained ethanol pilot: fuel ethanol demand only (E85, E10, denatured
+    // fuel ethanol, bioethanol blends). Runs on the shared fuel capture path
+    // (broker-filter -> excludeKeywords -> expired -> write; no Haiku fit
+    // scoring). Aimed at the US Gulf and export buyers across every fuel-capable
+    // tender source.
+    name: 'ethanol_gulf',
+    keywords: [
+      'ethanol',
+      'denatured ethanol',
+      'fuel ethanol',
+      'bioethanol',
+      'E85',
+      'E10',
+      'ethanol blend',
+      'ASTM D4806',
+      'flex fuel',
+      'biofuel blend',
+    ],
+    // Full broker list (as fuel_tenders) PLUS the non-fuel ethanol uses. Ethanol
+    // has large sanitizer/beverage/industrial/pharma demand; without these the
+    // profile drowns in non-fuel hits. Enforced on the fuel capture path (after
+    // the broker filter, before the expired check).
+    excludeKeywords: [
+      'ICPO',
+      'LOI',
+      'BCL',
+      'SBLC',
+      'FCO',
+      'soft corporate offer',
+      'ready willing and able',
+      'mandate',
+      'tank-to-tank',
+      'TTT',
+      'TTO',
+      'dip and pay',
+      'Rotterdam allocation',
+      'performance bond',
+      'hand sanitizer',
+      'beverage grade',
+      'industrial solvent',
+      'pharmaceutical',
+      'disinfectant',
+    ],
+    // Every fuel-capable tender source in the system (STEP 3 pilot target set).
+    sources: [...TENDER_SOURCES, 'tenderned', 'texasesbd'],
+    // Fuel-module: written via the capture path with a fixed score, so minScore
+    // is never consulted for this profile. Kept at the fuel floor for parity.
+    minScore: 40,
+    module: 'fuel',
+    active: true,
+    minKeywordMatches: 1,
+    regions: ['US-TX', 'US-LA', 'US-MS', 'US-AL', 'US-GULF'],
+    tscodes: {
+      // HS: fuel/denatured ethanol customs headings (phase 2, descriptive).
+      hs: ['220710', '220720'],
+      // UNSPSC: ethanol / fuel additive (Singapore GeBIZ, UNGM).
+      unspsc: ['15101514', '12164400'],
+      // NAICS: ethyl alcohol manufacturing / petroleum wholesale (US sources).
+      naics: ['325193', '424710'],
     },
   },
 ];
