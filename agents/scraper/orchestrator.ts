@@ -42,6 +42,7 @@ import { scrapeUngm } from './sources/ungm';
 import { scrapeGooglePlaces } from './sources/googleplaces';
 import { scrapeTenderNed } from './sources/tenderned';
 import { scrapeTexasEsbd } from './sources/texasesbd';
+import { scrapeWorldBank } from './sources/worldbank';
 // PARKED (Track B registry): re-enable these imports with the registry pass.
 // import { scrapeMpaRegistry } from './sources/mpa';
 // import { scrapeRotterdamRegistry } from './sources/portofrotterdam';
@@ -61,6 +62,7 @@ const SOURCE_REGION: Record<string, string> = {
   tedeu: 'EU',
   gebiz: 'SG',
   ungm: 'GLOBAL',
+  worldbank: 'GLOBAL',
   canadabuys: 'CA',
   adzuna: 'CA',
   jooble: 'CA',
@@ -132,6 +134,8 @@ function fetchSource(id: string, profiles: IndustryProfile[]): Promise<Normalize
       return scrapeTenderNed(fuelCpvCodes(profiles));
     case 'texasesbd':
       return scrapeTexasEsbd();
+    case 'worldbank':
+      return scrapeWorldBank();
     case 'googleplaces':
       return scrapeGooglePlaces();
     default:

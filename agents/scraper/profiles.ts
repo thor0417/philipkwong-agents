@@ -280,7 +280,9 @@ export const PROFILES: IndustryProfile[] = [
       'situational analysis',
     ],
     excludeKeywords: [],
-    sources: TENDER_AND_JOB,
+    // Development bank + UN consulting portals added alongside the shared
+    // tender/job sources: they carry the heaviest feasibility/advisory RFP flow.
+    sources: [...TENDER_AND_JOB, 'worldbank'],
     minScore: 60,
     module: 'general_consulting',
     active: true,
