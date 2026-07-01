@@ -286,40 +286,88 @@ const FEASIBILITY_TERMS = [
   'bankable feasibility',
   'options appraisal',
   'scoping study',
-  // Hospitality / leisure / tourism / gaming feasibility work. The bare terms
-  // that do not already contain "feasibility" (leisure/destination development,
-  // master plan, visitor economy) are the new triggers.
+  // Leisure / tourism / entertainment / cultural feasibility work, phrased any
+  // way. Many of these do not contain "feasibility", so they are new triggers.
+  // The lane writes on legitimacy, so the breadth is intentional (bare terms
+  // like zoo / aquarium / theme park will also pull attraction tenders that are
+  // not strictly studies).
   'tourism feasibility',
+  'tourism development',
+  'tourism strategy',
+  'tourism master plan',
+  'tourism potential',
+  'destination development',
+  'destination master plan',
   'hospitality feasibility',
+  'hospitality market study',
   'hotel feasibility',
   'resort feasibility',
+  'spa resort',
+  'golf resort',
   'casino feasibility',
   'gaming feasibility',
+  'integrated resort',
   'leisure development',
-  'destination development',
+  'leisure facility',
+  'leisure complex',
+  'recreation facility',
+  'visitor economy',
+  'visitor attraction',
+  'visitor centre',
+  'visitor center',
+  'attraction feasibility',
+  'cultural attraction',
+  'museum feasibility',
+  'heritage feasibility',
+  'theme park',
+  'amusement park',
+  'waterpark',
+  'family entertainment',
+  'entertainment complex',
+  'zoo',
+  'aquarium',
+  'science centre',
+  'convention centre feasibility',
   'convention center feasibility',
   'conference center feasibility',
+  'conference facility',
+  'exhibition centre',
+  'stadium feasibility',
+  'arena feasibility',
+  'sports facility feasibility',
   'marina feasibility',
-  'attraction feasibility',
+  'marina development',
+  'waterfront development',
   'mixed-use feasibility',
+  'mixed-use development',
   'master plan',
-  'tourism master plan',
-  'visitor economy',
+  'economic impact study',
+  'market demand study',
+  'market feasibility',
+  'commercial feasibility',
 ];
 
 // Best-guess sector, tagged as the feasibility subcategory. First match wins.
 const FEASIBILITY_SECTORS: { sector: string; keywords: string[] }[] = [
-  // Hospitality / leisure sectors first: these commercial-leisure terms are
-  // specific, and a casino/hotel/resort/tourism project should tag distinctly
-  // rather than falling into energy/water/infrastructure. (Sector routing only
-  // runs on leads already detected as feasibility, so breadth here is low-risk.)
+  // Commercial leisure / culture sectors first: these terms are specific, and a
+  // casino / hotel / theme park / museum project should tag distinctly rather
+  // than falling into energy/water/infrastructure. Sector routing only runs on
+  // leads already detected as feasibility, so breadth here is low-risk.
   { sector: 'gaming', keywords: ['casino', 'gaming', 'gambling', 'integrated resort'] },
   {
     sector: 'hospitality',
-    keywords: ['hotel', 'resort', 'hospitality', 'convention center', 'convention centre', 'conference center', 'conference centre', 'lodging', 'accommodation', 'mixed-use'],
+    keywords: ['hotel', 'resort', 'hospitality', 'lodging', 'accommodation', 'spa resort', 'golf resort', 'convention center', 'convention centre', 'conference center', 'conference centre', 'conference facility', 'mixed-use'],
   },
-  { sector: 'tourism', keywords: ['tourism', 'tourist', 'visitor economy', 'destination development', 'ecotourism'] },
-  { sector: 'leisure', keywords: ['leisure', 'recreation', 'entertainment', 'theme park', 'amusement', 'marina', 'golf', 'spa', 'attraction'] },
+  {
+    sector: 'entertainment',
+    keywords: ['entertainment', 'theme park', 'amusement', 'waterpark', 'water park', 'cinema', 'arena', 'stadium', 'sports facility', 'family entertainment'],
+  },
+  {
+    sector: 'cultural',
+    keywords: ['museum', 'heritage', 'cultural', 'gallery', 'zoo', 'aquarium', 'science centre', 'science center', 'exhibition', 'arts', 'library'],
+  },
+  { sector: 'tourism', keywords: ['tourism', 'tourist', 'visitor economy', 'visitor attraction', 'visitor centre', 'visitor center', 'destination', 'ecotourism'] },
+  { sector: 'leisure', keywords: ['leisure', 'recreation', 'marina', 'golf', 'spa', 'attraction', 'waterfront'] },
   { sector: 'energy', keywords: ['energy', 'power', 'electricity', 'solar', 'wind', 'hydro', 'grid', 'renewable', 'oil', 'gas', 'fuel', 'petroleum'] },
   { sector: 'water', keywords: ['water', 'sanitation', 'wastewater', 'sewage', 'drainage', 'irrigation'] },
   { sector: 'transport', keywords: ['transport', 'transit', 'highway', 'railway', 'rail', 'metro', 'road', 'bridge', 'port', 'airport', 'logistics', 'mobility'] },
