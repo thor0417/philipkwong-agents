@@ -286,10 +286,40 @@ const FEASIBILITY_TERMS = [
   'bankable feasibility',
   'options appraisal',
   'scoping study',
+  // Hospitality / leisure / tourism / gaming feasibility work. The bare terms
+  // that do not already contain "feasibility" (leisure/destination development,
+  // master plan, visitor economy) are the new triggers.
+  'tourism feasibility',
+  'hospitality feasibility',
+  'hotel feasibility',
+  'resort feasibility',
+  'casino feasibility',
+  'gaming feasibility',
+  'leisure development',
+  'destination development',
+  'convention center feasibility',
+  'conference center feasibility',
+  'marina feasibility',
+  'attraction feasibility',
+  'mixed-use feasibility',
+  'master plan',
+  'tourism master plan',
+  'visitor economy',
 ];
 
 // Best-guess sector, tagged as the feasibility subcategory. First match wins.
 const FEASIBILITY_SECTORS: { sector: string; keywords: string[] }[] = [
+  // Hospitality / leisure sectors first: these commercial-leisure terms are
+  // specific, and a casino/hotel/resort/tourism project should tag distinctly
+  // rather than falling into energy/water/infrastructure. (Sector routing only
+  // runs on leads already detected as feasibility, so breadth here is low-risk.)
+  { sector: 'gaming', keywords: ['casino', 'gaming', 'gambling', 'integrated resort'] },
+  {
+    sector: 'hospitality',
+    keywords: ['hotel', 'resort', 'hospitality', 'convention center', 'convention centre', 'conference center', 'conference centre', 'lodging', 'accommodation', 'mixed-use'],
+  },
+  { sector: 'tourism', keywords: ['tourism', 'tourist', 'visitor economy', 'destination development', 'ecotourism'] },
+  { sector: 'leisure', keywords: ['leisure', 'recreation', 'entertainment', 'theme park', 'amusement', 'marina', 'golf', 'spa', 'attraction'] },
   { sector: 'energy', keywords: ['energy', 'power', 'electricity', 'solar', 'wind', 'hydro', 'grid', 'renewable', 'oil', 'gas', 'fuel', 'petroleum'] },
   { sector: 'water', keywords: ['water', 'sanitation', 'wastewater', 'sewage', 'drainage', 'irrigation'] },
   { sector: 'transport', keywords: ['transport', 'transit', 'highway', 'railway', 'rail', 'metro', 'road', 'bridge', 'port', 'airport', 'logistics', 'mobility'] },
