@@ -430,6 +430,9 @@ export async function orchestrate(): Promise<ScrapeReport> {
         category: tags.category,
         subcategory: tags.subcategory,
         product_type: tags.product_type,
+        is_cargo: tags.is_cargo,
+        volume_estimate: tags.volume_estimate,
+        sector: tags.sector,
       },
       { onConflict: 'url' }
     );
@@ -475,6 +478,9 @@ export async function orchestrate(): Promise<ScrapeReport> {
         category: tags.category,
         subcategory: tags.subcategory,
         product_type: tags.product_type,
+        is_cargo: tags.is_cargo,
+        volume_estimate: tags.volume_estimate,
+        sector: tags.sector,
       },
       { onConflict: 'url' }
     );
