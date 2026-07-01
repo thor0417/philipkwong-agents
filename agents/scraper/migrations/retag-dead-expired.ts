@@ -9,6 +9,7 @@
 
 import { supabaseAdmin } from '../../../lib/supabase-admin';
 import { isDeadNotice } from '../classify';
+import type { NormalizedLead } from '../sources/types';
 
 interface Row {
   id: string;
@@ -16,12 +17,13 @@ interface Row {
   deadline: string | null;
   title: string | null;
   raw_content: string | null;
+  source: string | null;
 }
 
 async function main(): Promise<void> {
   const { data, error } = await supabaseAdmin
     .from('leads')
-    .select('id, status, deadline, title, raw_content');
+    .select('id, status, deadline, title, raw_content, source');
   if (error) {
     console.error('Fetch failed:', error.message);
     process.exit(1);
@@ -39,7 +41,11 @@ async function main(): Promise<void> {
     if (r.status && r.status !== 'new') {
       continue;
     }
-    const isDead = isDeadNotice(`${r.title ?? ''}\n${r.raw_content ?? ''}`);
+    const isDead = isDeadNotice({
+      title: r.title ?? '',
+      raw_content: r.raw_content ?? '',
+      source: r.source ?? '',
+    } as NormalizedLead);
     const isExpired = !!r.deadline && new Date(r.deadline).getTime() < now;
     const next = isDead ? 'dead' : isExpired ? 'expired' : null;
     if (!next) continue;

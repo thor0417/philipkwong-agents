@@ -190,10 +190,16 @@ function fuelSubcategory(source: string, text: string): string {
   return GOV_SOURCES.has(source) ? 'gov_tender' : 'private_tender';
 }
 
-// True when a lead's title/content marks it as already awarded, cancelled,
-// withdrawn, superseded, or an award/intent notice. Cross-cutting: used to keep
-// dead notices out of the actionable set on every category.
+// Sources whose feed is awarded contracts only, not live opportunities: every
+// lead from them is already dead. AusTender's OCDS feed exposes published
+// (awarded) contract notices only (see sources/austender.ts).
+const AWARDED_ONLY_SOURCES = new Set(['austender']);
+
+// True when a lead is already awarded, cancelled, withdrawn, superseded, or an
+// award/intent notice - by its source (awarded-only feeds) or its text.
+// Cross-cutting: keeps dead notices out of the actionable set on every category.
 export function isDeadNotice(lead: NormalizedLead | string): boolean {
+  if (typeof lead !== 'string' && AWARDED_ONLY_SOURCES.has(lead.source)) return true;
   const text = typeof lead === 'string' ? lead : haystack(lead);
   return keywordMatches(text, DEAD_TERMS).length > 0;
 }
