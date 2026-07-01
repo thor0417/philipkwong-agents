@@ -216,7 +216,22 @@ function fuelSector(company: string | null): string | null {
 const CONSULTING_SUBCATS: { sub: string; keywords: string[] }[] = [
   {
     sub: 'feasibility',
-    keywords: ['feasibility study', 'feasibility', 'prefeasibility', 'techno-economic', 'viability', 'business case'],
+    keywords: [
+      'feasibility study',
+      'feasibility',
+      'prefeasibility',
+      'pre-feasibility',
+      'techno-economic',
+      'viability',
+      'business case',
+      'bankable feasibility',
+      'options appraisal',
+      'scoping study',
+      'needs assessment',
+      'situational analysis',
+      'market study',
+      'market assessment',
+    ],
   },
   { sub: 'compliance', keywords: ['compliance', 'regulatory', 'QMS', 'ISO', 'GMP', 'audit', 'accreditation'] },
   {
