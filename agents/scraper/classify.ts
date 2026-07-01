@@ -271,6 +271,59 @@ function isJobPosting(text: string): boolean {
   return keywordMatches(text, JOB_TERMS).length > 0;
 }
 
+// ---- Feasibility capture lane. An independent category checked across ALL
+// leads (any profile, any source) before consulting scoring: a feasibility
+// study RFP/tender is pulled out and written on legitimacy, never fit-scored. ----
+const FEASIBILITY_TERMS = [
+  'feasibility study',
+  'feasibility',
+  'prefeasibility',
+  'pre-feasibility',
+  'techno-economic study',
+  'techno-economic',
+  'viability study',
+  'viability assessment',
+  'bankable feasibility',
+  'options appraisal',
+  'scoping study',
+];
+
+// Best-guess sector, tagged as the feasibility subcategory. First match wins.
+const FEASIBILITY_SECTORS: { sector: string; keywords: string[] }[] = [
+  { sector: 'energy', keywords: ['energy', 'power', 'electricity', 'solar', 'wind', 'hydro', 'grid', 'renewable', 'oil', 'gas', 'fuel', 'petroleum'] },
+  { sector: 'water', keywords: ['water', 'sanitation', 'wastewater', 'sewage', 'drainage', 'irrigation'] },
+  { sector: 'transport', keywords: ['transport', 'transit', 'highway', 'railway', 'rail', 'metro', 'road', 'bridge', 'port', 'airport', 'logistics', 'mobility'] },
+  { sector: 'health', keywords: ['health', 'hospital', 'medical', 'clinic', 'pharmaceutical', 'disease'] },
+  { sector: 'agriculture', keywords: ['agriculture', 'agri', 'farming', 'crop', 'livestock', 'food security'] },
+  { sector: 'infrastructure', keywords: ['infrastructure', 'construction', 'building', 'housing', 'urban'] },
+];
+
+function feasibilitySector(text: string): string {
+  for (const s of FEASIBILITY_SECTORS) {
+    if (keywordMatches(text, s.keywords).length > 0) return s.sector;
+  }
+  return 'other';
+}
+
+// True when the lead is a feasibility study RFP/tender (feasibility language and
+// not an employment ad for a feasibility role).
+export function isFeasibilityLead(lead: NormalizedLead): boolean {
+  const text = haystack(lead);
+  return keywordMatches(text, FEASIBILITY_TERMS).length > 0 && !isJobPosting(text);
+}
+
+// Feasibility leads: category 'feasibility', best-guess sector as the subcategory.
+export function classifyFeasibility(lead: NormalizedLead): Classification {
+  return {
+    category: 'feasibility',
+    subcategory: feasibilitySector(haystack(lead)),
+    product_type: null,
+    is_cargo: false,
+    volume_estimate: null,
+    sector: null,
+  };
+}
+
 // Fuel-module leads: real fuel supply -> category 'fuel'; otherwise excluded.
 export function classifyFuel(lead: NormalizedLead): Classification {
   const text = haystack(lead);

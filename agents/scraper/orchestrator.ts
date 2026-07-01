@@ -19,7 +19,7 @@ import {
 } from './profiles';
 import { bestProfileFor, passesPrefilter, keywordMatches } from './prefilter';
 import { isBrokerNoise } from './broker-filter';
-import { classifyFuel, classifyConsulting } from './classify';
+import { classifyFuel, classifyConsulting, isFeasibilityLead, classifyFeasibility } from './classify';
 import { scoreLeads, type ScorerInput } from './scorer';
 import { crossReference, normalizeCompany } from './cross-reference';
 // PARKED (Track B registry): import re-enabled when the registry pass returns.
@@ -195,6 +195,12 @@ export interface ScrapeReport {
   fuelWritten: number;
   fuelWrittenPerSource: Record<string, number>;
   fuelWrittenPerRegion: Record<string, number>;
+  // Feasibility capture lane (independent category, no fit scoring).
+  feasibilityFound: number;
+  feasibilityExpired: number;
+  feasibilityWritten: number;
+  feasibilityPerSource: Record<string, number>;
+  feasibilityPerSector: Record<string, number>;
   // Track B registry pass.
   registryWritten: number;
   registryPerSource: Record<string, number>;
@@ -257,16 +263,36 @@ export async function orchestrate(): Promise<ScrapeReport> {
   const fuelProfile = profiles.find((p) => p.module === FUEL_MODULE);
   const prepared: PreparedLead[] = [];
   const fuelPrepared: NormalizedLead[] = [];
+  const feasibilityPrepared: NormalizedLead[] = [];
   let prefilterFiltered = 0;
   let brokerExcluded = 0;
   let fuelFound = 0;
   let fuelBrokerExcluded = 0;
   let fuelExcluded = 0;
   let fuelExpired = 0;
+  let feasibilityFound = 0;
+  let feasibilityExpired = 0;
   const now = Date.now();
 
   for (const lead of deduped) {
     const text = haystack(lead);
+
+    // Feasibility capture lane: runs FIRST, across every lead from any source,
+    // before fuel or consulting routing. A feasibility study RFP/tender is
+    // captured on legitimacy (not expired) and written with no Haiku fit
+    // scoring, exactly like the fuel path. Feasibility work appears everywhere
+    // (gov tenders, dev-bank RFPs, energy/infrastructure), so it must not be
+    // gated by consulting keywords, consulting sources, or the minScore filter.
+    if (isFeasibilityLead(lead)) {
+      feasibilityFound++;
+      if (isExpired(lead.deadline, now)) {
+        feasibilityExpired++;
+        continue;
+      }
+      feasibilityPrepared.push(lead);
+      continue;
+    }
+
     const candidates = profiles.filter((p) => p.sources.includes(lead.source));
     if (candidates.length === 0) continue;
 
@@ -323,7 +349,8 @@ export async function orchestrate(): Promise<ScrapeReport> {
   if (process.env.DRY_RUN === '1') {
     console.log(
       `DRY_RUN: ${prepared.length} non-fuel leads would be Haiku-scored; ` +
-        `${fuelPrepared.length} fuel leads would be written directly (no Haiku).`
+        `${fuelPrepared.length} fuel leads and ${feasibilityPrepared.length} feasibility ` +
+        `leads would be written directly (no Haiku).`
     );
     return {
       fetchedPerSource,
@@ -345,6 +372,11 @@ export async function orchestrate(): Promise<ScrapeReport> {
       fuelWritten: 0,
       fuelWrittenPerSource: {},
       fuelWrittenPerRegion: {},
+      feasibilityFound,
+      feasibilityExpired,
+      feasibilityWritten: 0,
+      feasibilityPerSource: {},
+      feasibilityPerSector: {},
       registryWritten: 0,
       registryPerSource: {},
       registryPerRegion: {},
@@ -515,6 +547,57 @@ export async function orchestrate(): Promise<ScrapeReport> {
     inc(writtenPerLeadType, 'tender');
   }
 
+  // 5c. Feasibility capture write path: non-expired feasibility study RFPs/
+  // tenders written directly, no Haiku fit scoring and no minScore. Score is
+  // left null (captured on legitimacy, not fit-ranked); the subcategory carries
+  // the best-guess sector.
+  const feasibilityPerSource: Record<string, number> = {};
+  const feasibilityPerSector: Record<string, number> = {};
+  let feasibilityWritten = 0;
+  for (const lead of feasibilityPrepared) {
+    const region = regionOf(lead.source);
+    const tags = classifyFeasibility(lead);
+    const { error } = await supabaseAdmin.from('leads').upsert(
+      {
+        source: lead.source,
+        url: lead.url,
+        title: lead.title,
+        raw_content: lead.raw_content,
+        score: null,
+        score_reason: 'Feasibility study captured on legitimacy (feasibility lane); not fit-scored.',
+        status: 'new',
+        module: 'feasibility',
+        industry: 'feasibility',
+        company: lead.company,
+        location: lead.location,
+        deadline: lead.deadline,
+        value_estimate: lead.value_estimate,
+        lead_type: 'tender',
+        region,
+        category: tags.category,
+        subcategory: tags.subcategory,
+        product_type: tags.product_type,
+        is_cargo: tags.is_cargo,
+        volume_estimate: tags.volume_estimate,
+        sector: tags.sector,
+      },
+      { onConflict: 'url' }
+    );
+    if (error) {
+      console.error(`Feasibility write failed for ${lead.url}: ${error.message}`);
+      continue;
+    }
+    feasibilityWritten++;
+    written++;
+    inc(feasibilityPerSource, lead.source);
+    inc(feasibilityPerSector, tags.subcategory ?? 'other');
+    inc(writtenPerSource, lead.source);
+    inc(writtenPerModule, 'feasibility');
+    inc(writtenPerIndustry, 'feasibility');
+    inc(writtenPerRegion, region);
+    inc(writtenPerLeadType, 'tender');
+  }
+
   // 6. Track B registry pass: PARKED. The MPA/Rotterdam registry write path is
   // disabled; it no longer writes registry leads on a run. Re-enable by
   // restoring runRegistryPass() and its imports below.
@@ -547,6 +630,11 @@ export async function orchestrate(): Promise<ScrapeReport> {
     fuelWritten,
     fuelWrittenPerSource,
     fuelWrittenPerRegion,
+    feasibilityFound,
+    feasibilityExpired,
+    feasibilityWritten,
+    feasibilityPerSource,
+    feasibilityPerSector,
     // Track B registry pass parked: always zero until re-enabled.
     registryWritten: 0,
     registryPerSource: {},
@@ -644,6 +732,14 @@ function printReport(r: ScrapeReport): void {
   console.log(table(r.writtenPerRegion));
   console.log('Written per lead_type:');
   console.log(table(r.writtenPerLeadType));
+  console.log('--- Feasibility lane (independent capture, no fit scoring) ---');
+  console.log(`  Feasibility studies found:   ${r.feasibilityFound}`);
+  console.log(`  Dropped (expired deadline):  ${r.feasibilityExpired}`);
+  console.log(`  Written (all legit):         ${r.feasibilityWritten}`);
+  console.log('  Feasibility per source:');
+  console.log(table(r.feasibilityPerSource));
+  console.log('  Feasibility per sector:');
+  console.log(table(r.feasibilityPerSector));
   console.log('--- Track B registry ---');
   console.log(`  Registry leads written: ${r.registryWritten}`);
   console.log('  Registry per source:');

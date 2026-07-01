@@ -7,7 +7,7 @@
 // Run: node --env-file=.env.local --import tsx agents/scraper/migrations/backfill-classification.ts
 
 import { supabaseAdmin } from '../../../lib/supabase-admin';
-import { classifyFuel, classifyConsulting } from '../classify';
+import { classifyFuel, classifyConsulting, isFeasibilityLead, classifyFeasibility } from '../classify';
 import type { NormalizedLead } from '../sources/types';
 
 interface LeadRow {
@@ -55,11 +55,21 @@ async function main(): Promise<void> {
   let updated = 0;
   let failed = 0;
   let cargoCleared = 0;
+  let feasibility = 0;
 
   for (const row of rows) {
-    const isFuel = row.module === 'fuel';
-    const tags = isFuel ? classifyFuel(toNormalized(row)) : classifyConsulting(toNormalized(row));
-    if (isFuel) fuel++;
+    const lead = toNormalized(row);
+    // Feasibility lane runs first, across all leads (mirrors the orchestrator):
+    // a feasibility study is pulled into its own category regardless of module.
+    const isFeas = isFeasibilityLead(lead);
+    const isFuel = !isFeas && row.module === 'fuel';
+    const tags = isFeas
+      ? classifyFeasibility(lead)
+      : isFuel
+        ? classifyFuel(lead)
+        : classifyConsulting(lead);
+    if (isFeas) feasibility++;
+    else if (isFuel) fuel++;
     else consulting++;
     if (row.is_cargo === true && tags.is_cargo === false) cargoCleared++;
 
@@ -83,7 +93,7 @@ async function main(): Promise<void> {
   }
 
   console.log(
-    `Done. fuel=${fuel} consulting=${consulting} updated=${updated} failed=${failed} cargo_cleared=${cargoCleared}`
+    `Done. feasibility=${feasibility} fuel=${fuel} consulting=${consulting} updated=${updated} failed=${failed} cargo_cleared=${cargoCleared}`
   );
 }
 
