@@ -446,6 +446,10 @@ export const CONSULTING_CPV_CODES = [
   '79400000', // Business and management consultancy and related services
   '79410000', // Business and management consultancy services
   '79411000', // General management consultancy services
+  '79415000', // Operations management consultancy (Philip's operational architecture; priority)
+  '79418000', // Procurement consultancy services
+  '79419000', // Evaluation consultancy services
+  '71241000', // Feasibility study and advisory (shared with the leisure group; routes here when not feasibility-tagged)
   '71600000', // Technical testing, analysis and consultancy services
   '73000000', // Research and development services and related consultancy
   '85100000', // Health services
