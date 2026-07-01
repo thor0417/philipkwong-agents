@@ -165,25 +165,37 @@ function isFuelSupply(text: string): boolean {
 
 // ---- Fuel subcategory: source baseline, refined by clear notice-type text. ----
 const RFP_TERMS = ['RFP', 'RFQ', 'request for proposal', 'request for quotation', 'invitation to tender'];
+// Terms that mean the notice ITSELF is dead: award/intent notice TYPES and
+// terminal STATUS words. Deliberately NOT the bare 'award' / 'awarded' /
+// 'contract award' — those appear in the award-procedure boilerplate of LIVE
+// tenders (e.g. World Bank RFPs describe how the contract "will be awarded"),
+// so matching them hides live, actionable work. The notice-type/status terms
+// below only appear when the opportunity is genuinely closed.
 const DEAD_TERMS = [
-  'award',
-  'awarded',
-  'contract award',
+  'award notice',
   'contract award notice',
   'advance contract award notice',
-  'award notice',
   'notice of intent',
   'cancelled',
   'canceled',
   'withdrawn',
+  'superseded',
 ];
 const FRAMEWORK_TERMS = ['framework agreement'];
 
 function fuelSubcategory(source: string, text: string): string {
-  if (keywordMatches(text, DEAD_TERMS).length > 0) return 'award_or_dead';
+  if (isDeadNotice(text)) return 'award_or_dead';
   if (keywordMatches(text, FRAMEWORK_TERMS).length > 0) return 'framework';
   if (keywordMatches(text, RFP_TERMS).length > 0) return 'rfp';
   return GOV_SOURCES.has(source) ? 'gov_tender' : 'private_tender';
+}
+
+// True when a lead's title/content marks it as already awarded, cancelled,
+// withdrawn, superseded, or an award/intent notice. Cross-cutting: used to keep
+// dead notices out of the actionable set on every category.
+export function isDeadNotice(lead: NormalizedLead | string): boolean {
+  const text = typeof lead === 'string' ? lead : haystack(lead);
+  return keywordMatches(text, DEAD_TERMS).length > 0;
 }
 
 // ---- Cargo-scale flag, stated volume, and NOC/state buyer sector. ----

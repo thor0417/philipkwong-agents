@@ -20,7 +20,13 @@ import {
 } from './profiles';
 import { bestProfileFor, passesPrefilter, keywordMatches } from './prefilter';
 import { isBrokerNoise } from './broker-filter';
-import { classifyFuel, classifyConsulting, isFeasibilityLead, classifyFeasibility } from './classify';
+import {
+  classifyFuel,
+  classifyConsulting,
+  isFeasibilityLead,
+  classifyFeasibility,
+  isDeadNotice,
+} from './classify';
 import { scoreLeads, type ScorerInput } from './scorer';
 import { crossReference, normalizeCompany } from './cross-reference';
 // PARKED (Track B registry): import re-enabled when the registry pass returns.
@@ -286,6 +292,7 @@ export async function orchestrate(): Promise<ScrapeReport> {
   let fuelExpired = 0;
   let feasibilityFound = 0;
   let feasibilityExpired = 0;
+  let nonFuelExpired = 0;
   const now = Date.now();
 
   for (const lead of deduped) {
@@ -342,6 +349,14 @@ export async function orchestrate(): Promise<ScrapeReport> {
       continue;
     }
 
+    // Drop expired notices on the consulting path too (the fuel and feasibility
+    // lanes already do): never Haiku-score or write a lead whose deadline has
+    // already passed.
+    if (isExpired(lead.deadline, now)) {
+      nonFuelExpired++;
+      continue;
+    }
+
     // Non-fuel prefilter gate: assign to the best matching profile clearing its
     // threshold, then score with Haiku.
     const best = bestProfileFor(text, candidates);
@@ -350,6 +365,9 @@ export async function orchestrate(): Promise<ScrapeReport> {
       continue;
     }
     prepared.push({ lead, profile: best.profile });
+  }
+  if (nonFuelExpired > 0) {
+    console.log(`Consulting path: dropped ${nonFuelExpired} expired notices (deadline passed).`);
   }
 
   // 4. Score survivors with Haiku.
@@ -471,6 +489,7 @@ export async function orchestrate(): Promise<ScrapeReport> {
     if (score < profile.minScore) continue;
     const region = regionOf(lead.source);
     const tags = classifyConsulting(lead);
+    const dead = isDeadNotice(lead);
 
     const { error } = await supabaseAdmin.from('leads').upsert(
       {
@@ -480,7 +499,7 @@ export async function orchestrate(): Promise<ScrapeReport> {
         raw_content: lead.raw_content,
         score,
         score_reason,
-        status: 'new',
+        status: dead ? 'dead' : 'new',
         module: profile.module,
         industry: profile.name,
         company: lead.company,
@@ -519,6 +538,7 @@ export async function orchestrate(): Promise<ScrapeReport> {
   for (const lead of fuelPrepared) {
     const region = regionOf(lead.source);
     const tags = classifyFuel(lead);
+    const dead = isDeadNotice(lead);
     const { error } = await supabaseAdmin.from('leads').upsert(
       {
         source: lead.source,
@@ -528,7 +548,7 @@ export async function orchestrate(): Promise<ScrapeReport> {
         score: FUEL_CAPTURE_SCORE,
         score_reason:
           'Buy-side fuel tender captured on legitimacy (broker-filtered, CPV/UNSPSC-routed); not fit-scored.',
-        status: 'new',
+        status: dead ? 'dead' : 'new',
         module: FUEL_MODULE,
         industry: fuelIndustry,
         company: lead.company,
@@ -571,6 +591,7 @@ export async function orchestrate(): Promise<ScrapeReport> {
   for (const lead of feasibilityPrepared) {
     const region = regionOf(lead.source);
     const tags = classifyFeasibility(lead);
+    const dead = isDeadNotice(lead);
     const { error } = await supabaseAdmin.from('leads').upsert(
       {
         source: lead.source,
@@ -579,7 +600,7 @@ export async function orchestrate(): Promise<ScrapeReport> {
         raw_content: lead.raw_content,
         score: null,
         score_reason: 'Feasibility study captured on legitimacy (feasibility lane); not fit-scored.',
-        status: 'new',
+        status: dead ? 'dead' : 'new',
         module: 'feasibility',
         industry: 'feasibility',
         company: lead.company,
