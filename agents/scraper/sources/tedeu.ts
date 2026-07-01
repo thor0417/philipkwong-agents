@@ -133,16 +133,20 @@ async function searchTedGroup(cpvCodes: string[], label: string): Promise<Normal
 // result budget), then merge and dedupe by URL.
 export async function scrapeTedEu(
   fuelCpv: string[],
-  consultingCpv: string[]
+  consultingCpv: string[],
+  leisureCpv: string[] = []
 ): Promise<NormalizedLead[]> {
-  if (!fuelCpv.length && !consultingCpv.length) {
+  if (!fuelCpv.length && !consultingCpv.length && !leisureCpv.length) {
     console.warn('TED EU: no CPV codes passed, skipping source.');
     return [];
   }
 
+  // Each group is queried independently with its own result budget, so the
+  // low-volume leisure/feasibility group is not crowded out by consulting.
   const groups: Array<[string, string[]]> = [
     ['fuel', fuelCpv],
     ['consulting', consultingCpv],
+    ['leisure', leisureCpv],
   ];
 
   const byUrl = new Map<string, NormalizedLead>();
@@ -154,6 +158,6 @@ export async function scrapeTedEu(
   }
 
   const merged = [...byUrl.values()];
-  console.log(`TED EU: ${merged.length} unique notices after merging fuel + consulting queries`);
+  console.log(`TED EU: ${merged.length} unique notices after merging fuel + consulting + leisure queries`);
   return merged;
 }

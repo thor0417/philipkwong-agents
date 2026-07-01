@@ -15,6 +15,7 @@ import {
   activeProfiles,
   activeSources,
   CONSULTING_CPV_CODES,
+  LEISURE_CPV_CODES,
   type IndustryProfile,
 } from './profiles';
 import { bestProfileFor, passesPrefilter, keywordMatches } from './prefilter';
@@ -105,6 +106,15 @@ function tedConsultingCpvCodes(profiles: IndustryProfile[]): string[] {
   );
   return anyConsulting ? [...CONSULTING_CPV_CODES] : [];
 }
+// Leisure/tourism/recreation/cultural + feasibility CPV, queried as its own TED
+// group so the feasibility lane can surface this work from TED. Gated on the
+// same condition as the consulting group (some non-fuel profile pulls TED).
+function tedLeisureCpvCodes(profiles: IndustryProfile[]): string[] {
+  const anyConsulting = profiles.some(
+    (p) => p.module !== FUEL_MODULE && p.sources.includes('tedeu')
+  );
+  return anyConsulting ? [...LEISURE_CPV_CODES] : [];
+}
 
 function fetchSource(id: string, profiles: IndustryProfile[]): Promise<NormalizedLead[]> {
   switch (id) {
@@ -125,7 +135,11 @@ function fetchSource(id: string, profiles: IndustryProfile[]): Promise<Normalize
     case 'samgov':
       return scrapeSamGov();
     case 'tedeu':
-      return scrapeTedEu(tedFuelCpvCodes(profiles), tedConsultingCpvCodes(profiles));
+      return scrapeTedEu(
+        tedFuelCpvCodes(profiles),
+        tedConsultingCpvCodes(profiles),
+        tedLeisureCpvCodes(profiles)
+      );
     case 'austender':
       return scrapeAusTender();
     case 'uktenders':

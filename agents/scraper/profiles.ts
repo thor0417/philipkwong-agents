@@ -451,6 +451,20 @@ export const CONSULTING_CPV_CODES = [
   '85100000', // Health services
 ];
 
+// Leisure / tourism / recreation / cultural + feasibility CPV codes for TED,
+// sent as an INDEPENDENT TED group (its own result budget) so this low-volume
+// work is not crowded out by high-volume business-consultancy notices. Confirmed
+// on-target against the TED API; 98000000 (miscellaneous community services) and
+// 71300000 (~21k engineering notices) were checked and excluded as off-target.
+export const LEISURE_CPV_CODES = [
+  '71241000', // Feasibility study, advisory service, analysis (priority)
+  '92000000', // Recreational, cultural and sporting services (priority)
+  '92100000', // Motion picture and video services
+  '92600000', // Sporting services
+  '79951000', // Seminar / exhibition / congress organisation services
+  '71400000', // Urban planning and architectural services (tourism/master plans)
+];
+
 export function activeProfiles(): IndustryProfile[] {
   return PROFILES.filter((p) => p.active);
 }
