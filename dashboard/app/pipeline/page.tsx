@@ -14,6 +14,7 @@ import Filters, { EMPTY_FILTERS, type LeadFilters } from '@/components/Filters';
 import OutreachQueue from '@/components/OutreachQueue';
 import DealRecord from '@/components/DealRecord';
 import CategoryNav from '@/components/CategoryNav';
+import CargoView from '@/components/CargoView';
 import {
   applyCategoryFilter,
   EMPTY_CATEGORY_FILTER,
@@ -137,7 +138,12 @@ export default function PipelinePage() {
           <StatsBar leads={categoryLeads} outreach={outreach} />
           {agentsOpen && <AgentPanel agents={agents} onRefresh={load} />}
 
-          {view === 'kanban' ? (
+          {catFilter.category === 'fuel' && catFilter.cargo ? (
+            <CargoView
+              leads={categoryLeads}
+              onSelect={(l) => setSelectedId(l.id)}
+            />
+          ) : view === 'kanban' ? (
             <Kanban leads={categoryLeads} onSelect={(l) => setSelectedId(l.id)} />
           ) : (
             <>

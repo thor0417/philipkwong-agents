@@ -1,0 +1,74 @@
+/* Visually distinct from the regular fuel tables: accent border + tint so the
+   experiment bucket reads as its own thing. */
+.panel {
+  margin-top: 16px;
+  border: 0.5px solid var(--accent);
+  background: rgba(179, 71, 0, 0.03);
+}
+
+.head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 12px 14px;
+  border-bottom: 0.5px solid var(--hairline);
+}
+
+.badge {
+  font-family: var(--font-dm-mono), monospace;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.sub {
+  font-family: var(--font-dm-mono), monospace;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+
+.empty {
+  font-family: var(--font-dm-mono), monospace;
+  font-size: 12px;
+  color: var(--muted);
+  padding: 16px 14px;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.table thead th {
+  text-align: left;
+  font-family: var(--font-dm-mono), monospace;
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-weight: 400;
+  padding: 8px 14px;
+  border-bottom: 0.5px solid var(--hairline);
+}
+
+.table tbody td {
+  padding: 10px 14px;
+  border-bottom: 0.5px solid var(--hairline);
+  color: var(--ink);
+}
+
+.table tbody tr {
+  cursor: pointer;
+}
+
+.table tbody tr:hover {
+  background: rgba(179, 71, 0, 0.06);
+}
+
+.vol {
+  font-family: var(--font-dm-mono), monospace;
+  font-size: 12px;
+}
