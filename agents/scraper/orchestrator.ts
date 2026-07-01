@@ -19,6 +19,7 @@ import {
 } from './profiles';
 import { bestProfileFor, passesPrefilter, keywordMatches } from './prefilter';
 import { isBrokerNoise } from './broker-filter';
+import { classifyFuel, classifyConsulting } from './classify';
 import { scoreLeads, type ScorerInput } from './scorer';
 import { crossReference, normalizeCompany } from './cross-reference';
 // PARKED (Track B registry): import re-enabled when the registry pass returns.
@@ -407,6 +408,7 @@ export async function orchestrate(): Promise<ScrapeReport> {
     const { score, score_reason } = scores[i];
     if (score < profile.minScore) continue;
     const region = regionOf(lead.source);
+    const tags = classifyConsulting(lead);
 
     const { error } = await supabaseAdmin.from('leads').upsert(
       {
@@ -425,6 +427,9 @@ export async function orchestrate(): Promise<ScrapeReport> {
         value_estimate: lead.value_estimate,
         lead_type: 'tender',
         region,
+        category: tags.category,
+        subcategory: tags.subcategory,
+        product_type: tags.product_type,
       },
       { onConflict: 'url' }
     );
@@ -448,6 +453,7 @@ export async function orchestrate(): Promise<ScrapeReport> {
   const fuelIndustry = fuelProfile?.name ?? 'fuel_tenders';
   for (const lead of fuelPrepared) {
     const region = regionOf(lead.source);
+    const tags = classifyFuel(lead);
     const { error } = await supabaseAdmin.from('leads').upsert(
       {
         source: lead.source,
@@ -466,6 +472,9 @@ export async function orchestrate(): Promise<ScrapeReport> {
         value_estimate: lead.value_estimate,
         lead_type: 'tender',
         region,
+        category: tags.category,
+        subcategory: tags.subcategory,
+        product_type: tags.product_type,
       },
       { onConflict: 'url' }
     );
