@@ -89,6 +89,7 @@ export interface CategoryFilter {
   consultingSub: string; // 'all' | subcategory
   feasibilitySector: string; // 'all' | sector subcategory
   cargo: boolean; // fuel cargo experiment view
+  includeArchived: boolean; // show expired + awarded/dead (off by default)
 }
 
 export const EMPTY_CATEGORY_FILTER: CategoryFilter = {
@@ -98,7 +99,21 @@ export const EMPTY_CATEGORY_FILTER: CategoryFilter = {
   consultingSub: 'all',
   feasibilitySector: 'all',
   cargo: false,
+  includeArchived: false,
 };
+
+// A lead is not actionable when its deadline has passed (expired) or it is
+// already awarded/cancelled/withdrawn (dead: status set by the scraper, or the
+// fuel award_or_dead notice type). Hidden from every category's default view.
+function isExpiredLead(l: Lead): boolean {
+  return !!l.deadline && new Date(l.deadline).getTime() < Date.now();
+}
+function isDeadLead(l: Lead): boolean {
+  return l.status === 'dead' || l.subcategory === 'award_or_dead';
+}
+export function isArchivedLead(l: Lead): boolean {
+  return isExpiredLead(l) || isDeadLead(l);
+}
 
 // Top-level category membership. Fuel/Consulting read the classification column
 // (falling back to module for leads written before tagging existed); Government
@@ -141,6 +156,14 @@ function byDeadline(a: Lead, b: Lead): number {
 //  - Consulting: work-type filter.
 export function applyCategoryFilter(leads: Lead[], f: CategoryFilter): Lead[] {
   let out = leads.filter((l) => matchesCategory(l, f.category));
+
+  // Expired and awarded/dead leads are hidden from every category's default
+  // view. They stay reachable when the user opts in (includeArchived) or picks
+  // the fuel Award/dead notice type explicitly.
+  const showArchived = f.includeArchived || (f.category === 'fuel' && f.fuelNotice === 'award_or_dead');
+  if (!showArchived) {
+    out = out.filter((l) => !isArchivedLead(l));
+  }
 
   if (f.category === 'fuel') {
     if (f.cargo) out = out.filter((l) => l.is_cargo === true);

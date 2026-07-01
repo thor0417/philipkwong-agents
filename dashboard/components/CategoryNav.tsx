@@ -23,7 +23,8 @@ export default function CategoryNav({
 }) {
   const set = (patch: Partial<CategoryFilter>) => onChange({ ...filter, ...patch });
 
-  // Switching top-level category resets the sub-filters.
+  // Switching top-level category resets the sub-filters (but keeps the archived
+  // preference).
   const selectCategory = (key: CategoryFilter['category']) =>
     onChange({
       category: key,
@@ -32,6 +33,7 @@ export default function CategoryNav({
       consultingSub: 'all',
       feasibilitySector: 'all',
       cargo: false,
+      includeArchived: filter.includeArchived,
     });
 
   return (
@@ -46,6 +48,13 @@ export default function CategoryNav({
             {o.label}
           </button>
         ))}
+        <button
+          className={`${styles.btn} ${styles.archived} ${filter.includeArchived ? styles.active : ''}`}
+          onClick={() => set({ includeArchived: !filter.includeArchived })}
+          title="Show expired and awarded/dead leads (hidden by default)"
+        >
+          {filter.includeArchived ? '✓ ' : ''}Archived
+        </button>
       </div>
 
       {filter.category === 'fuel' && (

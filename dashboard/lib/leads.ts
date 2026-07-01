@@ -70,6 +70,10 @@ export const STATUS_OPTIONS: { value: string; label: string }[] = [
   { value: 'outreach_sent', label: 'Outreach Sent' },
   { value: 'won', label: 'Won' },
   { value: 'lost', label: 'Lost' },
+  // Set by the scraper for non-actionable leads (hidden by default in the
+  // category views; reachable via the Archived toggle).
+  { value: 'expired', label: 'Expired' },
+  { value: 'dead', label: 'Awarded/Dead' },
 ];
 
 const STATUS_VALUES = new Set(STATUS_OPTIONS.map((o) => o.value));
