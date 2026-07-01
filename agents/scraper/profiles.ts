@@ -378,6 +378,22 @@ export const PROFILES: IndustryProfile[] = [
     minKeywordMatches: 1,
     regions: ['US-TX', 'US-LA', 'US-MS', 'US-AL', 'US-GULF'],
     tscodes: {
+      // CPV: routed to the code-gated EU portals (TED EU / TenderNed), which
+      // skip the profile without codes. The petroleum-family fuel codes proven
+      // in fuel_tenders, plus 24322220 (ethyl alcohol) as the closest
+      // ethanol-specific heading; CPV has no dedicated bioethanol-fuel code.
+      // Non-fuel ethanol these could pull (beverage/industrial/pharma) is
+      // dropped by the fuel-path excludeKeywords.
+      cpv: [
+        '09100000',
+        '09130000',
+        '09131000',
+        '09132000',
+        '09134000',
+        '09134100',
+        '09134200',
+        '24322220',
+      ],
       // HS: fuel/denatured ethanol customs headings (phase 2, descriptive).
       hs: ['220710', '220720'],
       // UNSPSC: ethanol / fuel additive (Singapore GeBIZ, UNGM).
