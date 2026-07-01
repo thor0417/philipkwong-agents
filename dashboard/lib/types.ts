@@ -30,6 +30,13 @@ export interface Lead {
   license_type: string | null;
   port: string | null;
   matched_counterparty: boolean | null;
+  // Classification tags (agents/scraper/classify.ts).
+  category: string | null;
+  subcategory: string | null;
+  product_type: string | null;
+  is_cargo: boolean | null;
+  volume_estimate: string | null;
+  sector: string | null;
 }
 
 export interface Agent {
