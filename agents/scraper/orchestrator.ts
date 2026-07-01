@@ -40,6 +40,7 @@ import { scrapeGeBiz } from './sources/gebiz';
 import { scrapeUngm } from './sources/ungm';
 import { scrapeGooglePlaces } from './sources/googleplaces';
 import { scrapeTenderNed } from './sources/tenderned';
+import { scrapeTexasEsbd } from './sources/texasesbd';
 // PARKED (Track B registry): re-enable these imports with the registry pass.
 // import { scrapeMpaRegistry } from './sources/mpa';
 // import { scrapeRotterdamRegistry } from './sources/portofrotterdam';
@@ -67,6 +68,7 @@ const SOURCE_REGION: Record<string, string> = {
   arbeitnow: 'EU',
   jsearch: 'CA',
   samgov: 'US',
+  texasesbd: 'US',
   austender: 'AU',
   uktenders: 'UK',
   thailandgpp: 'TH',
@@ -127,6 +129,8 @@ function fetchSource(id: string, profiles: IndustryProfile[]): Promise<Normalize
       return scrapeUngm();
     case 'tenderned':
       return scrapeTenderNed(fuelCpvCodes(profiles));
+    case 'texasesbd':
+      return scrapeTexasEsbd();
     case 'googleplaces':
       return scrapeGooglePlaces();
     default:
