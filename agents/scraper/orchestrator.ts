@@ -45,6 +45,7 @@ import { scrapeTexasEsbd } from './sources/texasesbd';
 import { scrapeWorldBank } from './sources/worldbank';
 import { scrapeAdb } from './sources/adb';
 import { scrapeAfdb } from './sources/afdb';
+import { scrapeUndp } from './sources/undp';
 // PARKED (Track B registry): re-enable these imports with the registry pass.
 // import { scrapeMpaRegistry } from './sources/mpa';
 // import { scrapeRotterdamRegistry } from './sources/portofrotterdam';
@@ -67,6 +68,7 @@ const SOURCE_REGION: Record<string, string> = {
   worldbank: 'GLOBAL',
   adb: 'GLOBAL',
   afdb: 'GLOBAL',
+  undp: 'GLOBAL',
   canadabuys: 'CA',
   adzuna: 'CA',
   jooble: 'CA',
@@ -144,6 +146,8 @@ function fetchSource(id: string, profiles: IndustryProfile[]): Promise<Normalize
       return scrapeAdb();
     case 'afdb':
       return scrapeAfdb();
+    case 'undp':
+      return scrapeUndp();
     case 'googleplaces':
       return scrapeGooglePlaces();
     default:
