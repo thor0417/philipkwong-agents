@@ -17,7 +17,7 @@ import {
   CONSULTING_CPV_CODES,
   type IndustryProfile,
 } from './profiles';
-import { bestProfileFor, passesPrefilter } from './prefilter';
+import { bestProfileFor, passesPrefilter, keywordMatches } from './prefilter';
 import { isBrokerNoise } from './broker-filter';
 import { scoreLeads, type ScorerInput } from './scorer';
 import { crossReference, normalizeCompany } from './cross-reference';
@@ -169,6 +169,7 @@ export interface ScrapeReport {
   writtenPerLeadType: Record<string, number>;
   fuelFound: number;
   fuelBrokerExcluded: number;
+  fuelExcluded: number;
   fuelExpired: number;
   fuelWritten: number;
   fuelWrittenPerSource: Record<string, number>;
@@ -239,6 +240,7 @@ export async function orchestrate(): Promise<ScrapeReport> {
   let brokerExcluded = 0;
   let fuelFound = 0;
   let fuelBrokerExcluded = 0;
+  let fuelExcluded = 0;
   let fuelExpired = 0;
   const now = Date.now();
 
@@ -258,6 +260,16 @@ export async function orchestrate(): Promise<ScrapeReport> {
       if (isBrokerNoise(text).isNoise) {
         brokerExcluded++;
         fuelBrokerExcluded++;
+        continue;
+      }
+      // Non-fuel uses of the same commodity (e.g. ethanol as hand sanitizer,
+      // beverage grade, pharmaceutical, industrial solvent) are hard-excluded via
+      // the matched fuel profile's excludeKeywords. Fuel-path only: mirrors the
+      // broker filter above and never touches the non-fuel Haiku path. For
+      // fuel_tenders these mirror broker terms already dropped, so it is a no-op
+      // there; for ethanol_gulf it removes the non-fuel-ethanol noise.
+      if (keywordMatches(text, fuelCandidate!.excludeKeywords).length > 0) {
+        fuelExcluded++;
         continue;
       }
       // Drop only clearly expired notices; keep those with no deadline stated.
@@ -307,6 +319,7 @@ export async function orchestrate(): Promise<ScrapeReport> {
       writtenPerLeadType: {},
       fuelFound,
       fuelBrokerExcluded,
+      fuelExcluded,
       fuelExpired,
       fuelWritten: 0,
       fuelWrittenPerSource: {},
@@ -494,6 +507,7 @@ export async function orchestrate(): Promise<ScrapeReport> {
     writtenPerLeadType,
     fuelFound,
     fuelBrokerExcluded,
+    fuelExcluded,
     fuelExpired,
     fuelWritten,
     fuelWrittenPerSource,
@@ -605,6 +619,7 @@ function printReport(r: ScrapeReport): void {
   console.log('--- Fuel module (legitimacy capture, no fit scoring) ---');
   console.log(`  Fuel tenders found:          ${r.fuelFound}`);
   console.log(`  Excluded by broker-filter:   ${r.fuelBrokerExcluded}`);
+  console.log(`  Excluded (non-fuel use):     ${r.fuelExcluded}`);
   console.log(`  Dropped (expired deadline):  ${r.fuelExpired}`);
   console.log(`  Written (all legit buy-side): ${r.fuelWritten}`);
   console.log('  Fuel written per source:');
