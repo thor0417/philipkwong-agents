@@ -467,6 +467,9 @@ const TOURISM_TERMS = [
   // Cruise tourism (Caribbean HOAs are cruise-heavy: cruise lines, private
   // islands, and cruise-port developments are core leisure origination).
   'cruise', 'cruises', 'cruise line', 'cruise port', 'cruise terminal',
+  // Tourism accommodation forms (regulator filings name the product, e.g. an
+  // EIA for "Overwater Villas", not the word "resort").
+  'villa', 'villas', 'overwater', 'beach resort', 'beach club',
 ];
 // Agro-tourism (distilleries, wineries, estates). A match tags subcategory
 // 'agro_tourism'.
