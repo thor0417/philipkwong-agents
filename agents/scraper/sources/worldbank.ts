@@ -15,8 +15,11 @@ const UA = 'philipkwong-agents/1.0 (+scraper)';
 
 // Keyword (qterm) queries run in addition to the recent-notices pull, so
 // feasibility / tourism / leisure work is returned specifically rather than by
-// chance of being in the most-recent window. Override with a comma-separated list.
-const QUERIES = (process.env.WORLDBANK_QUERIES ?? 'tourism,feasibility,attraction,leisure')
+// chance of being in the most-recent window. Caribbean / Mexico / resort / hotel
+// target the LATAM_CARIB origination territory directly (region tagging then
+// keeps only the in-scope countries). Override with a comma-separated list.
+const QUERIES = (process.env.WORLDBANK_QUERIES ??
+  'tourism,feasibility,attraction,leisure,Caribbean,Mexico,resort,hotel')
   .split(',')
   .map((s) => s.trim())
   .filter(Boolean);
