@@ -78,6 +78,12 @@ const AGENT_NAME = 'lead-scraper';
 // legitimacy capture) — never through the prefilter / Haiku / feasibility paths.
 const SIGNAL_SOURCES = ['fonatur', 'bahamas_hoa', 'confotur', 'semarnat', 'nepa_jm', 'cayman_cpa'];
 const SIGNAL_SOURCE_SET = new Set(SIGNAL_SOURCES);
+
+// Part A development banks whose tourism notices are captured on legitimacy
+// (like the TED CPV lane): IADB/CDB notices otherwise route through the Haiku
+// consulting scorer and are dropped below the write floor. A tourism-sector
+// notice from these sources is the fit signal, so it bypasses Haiku.
+const PART_A_BANK_SOURCES = new Set(['iadb', 'cdb']);
 // First-run backfill caps by signal_type: development applications churn fast
 // (90 days); incentive approvals and land acquisitions are rarer and stay
 // relevant longer (12 months).
@@ -386,7 +392,13 @@ export async function orchestrate(): Promise<ScrapeReport> {
     // scoring, exactly like the fuel path. Feasibility work appears everywhere
     // (gov tenders, dev-bank RFPs, energy/infrastructure), so it must not be
     // gated by consulting keywords, consulting sources, or the minScore filter.
-    if (isFeasibilityLead(lead)) {
+    //
+    // Part A extension: an IADB/CDB notice that clears the tourism sector gate is
+    // captured here too, even without feasibility keywords. Those bank notices
+    // are the LATAM/Caribbean origination target but are generic consultancy that
+    // never clears the Haiku write floor; the sector IS the fit signal, exactly
+    // like the TED CPV lane. classifyFeasibility tags the leisure/tourism sector.
+    if (isFeasibilityLead(lead) || (PART_A_BANK_SOURCES.has(lead.source) && passesSectorGate(lead))) {
       feasibilityFound++;
       if (isExpired(lead.deadline, now)) {
         feasibilityExpired++;
