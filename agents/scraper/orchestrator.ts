@@ -53,6 +53,7 @@ import { scrapeTenderNed } from './sources/tenderned';
 import { scrapeTexasEsbd } from './sources/texasesbd';
 import { scrapeWorldBank } from './sources/worldbank';
 import { scrapeIadb } from './sources/iadb';
+import { scrapeCdb } from './sources/cdb';
 import { scrapeAdb } from './sources/adb';
 import { scrapeAfdb } from './sources/afdb';
 import { scrapeUndp } from './sources/undp';
@@ -169,6 +170,8 @@ function fetchSource(id: string, profiles: IndustryProfile[]): Promise<Normalize
       return scrapeWorldBank();
     case 'iadb':
       return scrapeIadb();
+    case 'cdb':
+      return scrapeCdb();
     case 'adb':
       return scrapeAdb();
     case 'afdb':
