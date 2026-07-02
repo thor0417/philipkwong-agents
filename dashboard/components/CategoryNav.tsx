@@ -6,6 +6,9 @@ import {
   FUEL_PRODUCT_OPTIONS,
   CONSULTING_SUB_OPTIONS,
   FEASIBILITY_SECTOR_OPTIONS,
+  SIGNAL_TYPE_OPTIONS,
+  SIGNAL_SECTOR_OPTIONS,
+  SIGNAL_JURISDICTION_OPTIONS,
   type CategoryFilter,
 } from '@/lib/category';
 import styles from './CategoryNav.module.css';
@@ -32,6 +35,10 @@ export default function CategoryNav({
       fuelProduct: 'all',
       consultingSub: 'all',
       feasibilitySector: 'all',
+      feasibilityLatam: false,
+      signalType: 'all',
+      signalSector: 'all',
+      signalJurisdiction: 'all',
       cargo: false,
       includeArchived: filter.includeArchived,
     });
@@ -121,7 +128,55 @@ export default function CategoryNav({
               {o.label}
             </button>
           ))}
+          <button
+            className={`${styles.sub} ${filter.feasibilityLatam ? styles.active : ''}`}
+            onClick={() => set({ feasibilityLatam: !filter.feasibilityLatam })}
+            title="Restrict to the LATAM/Caribbean origination territory"
+          >
+            {filter.feasibilityLatam ? '✓ ' : ''}LATAM/Carib
+          </button>
         </div>
+      )}
+
+      {filter.category === 'signals' && (
+        <>
+          <div className={styles.substrip}>
+            <span className={styles.dim}>Signal</span>
+            {SIGNAL_TYPE_OPTIONS.map((o) => (
+              <button
+                key={o.key}
+                className={`${styles.sub} ${filter.signalType === o.key ? styles.active : ''}`}
+                onClick={() => set({ signalType: o.key })}
+              >
+                {o.label}
+              </button>
+            ))}
+          </div>
+          <div className={styles.substrip}>
+            <span className={styles.dim}>Sector</span>
+            {SIGNAL_SECTOR_OPTIONS.map((o) => (
+              <button
+                key={o.key}
+                className={`${styles.sub} ${filter.signalSector === o.key ? styles.active : ''}`}
+                onClick={() => set({ signalSector: o.key })}
+              >
+                {o.label}
+              </button>
+            ))}
+          </div>
+          <div className={styles.substrip}>
+            <span className={styles.dim}>Jurisdiction</span>
+            {SIGNAL_JURISDICTION_OPTIONS.map((o) => (
+              <button
+                key={o.key}
+                className={`${styles.sub} ${filter.signalJurisdiction === o.key ? styles.active : ''}`}
+                onClick={() => set({ signalJurisdiction: o.key })}
+              >
+                {o.label}
+              </button>
+            ))}
+          </div>
+        </>
       )}
     </div>
   );

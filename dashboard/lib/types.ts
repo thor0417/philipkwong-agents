@@ -37,6 +37,11 @@ export interface Lead {
   is_cargo: boolean | null;
   volume_estimate: string | null;
   sector: string | null;
+  // Signals lane (Part B, LATAM/Caribbean).
+  signal_type: string | null;
+  signal_date: string | null;
+  regulator: string | null;
+  project_description: string | null;
 }
 
 export interface Agent {

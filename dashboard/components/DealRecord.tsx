@@ -17,6 +17,7 @@ import {
   FUEL_PRODUCT_OPTIONS,
   CONSULTING_SUB_OPTIONS,
   FEASIBILITY_SECTOR_OPTIONS,
+  SIGNAL_SECTOR_OPTIONS,
   type Option,
 } from '@/lib/category';
 import SourceLink from './SourceLink';
@@ -177,11 +178,17 @@ function LeadDetailSection({ lead }: { lead: Lead }) {
     }
   };
 
+  const isSignal = lead.category === 'signals' || lead.lead_type === 'signal';
+
   push('Module', lead.module);
   push('Industry', lead.industry);
   push('Region', lead.region);
   push('Lead Type', lead.lead_type);
-  push('Company', lead.company);
+  // Signals: proponent (company), signal type, regulator, and filing date.
+  push(isSignal ? 'Proponent' : 'Company', lead.company);
+  push('Signal Type', lead.signal_type);
+  push('Regulator', lead.regulator);
+  push('Signal Date', lead.signal_date ? lead.signal_date.slice(0, 10) : null);
   push('Deadline', lead.deadline ? lead.deadline.slice(0, 10) : null);
   push('Value Estimate', lead.value_estimate);
   push('Location', lead.location);
@@ -196,10 +203,10 @@ function LeadDetailSection({ lead }: { lead: Lead }) {
         : 'No'
   );
 
-  if (rows.length === 0) return null;
+  if (rows.length === 0 && !lead.project_description) return null;
 
   return (
-    <Section title="Lead Detail">
+    <Section title={isSignal ? 'Signal Detail' : 'Lead Detail'}>
       <div className={styles.grid}>
         {rows.map((r) => (
           <div key={r.label} className={styles.field}>
@@ -208,6 +215,9 @@ function LeadDetailSection({ lead }: { lead: Lead }) {
           </div>
         ))}
       </div>
+      {lead.project_description && (
+        <p className={styles.note}>{lead.project_description}</p>
+      )}
     </Section>
   );
 }
@@ -231,9 +241,11 @@ function ClassificationSection({
       ? FUEL_NOTICE_OPTIONS
       : lead.category === 'feasibility'
         ? FEASIBILITY_SECTOR_OPTIONS
-        : lead.category === 'jobs'
-          ? []
-          : CONSULTING_SUB_OPTIONS;
+        : lead.category === 'signals'
+          ? SIGNAL_SECTOR_OPTIONS
+          : lead.category === 'jobs'
+            ? []
+            : CONSULTING_SUB_OPTIONS;
   const subOptions = subSource.filter((o) => o.key !== 'all');
   const productOptions = FUEL_PRODUCT_OPTIONS.filter((o) => o.key !== 'all');
 
@@ -258,6 +270,7 @@ function ClassificationSection({
             <option value="fuel">Fuel</option>
             <option value="consulting">Consulting</option>
             <option value="feasibility">Feasibility</option>
+            <option value="signals">Signals</option>
             <option value="jobs">Jobs</option>
             <option value="excluded">Excluded</option>
           </select>
