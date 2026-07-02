@@ -450,6 +450,55 @@ export function specificConsultancyCpvCodes(lead: NormalizedLead): string[] {
   return cpvCodes(lead).filter((c) => SPECIFIC_CONSULTANCY_CPV.has(c));
 }
 
+// ---- Signals-lane sector gate (Part B, LATAM/Caribbean). Bilingual (Spanish +
+// English). This gate REPLACES the keyword prefilter for signal sources: a
+// filing that names tourism/leisure/hospitality or agro-tourism work passes and
+// is captured; anything else (a highway, a mine, generic infrastructure) is
+// dropped. The EU-CPV lesson applied to registries: the sector IS the signal. ----
+// Terms are stored UNACCENTED and matched against an accent-stripped haystack,
+// so Spanish content ("turístico", "acuático") matches without listing every
+// accented variant.
+const TOURISM_TERMS = [
+  'hotel', 'resort', 'turistico', 'turismo', 'tourism', 'tourist',
+  'marina', 'campo de golf', 'golf course', 'golf', 'parque acuatico',
+  'water park', 'waterpark', 'desarrollo turistico',
+  'condominio', 'condominium', 'hospedaje', 'lodging', 'theme park', 'attraction',
+  'casino', 'integrated resort', 'boutique hotel', 'eco resort', 'ecolodge', 'spa',
+];
+// Agro-tourism (distilleries, wineries, estates). A match tags subcategory
+// 'agro_tourism'.
+const AGRO_TOURISM_TERMS = [
+  'distillery', 'distilleria', 'destileria',
+  'rum', 'ron', 'tequila', 'mezcal', 'agave', 'hacienda', 'plantation',
+  'ingenio', 'winery', 'brewery', 'agroturismo', 'agro-tourism', 'agrotourism',
+];
+
+// Strip combining diacritics so unaccented terms match accented Spanish text.
+function deaccent(s: string): string {
+  return s.normalize('NFD').replace(/[̀-ͯ]/g, '');
+}
+
+function isAgroTourism(text: string): boolean {
+  return keywordMatches(deaccent(text), AGRO_TOURISM_TERMS).length > 0;
+}
+
+// True when a signal filing is in the tourism / leisure / hospitality / agro
+// sector. Used as the signals-lane gate.
+export function passesSectorGate(lead: NormalizedLead): boolean {
+  const text = deaccent(haystack(lead));
+  return keywordMatches(text, TOURISM_TERMS).length > 0 || isAgroTourism(text);
+}
+
+// Signals-lane subcategory: 'agro_tourism' when an agro term matched, else the
+// best-guess leisure/tourism sector (reusing the feasibility sector map, which
+// leads with the commercial-leisure sectors). Falls back to 'tourism'.
+export function signalSector(lead: NormalizedLead): string {
+  const text = haystack(lead);
+  if (isAgroTourism(text)) return 'agro_tourism';
+  const sector = feasibilitySector(deaccent(text));
+  return sector === 'other' ? 'tourism' : sector;
+}
+
 // Fuel-module leads: real fuel supply -> category 'fuel'; otherwise excluded.
 export function classifyFuel(lead: NormalizedLead): Classification {
   const text = haystack(lead);

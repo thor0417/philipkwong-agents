@@ -27,6 +27,8 @@ import {
   classifyFeasibility,
   isDeadNotice,
   specificConsultancyCpvCodes,
+  passesSectorGate,
+  signalSector,
 } from './classify';
 import { scoreLeads, type ScorerInput } from './scorer';
 import { crossReference, normalizeCompany } from './cross-reference';
@@ -54,6 +56,7 @@ import { scrapeTexasEsbd } from './sources/texasesbd';
 import { scrapeWorldBank } from './sources/worldbank';
 import { scrapeIadb } from './sources/iadb';
 import { scrapeCdb } from './sources/cdb';
+import { scrapeFonatur } from './sources/fonatur';
 import { scrapeAdb } from './sources/adb';
 import { scrapeAfdb } from './sources/afdb';
 import { scrapeUndp } from './sources/undp';
@@ -63,6 +66,21 @@ import { scrapeUndp } from './sources/undp';
 
 const FUEL_MODULE = 'fuel';
 const AGENT_NAME = 'lead-scraper';
+
+// Signals lane (Part B): private-developer / regulator sources for the LATAM +
+// Caribbean origination push. Fetched alongside the profile sources but routed
+// entirely through the signals lane (bilingual sector gate, delta detection,
+// legitimacy capture) — never through the prefilter / Haiku / feasibility paths.
+const SIGNAL_SOURCES = ['fonatur'];
+const SIGNAL_SOURCE_SET = new Set(SIGNAL_SOURCES);
+// First-run backfill caps by signal_type: development applications churn fast
+// (90 days); incentive approvals and land acquisitions are rarer and stay
+// relevant longer (12 months).
+const SIGNAL_BACKFILL_DAYS: Record<string, number> = {
+  development_application: 90,
+  incentive_approval: 365,
+  land_acquisition: 365,
+};
 // Fuel leads are captured on legitimacy (broker-filtered, CPV/UNSPSC-routed),
 // not on consulting fit. They are written with a fixed high score so the
 // supplier sees them prioritized; they are never Haiku-scored.
@@ -172,6 +190,8 @@ function fetchSource(id: string, profiles: IndustryProfile[]): Promise<Normalize
       return scrapeIadb();
     case 'cdb':
       return scrapeCdb();
+    case 'fonatur':
+      return scrapeFonatur();
     case 'adb':
       return scrapeAdb();
     case 'afdb':
@@ -241,6 +261,18 @@ export interface ScrapeReport {
   latamPerCountry: Record<string, number>;
   latamPerCategory: Record<string, number>;
   latamMxState: Record<string, number>;
+  // Signals lane (Part B): private-developer pre-tender signals.
+  signalsFound: number;
+  signalsGateDropped: number;
+  signalsWithdrawnDropped: number;
+  signalsBackfillDropped: number;
+  signalsDuplicateDropped: number;
+  signalsWritten: number;
+  signalsPerSource: Record<string, number>;
+  signalsPerSignalType: Record<string, number>;
+  signalsPerSector: Record<string, number>;
+  signalsPerJurisdiction: Record<string, number>;
+  signalsSample: Array<{ proponent: string; project: string; location: string; date: string }>;
   // Track B registry pass.
   registryWritten: number;
   registryPerSource: Record<string, number>;
@@ -255,7 +287,8 @@ const inc = (m: Record<string, number>, k: string): void => {
 
 export async function orchestrate(): Promise<ScrapeReport> {
   const profiles = activeProfiles();
-  const sources = activeSources();
+  // Profile sources plus the signal sources (Part B), which no profile owns.
+  const sources = [...new Set([...activeSources(), ...SIGNAL_SOURCES])];
   console.log(`Active profiles: ${profiles.map((p) => p.name).join(', ')}`);
   console.log(`Active sources: ${sources.join(', ')}`);
 
@@ -305,6 +338,7 @@ export async function orchestrate(): Promise<ScrapeReport> {
   const fuelPrepared: NormalizedLead[] = [];
   const feasibilityPrepared: NormalizedLead[] = [];
   const cpvConsultingPrepared: Array<{ lead: NormalizedLead; codes: string[] }> = [];
+  const signalRaw: NormalizedLead[] = [];
   let prefilterFiltered = 0;
   let brokerExcluded = 0;
   let fuelFound = 0;
@@ -320,6 +354,14 @@ export async function orchestrate(): Promise<ScrapeReport> {
 
   for (const lead of deduped) {
     const text = haystack(lead);
+
+    // Signal sources (Part B) are routed entirely through the signals lane
+    // (handled after this loop): never the feasibility / fuel / consulting
+    // paths. Collect and skip.
+    if (SIGNAL_SOURCE_SET.has(lead.source)) {
+      signalRaw.push(lead);
+      continue;
+    }
 
     // Feasibility capture lane: runs FIRST, across every lead from any source,
     // before fuel or consulting routing. A feasibility study RFP/tender is
@@ -424,8 +466,8 @@ export async function orchestrate(): Promise<ScrapeReport> {
     console.log(
       `DRY_RUN: ${prepared.length} non-fuel leads would be Haiku-scored; ` +
         `${fuelPrepared.length} fuel leads, ${feasibilityPrepared.length} feasibility ` +
-        `leads, and ${cpvConsultingPrepared.length} TED CPV-consultancy leads would be ` +
-        `written directly (no Haiku).`
+        `leads, ${cpvConsultingPrepared.length} TED CPV-consultancy leads, and ` +
+        `${signalRaw.length} raw signal-source leads would be processed (no Haiku).`
     );
     return {
       fetchedPerSource,
@@ -460,6 +502,17 @@ export async function orchestrate(): Promise<ScrapeReport> {
       latamPerCountry: {},
       latamPerCategory: {},
       latamMxState: {},
+      signalsFound: signalRaw.length,
+      signalsGateDropped: 0,
+      signalsWithdrawnDropped: 0,
+      signalsBackfillDropped: 0,
+      signalsDuplicateDropped: 0,
+      signalsWritten: 0,
+      signalsPerSource: {},
+      signalsPerSignalType: {},
+      signalsPerSector: {},
+      signalsPerJurisdiction: {},
+      signalsSample: [],
       registryWritten: 0,
       registryPerSource: {},
       registryPerRegion: {},
@@ -756,6 +809,121 @@ export async function orchestrate(): Promise<ScrapeReport> {
     recordLatam(lead, region, 'consulting');
   }
 
+  // 5e. Signals lane (Part B): private-developer / regulator pre-tender signals.
+  // Captured on legitimacy through the bilingual sector gate, never fit-scored
+  // (score null). Delta detection writes only genuinely new filings (fingerprint
+  // by URL); withdrawn/rejected filings and those outside the per-type backfill
+  // window are skipped. Expired/dead logic does not apply (filings do not
+  // expire).
+  const signalsPerSource: Record<string, number> = {};
+  const signalsPerSignalType: Record<string, number> = {};
+  const signalsPerSector: Record<string, number> = {};
+  const signalsPerJurisdiction: Record<string, number> = {};
+  const signalsSample: Array<{ proponent: string; project: string; location: string; date: string }> = [];
+  let signalsGateDropped = 0;
+  let signalsWithdrawnDropped = 0;
+  let signalsBackfillDropped = 0;
+  let signalsDuplicateDropped = 0;
+  let signalsWritten = 0;
+
+  // Delta detection: URLs of signals already stored, so re-runs write only new
+  // filings.
+  const seenSignalUrls = new Set<string>();
+  {
+    const { data: existing, error } = await supabaseAdmin
+      .from('leads')
+      .select('url')
+      .eq('lead_type', 'signal');
+    if (error) console.error(`Signals: could not load existing URLs for delta detection: ${error.message}`);
+    for (const row of existing ?? []) if (row.url) seenSignalUrls.add(row.url as string);
+  }
+
+  for (const lead of signalRaw) {
+    // Withdrawn / rejected filings are never written.
+    if (lead.withdrawn) {
+      signalsWithdrawnDropped++;
+      continue;
+    }
+    // Sector gate replaces the prefilter: only tourism / leisure / hospitality /
+    // agro-tourism filings pass (a highway or mine is dropped here).
+    if (!passesSectorGate(lead)) {
+      signalsGateDropped++;
+      continue;
+    }
+    // Backfill cap by signal_type. A filing with no parseable date is kept
+    // (cannot be aged out).
+    const cap = SIGNAL_BACKFILL_DAYS[lead.signal_type ?? ''] ?? 90;
+    if (lead.signal_date) {
+      const ageDays = (now - new Date(lead.signal_date).getTime()) / 86_400_000;
+      if (Number.isFinite(ageDays) && ageDays > cap) {
+        signalsBackfillDropped++;
+        continue;
+      }
+    }
+    // Delta detection: skip filings already stored.
+    if (seenSignalUrls.has(lead.url)) {
+      signalsDuplicateDropped++;
+      continue;
+    }
+
+    const region = regionFor(lead, regionOf(lead.source));
+    const subcategory = signalSector(lead);
+    const signalDate = lead.signal_date ? lead.signal_date.slice(0, 10) : null;
+    const { error } = await supabaseAdmin.from('leads').upsert(
+      {
+        source: lead.source,
+        url: lead.url,
+        title: lead.title,
+        raw_content: lead.raw_content,
+        score: null,
+        score_reason:
+          'LATAM/Caribbean development signal captured on legitimacy (signals lane); not fit-scored.',
+        status: 'new',
+        module: 'signals',
+        industry: 'signals',
+        company: lead.company,
+        location: lead.location,
+        deadline: null,
+        value_estimate: null,
+        lead_type: 'signal',
+        region,
+        category: 'signals',
+        subcategory,
+        signal_type: lead.signal_type ?? null,
+        signal_date: signalDate,
+        regulator: lead.regulator ?? null,
+        project_description: lead.project_description ?? null,
+      },
+      { onConflict: 'url' }
+    );
+    if (error) {
+      console.error(`Signal write failed for ${lead.url}: ${error.message}`);
+      continue;
+    }
+    signalsWritten++;
+    written++;
+    seenSignalUrls.add(lead.url);
+    const jurisdiction = countryCodeOf(lead) ?? region;
+    inc(signalsPerSource, lead.source);
+    inc(signalsPerSignalType, lead.signal_type ?? 'unknown');
+    inc(signalsPerSector, subcategory);
+    inc(signalsPerJurisdiction, jurisdiction);
+    inc(writtenPerSource, lead.source);
+    inc(writtenPerModule, 'signals');
+    inc(writtenPerIndustry, 'signals');
+    inc(writtenPerRegion, region);
+    inc(writtenPerLeadType, 'signal');
+    recordLatam(lead, region, 'signals');
+    if (signalsSample.length < 10) {
+      signalsSample.push({
+        proponent: lead.company ?? '(unnamed)',
+        project: lead.title,
+        location: lead.location ?? '',
+        date: signalDate ?? '',
+      });
+    }
+  }
+
   // 6. Track B registry pass: PARKED. The MPA/Rotterdam registry write path is
   // disabled; it no longer writes registry leads on a run. Re-enable by
   // restoring runRegistryPass() and its imports below.
@@ -801,6 +969,17 @@ export async function orchestrate(): Promise<ScrapeReport> {
     latamPerCountry,
     latamPerCategory,
     latamMxState,
+    signalsFound: signalRaw.length,
+    signalsGateDropped,
+    signalsWithdrawnDropped,
+    signalsBackfillDropped,
+    signalsDuplicateDropped,
+    signalsWritten,
+    signalsPerSource,
+    signalsPerSignalType,
+    signalsPerSector,
+    signalsPerJurisdiction,
+    signalsSample,
     // Track B registry pass parked: always zero until re-enabled.
     registryWritten: 0,
     registryPerSource: {},
@@ -920,6 +1099,27 @@ function printReport(r: ScrapeReport): void {
   console.log(table(r.latamPerCategory));
   console.log('  Priority Mexican states flagged:');
   console.log(table(r.latamMxState));
+  console.log('--- Signals lane (Part B: private-developer pre-tender signals, no fit scoring) ---');
+  console.log(`  Signal-source leads fetched:  ${r.signalsFound}`);
+  console.log(`  Dropped (sector gate):        ${r.signalsGateDropped}`);
+  console.log(`  Dropped (withdrawn/rejected): ${r.signalsWithdrawnDropped}`);
+  console.log(`  Dropped (outside backfill):   ${r.signalsBackfillDropped}`);
+  console.log(`  Dropped (already stored):     ${r.signalsDuplicateDropped}`);
+  console.log(`  Written (new filings):        ${r.signalsWritten}`);
+  console.log('  Signals per source:');
+  console.log(table(r.signalsPerSource));
+  console.log('  Signals per signal_type:');
+  console.log(table(r.signalsPerSignalType));
+  console.log('  Signals per sector:');
+  console.log(table(r.signalsPerSector));
+  console.log('  Signals per jurisdiction:');
+  console.log(table(r.signalsPerJurisdiction));
+  if (r.signalsSample.length) {
+    console.log('  Sample (up to 10): proponent | project | location | date');
+    for (const s of r.signalsSample) {
+      console.log(`    - ${s.proponent} | ${s.project.slice(0, 60)} | ${s.location} | ${s.date}`);
+    }
+  }
   console.log('--- Track B registry ---');
   console.log(`  Registry leads written: ${r.registryWritten}`);
   console.log('  Registry per source:');

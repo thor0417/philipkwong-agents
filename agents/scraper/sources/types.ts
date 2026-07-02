@@ -18,6 +18,16 @@ export interface NormalizedLead {
   // project country directly (IADB, and the LATAM/Caribbean signal sources) so
   // region grouping does not have to infer it from a free-text location.
   country?: string;
+  // Signals lane (Part B). Populated only by private-developer signal sources
+  // (FONATUR, CONFOTUR, Bahamas HOA, SEMARNAT, NEPA, Cayman CPA). These leads are
+  // captured on legitimacy through the signals lane, never fit-scored.
+  signal_type?: string; // 'land_acquisition' | 'incentive_approval' | 'development_application'
+  regulator?: string; // issuing body, e.g. 'FONATUR', 'CONFOTUR', 'NEPA'
+  project_description?: string;
+  signal_date?: string | null; // ISO date (YYYY-MM-DD) of the filing/announcement
+  // True when the source can tell the filing was withdrawn/rejected/denied; the
+  // signals lane never writes these.
+  withdrawn?: boolean;
 }
 
 // Track B: registry leads. Entities licensed to physically handle fuel.
