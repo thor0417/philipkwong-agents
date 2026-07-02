@@ -420,6 +420,36 @@ export function classifyFeasibility(lead: NormalizedLead): Classification {
   };
 }
 
+// ---- TED specific-consultancy CPV capture lane. A TED notice classified by the
+// EU under one of these SPECIFIC consultancy CPV codes is captured directly on
+// CPV legitimacy: the EU already classified the work as this exact consultancy,
+// so it needs no keyword prefilter and no Haiku fit scoring. Broad parent codes
+// (79000000 business services, 79400000/79410000/79411000 general management
+// consultancy) are deliberately excluded — they are too generic to be a fit
+// signal on their own and stay on the keyword + Haiku path. ----
+const SPECIFIC_CONSULTANCY_CPV = new Set([
+  '79415000', // Operations management consultancy (Philip's operational architecture)
+  '79418000', // Procurement consultancy services
+  '79419000', // Evaluation consultancy services
+  '71241000', // Feasibility study, advisory service, analysis
+]);
+
+// CPV codes are stamped into raw_content by the TED adapter as a "CPV: a, b, c"
+// line (see sources/tedeu.ts). Pull that line and return the codes.
+function cpvCodes(lead: NormalizedLead): string[] {
+  const m = /^CPV:\s*(.*)$/m.exec(lead.raw_content);
+  if (!m) return [];
+  return m[1].split(',').map((c) => c.trim()).filter(Boolean);
+}
+
+// The specific-consultancy CPV codes present on a TED notice, in the canonical
+// order above. Empty for non-TED sources and for notices carrying only broad
+// parent codes (those stay on the keyword + Haiku path).
+export function specificConsultancyCpvCodes(lead: NormalizedLead): string[] {
+  if (lead.source !== 'tedeu') return [];
+  return cpvCodes(lead).filter((c) => SPECIFIC_CONSULTANCY_CPV.has(c));
+}
+
 // Fuel-module leads: real fuel supply -> category 'fuel'; otherwise excluded.
 export function classifyFuel(lead: NormalizedLead): Classification {
   const text = haystack(lead);

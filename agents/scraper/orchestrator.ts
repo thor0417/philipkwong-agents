@@ -26,6 +26,7 @@ import {
   isFeasibilityLead,
   classifyFeasibility,
   isDeadNotice,
+  specificConsultancyCpvCodes,
 } from './classify';
 import { scoreLeads, type ScorerInput } from './scorer';
 import { crossReference, normalizeCompany } from './cross-reference';
@@ -221,6 +222,11 @@ export interface ScrapeReport {
   feasibilityWritten: number;
   feasibilityPerSource: Record<string, number>;
   feasibilityPerSector: Record<string, number>;
+  // TED specific-consultancy CPV capture lane (no fit scoring).
+  cpvConsultingFound: number;
+  cpvConsultingExpired: number;
+  cpvConsultingWritten: number;
+  cpvConsultingPerCode: Record<string, number>;
   // Track B registry pass.
   registryWritten: number;
   registryPerSource: Record<string, number>;
@@ -284,6 +290,7 @@ export async function orchestrate(): Promise<ScrapeReport> {
   const prepared: PreparedLead[] = [];
   const fuelPrepared: NormalizedLead[] = [];
   const feasibilityPrepared: NormalizedLead[] = [];
+  const cpvConsultingPrepared: Array<{ lead: NormalizedLead; codes: string[] }> = [];
   let prefilterFiltered = 0;
   let brokerExcluded = 0;
   let fuelFound = 0;
@@ -292,6 +299,8 @@ export async function orchestrate(): Promise<ScrapeReport> {
   let fuelExpired = 0;
   let feasibilityFound = 0;
   let feasibilityExpired = 0;
+  let cpvConsultingFound = 0;
+  let cpvConsultingExpired = 0;
   let nonFuelExpired = 0;
   const now = Date.now();
 
@@ -311,6 +320,25 @@ export async function orchestrate(): Promise<ScrapeReport> {
         continue;
       }
       feasibilityPrepared.push(lead);
+      continue;
+    }
+
+    // TED specific-consultancy CPV capture lane: runs after the feasibility lane
+    // (so a feasibility-tagged notice stays feasibility) and before fuel/
+    // consulting routing. A TED notice the EU classified under a SPECIFIC
+    // consultancy CPV code (operations-management / procurement / evaluation
+    // consultancy, or feasibility/advisory) is captured on that CPV legitimacy,
+    // with no keyword prefilter and no Haiku fit scoring — the code IS the fit
+    // signal. Broad parent codes never reach here (see specificConsultancyCpvCodes),
+    // so those notices fall through to the keyword + Haiku path unchanged.
+    const cpvCodes = specificConsultancyCpvCodes(lead);
+    if (cpvCodes.length > 0) {
+      cpvConsultingFound++;
+      if (isExpired(lead.deadline, now)) {
+        cpvConsultingExpired++;
+        continue;
+      }
+      cpvConsultingPrepared.push({ lead, codes: cpvCodes });
       continue;
     }
 
@@ -381,8 +409,9 @@ export async function orchestrate(): Promise<ScrapeReport> {
   if (process.env.DRY_RUN === '1') {
     console.log(
       `DRY_RUN: ${prepared.length} non-fuel leads would be Haiku-scored; ` +
-        `${fuelPrepared.length} fuel leads and ${feasibilityPrepared.length} feasibility ` +
-        `leads would be written directly (no Haiku).`
+        `${fuelPrepared.length} fuel leads, ${feasibilityPrepared.length} feasibility ` +
+        `leads, and ${cpvConsultingPrepared.length} TED CPV-consultancy leads would be ` +
+        `written directly (no Haiku).`
     );
     return {
       fetchedPerSource,
@@ -409,6 +438,10 @@ export async function orchestrate(): Promise<ScrapeReport> {
       feasibilityWritten: 0,
       feasibilityPerSource: {},
       feasibilityPerSector: {},
+      cpvConsultingFound,
+      cpvConsultingExpired,
+      cpvConsultingWritten: 0,
+      cpvConsultingPerCode: {},
       registryWritten: 0,
       registryPerSource: {},
       registryPerRegion: {},
@@ -633,6 +666,58 @@ export async function orchestrate(): Promise<ScrapeReport> {
     inc(writtenPerLeadType, 'tender');
   }
 
+  // 5d. TED specific-consultancy CPV capture write path: notices the EU already
+  // classified under a specific consultancy CPV code, written directly with no
+  // Haiku fit scoring and no minScore. Score is left null (captured on CPV
+  // legitimacy, not fit-ranked). Category/subcategory come from the existing
+  // consulting classify logic; module/industry are general_consulting (the home
+  // any TED consulting lead would otherwise land in).
+  const cpvConsultingPerCode: Record<string, number> = {};
+  let cpvConsultingWritten = 0;
+  for (const { lead, codes } of cpvConsultingPrepared) {
+    const region = regionOf(lead.source);
+    const tags = classifyConsulting(lead);
+    const dead = isDeadNotice(lead);
+    const { error } = await supabaseAdmin.from('leads').upsert(
+      {
+        source: lead.source,
+        url: lead.url,
+        title: lead.title,
+        raw_content: lead.raw_content,
+        score: null,
+        score_reason: `Consultancy tender captured on CPV legitimacy (TED CPV ${codes.join(', ')}); not fit-scored.`,
+        status: dead ? 'dead' : 'new',
+        module: 'general_consulting',
+        industry: 'general_consulting',
+        company: lead.company,
+        location: lead.location,
+        deadline: lead.deadline,
+        value_estimate: lead.value_estimate,
+        lead_type: 'tender',
+        region,
+        category: tags.category,
+        subcategory: tags.subcategory,
+        product_type: tags.product_type,
+        is_cargo: tags.is_cargo,
+        volume_estimate: tags.volume_estimate,
+        sector: tags.sector,
+      },
+      { onConflict: 'url' }
+    );
+    if (error) {
+      console.error(`CPV consultancy write failed for ${lead.url}: ${error.message}`);
+      continue;
+    }
+    cpvConsultingWritten++;
+    written++;
+    for (const c of codes) inc(cpvConsultingPerCode, c);
+    inc(writtenPerSource, lead.source);
+    inc(writtenPerModule, 'general_consulting');
+    inc(writtenPerIndustry, 'general_consulting');
+    inc(writtenPerRegion, region);
+    inc(writtenPerLeadType, 'tender');
+  }
+
   // 6. Track B registry pass: PARKED. The MPA/Rotterdam registry write path is
   // disabled; it no longer writes registry leads on a run. Re-enable by
   // restoring runRegistryPass() and its imports below.
@@ -670,6 +755,10 @@ export async function orchestrate(): Promise<ScrapeReport> {
     feasibilityWritten,
     feasibilityPerSource,
     feasibilityPerSector,
+    cpvConsultingFound,
+    cpvConsultingExpired,
+    cpvConsultingWritten,
+    cpvConsultingPerCode,
     // Track B registry pass parked: always zero until re-enabled.
     registryWritten: 0,
     registryPerSource: {},
@@ -775,6 +864,12 @@ function printReport(r: ScrapeReport): void {
   console.log(table(r.feasibilityPerSource));
   console.log('  Feasibility per sector:');
   console.log(table(r.feasibilityPerSector));
+  console.log('--- TED specific-consultancy CPV lane (CPV-legitimacy capture, no fit scoring) ---');
+  console.log(`  CPV-classified consultancy found: ${r.cpvConsultingFound}`);
+  console.log(`  Dropped (expired deadline):       ${r.cpvConsultingExpired}`);
+  console.log(`  Written (all legit):              ${r.cpvConsultingWritten}`);
+  console.log('  CPV-consultancy written per CPV code:');
+  console.log(table(r.cpvConsultingPerCode));
   console.log('--- Track B registry ---');
   console.log(`  Registry leads written: ${r.registryWritten}`);
   console.log('  Registry per source:');
