@@ -294,6 +294,8 @@ export interface ScrapeReport {
   registryPerRegion: Record<string, number>;
   // Cross-reference post-pass.
   matchedCounterparty: number;
+  // Cross-lane LATAM_CARIB proponent matches flagged (Part A <-> Part B).
+  crossLaneFlagged: number;
 }
 
 const inc = (m: Record<string, number>, k: string): void => {
@@ -532,6 +534,7 @@ export async function orchestrate(): Promise<ScrapeReport> {
       registryPerSource: {},
       registryPerRegion: {},
       matchedCounterparty: 0,
+      crossLaneFlagged: 0,
     };
   }
 
@@ -951,6 +954,14 @@ export async function orchestrate(): Promise<ScrapeReport> {
   // 7. Cross-reference post-pass: match registries against tenders.
   const xref = await crossReference();
 
+  // 7b. Cross-lane LATAM_CARIB dedupe: a developer can surface both as a Part A
+  // bank tender and a Part B signal. Rather than writing blind duplicates, flag
+  // leads that share a normalized proponent across the tender and signal lanes
+  // within LATAM_CARIB (both kept, but marked so the same developer is not
+  // double-counted). Proponent is the match key; region scopes it to the
+  // origination territory.
+  const crossLane = process.env.DRY_RUN === '1' ? { flagged: 0 } : await crossLaneLatamFlag();
+
   return {
     fetchedPerSource,
     totalFetched: all.length,
@@ -1000,7 +1011,50 @@ export async function orchestrate(): Promise<ScrapeReport> {
     registryPerSource: {},
     registryPerRegion: {},
     matchedCounterparty: xref.matched,
+    crossLaneFlagged: crossLane.flagged,
   };
+}
+
+// Cross-lane LATAM_CARIB proponent flagging. A developer can appear both as a
+// Part A bank tender (lead_type 'tender') and a Part B signal (lead_type
+// 'signal'). Where a normalized proponent is shared across the two lanes within
+// LATAM_CARIB, both rows are flagged in `notes` (idempotently) rather than being
+// written as blind duplicates. Returns the number of rows flagged.
+async function crossLaneLatamFlag(): Promise<{ flagged: number }> {
+  const { data, error } = await supabaseAdmin
+    .from('leads')
+    .select('id, company, lead_type, notes')
+    .eq('region', LATAM_CARIB);
+  if (error || !data) {
+    if (error) console.error(`Cross-lane dedupe: query failed: ${error.message}`);
+    return { flagged: 0 };
+  }
+
+  const groups = new Map<string, typeof data>();
+  for (const row of data) {
+    if (!row.company) continue;
+    const key = normalizeCompany(row.company);
+    if (!key) continue;
+    const bucket = groups.get(key);
+    if (bucket) bucket.push(row);
+    else groups.set(key, [row]);
+  }
+
+  const MARKER = '[cross-lane match]';
+  let flagged = 0;
+  for (const rows of groups.values()) {
+    const hasSignal = rows.some((r) => r.lead_type === 'signal');
+    const hasTender = rows.some((r) => r.lead_type !== 'signal');
+    if (rows.length < 2 || !hasSignal || !hasTender) continue;
+    for (const r of rows) {
+      if ((r.notes ?? '').includes(MARKER)) continue;
+      const notes = `${r.notes ? `${r.notes} ` : ''}${MARKER} proponent appears in both the Part A tender and Part B signal lanes within LATAM_CARIB.`;
+      const { error: e } = await supabaseAdmin.from('leads').update({ notes }).eq('id', r.id);
+      if (!e) flagged++;
+    }
+  }
+  if (flagged > 0) console.log(`Cross-lane dedupe: flagged ${flagged} LATAM_CARIB leads sharing a proponent across lanes.`);
+  return { flagged };
 }
 
 /* PARKED (Track B registry): the MPA/Rotterdam registry write path is disabled.
@@ -1142,6 +1196,7 @@ function printReport(r: ScrapeReport): void {
   console.log('  Registry per region:');
   console.log(table(r.registryPerRegion));
   console.log(`Matched counterparty (registry <-> tender): ${r.matchedCounterparty}`);
+  console.log(`Cross-lane LATAM_CARIB proponent matches flagged (Part A <-> Part B): ${r.crossLaneFlagged}`);
   console.log('--- Fuel module (legitimacy capture, no fit scoring) ---');
   console.log(`  Fuel tenders found:          ${r.fuelFound}`);
   console.log(`  Excluded by broker-filter:   ${r.fuelBrokerExcluded}`);
