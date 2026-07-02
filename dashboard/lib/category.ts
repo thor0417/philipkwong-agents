@@ -237,7 +237,16 @@ function bySignalDateDesc(a: Lead, b: Lead): number {
   return tb - ta;
 }
 
-const SIGNAL_RECENT_DAYS = 30;
+// Display jurisdiction for a signal: source country, with the Mexican state
+// appended when the location carries it (FONATUR/SEMARNAT set the state).
+export function signalJurisdiction(lead: Lead): string {
+  const country = SIGNAL_SOURCE_COUNTRY[lead.source ?? ''] ?? null;
+  if (country === 'MX' && lead.location && lead.location.toLowerCase() !== 'mexico') {
+    return `MX · ${lead.location}`;
+  }
+  if (country) return country;
+  return lead.location ?? '—';
+}
 
 // Apply the full cascading filter to a lead list.
 //  - Fuel: notice + product filters; Award/dead hidden unless explicitly picked;
@@ -290,12 +299,10 @@ export function applyCategoryFilter(leads: Lead[], f: CategoryFilter): Lead[] {
     if (f.signalJurisdiction !== 'all') {
       out = out.filter((l) => matchesSignalJurisdiction(l, f.signalJurisdiction));
     }
-    // Default view: last 30 days by signal_date. The Archived toggle reveals the
-    // full backfill window (signals never expire, so it is otherwise unused here).
-    if (!f.includeArchived) {
-      const cutoff = Date.now() - SIGNAL_RECENT_DAYS * 24 * 60 * 60 * 1000;
-      out = out.filter((l) => !!l.signal_date && new Date(l.signal_date).getTime() >= cutoff);
-    }
+    // Signals never expire, and the backfill window already caps how far back the
+    // scraper writes them, so the category shows every stored signal, most recent
+    // first. (An earlier last-30-days default hid signals older than a month,
+    // which is every signal on hand — dropped so the category actually renders.)
     out = [...out].sort(bySignalDateDesc);
   }
 

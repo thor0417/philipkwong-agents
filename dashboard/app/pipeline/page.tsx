@@ -15,6 +15,7 @@ import OutreachQueue from '@/components/OutreachQueue';
 import DealRecord from '@/components/DealRecord';
 import CategoryNav from '@/components/CategoryNav';
 import CargoView from '@/components/CargoView';
+import SignalsView from '@/components/SignalsView';
 import {
   applyCategoryFilter,
   EMPTY_CATEGORY_FILTER,
@@ -140,6 +141,11 @@ export default function PipelinePage() {
 
           {catFilter.category === 'fuel' && catFilter.cargo ? (
             <CargoView
+              leads={categoryLeads}
+              onSelect={(l) => setSelectedId(l.id)}
+            />
+          ) : catFilter.category === 'signals' ? (
+            <SignalsView
               leads={categoryLeads}
               onSelect={(l) => setSelectedId(l.id)}
             />
