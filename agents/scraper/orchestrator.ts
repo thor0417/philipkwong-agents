@@ -52,6 +52,7 @@ import { scrapeGooglePlaces } from './sources/googleplaces';
 import { scrapeTenderNed } from './sources/tenderned';
 import { scrapeTexasEsbd } from './sources/texasesbd';
 import { scrapeWorldBank } from './sources/worldbank';
+import { scrapeIadb } from './sources/iadb';
 import { scrapeAdb } from './sources/adb';
 import { scrapeAfdb } from './sources/afdb';
 import { scrapeUndp } from './sources/undp';
@@ -72,6 +73,8 @@ const FUEL_CAPTURE_SCORE = 100;
 const SOURCE_REGION: Record<string, string> = {
   tenderned: 'NL',
   tedeu: 'EU',
+  iadb: 'GLOBAL',
+  cdb: 'GLOBAL',
   gebiz: 'SG',
   ungm: 'GLOBAL',
   worldbank: 'GLOBAL',
@@ -164,6 +167,8 @@ function fetchSource(id: string, profiles: IndustryProfile[]): Promise<Normalize
       return scrapeTexasEsbd();
     case 'worldbank':
       return scrapeWorldBank();
+    case 'iadb':
+      return scrapeIadb();
     case 'adb':
       return scrapeAdb();
     case 'afdb':
