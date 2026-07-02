@@ -464,6 +464,9 @@ const TOURISM_TERMS = [
   'water park', 'waterpark', 'desarrollo turistico',
   'condominio', 'condominium', 'hospedaje', 'lodging', 'theme park', 'attraction',
   'casino', 'integrated resort', 'boutique hotel', 'eco resort', 'ecolodge', 'spa',
+  // Cruise tourism (Caribbean HOAs are cruise-heavy: cruise lines, private
+  // islands, and cruise-port developments are core leisure origination).
+  'cruise', 'cruises', 'cruise line', 'cruise port', 'cruise terminal',
 ];
 // Agro-tourism (distilleries, wineries, estates). A match tags subcategory
 // 'agro_tourism'.

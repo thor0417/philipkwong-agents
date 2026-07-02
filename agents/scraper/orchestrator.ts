@@ -57,6 +57,7 @@ import { scrapeWorldBank } from './sources/worldbank';
 import { scrapeIadb } from './sources/iadb';
 import { scrapeCdb } from './sources/cdb';
 import { scrapeFonatur } from './sources/fonatur';
+import { scrapeBahamasHoa } from './sources/bahamas';
 import { scrapeAdb } from './sources/adb';
 import { scrapeAfdb } from './sources/afdb';
 import { scrapeUndp } from './sources/undp';
@@ -71,7 +72,7 @@ const AGENT_NAME = 'lead-scraper';
 // Caribbean origination push. Fetched alongside the profile sources but routed
 // entirely through the signals lane (bilingual sector gate, delta detection,
 // legitimacy capture) — never through the prefilter / Haiku / feasibility paths.
-const SIGNAL_SOURCES = ['fonatur'];
+const SIGNAL_SOURCES = ['fonatur', 'bahamas_hoa'];
 const SIGNAL_SOURCE_SET = new Set(SIGNAL_SOURCES);
 // First-run backfill caps by signal_type: development applications churn fast
 // (90 days); incentive approvals and land acquisitions are rarer and stay
@@ -192,6 +193,8 @@ function fetchSource(id: string, profiles: IndustryProfile[]): Promise<Normalize
       return scrapeCdb();
     case 'fonatur':
       return scrapeFonatur();
+    case 'bahamas_hoa':
+      return scrapeBahamasHoa();
     case 'adb':
       return scrapeAdb();
     case 'afdb':
