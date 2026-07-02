@@ -14,6 +14,10 @@ export interface NormalizedLead {
   deadline: string | null;
   value_estimate: string | null;
   source: string;
+  // Optional ISO-3166 alpha-2 country code. Set by sources that know the
+  // project country directly (IADB, and the LATAM/Caribbean signal sources) so
+  // region grouping does not have to infer it from a free-text location.
+  country?: string;
 }
 
 // Track B: registry leads. Entities licensed to physically handle fuel.

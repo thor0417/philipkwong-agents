@@ -30,6 +30,7 @@ import {
 } from './classify';
 import { scoreLeads, type ScorerInput } from './scorer';
 import { crossReference, normalizeCompany } from './cross-reference';
+import { regionFor, countryCodeOf, mexicanPriorityState, LATAM_CARIB } from './regions';
 // PARKED (Track B registry): import re-enabled when the registry pass returns.
 // import type { RegistryLead } from './sources/types';
 
@@ -227,6 +228,11 @@ export interface ScrapeReport {
   cpvConsultingExpired: number;
   cpvConsultingWritten: number;
   cpvConsultingPerCode: Record<string, number>;
+  // LATAM_CARIB region group (Mexico + Caribbean origination territory).
+  latamWritten: number;
+  latamPerCountry: Record<string, number>;
+  latamPerCategory: Record<string, number>;
+  latamMxState: Record<string, number>;
   // Track B registry pass.
   registryWritten: number;
   registryPerSource: Record<string, number>;
@@ -442,6 +448,10 @@ export async function orchestrate(): Promise<ScrapeReport> {
       cpvConsultingExpired,
       cpvConsultingWritten: 0,
       cpvConsultingPerCode: {},
+      latamWritten: 0,
+      latamPerCountry: {},
+      latamPerCategory: {},
+      latamMxState: {},
       registryWritten: 0,
       registryPerSource: {},
       registryPerRegion: {},
@@ -516,11 +526,27 @@ export async function orchestrate(): Promise<ScrapeReport> {
   const writtenPerLeadType: Record<string, number> = {};
   let written = 0;
 
+  // LATAM_CARIB region-group accumulators, recorded on every write path so the
+  // origination view spans consulting, feasibility, fuel, and signals. Country
+  // and category break it down; priority Mexican states are flagged.
+  const latamPerCountry: Record<string, number> = {};
+  const latamPerCategory: Record<string, number> = {};
+  const latamMxState: Record<string, number> = {};
+  let latamWritten = 0;
+  const recordLatam = (lead: NormalizedLead, region: string, category: string): void => {
+    if (region !== LATAM_CARIB) return;
+    latamWritten++;
+    inc(latamPerCountry, countryCodeOf(lead) ?? 'unknown');
+    inc(latamPerCategory, category);
+    const state = mexicanPriorityState(`${lead.location ?? ''}\n${lead.title}\n${lead.raw_content}`);
+    if (state) inc(latamMxState, state);
+  };
+
   for (let i = 0; i < prepared.length; i++) {
     const { lead, profile } = prepared[i];
     const { score, score_reason } = scores[i];
     if (score < profile.minScore) continue;
-    const region = regionOf(lead.source);
+    const region = regionFor(lead, regionOf(lead.source));
     const tags = classifyConsulting(lead);
     const dead = isDeadNotice(lead);
 
@@ -560,6 +586,7 @@ export async function orchestrate(): Promise<ScrapeReport> {
     inc(writtenPerIndustry, profile.name);
     inc(writtenPerRegion, region);
     inc(writtenPerLeadType, 'tender');
+    recordLatam(lead, region, tags.category);
   }
 
   // 5b. Fuel capture write path: broker-filtered, non-expired buy-side fuel
@@ -569,7 +596,7 @@ export async function orchestrate(): Promise<ScrapeReport> {
   let fuelWritten = 0;
   const fuelIndustry = fuelProfile?.name ?? 'fuel_tenders';
   for (const lead of fuelPrepared) {
-    const region = regionOf(lead.source);
+    const region = regionFor(lead, regionOf(lead.source));
     const tags = classifyFuel(lead);
     const dead = isDeadNotice(lead);
     const { error } = await supabaseAdmin.from('leads').upsert(
@@ -612,6 +639,7 @@ export async function orchestrate(): Promise<ScrapeReport> {
     inc(writtenPerIndustry, fuelIndustry);
     inc(writtenPerRegion, region);
     inc(writtenPerLeadType, 'tender');
+    recordLatam(lead, region, 'fuel');
   }
 
   // 5c. Feasibility capture write path: non-expired feasibility study RFPs/
@@ -622,7 +650,7 @@ export async function orchestrate(): Promise<ScrapeReport> {
   const feasibilityPerSector: Record<string, number> = {};
   let feasibilityWritten = 0;
   for (const lead of feasibilityPrepared) {
-    const region = regionOf(lead.source);
+    const region = regionFor(lead, regionOf(lead.source));
     const tags = classifyFeasibility(lead);
     const dead = isDeadNotice(lead);
     const { error } = await supabaseAdmin.from('leads').upsert(
@@ -664,6 +692,7 @@ export async function orchestrate(): Promise<ScrapeReport> {
     inc(writtenPerIndustry, 'feasibility');
     inc(writtenPerRegion, region);
     inc(writtenPerLeadType, 'tender');
+    recordLatam(lead, region, 'feasibility');
   }
 
   // 5d. TED specific-consultancy CPV capture write path: notices the EU already
@@ -675,7 +704,7 @@ export async function orchestrate(): Promise<ScrapeReport> {
   const cpvConsultingPerCode: Record<string, number> = {};
   let cpvConsultingWritten = 0;
   for (const { lead, codes } of cpvConsultingPrepared) {
-    const region = regionOf(lead.source);
+    const region = regionFor(lead, regionOf(lead.source));
     const tags = classifyConsulting(lead);
     const dead = isDeadNotice(lead);
     const { error } = await supabaseAdmin.from('leads').upsert(
@@ -716,6 +745,7 @@ export async function orchestrate(): Promise<ScrapeReport> {
     inc(writtenPerIndustry, 'general_consulting');
     inc(writtenPerRegion, region);
     inc(writtenPerLeadType, 'tender');
+    recordLatam(lead, region, 'consulting');
   }
 
   // 6. Track B registry pass: PARKED. The MPA/Rotterdam registry write path is
@@ -759,6 +789,10 @@ export async function orchestrate(): Promise<ScrapeReport> {
     cpvConsultingExpired,
     cpvConsultingWritten,
     cpvConsultingPerCode,
+    latamWritten,
+    latamPerCountry,
+    latamPerCategory,
+    latamMxState,
     // Track B registry pass parked: always zero until re-enabled.
     registryWritten: 0,
     registryPerSource: {},
@@ -870,6 +904,14 @@ function printReport(r: ScrapeReport): void {
   console.log(`  Written (all legit):              ${r.cpvConsultingWritten}`);
   console.log('  CPV-consultancy written per CPV code:');
   console.log(table(r.cpvConsultingPerCode));
+  console.log('--- LATAM_CARIB region group (Mexico + Caribbean origination) ---');
+  console.log(`  Leads written in LATAM_CARIB: ${r.latamWritten}`);
+  console.log('  LATAM_CARIB per country:');
+  console.log(table(r.latamPerCountry));
+  console.log('  LATAM_CARIB per category:');
+  console.log(table(r.latamPerCategory));
+  console.log('  Priority Mexican states flagged:');
+  console.log(table(r.latamMxState));
   console.log('--- Track B registry ---');
   console.log(`  Registry leads written: ${r.registryWritten}`);
   console.log('  Registry per source:');
