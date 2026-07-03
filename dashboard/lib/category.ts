@@ -151,6 +151,32 @@ export const FEASIBILITY_SECTOR_OPTIONS: Option[] = [
   { key: 'other', label: 'Other' },
 ];
 
+// Government Tenders sub-filters. The tenders category is a cross-cutting view
+// (lead_type 'tender' spans fuel / consulting / feasibility / excluded), so its
+// industry + notice-type are derived from the stored text/tags at read time
+// (tenderIndustry / tenderNotice below) rather than owned by one scraper profile.
+export const TENDER_INDUSTRY_OPTIONS: Option[] = [
+  { key: 'all', label: 'All industries' },
+  { key: 'healthcare', label: 'Healthcare' },
+  { key: 'construction', label: 'Construction' },
+  { key: 'it', label: 'IT' },
+  { key: 'defense', label: 'Defense' },
+  { key: 'professional_services', label: 'Professional Services' },
+  { key: 'environmental', label: 'Environmental' },
+  { key: 'energy', label: 'Energy' },
+  { key: 'other', label: 'Other' },
+];
+
+// Notice type, mirroring the Fuel notice sub-filter. 'all' hides Award/dead by
+// default; it stays reachable as an explicit choice (which also reveals archived).
+export const TENDER_NOTICE_OPTIONS: Option[] = [
+  { key: 'all', label: 'All types' },
+  { key: 'solicitation', label: 'Solicitation' },
+  { key: 'rfp', label: 'RFP' },
+  { key: 'framework', label: 'Framework' },
+  { key: 'award_or_dead', label: 'Award/dead' },
+];
+
 // The cascading filter state the nav owns.
 export interface CategoryFilter {
   category: CategoryKey;
@@ -162,6 +188,8 @@ export interface CategoryFilter {
   signalType: string; // 'all' | signal_type
   signalSector: string; // 'all' | sector subcategory
   signalJurisdiction: string; // 'all' | country code / MX state
+  tenderIndustry: string; // 'all' | tender industry key
+  tenderNotice: string; // 'all' | tender notice type
   cargo: boolean; // fuel cargo experiment view
   includeArchived: boolean; // show expired + awarded/dead (off by default)
 }
@@ -176,6 +204,8 @@ export const EMPTY_CATEGORY_FILTER: CategoryFilter = {
   signalType: 'all',
   signalSector: 'all',
   signalJurisdiction: 'all',
+  tenderIndustry: 'all',
+  tenderNotice: 'all',
   cargo: false,
   includeArchived: false,
 };
@@ -194,6 +224,51 @@ function isDeadLead(l: Lead): boolean {
 }
 export function isArchivedLead(l: Lead): boolean {
   return isExpiredLead(l) || isDeadLead(l);
+}
+
+// ---- Government Tenders derived sub-tags (industry + notice type). Keyword
+// heuristics over the stored title + content, first match wins. This mirrors the
+// Fuel sub-filter UX but classifies at read time, since the tenders view spans
+// every scraper profile. ----
+function tenderText(l: Lead): string {
+  return `${l.title ?? ''}\n${l.raw_content ?? ''}`;
+}
+function hasWord(text: string, keywords: string[]): boolean {
+  return keywords.some((k) => new RegExp(`\\b${k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(text));
+}
+
+const TENDER_INDUSTRY_KEYWORDS: { key: string; keywords: string[] }[] = [
+  { key: 'healthcare', keywords: ['health', 'healthcare', 'hospital', 'medical', 'clinic', 'clinical', 'pharmaceutical', 'pharma', 'nursing', 'patient', 'medicine', 'dental', 'diagnostic', 'laboratory', 'ambulance', 'vaccine', 'disease', 'surgical'] },
+  { key: 'defense', keywords: ['defence', 'defense', 'military', 'army', 'navy', 'naval', 'air force', 'weapon', 'ammunition', 'tactical', 'armour', 'armor', 'combat', 'warfare', 'soldier', 'coast guard'] },
+  { key: 'energy', keywords: ['energy', 'power', 'electricity', 'solar', 'wind', 'fuel', 'fuels', 'oil', 'gas', 'petroleum', 'diesel', 'kerosene', 'aviation kerosene', 'jet fuel', 'jet a1', 'jet a-1', 'ethanol', 'biofuel', 'renewable', 'grid', 'lng', 'lpg', 'biomass', 'hydro', 'photovoltaic', 'nuclear', 'turbine', 'coal'] },
+  { key: 'environmental', keywords: ['environment', 'environmental', 'waste', 'recycling', 'wastewater', 'water treatment', 'sanitation', 'sewage', 'pollution', 'climate', 'sustainability', 'remediation', 'ecological', 'emissions', 'drainage', 'water supply'] },
+  { key: 'it', keywords: ['software', 'IT', 'ICT', 'information technology', 'cloud', 'cybersecurity', 'cyber', 'network', 'data centre', 'data center', 'application development', 'digital', 'ERP', 'SaaS', 'hardware', 'computer', 'AI', 'artificial intelligence', 'website', 'web', 'telecommunications', 'telecom', 'GIS', 'system integration', 'database'] },
+  { key: 'construction', keywords: ['construction', 'building', 'roadworks', 'roofing', 'refurbishment', 'renovation', 'civil works', 'demolition', 'HVAC', 'plumbing', 'paving', 'bridge', 'masonry', 'infrastructure', 'roadway', 'road', 'highway', 'landfill', 'concrete', 'earthworks', 'housing'] },
+  { key: 'professional_services', keywords: ['consulting', 'consultancy', 'advisory', 'advice', 'audit', 'legal', 'accounting', 'feasibility', 'strategy', 'evaluation', 'training', 'recruitment', 'human resources', 'financial services', 'insurance', 'actuarial', 'valuation', 'research', 'study', 'assessment', 'management', 'design', 'regulatory', 'policy', 'compliance', 'quality assurance', 'quality management', 'procurement'] },
+];
+
+// Industry bucket for a tender. Fuel-tagged leads are energy by construction
+// (the scraper's fuel classification already handles multilingual fuel names the
+// keyword list cannot all cover); otherwise the first matching keyword group wins.
+export function tenderIndustry(l: Lead): string {
+  if (l.category === 'fuel' || l.module === 'fuel') return 'energy';
+  const text = tenderText(l);
+  for (const g of TENDER_INDUSTRY_KEYWORDS) if (hasWord(text, g.keywords)) return g.key;
+  return 'other';
+}
+
+const TENDER_RFP_TERMS = ['RFP', 'RFQ', 'request for proposal', 'request for quotation', 'request for quotations', 'invitation to tender', 'EOI', 'expression of interest', 'request for expression'];
+const TENDER_FRAMEWORK_TERMS = ['framework agreement', 'framework'];
+
+// Notice type for a tender. Awarded / cancelled / withdrawn / expired leads (the
+// archived set) are award_or_dead; otherwise framework, then RFP, else an open
+// solicitation. Ordering mirrors the fuel notice classifier.
+export function tenderNotice(l: Lead): string {
+  if (isArchivedLead(l)) return 'award_or_dead';
+  const text = tenderText(l);
+  if (hasWord(text, TENDER_FRAMEWORK_TERMS)) return 'framework';
+  if (hasWord(text, TENDER_RFP_TERMS)) return 'rfp';
+  return 'solicitation';
 }
 
 // Top-level category membership. Fuel/Consulting read the classification column
@@ -261,7 +336,10 @@ export function applyCategoryFilter(leads: Lead[], f: CategoryFilter): Lead[] {
   // Expired and awarded/dead leads are hidden from every category's default
   // view. They stay reachable when the user opts in (includeArchived) or picks
   // the fuel Award/dead notice type explicitly.
-  const showArchived = f.includeArchived || (f.category === 'fuel' && f.fuelNotice === 'award_or_dead');
+  const showArchived =
+    f.includeArchived ||
+    (f.category === 'fuel' && f.fuelNotice === 'award_or_dead') ||
+    (f.category === 'tenders' && f.tenderNotice === 'award_or_dead');
   if (!showArchived) {
     out = out.filter((l) => !isArchivedLead(l));
   }
@@ -307,6 +385,19 @@ export function applyCategoryFilter(leads: Lead[], f: CategoryFilter): Lead[] {
     // first. (An earlier last-30-days default hid signals older than a month,
     // which is every signal on hand — dropped so the category actually renders.)
     out = [...out].sort(bySignalDateDesc);
+  } else if (f.category === 'tenders') {
+    if (f.tenderIndustry !== 'all') {
+      out = out.filter((l) => tenderIndustry(l) === f.tenderIndustry);
+    }
+    // Notice type mirrors Fuel: 'all' hides Award/dead (already dropped by the
+    // archived filter above); an explicit type filters to it (award_or_dead also
+    // flips showArchived on, so those leads become reachable).
+    if (f.tenderNotice === 'all') {
+      out = out.filter((l) => tenderNotice(l) !== 'award_or_dead');
+    } else {
+      out = out.filter((l) => tenderNotice(l) === f.tenderNotice);
+    }
+    out = [...out].sort(byDeadline);
   }
 
   return out;

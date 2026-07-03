@@ -9,6 +9,8 @@ import {
   SIGNAL_TYPE_OPTIONS,
   SIGNAL_SECTOR_OPTIONS,
   SIGNAL_JURISDICTION_OPTIONS,
+  TENDER_INDUSTRY_OPTIONS,
+  TENDER_NOTICE_OPTIONS,
   type CategoryFilter,
 } from '@/lib/category';
 import styles from './CategoryNav.module.css';
@@ -39,6 +41,8 @@ export default function CategoryNav({
       signalType: 'all',
       signalSector: 'all',
       signalJurisdiction: 'all',
+      tenderIndustry: 'all',
+      tenderNotice: 'all',
       cargo: false,
       includeArchived: filter.includeArchived,
     });
@@ -171,6 +175,35 @@ export default function CategoryNav({
                 key={o.key}
                 className={`${styles.sub} ${filter.signalJurisdiction === o.key ? styles.active : ''}`}
                 onClick={() => set({ signalJurisdiction: o.key })}
+              >
+                {o.label}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+
+      {filter.category === 'tenders' && (
+        <>
+          <div className={styles.substrip}>
+            <span className={styles.dim}>Industry</span>
+            {TENDER_INDUSTRY_OPTIONS.map((o) => (
+              <button
+                key={o.key}
+                className={`${styles.sub} ${filter.tenderIndustry === o.key ? styles.active : ''}`}
+                onClick={() => set({ tenderIndustry: o.key })}
+              >
+                {o.label}
+              </button>
+            ))}
+          </div>
+          <div className={styles.substrip}>
+            <span className={styles.dim}>Notice</span>
+            {TENDER_NOTICE_OPTIONS.map((o) => (
+              <button
+                key={o.key}
+                className={`${styles.sub} ${filter.tenderNotice === o.key ? styles.active : ''}`}
+                onClick={() => set({ tenderNotice: o.key })}
               >
                 {o.label}
               </button>
