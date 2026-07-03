@@ -292,77 +292,37 @@ function isJobPosting(text: string): boolean {
 // ---- Feasibility capture lane. An independent category checked across ALL
 // leads (any profile, any source) before consulting scoring: a feasibility
 // study RFP/tender is pulled out and written on legitimacy, never fit-scored. ----
+//
+// The trigger is deliberately narrow: only genuine feasibility/viability
+// language qualifies. Adjacent advisory work — needs assessment, technical
+// assistance, scoping study, options appraisal, evaluation, engineering design,
+// procurement-document prep, situational analysis — is NOT feasibility and must
+// route to consulting instead (it clears no term here, so it falls through to
+// the consulting path). Broad tourism/leisure phrasing was removed too: a
+// tourism development or master-plan tender is not a feasibility study. (IADB/CDB
+// tourism notices are still captured on legitimacy via the separate sector gate
+// in the orchestrator, independent of these terms.)
+// Matching is whole-word (\bterm\b), so each "... study / assessment" phrase is
+// listed in both singular and plural — "Feasibility Studies" is extremely common
+// in RFP titles and would otherwise be missed. The bare "prefeasibility" /
+// "pre-feasibility" forms already cover their study/studies variants.
 const FEASIBILITY_TERMS = [
   'feasibility study',
-  'feasibility',
+  'feasibility studies',
+  'feasibility assessment',
+  'feasibility assessments',
   'prefeasibility',
   'pre-feasibility',
   'techno-economic study',
-  'techno-economic',
+  'techno-economic studies',
   'viability study',
+  'viability studies',
   'viability assessment',
+  'viability assessments',
   'bankable feasibility',
-  'options appraisal',
-  'scoping study',
-  // Leisure / tourism / entertainment / cultural feasibility work, phrased any
-  // way. Many of these do not contain "feasibility", so they are new triggers.
-  // The lane writes on legitimacy, so the breadth is intentional (bare terms
-  // like zoo / aquarium / theme park will also pull attraction tenders that are
-  // not strictly studies).
-  'tourism feasibility',
-  'tourism development',
-  'tourism strategy',
-  'tourism master plan',
-  'tourism potential',
-  'destination development',
-  'destination master plan',
-  'hospitality feasibility',
-  'hospitality market study',
-  'hotel feasibility',
-  'resort feasibility',
-  'spa resort',
-  'golf resort',
-  'casino feasibility',
-  'gaming feasibility',
-  'integrated resort',
-  'leisure development',
-  'leisure facility',
-  'leisure complex',
-  'recreation facility',
-  'visitor economy',
-  'visitor attraction',
-  'visitor centre',
-  'visitor center',
-  'attraction feasibility',
-  'cultural attraction',
-  'museum feasibility',
-  'heritage feasibility',
-  'theme park',
-  'amusement park',
-  'waterpark',
-  'family entertainment',
-  'entertainment complex',
-  'zoo',
-  'aquarium',
-  'science centre',
-  'convention centre feasibility',
-  'convention center feasibility',
-  'conference center feasibility',
-  'conference facility',
-  'exhibition centre',
-  'stadium feasibility',
-  'arena feasibility',
-  'sports facility feasibility',
-  'marina feasibility',
-  'marina development',
-  'waterfront development',
-  'mixed-use feasibility',
-  'mixed-use development',
-  'master plan',
-  'economic impact study',
-  'market demand study',
   'market feasibility',
   'commercial feasibility',
+  'economic feasibility',
 ];
 
 // Best-guess sector, tagged as the feasibility subcategory. First match wins.
