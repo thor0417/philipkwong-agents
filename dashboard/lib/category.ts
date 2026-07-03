@@ -226,10 +226,11 @@ export function isArchivedLead(l: Lead): boolean {
   return isExpiredLead(l) || isDeadLead(l);
 }
 
-// ---- Government Tenders derived sub-tags (industry + notice type). Keyword
-// heuristics over the stored title + content, first match wins. This mirrors the
+// ---- Government Tenders derived sub-tags (industry + notice type). Industry
+// keys off the buyer's CPV code when present, else keyword heuristics over the
+// stored title + content; notice type keys off status + text. This mirrors the
 // Fuel sub-filter UX but classifies at read time, since the tenders view spans
-// every scraper profile. ----
+// every scraper profile (no single profile owns an industry column for it). ----
 function tenderText(l: Lead): string {
   return `${l.title ?? ''}\n${l.raw_content ?? ''}`;
 }
@@ -247,11 +248,49 @@ const TENDER_INDUSTRY_KEYWORDS: { key: string; keywords: string[] }[] = [
   { key: 'professional_services', keywords: ['consulting', 'consultancy', 'advisory', 'advice', 'audit', 'legal', 'accounting', 'feasibility', 'strategy', 'evaluation', 'training', 'recruitment', 'human resources', 'financial services', 'insurance', 'actuarial', 'valuation', 'research', 'study', 'assessment', 'management', 'design', 'regulatory', 'policy', 'compliance', 'quality assurance', 'quality management', 'procurement'] },
 ];
 
-// Industry bucket for a tender. Fuel-tagged leads are energy by construction
-// (the scraper's fuel classification already handles multilingual fuel names the
-// keyword list cannot all cover); otherwise the first matching keyword group wins.
+// CPV division (first two digits of the 8-digit code) -> industry. CPV is the EU
+// Common Procurement Vocabulary code the TED adapter stamps into raw_content as a
+// "CPV: a, b, c" line — a machine classification the buyer already assigned, so it
+// beats keyword guessing when present. Specific overrides are checked before the
+// division (e.g. 71241000 feasibility/advisory is professional services, not the
+// construction/engineering that division 71 otherwise implies).
+const CPV_DIVISION_INDUSTRY: Record<string, string> = {
+  '09': 'energy', // petroleum, fuels, electricity, energy
+  '76': 'energy', // oil- and gas-industry services
+  '33': 'healthcare', // medical equipment, pharmaceuticals
+  '85': 'healthcare', // health and social work services
+  '44': 'construction', // construction materials
+  '45': 'construction', // construction work
+  '71': 'construction', // architectural, engineering, inspection
+  '30': 'it', // office and computing machinery
+  '32': 'it', // radio, TV, communication equipment
+  '48': 'it', // software and information systems
+  '64': 'it', // postal and telecommunications services
+  '72': 'it', // IT services
+  '35': 'defense', // security, fire, police, defence
+  '66': 'professional_services', // financial and insurance services
+  '73': 'professional_services', // research and development
+  '79': 'professional_services', // business services: management, legal, accounting
+  '90': 'environmental', // sewage, refuse, cleaning, environmental services
+};
+
+function cpvIndustry(l: Lead): string | null {
+  const m = /^CPV:\s*(.*)$/m.exec(l.raw_content ?? '');
+  if (!m) return null;
+  const codes = m[1].split(',').map((c) => c.trim()).filter((c) => /^\d{8}$/.test(c));
+  for (const c of codes) {
+    if (c.startsWith('71241')) return 'professional_services'; // feasibility/advisory
+    const ind = CPV_DIVISION_INDUSTRY[c.slice(0, 2)];
+    if (ind) return ind;
+  }
+  return null;
+}
+
+// Industry bucket for a tender: the CPV code decides when the buyer supplied one,
+// otherwise the first matching keyword group wins (falling back to 'other').
 export function tenderIndustry(l: Lead): string {
-  if (l.category === 'fuel' || l.module === 'fuel') return 'energy';
+  const byCpv = cpvIndustry(l);
+  if (byCpv) return byCpv;
   const text = tenderText(l);
   for (const g of TENDER_INDUSTRY_KEYWORDS) if (hasWord(text, g.keywords)) return g.key;
   return 'other';
