@@ -181,10 +181,13 @@ export const EMPTY_CATEGORY_FILTER: CategoryFilter = {
 };
 
 // A lead is not actionable when its deadline has passed (expired) or it is
-// already awarded/cancelled/withdrawn (dead: status set by the scraper, or the
-// fuel award_or_dead notice type). Hidden from every category's default view.
+// already awarded/cancelled/withdrawn/superseded/advance-award/notice-of-intent
+// (dead). This is driven by the lifecycle status the scraper + retag-dead-expired
+// pass assign ('dead' / 'expired'), so the exclusion holds even when a deadline
+// is missing or unparseable; the deadline check and the fuel award_or_dead notice
+// type are kept as belt-and-suspenders. Hidden from every category's default view.
 function isExpiredLead(l: Lead): boolean {
-  return !!l.deadline && new Date(l.deadline).getTime() < Date.now();
+  return l.status === 'expired' || (!!l.deadline && new Date(l.deadline).getTime() < Date.now());
 }
 function isDeadLead(l: Lead): boolean {
   return l.status === 'dead' || l.subcategory === 'award_or_dead';
