@@ -7,7 +7,7 @@ import SourceLink from './SourceLink';
 import styles from './GLITable.module.css';
 
 // Sortable columns. 'link' is a plain source-link column and is not sortable.
-type SortKey = 'signal' | 'venue' | 'title' | 'location' | 'source' | 'date';
+type SortKey = 'signal' | 'venue' | 'title' | 'location' | 'source' | 'tier' | 'date';
 type SortDir = 'asc' | 'desc';
 
 const COLUMNS: { key: SortKey | null; label: string }[] = [
@@ -16,9 +16,18 @@ const COLUMNS: { key: SortKey | null; label: string }[] = [
   { key: 'title', label: 'Title' },
   { key: 'location', label: 'Location' },
   { key: 'source', label: 'Source' },
+  { key: 'tier', label: 'Tier' },
   { key: 'date', label: 'Date' },
   { key: null, label: 'Link' },
 ];
+
+// CSS class for a source_tier value: primary accent, trade ink, news muted.
+function tierClass(tier: string | null): string {
+  if (tier === 'primary') return styles.tierPrimary;
+  if (tier === 'trade') return styles.tierTrade;
+  if (tier === 'news') return styles.tierNews;
+  return styles.tierNews;
+}
 
 const SIGNAL_RANK: Record<string, number> = Object.fromEntries(
   GLI_SIGNAL_ORDER.map((s, i) => [s, i])
@@ -54,6 +63,8 @@ function sortValue(lead: GLILead, key: SortKey): string | number {
       return (lead.location ?? '').toLowerCase();
     case 'source':
       return (sourceHost(lead.url) ?? '').toLowerCase();
+    case 'tier':
+      return (lead.source_tier ?? '').toLowerCase();
     case 'date':
       return dateValue(lead.date_found);
   }
@@ -182,6 +193,9 @@ function GLIRow({
       <td className={styles.titleCell}>{lead.title ?? '--'}</td>
       <td className={styles.location}>{lead.location ?? '--'}</td>
       <td className={styles.meta}>{host ?? '--'}</td>
+      <td className={`${styles.tierCell} ${tierClass(lead.source_tier)}`}>
+        {lead.source_tier ?? '--'}
+      </td>
       <td className={styles.meta}>
         {lead.date_found ? lead.date_found.slice(0, 10) : '--'}
       </td>

@@ -115,6 +115,27 @@
   white-space: nowrap;
 }
 
+/* Source tier cell: small caps, colored by tier. */
+.tierCell {
+  font-family: var(--font-dm-mono), monospace;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.tierPrimary {
+  color: var(--accent);
+}
+
+.tierTrade {
+  color: var(--ink);
+}
+
+.tierNews {
+  color: var(--muted);
+}
+
 .empty {
   font-family: var(--font-dm-mono), monospace;
   font-size: 12px;
