@@ -141,6 +141,7 @@ export interface GLILead {
   raw_content: string | null;
   date_found: string | null;
   score: number | null;
+  source_tier: string | null;
 }
 
 export const GLI_SIGNAL_ORDER = [
