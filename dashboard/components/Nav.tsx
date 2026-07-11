@@ -1,5 +1,7 @@
 'use client';
 
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import styles from './Nav.module.css';
 
 export type View = 'kanban' | 'list';
@@ -17,6 +19,8 @@ export default function Nav({
   onToggleAgents: () => void;
   onSignOut: () => void;
 }) {
+  const pathname = usePathname();
+
   return (
     <nav className={styles.nav}>
       <div className="mono" style={{ fontSize: 12, letterSpacing: '0.04em' }}>
@@ -40,6 +44,12 @@ export default function Nav({
       </div>
 
       <div className={styles.right}>
+        <Link
+          href="/gli"
+          className={`${styles.link} ${pathname === '/gli' ? styles.active : ''}`}
+        >
+          GLI
+        </Link>
         <button
           className={agentsOpen ? styles.active : ''}
           onClick={onToggleAgents}
