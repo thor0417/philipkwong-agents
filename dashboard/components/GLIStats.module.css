@@ -1,0 +1,59 @@
+/* Matches StatsBar: hairline borders, DM Mono, sharp corners, no shadows. */
+.bar {
+  display: grid;
+  grid-template-columns: 1fr;
+  border: 0.5px solid var(--hairline);
+  background: #fff;
+}
+
+.cell {
+  padding: 20px 22px;
+}
+
+.value {
+  font-family: var(--font-dm-mono), monospace;
+  font-size: 30px;
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: -0.01em;
+}
+
+.label {
+  font-family: var(--font-dm-mono), monospace;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-top: 10px;
+}
+
+/* Compact per-signal / per-venue count strips. No cards. */
+.countsRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding: 10px 22px;
+  border: 0.5px solid var(--hairline);
+  border-top: none;
+  background: #fff;
+}
+
+.countItem {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.countLabel {
+  font-family: var(--font-dm-mono), monospace;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.countValue {
+  font-family: var(--font-dm-mono), monospace;
+  font-size: 11px;
+  color: var(--ink);
+}
