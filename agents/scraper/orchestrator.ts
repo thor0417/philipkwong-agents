@@ -54,6 +54,7 @@ import { scrapeGeBiz } from './sources/gebiz';
 import { scrapeUngm } from './sources/ungm';
 import { scrapeGooglePlaces } from './sources/googleplaces';
 import { scrapeGoogleCse } from './sources/googlecse';
+import { scrapeSerper } from './sources/serper';
 import { scrapeTenderNed } from './sources/tenderned';
 import { scrapeTexasEsbd } from './sources/texasesbd';
 import { scrapeWorldBank } from './sources/worldbank';
@@ -82,11 +83,11 @@ const AGENT_NAME = 'lead-scraper';
 const SIGNAL_SOURCES = ['fonatur', 'bahamas_hoa', 'confotur', 'semarnat', 'nepa_jm', 'cayman_cpa'];
 const SIGNAL_SOURCE_SET = new Set(SIGNAL_SOURCES);
 
-// GLI lane (Grant Leisure International). Google CSE results carry source
-// 'gli_cse' and are routed entirely through the dedicated GLI lane (gli.ts):
+// GLI lane (Grant Leisure International). Serper results carry source
+// 'gli_serper' and are routed entirely through the dedicated GLI lane (gli.ts):
 // LLM inclusion gate, venue/signal tagging, project dedup. They never touch the
 // feasibility, fuel, consulting, or signals paths.
-const GLI_LEAD_SOURCE = 'gli_cse';
+const GLI_LEAD_SOURCE = 'gli_serper';
 
 // Part A development banks whose tourism notices are captured on legitimacy
 // (like the TED CPV lane): IADB/CDB notices otherwise route through the Haiku
@@ -232,6 +233,8 @@ function fetchSource(id: string, profiles: IndustryProfile[]): Promise<Normalize
       return scrapeGooglePlaces();
     case 'googlecse':
       return scrapeGoogleCse(gliQueries());
+    case 'serper':
+      return scrapeSerper(gliQueries());
     default:
       console.warn(`Orchestrator: unknown source "${id}", skipping.`);
       return Promise.resolve([]);
@@ -310,7 +313,7 @@ export interface ScrapeReport {
   registryPerSource: Record<string, number>;
   registryPerRegion: Record<string, number>;
   // GLI lane (Grant Leisure International): leisure/attraction/hospitality/
-  // gaming/cultural venue opportunities from Google CSE.
+  // gaming/cultural venue opportunities from Serper.
   gli: GliReport | null;
   // Cross-reference post-pass.
   matchedCounterparty: number;
@@ -393,7 +396,7 @@ export async function orchestrate(): Promise<ScrapeReport> {
   for (const lead of deduped) {
     const text = haystack(lead);
 
-    // GLI lane (Grant Leisure International): Google CSE results are routed
+    // GLI lane (Grant Leisure International): Serper results are routed
     // entirely through the GLI lane (handled after this loop). Collect and skip
     // before any other lane can claim them (a "waterpark feasibility" result
     // would otherwise be caught by the feasibility lane below).
@@ -979,7 +982,7 @@ export async function orchestrate(): Promise<ScrapeReport> {
     }
   }
 
-  // 5f. GLI lane (Grant Leisure International): Google CSE leisure/attraction
+  // 5f. GLI lane (Grant Leisure International): Serper leisure/attraction
   // results, gated + venue/signal tagged + project-deduped in gli.ts, written
   // with module 'gli'. Isolated from every other lane. Its writes are folded
   // into the shared per-module / per-lead_type / per-source tallies.
@@ -1248,7 +1251,7 @@ function printReport(r: ScrapeReport): void {
   console.log(table(r.registryPerRegion));
   console.log('--- GLI lane (Grant Leisure International: leisure/attraction/gaming/cultural venues) ---');
   if (r.gli) {
-    console.log(`  Fetched from Custom Search:   ${r.gli.fetched}`);
+    console.log(`  Fetched from Serper:          ${r.gli.fetched}`);
     console.log(`  Kept after inclusion rule:    ${r.gli.kept}`);
     console.log(`  Dropped as noise:             ${r.gli.droppedNoise}`);
     console.log(`  Dropped as project duplicate: ${r.gli.projectDuplicates}`);

@@ -1,7 +1,7 @@
 // GLI lane (Grant Leisure International).
 //
 // Finds leisure, attraction, hospitality, gaming, and cultural venue
-// opportunities. Runs entirely on its own path: Google CSE results in, an LLM
+// opportunities. Runs entirely on its own path: Serper results in, an LLM
 // inclusion gate + venue/signal tagging, project-level dedup, then a direct
 // write with module 'gli'. It never touches the fuel or consulting lanes and is
 // never fit-scored by the Haiku consulting scorer.
@@ -20,7 +20,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { pathToFileURL } from 'node:url';
 import { supabaseAdmin } from '../../lib/supabase-admin';
 import type { NormalizedLead } from './sources/types';
-import { scrapeGoogleCse } from './sources/googlecse';
+import { scrapeSerper } from './sources/serper';
 import { gliQueries } from './profiles';
 import { normalizeCompany } from './cross-reference';
 
@@ -252,7 +252,7 @@ const inc = (m: Record<string, number>, k: string): void => {
   m[k] = (m[k] ?? 0) + 1;
 };
 
-// Run the GLI lane over already-fetched Google CSE leads: gate, tag, dedup by
+// Run the GLI lane over already-fetched Serper leads: gate, tag, dedup by
 // project, and write (module 'gli'). Set GLI_NO_WRITE=1 to produce the report
 // without persisting (useful before the 006 migration is applied).
 export async function runGliLane(rawLeads: NormalizedLead[]): Promise<GliReport> {
@@ -364,7 +364,7 @@ export function printGliReport(r: GliReport): void {
       : '    (none)';
 
   console.log('\n========== GLI LANE REPORT ==========');
-  console.log(`Fetched from Custom Search:   ${r.fetched}`);
+  console.log(`Fetched from Serper:          ${r.fetched}`);
   console.log(`After URL dedup:              ${r.urlDeduped}`);
   console.log(`Kept after inclusion rule:    ${r.kept}`);
   console.log(`Dropped as noise:             ${r.droppedNoise}`);
@@ -383,7 +383,7 @@ export function printGliReport(r: GliReport): void {
   console.log('=====================================\n');
 }
 
-// Standalone entrypoint: fetch the GLI queries via Google CSE and run the lane.
+// Standalone entrypoint: fetch the GLI queries via Serper and run the lane.
 // Kept separate from the full orchestrator so a GLI run does not fan out to
 // every other source. Guarded so importing this module never triggers a run.
 async function main(): Promise<void> {
@@ -393,7 +393,7 @@ async function main(): Promise<void> {
     console.error('GLI lane: no queries configured (gli profile inactive or missing).');
     return;
   }
-  const raw = await scrapeGoogleCse(queries);
+  const raw = await scrapeSerper(queries);
   const report = await runGliLane(raw);
   printGliReport(report);
 }

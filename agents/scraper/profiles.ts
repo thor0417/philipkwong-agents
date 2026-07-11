@@ -441,9 +441,9 @@ export const PROFILES: IndustryProfile[] = [
   },
   {
     // GLI lane (Grant Leisure International): leisure, attraction, hospitality,
-    // gaming, and cultural venue opportunities. Query-driven — it runs each
-    // `queries` term through the Google Custom Search engine (restricted to a
-    // curated set of leisure/tourism domains) and routes every result through
+    // gaming, and cultural venue opportunities. Query-driven: it runs each
+    // `queries` term through Serper (whole-web Google search) and routes every
+    // result through
     // the dedicated GLI lane (inclusion gate + venue_type/signal_type tagging +
     // project dedup in gli.ts), never the prefilter / Haiku / consulting paths.
     // Isolated from the fuel and consulting lanes. keywords/minScore/
@@ -471,7 +471,7 @@ export const PROFILES: IndustryProfile[] = [
       'entertainment district',
     ],
     excludeKeywords: [],
-    sources: ['googlecse'],
+    sources: ['serper'],
     minScore: 0,
     module: 'gli',
     active: true,
