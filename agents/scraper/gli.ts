@@ -128,14 +128,20 @@ const JUNK_DOMAINS = [
 ];
 
 // Bare hostname of a url (leading www. stripped, lowercased), or '' when the url
-// is missing or unparseable.
+// is missing or unparseable. Protocol-less and protocol-relative links (e.g.
+// "facebook.com/x" or "//facebook.com/x") are retried with an https:// prefix so
+// no url form escapes the junk filter.
 function hostOf(url: string | null): string {
   if (!url) return '';
-  try {
-    return new URL(url).hostname.replace(/^www\./, '').toLowerCase();
-  } catch {
-    return '';
-  }
+  const parse = (u: string): string | null => {
+    try {
+      return new URL(u).hostname;
+    } catch {
+      return null;
+    }
+  };
+  const host = parse(url) ?? parse(`https://${url.replace(/^\/\//, '')}`);
+  return host ? host.replace(/^www\./, '').toLowerCase() : '';
 }
 
 // True when the host is (or is a subdomain of) a hard-excluded junk domain.
@@ -403,6 +409,8 @@ export interface GliReport {
   urlDeduped: number;
   // Dropped before scoring because the source domain is hard-excluded junk.
   droppedJunk: number;
+  // Already-stored junk rows swept from Supabase this run (self-healing).
+  purgedJunk: number;
   kept: number;
   droppedNoise: number;
   // Dropped at the gate for a high-risk / sanctioned location (separate from
@@ -429,6 +437,33 @@ export interface GliReport {
 const inc = (m: Record<string, number>, k: string): void => {
   m[k] = (m[k] ?? 0) + 1;
 };
+
+// Self-healing cleanup: delete any already-stored GLI leads whose source domain
+// is now hard-excluded junk. The write-time filter gates new leads, but rows
+// written before the filter existed (or before a domain was added to
+// JUNK_DOMAINS) would otherwise linger in Supabase forever. Returns the count
+// deleted.
+async function purgeStoredJunk(): Promise<number> {
+  const { data, error } = await supabaseAdmin
+    .from('leads')
+    .select('id, url')
+    .eq('module', GLI_MODULE);
+  if (error || !data) {
+    if (error) console.error(`GLI junk purge: query failed: ${error.message}`);
+    return 0;
+  }
+  const junkIds = data
+    .filter((r) => isJunkDomain(hostOf(r.url as string | null)))
+    .map((r) => r.id);
+  if (junkIds.length === 0) return 0;
+  const { error: delErr } = await supabaseAdmin.from('leads').delete().in('id', junkIds);
+  if (delErr) {
+    console.error(`GLI junk purge: delete failed: ${delErr.message}`);
+    return 0;
+  }
+  console.log(`GLI: purged ${junkIds.length} stored junk-domain leads.`);
+  return junkIds.length;
+}
 
 // Run the GLI lane over already-fetched Serper leads: gate, tag, dedup by
 // project, and write (module 'gli'). Set GLI_NO_WRITE=1 to produce the report
@@ -494,6 +529,7 @@ export async function runGliLane(rawLeads: NormalizedLead[]): Promise<GliReport>
     fetched,
     urlDeduped: urlDeduped.length,
     droppedJunk,
+    purgedJunk: 0,
     kept: kept.length,
     droppedNoise,
     droppedHighRisk,
@@ -560,6 +596,11 @@ export async function runGliLane(rawLeads: NormalizedLead[]): Promise<GliReport>
     report.written++;
   }
 
+  // Sweep any junk rows already stored from earlier runs (defense-in-depth so
+  // the filter's intent, no junk in Supabase, actually holds). Skipped in the
+  // no-write report mode.
+  if (!noWrite) report.purgedJunk = await purgeStoredJunk();
+
   return report;
 }
 
@@ -581,6 +622,7 @@ export function printGliReport(r: GliReport): void {
   console.log(`Fetched from Serper:          ${r.fetched}`);
   console.log(`After URL dedup:              ${r.urlDeduped}`);
   console.log(`Dropped as junk (low-quality):${r.droppedJunk}`);
+  console.log(`Purged stored junk rows:      ${r.purgedJunk}`);
   console.log(`Kept after inclusion rule:    ${r.kept}`);
   console.log(`Dropped as noise:             ${r.droppedNoise}`);
   console.log(`Dropped as high-risk location:${r.droppedHighRisk}`);
