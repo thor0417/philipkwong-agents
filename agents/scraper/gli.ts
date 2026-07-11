@@ -105,6 +105,45 @@ function countryOf(location: string | null): string {
   return parts.length ? parts[parts.length - 1] : 'Unknown';
 }
 
+// ---- Junk domain hard-exclusion (GLI gate) ---------------------------------
+// Hard-excluded domains. Leads from these domains are dropped before scoring.
+// Edit this list to add/remove junk sources.
+const JUNK_DOMAINS = [
+  'facebook.com',
+  'youtube.com',
+  'twitter.com',
+  'x.com',
+  'instagram.com',
+  'tiktok.com',
+  'reddit.com',
+  // TV news and local news affiliates
+  'abcnews.go.com',
+  'nbcnews.com',
+  'cbsnews.com',
+  'foxnews.com',
+  'cnn.com',
+  'msnbc.com',
+  'usatoday.com',
+  // Add local TV affiliates as encountered
+];
+
+// Bare hostname of a url (leading www. stripped, lowercased), or '' when the url
+// is missing or unparseable.
+function hostOf(url: string | null): string {
+  if (!url) return '';
+  try {
+    return new URL(url).hostname.replace(/^www\./, '').toLowerCase();
+  } catch {
+    return '';
+  }
+}
+
+// True when the host is (or is a subdomain of) a hard-excluded junk domain.
+function isJunkDomain(host: string): boolean {
+  if (!host) return false;
+  return JUNK_DOMAINS.some((d) => host === d || host.endsWith(`.${d}`));
+}
+
 export const VENUE_TYPES = [
   'Theme Park',
   'Amusement Park',
@@ -312,6 +351,8 @@ export interface GliReport {
   searches: number;
   fetched: number;
   urlDeduped: number;
+  // Dropped before scoring because the source domain is hard-excluded junk.
+  droppedJunk: number;
   kept: number;
   droppedNoise: number;
   // Dropped at the gate for a high-risk / sanctioned location (separate from
@@ -346,7 +387,20 @@ export async function runGliLane(rawLeads: NormalizedLead[]): Promise<GliReport>
   // URL dedup (the adapter already dedups within itself; this guards merges).
   const byUrl = new Map<string, NormalizedLead>();
   for (const l of rawLeads) if (l.url && !byUrl.has(l.url)) byUrl.set(l.url, l);
-  const leads = [...byUrl.values()];
+  const urlDeduped = [...byUrl.values()];
+
+  // Hard-exclude junk domains before any scoring/classification (saves LLM
+  // cost and keeps low-quality sources out of Supabase entirely).
+  const leads: NormalizedLead[] = [];
+  let droppedJunk = 0;
+  for (const l of urlDeduped) {
+    if (isJunkDomain(hostOf(l.url))) {
+      droppedJunk++;
+      continue;
+    }
+    leads.push(l);
+  }
+  console.log(`GLI: dropped ${droppedJunk} leads as low-quality source.`);
 
   const classifications = await classifyBatch(leads);
 
@@ -385,7 +439,8 @@ export async function runGliLane(rawLeads: NormalizedLead[]): Promise<GliReport>
   const report: GliReport = {
     searches: 0,
     fetched,
-    urlDeduped: leads.length,
+    urlDeduped: urlDeduped.length,
+    droppedJunk,
     kept: kept.length,
     droppedNoise,
     droppedHighRisk,
