@@ -243,11 +243,13 @@ Theme Park, Amusement Park, Waterpark, Family Entertainment Center, Zoo, Aquariu
 
 signal_type (choose exactly one):
 - Origination: early announcement, no tender yet
-- Feasibility RFP: a formal feasibility study or master-plan solicitation
+- Feasibility RFP: any feasibility study or feasibility report, master-plan solicitation, RFP / request for proposal, tender for consultancy, procurement notice, or expression of interest (EOI) for a leisure / attraction / hospitality / gaming / cultural venue. Trigger this whenever the item centres on a feasibility study/report, master-plan solicitation, RFP, consultancy tender, procurement notice, or EOI in a leisure/attraction context, even when it also reads like an announcement or a consultant's project page.
 - Engineering/Technical: engineering, design, or technical delivery FOR a leisure/attraction/hospitality/gaming/cultural venue (never generic roads/utilities)
 - Operator/Management: seeking an operator or management partner
 - Investment/Funding: capital moving into a leisure/attraction project
 - General News: relevant to the sector but not yet an actionable project signal
+
+PRIORITY: When feasibility study/report, master plan solicitation, RFP, request for proposal, tender for consultancy, procurement notice, or expression of interest language appears together with a leisure / attraction / hospitality / gaming / cultural venue, choose Feasibility RFP over Origination or General News. A page describing a feasibility study or master plan for such a venue is Feasibility RFP, not General News.
 
 RELEVANCE: Actionable project signals (Origination, Feasibility RFP, Engineering/Technical, Operator/Management, Investment/Funding) are the priority. General News is still kept (keep=true) but tagged General News. Pure non-leisure noise is keep=false.
 

@@ -495,6 +495,14 @@ export const PROFILES: IndustryProfile[] = [
       'visitor attraction feasibility',
       'attraction operator selection',
       'entertainment district development',
+      // Feasibility / RFP / procurement-targeted terms: surface formal
+      // solicitations (studies, consultancy tenders, procurement, EOIs) that the
+      // broad development terms miss. Default-pass only (not CORE_TERMS), so the
+      // run stays under the Serper 120-search ceiling.
+      'leisure attraction feasibility study RFP',
+      'theme park feasibility consultancy tender',
+      'waterpark development feasibility',
+      'resort feasibility study procurement',
     ],
   },
 ];
