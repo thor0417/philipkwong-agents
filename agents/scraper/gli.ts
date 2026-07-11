@@ -572,15 +572,22 @@ export function printGliReport(r: GliReport): void {
           .join('\n')
       : '    (none)';
 
+  // Inline "Label: N | Label: N" summary in a fixed order, present keys only.
+  const inline = (order: readonly string[], m: Record<string, number>): string =>
+    order.filter((k) => (m[k] ?? 0) > 0).map((k) => `${k}: ${m[k]}`).join(' | ') || '(none)';
+
   console.log('\n========== GLI LANE REPORT ==========');
   console.log(`Serper searches this run:     ${r.searches}  (ceiling 120)`);
   console.log(`Fetched from Serper:          ${r.fetched}`);
   console.log(`After URL dedup:              ${r.urlDeduped}`);
+  console.log(`Dropped as junk (low-quality):${r.droppedJunk}`);
   console.log(`Kept after inclusion rule:    ${r.kept}`);
   console.log(`Dropped as noise:             ${r.droppedNoise}`);
   console.log(`Dropped as high-risk location:${r.droppedHighRisk}`);
   console.log(`Dropped as project duplicate: ${r.projectDuplicates}`);
   console.log(`Written to Supabase:          ${r.written}${r.writeFailed ? `  (write failures: ${r.writeFailed})` : ''}`);
+  console.log('Kept by source_tier:');
+  console.log(table(r.perTier));
   console.log('Kept by venue_type:');
   console.log(table(r.perVenueType));
   console.log('Kept by signal_type:');
@@ -593,7 +600,18 @@ export function printGliReport(r: GliReport): void {
       `    - ${s.title.slice(0, 55)} | ${s.venue_type} | ${s.signal_type} | ${s.location || '(none)'} | ${s.contact ? 'yes' : 'no'}`
     );
   }
-  console.log('=====================================\n');
+  console.log('=====================================');
+
+  // Run-summary breakdown (junk drops, tier split, signal/venue inline).
+  console.log('\nGLI run complete.');
+  console.log(`  Total fetched:     ${r.fetched}`);
+  console.log(`  Dropped (junk):    ${r.droppedJunk}`);
+  console.log(`  Kept:              ${r.kept}`);
+  console.log(`    primary:         ${r.perTier['primary'] ?? 0}`);
+  console.log(`    trade:           ${r.perTier['trade'] ?? 0}`);
+  console.log(`    news:            ${r.perTier['news'] ?? 0}`);
+  console.log(`  Per signal_type:   ${inline(SIGNAL_TYPES, r.perSignalType)}`);
+  console.log(`  Per venue_type:    ${inline(VENUE_TYPES, r.perVenueType)}\n`);
 }
 
 // Standalone entrypoint: fetch the GLI queries via Serper and run the lane.
