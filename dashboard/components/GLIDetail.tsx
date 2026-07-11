@@ -68,6 +68,7 @@ export default function GLIDetail({
           </button>
         </header>
 
+        {/* Full raw_content, never truncated. The panel scrolls if it is long. */}
         {lead.raw_content && (
           <section className={styles.section}>
             <div className={styles.sectionHead}>Article Snippet</div>
@@ -85,6 +86,27 @@ export default function GLIDetail({
                 </div>
               ))}
             </div>
+          </section>
+        )}
+
+        {/* The url as a working, clickable anchor (not plain text). */}
+        {lead.url && (
+          <section className={styles.section}>
+            <div className={styles.sectionHead}>Link</div>
+            <a
+              href={lead.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                fontFamily: 'var(--font-dm-mono), monospace',
+                fontSize: 11,
+                color: 'var(--accent)',
+                wordBreak: 'break-all',
+                textDecoration: 'none',
+              }}
+            >
+              {lead.url}
+            </a>
           </section>
         )}
       </aside>
