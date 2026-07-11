@@ -14,10 +14,12 @@ import type { NormalizedLead } from './sources/types';
 import {
   activeProfiles,
   activeSources,
+  gliQueries,
   CONSULTING_CPV_CODES,
   LEISURE_CPV_CODES,
   type IndustryProfile,
 } from './profiles';
+import { runGliLane, type GliReport } from './gli';
 import { bestProfileFor, passesPrefilter, keywordMatches } from './prefilter';
 import { isBrokerNoise } from './broker-filter';
 import {
@@ -51,6 +53,7 @@ import { scrapeThailandGpp } from './sources/thailandgpp';
 import { scrapeGeBiz } from './sources/gebiz';
 import { scrapeUngm } from './sources/ungm';
 import { scrapeGooglePlaces } from './sources/googleplaces';
+import { scrapeGoogleCse } from './sources/googlecse';
 import { scrapeTenderNed } from './sources/tenderned';
 import { scrapeTexasEsbd } from './sources/texasesbd';
 import { scrapeWorldBank } from './sources/worldbank';
@@ -78,6 +81,12 @@ const AGENT_NAME = 'lead-scraper';
 // legitimacy capture) — never through the prefilter / Haiku / feasibility paths.
 const SIGNAL_SOURCES = ['fonatur', 'bahamas_hoa', 'confotur', 'semarnat', 'nepa_jm', 'cayman_cpa'];
 const SIGNAL_SOURCE_SET = new Set(SIGNAL_SOURCES);
+
+// GLI lane (Grant Leisure International). Google CSE results carry source
+// 'gli_cse' and are routed entirely through the dedicated GLI lane (gli.ts):
+// LLM inclusion gate, venue/signal tagging, project dedup. They never touch the
+// feasibility, fuel, consulting, or signals paths.
+const GLI_LEAD_SOURCE = 'gli_cse';
 
 // Part A development banks whose tourism notices are captured on legitimacy
 // (like the TED CPV lane): IADB/CDB notices otherwise route through the Haiku
@@ -221,6 +230,8 @@ function fetchSource(id: string, profiles: IndustryProfile[]): Promise<Normalize
       return scrapeUndp();
     case 'googleplaces':
       return scrapeGooglePlaces();
+    case 'googlecse':
+      return scrapeGoogleCse(gliQueries());
     default:
       console.warn(`Orchestrator: unknown source "${id}", skipping.`);
       return Promise.resolve([]);
@@ -298,6 +309,9 @@ export interface ScrapeReport {
   registryWritten: number;
   registryPerSource: Record<string, number>;
   registryPerRegion: Record<string, number>;
+  // GLI lane (Grant Leisure International): leisure/attraction/hospitality/
+  // gaming/cultural venue opportunities from Google CSE.
+  gli: GliReport | null;
   // Cross-reference post-pass.
   matchedCounterparty: number;
   // Cross-lane LATAM_CARIB proponent matches flagged (Part A <-> Part B).
@@ -362,6 +376,7 @@ export async function orchestrate(): Promise<ScrapeReport> {
   const feasibilityPrepared: NormalizedLead[] = [];
   const cpvConsultingPrepared: Array<{ lead: NormalizedLead; codes: string[] }> = [];
   const signalRaw: NormalizedLead[] = [];
+  const gliRaw: NormalizedLead[] = [];
   let prefilterFiltered = 0;
   let brokerExcluded = 0;
   let fuelFound = 0;
@@ -377,6 +392,15 @@ export async function orchestrate(): Promise<ScrapeReport> {
 
   for (const lead of deduped) {
     const text = haystack(lead);
+
+    // GLI lane (Grant Leisure International): Google CSE results are routed
+    // entirely through the GLI lane (handled after this loop). Collect and skip
+    // before any other lane can claim them (a "waterpark feasibility" result
+    // would otherwise be caught by the feasibility lane below).
+    if (lead.source === GLI_LEAD_SOURCE) {
+      gliRaw.push(lead);
+      continue;
+    }
 
     // Signal sources (Part B) are routed entirely through the signals lane
     // (handled after this loop): never the feasibility / fuel / consulting
@@ -545,6 +569,7 @@ export async function orchestrate(): Promise<ScrapeReport> {
       registryWritten: 0,
       registryPerSource: {},
       registryPerRegion: {},
+      gli: null,
       matchedCounterparty: 0,
       crossLaneFlagged: 0,
     };
@@ -954,6 +979,19 @@ export async function orchestrate(): Promise<ScrapeReport> {
     }
   }
 
+  // 5f. GLI lane (Grant Leisure International): Google CSE leisure/attraction
+  // results, gated + venue/signal tagged + project-deduped in gli.ts, written
+  // with module 'gli'. Isolated from every other lane. Its writes are folded
+  // into the shared per-module / per-lead_type / per-source tallies.
+  const gliReport = await runGliLane(gliRaw);
+  if (gliReport.written > 0) {
+    written += gliReport.written;
+    writtenPerModule['gli'] = (writtenPerModule['gli'] ?? 0) + gliReport.written;
+    writtenPerIndustry['gli'] = (writtenPerIndustry['gli'] ?? 0) + gliReport.written;
+    writtenPerLeadType['gli'] = (writtenPerLeadType['gli'] ?? 0) + gliReport.written;
+    writtenPerSource[GLI_LEAD_SOURCE] = (writtenPerSource[GLI_LEAD_SOURCE] ?? 0) + gliReport.written;
+  }
+
   // 6. Track B registry pass: PARKED. The MPA/Rotterdam registry write path is
   // disabled; it no longer writes registry leads on a run. Re-enable by
   // restoring runRegistryPass() and its imports below.
@@ -1022,6 +1060,7 @@ export async function orchestrate(): Promise<ScrapeReport> {
     registryWritten: 0,
     registryPerSource: {},
     registryPerRegion: {},
+    gli: gliReport,
     matchedCounterparty: xref.matched,
     crossLaneFlagged: crossLane.flagged,
   };
@@ -1207,6 +1246,20 @@ function printReport(r: ScrapeReport): void {
   console.log(table(r.registryPerSource));
   console.log('  Registry per region:');
   console.log(table(r.registryPerRegion));
+  console.log('--- GLI lane (Grant Leisure International: leisure/attraction/gaming/cultural venues) ---');
+  if (r.gli) {
+    console.log(`  Fetched from Custom Search:   ${r.gli.fetched}`);
+    console.log(`  Kept after inclusion rule:    ${r.gli.kept}`);
+    console.log(`  Dropped as noise:             ${r.gli.droppedNoise}`);
+    console.log(`  Dropped as project duplicate: ${r.gli.projectDuplicates}`);
+    console.log(`  Written (module 'gli'):       ${r.gli.written}`);
+    console.log('  GLI kept per venue_type:');
+    console.log(table(r.gli.perVenueType));
+    console.log('  GLI kept per signal_type:');
+    console.log(table(r.gli.perSignalType));
+  } else {
+    console.log('  (skipped: DRY_RUN)');
+  }
   console.log(`Matched counterparty (registry <-> tender): ${r.matchedCounterparty}`);
   console.log(`Cross-lane LATAM_CARIB proponent matches flagged (Part A <-> Part B): ${r.crossLaneFlagged}`);
   console.log('--- Fuel module (legitimacy capture, no fit scoring) ---');
