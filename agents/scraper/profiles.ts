@@ -43,6 +43,9 @@ export interface IndustryProfile {
   tscodes?: { cpv?: string[]; unspsc?: string[]; hs?: string[]; naics?: string[] };
   // ISO region codes this profile targets (e.g. ['NL', 'SG']).
   regions?: string[];
+  // Search terms for query-driven sources (Google CSE / GLI lane). Each term is
+  // run as its own search. Ignored by keyword/CPV sources.
+  queries?: string[];
 }
 
 // Source groupings. Tender portals + job boards (broadest reach), tender portals
@@ -436,7 +439,71 @@ export const PROFILES: IndustryProfile[] = [
       naics: ['325193', '424710'],
     },
   },
+  {
+    // GLI lane (Grant Leisure International): leisure, attraction, hospitality,
+    // gaming, and cultural venue opportunities. Query-driven — it runs each
+    // `queries` term through the Google Custom Search engine (restricted to a
+    // curated set of leisure/tourism domains) and routes every result through
+    // the dedicated GLI lane (inclusion gate + venue_type/signal_type tagging +
+    // project dedup in gli.ts), never the prefilter / Haiku / consulting paths.
+    // Isolated from the fuel and consulting lanes. keywords/minScore/
+    // minKeywordMatches are unused by the GLI lane (it has its own LLM gate) but
+    // are set to sensible values for the shared interface.
+    name: 'gli',
+    keywords: [
+      'theme park',
+      'waterpark',
+      'amusement park',
+      'family entertainment',
+      'zoo',
+      'aquarium',
+      'museum',
+      'science center',
+      'heritage attraction',
+      'integrated resort',
+      'resort',
+      'hotel development',
+      'casino',
+      'tourism master plan',
+      'leisure destination',
+      'visitor attraction',
+      'attraction operator',
+      'entertainment district',
+    ],
+    excludeKeywords: [],
+    sources: ['googlecse'],
+    minScore: 0,
+    module: 'gli',
+    active: true,
+    minKeywordMatches: 1,
+    queries: [
+      'theme park development',
+      'waterpark feasibility',
+      'amusement park project',
+      'family entertainment center',
+      'zoo development',
+      'aquarium project',
+      'museum development',
+      'science center project',
+      'heritage attraction',
+      'integrated resort development',
+      'resort feasibility',
+      'hotel development feasibility',
+      'casino development',
+      'tourism master plan',
+      'leisure destination development',
+      'visitor attraction feasibility',
+      'attraction operator selection',
+      'entertainment district development',
+    ],
+  },
 ];
+
+// The GLI profile's search terms, for the Google CSE source. Empty if the GLI
+// profile is inactive or missing.
+export function gliQueries(): string[] {
+  return PROFILES.find((p) => p.module === 'gli' && p.active)?.queries ?? [];
+}
 
 // Consulting CPV codes for code-aware tender sources (TED EU) when running
 // under non-fuel profiles. Management consulting, business/strategy advisory,
