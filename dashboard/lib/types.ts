@@ -123,3 +123,49 @@ export const STAGES = [
   { value: 'won', label: 'Won' },
   { value: 'lost', label: 'Lost' },
 ] as const;
+
+// GLI lane (Grant Leisure International): leisure / attraction / hospitality /
+// gaming / cultural venue opportunities. Rows live in `leads` where module =
+// 'gli'; this is the subset of columns the GLI dashboard reads.
+export interface GLILead {
+  id: string;
+  title: string | null;
+  venue_type: string | null;
+  signal_type: string | null;
+  location: string | null;
+  company: string | null;
+  contact_name: string | null;
+  contact_email: string | null;
+  contact_phone: string | null;
+  url: string | null;
+  raw_content: string | null;
+  date_found: string | null;
+  score: number | null;
+}
+
+export const GLI_SIGNAL_ORDER = [
+  'Origination',
+  'Feasibility RFP',
+  'Engineering/Technical',
+  'Operator/Management',
+  'Investment/Funding',
+  'General News',
+] as const;
+
+export const GLI_VENUE_TYPES = [
+  'Theme Park',
+  'Amusement Park',
+  'Waterpark',
+  'Family Entertainment Center',
+  'Zoo',
+  'Aquarium',
+  'Museum',
+  'Science Center',
+  'Heritage/Cultural Site',
+  'Hotel',
+  'Resort',
+  'Integrated Resort',
+  'Casino/Gaming',
+  'Expo/Exposition',
+  'Leisure Destination/Mixed',
+] as const;
