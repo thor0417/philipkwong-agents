@@ -1,0 +1,38 @@
+.group {
+  margin-top: 28px;
+}
+
+.groupHead {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-family: var(--font-dm-mono), monospace;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 12px;
+}
+
+.groupCount {
+  color: var(--ink);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 14px;
+}
+
+.empty {
+  font-family: var(--font-dm-mono), monospace;
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 32px;
+}
+
+.loading {
+  font-family: var(--font-dm-mono), monospace;
+  font-size: 13px;
+  color: var(--muted);
+}

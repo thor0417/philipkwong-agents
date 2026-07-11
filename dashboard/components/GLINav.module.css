@@ -1,0 +1,32 @@
+.nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 28px;
+}
+
+.right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Styled to match the nav buttons (globals.css button). */
+.link {
+  font-family: var(--font-dm-mono), ui-monospace, monospace;
+  border: 0.5px solid var(--ink);
+  color: var(--ink);
+  background: transparent;
+  padding: 8px 16px;
+  border-radius: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 12px;
+  text-decoration: none;
+}
+
+.link:hover {
+  background: var(--ink);
+  color: var(--bg);
+}
