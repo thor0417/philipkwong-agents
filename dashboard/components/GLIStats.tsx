@@ -23,9 +23,24 @@ function venueCounts(leads: GLILead[]): [string, number][] {
   return Object.entries(counts).sort((a, b) => b[1] - a[1]);
 }
 
+// Source-tier counts in primary/trade/news order, keeping only tiers present.
+const TIER_ORDER: { key: string; label: string }[] = [
+  { key: 'primary', label: 'Primary' },
+  { key: 'trade', label: 'Trade' },
+  { key: 'news', label: 'News' },
+];
+function tierCounts(leads: GLILead[]): [string, number][] {
+  const counts: Record<string, number> = {};
+  for (const l of leads) {
+    if (l.source_tier) counts[l.source_tier] = (counts[l.source_tier] ?? 0) + 1;
+  }
+  return TIER_ORDER.filter((t) => counts[t.key] > 0).map((t) => [t.label, counts[t.key]]);
+}
+
 export default function GLIStats({ leads }: { leads: GLILead[] }) {
   const signals = signalCounts(leads);
   const venues = venueCounts(leads);
+  const tiers = tierCounts(leads);
 
   return (
     <>
@@ -50,6 +65,16 @@ export default function GLIStats({ leads }: { leads: GLILead[] }) {
           {venues.map(([venue, count]) => (
             <span className={styles.countItem} key={venue}>
               <span className={styles.countLabel}>{venue}</span>
+              <span className={styles.countValue}>{count}</span>
+            </span>
+          ))}
+        </div>
+      )}
+      {tiers.length > 0 && (
+        <div className={styles.countsRow}>
+          {tiers.map(([tier, count]) => (
+            <span className={styles.countItem} key={tier}>
+              <span className={styles.countLabel}>{tier}</span>
               <span className={styles.countValue}>{count}</span>
             </span>
           ))}
