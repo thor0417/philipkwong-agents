@@ -20,12 +20,90 @@ import Anthropic from '@anthropic-ai/sdk';
 import { pathToFileURL } from 'node:url';
 import { supabaseAdmin } from '../../lib/supabase-admin';
 import type { NormalizedLead } from './sources/types';
-import { scrapeSerper } from './sources/serper';
+import { scrapeSerper, lastSerperSearchCount } from './sources/serper';
 import { gliQueries } from './profiles';
 import { normalizeCompany } from './cross-reference';
+import { keywordMatches } from './prefilter';
 
 const MODEL = 'claude-haiku-4-5-20251001';
 const GLI_MODULE = 'gli';
+
+// ---- High-risk location exclusion (GLI gate) -------------------------------
+// After a lead's location is determined by the classifier, it is DROPPED if the
+// location falls in an excluded jurisdiction (counted separately from noise).
+// This is a sanctions / travel-advisory screen, not a relevance judgement; keep
+// it current as the landscape changes. Matching is whole-word, case-insensitive,
+// accent-folded against the classifier's location string. A lead with no
+// determined location is never dropped here (fail-open: relevance already
+// passed).
+//
+// Excluded wholesale (country level). Ukraine is included in full: treat the
+// entire country as excluded while the war continues (the Crimea / Donetsk /
+// Luhansk oblasts are the sharpest cases but the whole country is off-limits).
+const HIGH_RISK_COUNTRIES = [
+  'cuba',
+  'iran',
+  'north korea',
+  'russia',
+  'belarus',
+  'venezuela',
+  'myanmar',
+  'burma', // former name of Myanmar, still common in listings
+  'sudan',
+  'south sudan',
+  'nicaragua',
+  'afghanistan',
+  'yemen',
+  'syria',
+  'somalia',
+  'libya',
+  'haiti',
+  'ukraine', // whole country excluded during the war (incl. Crimea/Donetsk/Luhansk)
+];
+
+// Excluded by sub-region (drop the region, KEEP the rest of the country).
+//   - Ukraine oblasts, listed explicitly for documentation (Ukraine is already
+//     excluded wholesale above).
+//   - Mexico high-risk states ONLY. Mexico is in scope as a market: safe tourism
+//     zones (Quintana Roo, Baja California Sur, Yucatan, Jalisco, Nayarit,
+//     Mexico City, Queretaro) are KEPT. A Mexican location is dropped only when
+//     it names one of the excluded states below; when in doubt, it is kept.
+const HIGH_RISK_REGIONS = [
+  // Ukraine oblasts (Ukraine already excluded wholesale; kept here for clarity).
+  'crimea',
+  'donetsk',
+  'luhansk',
+  // Mexico high-risk states.
+  'sinaloa',
+  'michoacan',
+  'tamaulipas',
+  'guerrero',
+  'colima',
+  'zacatecas',
+];
+
+const HIGH_RISK_LOCATIONS = [...HIGH_RISK_COUNTRIES, ...HIGH_RISK_REGIONS];
+
+// Fold combining diacritics so unaccented terms match accented location strings
+// (e.g. "Michoacan" matches "Michoacán").
+function deaccent(s: string): string {
+  return s.normalize('NFD').replace(/[̀-ͯ]/g, '');
+}
+
+// True when the determined location falls in an excluded jurisdiction. Null /
+// empty locations are never high-risk (fail-open).
+function isHighRiskLocation(location: string | null): boolean {
+  if (!location) return false;
+  return keywordMatches(deaccent(location), HIGH_RISK_LOCATIONS).length > 0;
+}
+
+// Best-effort country/region label for the run's global-spread tally: the last
+// comma-separated segment of the location, else the whole string, else Unknown.
+function countryOf(location: string | null): string {
+  if (!location) return 'Unknown';
+  const parts = location.split(',').map((p) => p.trim()).filter(Boolean);
+  return parts.length ? parts[parts.length - 1] : 'Unknown';
+}
 
 export const VENUE_TYPES = [
   'Theme Park',
@@ -230,15 +308,22 @@ function projectKey(c: GliClassification, lead: NormalizedLead): string {
 }
 
 export interface GliReport {
+  // Total Serper searches issued this run (set by the caller from the adapter).
+  searches: number;
   fetched: number;
   urlDeduped: number;
   kept: number;
   droppedNoise: number;
+  // Dropped at the gate for a high-risk / sanctioned location (separate from
+  // noise drops).
+  droppedHighRisk: number;
   projectDuplicates: number;
   written: number;
   writeFailed: number;
   perVenueType: Record<string, number>;
   perSignalType: Record<string, number>;
+  // Kept leads by country/region label, for the global-spread view.
+  perCountry: Record<string, number>;
   samples: Array<{
     title: string;
     venue_type: string;
@@ -268,9 +353,11 @@ export async function runGliLane(rawLeads: NormalizedLead[]): Promise<GliReport>
   // Apply the inclusion gate, then dedup kept leads by project key.
   const perVenueType: Record<string, number> = {};
   const perSignalType: Record<string, number> = {};
+  const perCountry: Record<string, number> = {};
   const seenProjects = new Set<string>();
   const kept: Array<{ lead: NormalizedLead; c: GliClassification }> = [];
   let droppedNoise = 0;
+  let droppedHighRisk = 0;
   let projectDuplicates = 0;
 
   for (let i = 0; i < leads.length; i++) {
@@ -278,6 +365,12 @@ export async function runGliLane(rawLeads: NormalizedLead[]): Promise<GliReport>
     const c = classifications[i];
     if (!c.keep) {
       droppedNoise++;
+      continue;
+    }
+    // High-risk location screen: drop after relevance passes and the location is
+    // determined, counted separately from noise.
+    if (isHighRiskLocation(c.location)) {
+      droppedHighRisk++;
       continue;
     }
     const key = projectKey(c, lead);
@@ -290,15 +383,18 @@ export async function runGliLane(rawLeads: NormalizedLead[]): Promise<GliReport>
   }
 
   const report: GliReport = {
+    searches: 0,
     fetched,
     urlDeduped: leads.length,
     kept: kept.length,
     droppedNoise,
+    droppedHighRisk,
     projectDuplicates,
     written: 0,
     writeFailed: 0,
     perVenueType,
     perSignalType,
+    perCountry,
     samples: [],
   };
 
@@ -307,6 +403,7 @@ export async function runGliLane(rawLeads: NormalizedLead[]): Promise<GliReport>
   for (const { lead, c } of kept) {
     inc(perVenueType, c.venue_type ?? 'Unclassified');
     inc(perSignalType, c.signal_type ?? 'Unclassified');
+    inc(perCountry, countryOf(c.location));
     if (report.samples.length < 10) {
       report.samples.push({
         title: lead.title,
@@ -364,16 +461,20 @@ export function printGliReport(r: GliReport): void {
       : '    (none)';
 
   console.log('\n========== GLI LANE REPORT ==========');
+  console.log(`Serper searches this run:     ${r.searches}  (ceiling 120)`);
   console.log(`Fetched from Serper:          ${r.fetched}`);
   console.log(`After URL dedup:              ${r.urlDeduped}`);
   console.log(`Kept after inclusion rule:    ${r.kept}`);
   console.log(`Dropped as noise:             ${r.droppedNoise}`);
+  console.log(`Dropped as high-risk location:${r.droppedHighRisk}`);
   console.log(`Dropped as project duplicate: ${r.projectDuplicates}`);
   console.log(`Written to Supabase:          ${r.written}${r.writeFailed ? `  (write failures: ${r.writeFailed})` : ''}`);
   console.log('Kept by venue_type:');
   console.log(table(r.perVenueType));
   console.log('Kept by signal_type:');
   console.log(table(r.perSignalType));
+  console.log('Kept by country/region (global spread):');
+  console.log(table(r.perCountry));
   console.log('Sample GLI leads (up to 10): title | venue_type | signal_type | location | contact');
   for (const s of r.samples) {
     console.log(
@@ -395,6 +496,7 @@ async function main(): Promise<void> {
   }
   const raw = await scrapeSerper(queries);
   const report = await runGliLane(raw);
+  report.searches = lastSerperSearchCount();
   printGliReport(report);
 }
 
