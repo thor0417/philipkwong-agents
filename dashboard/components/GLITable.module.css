@@ -1,0 +1,123 @@
+/* Matches PipelineTable: hairlines, DM Mono, sharp corners, no shadows. */
+.wrap {
+  margin-top: 24px;
+}
+
+.scroll {
+  overflow-x: auto;
+  border: 0.5px solid var(--hairline);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #fff;
+  min-width: 1000px;
+}
+
+.table th {
+  font-family: var(--font-dm-mono), monospace;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-align: left;
+  color: var(--muted);
+  font-weight: 500;
+  padding: 11px 12px;
+  border-bottom: 0.5px solid var(--hairline);
+  white-space: nowrap;
+}
+
+.sortable {
+  cursor: pointer;
+  user-select: none;
+}
+
+.sortable:hover {
+  color: var(--ink);
+}
+
+/* Section header row per signal_type, spanning all columns. */
+.groupRow td {
+  border-bottom: 0.5px solid var(--hairline);
+}
+
+.groupCell {
+  background: rgba(10, 10, 10, 0.04);
+  padding: 9px 12px;
+}
+
+.groupLabel {
+  font-family: var(--font-dm-mono), monospace;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.groupCount {
+  font-family: var(--font-dm-mono), monospace;
+  font-size: 11px;
+  color: var(--ink);
+  margin-left: 10px;
+}
+
+.row {
+  cursor: pointer;
+}
+
+.row td {
+  padding: 10px 12px;
+  border-bottom: 0.5px solid var(--hairline);
+  vertical-align: top;
+}
+
+.row:hover {
+  background: rgba(10, 10, 10, 0.03);
+}
+
+/* Signal type: raw value, uppercase, small. */
+.signalCell {
+  font-family: var(--font-dm-mono), monospace;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.titleCell {
+  font-family: var(--font-dm-mono), monospace;
+  font-size: 12px;
+  color: var(--ink);
+  line-height: 1.4;
+  max-width: 460px;
+  min-width: 240px;
+}
+
+.titleCell:hover {
+  color: var(--accent);
+}
+
+/* Location leads triage, so it is the most prominent cell. */
+.location {
+  font-family: var(--font-dm-mono), monospace;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink);
+  min-width: 160px;
+}
+
+.meta {
+  font-family: var(--font-dm-mono), monospace;
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.empty {
+  font-family: var(--font-dm-mono), monospace;
+  font-size: 12px;
+  color: var(--muted);
+  padding: 24px 12px;
+}
