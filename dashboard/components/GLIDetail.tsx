@@ -5,6 +5,14 @@ import { formatDate } from '@/lib/leads';
 import SourceLink from './SourceLink';
 import styles from './GLIDetail.module.css';
 
+// Source-tier value color, matching the table: primary accent, trade ink,
+// news muted.
+function tierColor(tier: string): string {
+  if (tier === 'primary') return 'var(--accent)';
+  if (tier === 'trade') return 'var(--ink)';
+  return 'var(--muted)';
+}
+
 // Slide-in detail panel for a GLI lead. Renders nothing when no lead is
 // selected. Same overlay + right-hand panel pattern as DealRecord.
 export default function GLIDetail({
@@ -76,7 +84,7 @@ export default function GLIDetail({
           </section>
         )}
 
-        {rows.length > 0 && (
+        {(rows.length > 0 || lead.source_tier) && (
           <section className={styles.section}>
             <div className={styles.grid}>
               {rows.map((r) => (
@@ -85,6 +93,17 @@ export default function GLIDetail({
                   <span className={styles.tag}>{r.value}</span>
                 </div>
               ))}
+              {lead.source_tier && (
+                <div className={styles.field}>
+                  <span className={styles.fieldLabel}>Source Tier</span>
+                  <span
+                    className={styles.tag}
+                    style={{ color: tierColor(lead.source_tier) }}
+                  >
+                    {lead.source_tier}
+                  </span>
+                </div>
+              )}
             </div>
           </section>
         )}
