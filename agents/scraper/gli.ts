@@ -144,6 +144,56 @@ function isJunkDomain(host: string): boolean {
   return JUNK_DOMAINS.some((d) => host === d || host.endsWith(`.${d}`));
 }
 
+// ---- source_tier classification --------------------------------------------
+// Primary sources: government, planning authorities, tourism boards, RFP portals.
+// These carry the highest signal for origination and feasibility intelligence.
+const PRIMARY_DOMAINS = [
+  '.gov',
+  '.gov.au',
+  '.gov.uk',
+  '.gc.ca',
+  'unwto.org',
+  'worldbank.org',
+  'ifc.org',
+  'ebrd.com',
+  'adb.org',
+  // Tourism and development authorities -- add as encountered
+  'visitmecca.sa.gov.sa',
+  'neom.com',
+  'rda.gov.sa',
+];
+
+// Trade press: leisure, attractions, hospitality industry publications.
+const TRADE_DOMAINS = [
+  'blooloop.com',
+  'attractionsmanagement.com',
+  'meed.com',
+  'hospitalitynet.org',
+  'ggbmagazine.com',
+  'parkworld-online.com',
+  'iaapa.org',
+  'teaconnect.org',
+  'themeparkinsider.com',
+  'traveldailynews.com',
+  'hotelnewsresource.com',
+  'travelweekly.com',
+  // Add trade press as encountered
+];
+
+// Domain source tier: 'primary' (gov / authority / dev bank), 'trade' (industry
+// press), or 'news' (everything else that cleared the junk filter).
+function sourceTier(url: string | null): string {
+  const host = hostOf(url);
+  if (!host) return 'news';
+  if (host.includes('.gov') || PRIMARY_DOMAINS.some((d) => host.endsWith(d))) {
+    return 'primary';
+  }
+  if (TRADE_DOMAINS.some((d) => host === d || host.endsWith(`.${d}`))) {
+    return 'trade';
+  }
+  return 'news';
+}
+
 export const VENUE_TYPES = [
   'Theme Park',
   'Amusement Park',
@@ -363,6 +413,8 @@ export interface GliReport {
   writeFailed: number;
   perVenueType: Record<string, number>;
   perSignalType: Record<string, number>;
+  // Kept leads by source_tier (primary / trade / news).
+  perTier: Record<string, number>;
   // Kept leads by country/region label, for the global-spread view.
   perCountry: Record<string, number>;
   samples: Array<{
@@ -407,6 +459,7 @@ export async function runGliLane(rawLeads: NormalizedLead[]): Promise<GliReport>
   // Apply the inclusion gate, then dedup kept leads by project key.
   const perVenueType: Record<string, number> = {};
   const perSignalType: Record<string, number> = {};
+  const perTier: Record<string, number> = {};
   const perCountry: Record<string, number> = {};
   const seenProjects = new Set<string>();
   const kept: Array<{ lead: NormalizedLead; c: GliClassification }> = [];
@@ -449,6 +502,7 @@ export async function runGliLane(rawLeads: NormalizedLead[]): Promise<GliReport>
     writeFailed: 0,
     perVenueType,
     perSignalType,
+    perTier,
     perCountry,
     samples: [],
   };
@@ -456,8 +510,10 @@ export async function runGliLane(rawLeads: NormalizedLead[]): Promise<GliReport>
   const noWrite = process.env.GLI_NO_WRITE === '1';
 
   for (const { lead, c } of kept) {
+    const tier = sourceTier(lead.url);
     inc(perVenueType, c.venue_type ?? 'Unclassified');
     inc(perSignalType, c.signal_type ?? 'Unclassified');
+    inc(perTier, tier);
     inc(perCountry, countryOf(c.location));
     if (report.samples.length < 10) {
       report.samples.push({
@@ -489,6 +545,7 @@ export async function runGliLane(rawLeads: NormalizedLead[]): Promise<GliReport>
         lead_type: 'gli',
         venue_type: c.venue_type,
         signal_type: c.signal_type,
+        source_tier: tier,
         contact_name: c.contact_name,
         contact_email: c.contact_email,
         contact_phone: c.contact_phone,
