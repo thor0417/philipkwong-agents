@@ -71,7 +71,11 @@ export default function PipelinePage() {
 
   const load = useCallback(async () => {
     const [leadRes, outreachRes, agentRes] = await Promise.all([
-      supabase.from('leads').select('*').order('score', { ascending: false }),
+      supabase
+        .from('leads')
+        .select('*')
+        .neq('module', 'gli')
+        .order('score', { ascending: false }),
       supabase.from('outreach').select('*'),
       supabase.from('agents').select('*').order('name'),
     ]);
