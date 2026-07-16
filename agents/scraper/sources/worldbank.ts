@@ -19,7 +19,9 @@ const UA = 'philipkwong-agents/1.0 (+scraper)';
 // target the LATAM_CARIB origination territory directly (region tagging then
 // keeps only the in-scope countries). Override with a comma-separated list.
 const QUERIES = (process.env.WORLDBANK_QUERIES ??
-  'tourism,feasibility,attraction,leisure,Caribbean,Mexico,resort,hotel')
+  'tourism,feasibility,attraction,leisure,Caribbean,Mexico,resort,hotel,' +
+    'theme park,waterpark,museum,aquarium,casino,integrated resort,master plan,' +
+    'convention center,destination development,visitor economy')
   .split(',')
   .map((s) => s.trim())
   .filter(Boolean);
