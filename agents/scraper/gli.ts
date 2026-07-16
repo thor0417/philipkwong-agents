@@ -30,6 +30,92 @@ import { classifyVenueType, categoryForVenue } from '../../lib/taxonomy';
 const MODEL = 'claude-haiku-4-5-20251001';
 const GLI_MODULE = 'gli';
 
+// ---- Source-chaining (Pass 4): trade press -> primary document ----------------
+// A curated-press article is the breadcrumb; the primary government document it
+// references is the value (the CFTOD 2045 plan, found via a Blooloop article, is
+// the proof case). When an article references a primary source, follow it and
+// resolve the primary document URL. Never fabricated: if no candidate resolves,
+// the fields stay null.
+const CHAIN_UA = 'Mozilla/5.0 (compatible; philipkwong-agents/1.0 +scraper)';
+
+// Article text mentions a government plan / filing / primary document.
+const PRIMARY_SOURCE_TERMS = [
+  'comprehensive plan', 'comp plan', 'master plan', 'oversight district',
+  'planning commission', 'zoning board', 'staff report', 'ordinance', 'resolution',
+  'city council', 'county commission', 'development agreement', 'entitlement',
+  'rezoning', 'land use', 'special district', 'planning filing', 'council approved',
+  'adopted a plan', 'adopted the plan',
+];
+function referencesPrimarySource(text: string | null): boolean {
+  if (!text) return false;
+  return keywordMatches(text, PRIMARY_SOURCE_TERMS).length > 0;
+}
+
+// A candidate link points at a government / official-district host, or looks like
+// a primary planning document (comp plan, staff report, ordinance, agenda, pdf).
+const GOV_HOST_RE = /(^|\.)(gov|mil)$|(^|\.)us$|oversightdistrict\.org$/i;
+const DOC_HINT_RE = /comprehensive[-_ ]?plan|comp[-_ ]?plan|master[-_ ]?plan|staff[-_ ]?report|ordinance|resolution|agenda|planning|zoning|\.pdf(\?|$)/i;
+
+function isFileContentType(ct: string, url: string): boolean {
+  return /pdf|officedocument|msword|octet-stream/i.test(ct) || /\.(pdf|docx?)(\?|$)/i.test(url);
+}
+
+// Fetch the article, parse its links, and resolve the best primary-document
+// candidate (gov host and/or document hint, PDFs preferred). Confirms the
+// candidate with a fetch to set hasFile. Returns null when nothing resolves.
+async function resolvePrimaryDocument(
+  articleUrl: string | null
+): Promise<{ url: string; hasFile: boolean } | null> {
+  if (!articleUrl) return null;
+  let html = '';
+  let articleHost = '';
+  try {
+    articleHost = new URL(articleUrl).hostname.replace(/^www\./, '');
+    const res = await fetch(articleUrl, {
+      headers: { 'User-Agent': CHAIN_UA, Accept: 'text/html,*/*' },
+      signal: AbortSignal.timeout(20000),
+    });
+    if (!res.ok) return null;
+    if (!(res.headers.get('content-type') ?? '').includes('html')) return null;
+    html = await res.text();
+  } catch {
+    return null;
+  }
+
+  const candidates: { abs: string; score: number }[] = [];
+  for (const m of html.matchAll(/href\s*=\s*["']([^"'#]+)["']/gi)) {
+    let abs: string;
+    let host: string;
+    try {
+      abs = new URL(m[1], articleUrl).toString();
+      host = new URL(abs).hostname.replace(/^www\./, '');
+    } catch {
+      continue;
+    }
+    if (host === articleHost) continue; // skip on-site links (nav, related posts)
+    const isGov = GOV_HOST_RE.test(host);
+    const hint = DOC_HINT_RE.test(abs);
+    const isPdf = /\.pdf(\?|$)/i.test(abs);
+    if (!isGov && !hint) continue;
+    candidates.push({ abs, score: (isGov ? 3 : 0) + (isPdf ? 2 : 0) + (hint ? 1 : 0) });
+  }
+  if (candidates.length === 0) return null;
+  candidates.sort((a, b) => b.score - a.score);
+  const best = candidates[0].abs;
+
+  let hasFile = false;
+  try {
+    const r2 = await fetch(best, {
+      headers: { 'User-Agent': CHAIN_UA, Accept: '*/*' },
+      signal: AbortSignal.timeout(15000),
+    });
+    hasFile = r2.ok && isFileContentType(r2.headers.get('content-type') ?? '', best);
+  } catch {
+    /* reference kept even if the confirmation fetch fails */
+  }
+  return { url: best, hasFile };
+}
+
 // ---- High-risk location exclusion (GLI gate) -------------------------------
 // After a lead's location is determined by the classifier, it is DROPPED if the
 // location falls in an excluded jurisdiction (counted separately from noise).
@@ -459,6 +545,13 @@ export interface GliReport {
   projectDuplicates: number;
   written: number;
   writeFailed: number;
+  // Source-chaining (Pass 4): kept leads that referenced a primary source, those
+  // for which a primary_document_url resolved, and those where a real file was
+  // fetched (has_primary_document).
+  chainReferenced: number;
+  chainResolved: number;
+  chainWithFile: number;
+  chainSamples: Array<{ article: string; primaryUrl: string; hasFile: boolean }>;
   perVenueType: Record<string, number>;
   perSignalType: Record<string, number>;
   // Kept leads by source_tier (primary / trade / news).
@@ -605,12 +698,33 @@ export async function runGliLane(rawLeads: NormalizedLead[]): Promise<GliReport>
     projectDuplicates,
     written: 0,
     writeFailed: 0,
+    chainReferenced: 0,
+    chainResolved: 0,
+    chainWithFile: 0,
+    chainSamples: [],
     perVenueType,
     perSignalType,
     perTier,
     perCountry,
     samples: [],
   };
+
+  // Source-chaining: for kept leads whose article references a primary government
+  // document, follow the reference and resolve the primary_document_url (never
+  // fabricated). Runs on the kept subset only, before the write loop.
+  for (const { lead } of kept) {
+    if (!referencesPrimarySource(lead.raw_content)) continue;
+    report.chainReferenced++;
+    const resolved = await resolvePrimaryDocument(lead.url);
+    if (!resolved) continue;
+    lead.primary_document_url = resolved.url;
+    lead.has_primary_document = resolved.hasFile;
+    report.chainResolved++;
+    if (resolved.hasFile) report.chainWithFile++;
+    if (report.chainSamples.length < 10) {
+      report.chainSamples.push({ article: lead.url, primaryUrl: resolved.url, hasFile: resolved.hasFile });
+    }
+  }
 
   const noWrite = process.env.GLI_NO_WRITE === '1';
 
@@ -658,6 +772,8 @@ export async function runGliLane(rawLeads: NormalizedLead[]): Promise<GliReport>
         signal_type: c.signal_type,
         development_category: categoryForVenue(venue),
         source_tier: tier,
+        primary_document_url: lead.primary_document_url ?? null,
+        has_primary_document: lead.has_primary_document ?? false,
         contact_name: c.contact_name,
         contact_email: c.contact_email,
         contact_phone: c.contact_phone,
@@ -706,6 +822,12 @@ export function printGliReport(r: GliReport): void {
   console.log(`Dropped as high-risk location:${r.droppedHighRisk}`);
   console.log(`Dropped as project duplicate: ${r.projectDuplicates}`);
   console.log(`Written to Supabase:          ${r.written}${r.writeFailed ? `  (write failures: ${r.writeFailed})` : ''}`);
+  console.log(
+    `Source-chaining: ${r.chainReferenced} referenced a primary source, ${r.chainResolved} resolved a primary_document_url, ${r.chainWithFile} fetched a real file.`
+  );
+  for (const s of r.chainSamples.slice(0, 5)) {
+    console.log(`    - ${s.article}  ->  ${s.primaryUrl}${s.hasFile ? '  [file]' : ''}`);
+  }
   console.log('Kept by source_tier:');
   console.log(table(r.perTier));
   console.log('Kept by venue_type:');
