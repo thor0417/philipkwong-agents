@@ -19,7 +19,8 @@ import {
   LEISURE_CPV_CODES,
   type IndustryProfile,
 } from './profiles';
-import { runGliLane, tagOpportunities, sourceTier, type GliReport } from './gli';
+import { runGliLane, tagOpportunities, type GliReport } from './gli';
+import { buildOpportunityRow } from './opportunity';
 import { bestProfileFor, passesPrefilter, keywordMatches } from './prefilter';
 import { isBrokerNoise } from './broker-filter';
 import {
@@ -35,7 +36,7 @@ import {
 } from './classify';
 import { scoreLeads, type ScorerInput } from './scorer';
 import { crossReference, normalizeCompany } from './cross-reference';
-import { regionFor, countryCodeOf, mexicanPriorityState, LATAM_CARIB } from './regions';
+import { regionFor, regionOf, countryCodeOf, mexicanPriorityState, LATAM_CARIB } from './regions';
 // PARKED (Track B registry): import re-enabled when the registry pass returns.
 // import type { RegistryLead } from './sources/types';
 
@@ -114,34 +115,6 @@ const SIGNAL_BACKFILL_DAYS: Record<string, number> = {
 const FUEL_CAPTURE_SCORE = 100;
 // PARKED (Track B registry): fixed baseline score for licensed registry leads.
 // const REGISTRY_BASELINE = 70;
-
-// Region tag per source for tender leads.
-const SOURCE_REGION: Record<string, string> = {
-  tenderned: 'NL',
-  tedeu: 'EU',
-  iadb: 'GLOBAL',
-  cdb: 'GLOBAL',
-  gebiz: 'SG',
-  ungm: 'GLOBAL',
-  worldbank: 'GLOBAL',
-  adb: 'GLOBAL',
-  afdb: 'GLOBAL',
-  undp: 'GLOBAL',
-  canadabuys: 'CA',
-  adzuna: 'CA',
-  jooble: 'CA',
-  reed: 'UK',
-  careerjet: 'CA',
-  arbeitnow: 'EU',
-  jsearch: 'CA',
-  samgov: 'US',
-  texasesbd: 'US',
-  austender: 'AU',
-  uktenders: 'UK',
-  thailandgpp: 'TH',
-  googleplaces: 'GLOBAL',
-};
-const regionOf = (source: string): string => SOURCE_REGION[source] ?? 'GLOBAL';
 
 // Fuel CPV codes only (for TenderNed, which is fuel/Rotterdam-specific).
 function fuelCpvCodes(profiles: IndustryProfile[]): string[] {
@@ -948,37 +921,10 @@ export async function orchestrate(): Promise<ScrapeReport> {
   for (let i = 0; i < opportunityPrepared.length; i++) {
     const lead = opportunityPrepared[i];
     const tag = opportunityTags[i];
-    const region = regionFor(lead, regionOf(lead.source));
-    const tier = sourceTier(lead.url);
-    const dead = isDeadNotice(lead);
-    const { error } = await supabaseAdmin.from('leads').upsert(
-      {
-        source: lead.source,
-        url: lead.url,
-        title: lead.title,
-        raw_content: lead.raw_content,
-        score: null,
-        score_reason: `GLI Tier 1 opportunity captured on legitimacy (leisure/tourism advisory solicitation): ${tag.signal_type} (${tag.venue_type}). Not fit-scored.`,
-        status: dead ? 'dead' : 'new',
-        module: GLI_MODULE_OPPORTUNITY,
-        industry: GLI_MODULE_OPPORTUNITY,
-        stream: 'opportunity',
-        company: lead.company,
-        location: lead.location,
-        deadline: lead.deadline,
-        published_date: lead.published_date ?? null,
-        value_estimate: lead.value_estimate,
-        lead_type: 'tender',
-        region,
-        venue_type: tag.venue_type,
-        signal_type: tag.signal_type,
-        source_tier: tier,
-        contact_name: tag.contact_name,
-        contact_email: tag.contact_email,
-        contact_phone: tag.contact_phone,
-      },
-      { onConflict: 'url' }
-    );
+    // Shared row shape (see opportunity.ts) so the standalone scrape:opportunity
+    // validation run and this production path never drift.
+    const { region, row } = buildOpportunityRow(lead, tag);
+    const { error } = await supabaseAdmin.from('leads').upsert(row, { onConflict: 'url' });
     if (error) {
       console.error(`Opportunity write failed for ${lead.url}: ${error.message}`);
       continue;

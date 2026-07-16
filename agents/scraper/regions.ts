@@ -124,6 +124,38 @@ export function regionFor(lead: NormalizedLead, sourceRegion: string): string {
   return isLatamCarib(lead) ? LATAM_CARIB : sourceRegion;
 }
 
+// Per-source default region for tender leads (before the per-lead country
+// override in regionFor). Shared by the orchestrator and the standalone
+// opportunity lane so both resolve regions identically.
+export const SOURCE_REGION: Record<string, string> = {
+  tenderned: 'NL',
+  tedeu: 'EU',
+  iadb: 'GLOBAL',
+  cdb: 'GLOBAL',
+  gebiz: 'SG',
+  ungm: 'GLOBAL',
+  worldbank: 'GLOBAL',
+  adb: 'GLOBAL',
+  afdb: 'GLOBAL',
+  undp: 'GLOBAL',
+  canadabuys: 'CA',
+  adzuna: 'CA',
+  jooble: 'CA',
+  reed: 'UK',
+  careerjet: 'CA',
+  arbeitnow: 'EU',
+  jsearch: 'CA',
+  samgov: 'US',
+  texasesbd: 'US',
+  austender: 'AU',
+  uktenders: 'UK',
+  thailandgpp: 'TH',
+  googleplaces: 'GLOBAL',
+};
+
+// The source's default region, or 'GLOBAL' when unmapped.
+export const regionOf = (source: string): string => SOURCE_REGION[source] ?? 'GLOBAL';
+
 // Priority Mexican states, flagged in the run report. Detected from the lead
 // text (signal sources carry the state in the location; bank notices name it in
 // the description). Canonical names, matched accent- and case-insensitively.
