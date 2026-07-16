@@ -1,5 +1,6 @@
-/* GLI cross-stream filters. Category chips primary; venue + location secondary.
-   PP Neue York, 0.5px hairlines, sharp corners, no shadows. No DM Mono. */
+/* GLI cross-stream filters: faceted category + venue chips (with counts) and a
+   location search. PP Neue York, 0.5px hairlines, sharp corners, no shadows,
+   tabular figures on counts. No DM Mono. */
 .wrap {
   display: flex;
   flex-direction: column;
@@ -8,7 +9,7 @@
   margin-bottom: 6px;
 }
 
-.categoryRow {
+.chipGroup {
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -39,12 +40,18 @@
   padding: 7px 13px;
   border-radius: 0;
   cursor: pointer;
+  font-variant-numeric: tabular-nums;
 }
 
-.chip:hover {
+.chip:hover:not(:disabled) {
   background: transparent;
   border-color: var(--ink);
   color: var(--ink);
+}
+
+.chip:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 .chipActive,
@@ -54,41 +61,20 @@
   border-color: var(--accent);
 }
 
+.chipCount {
+  margin-left: 6px;
+  color: var(--muted);
+}
+
+.chipActive .chipCount {
+  color: #fff;
+}
+
 .secondaryRow {
   display: flex;
   gap: 18px;
   align-items: flex-end;
   flex-wrap: wrap;
-}
-
-.control {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.control span {
-  font-family: var(--font-emphasis);
-  font-size: 11px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-
-.control select {
-  font-family: var(--font-text);
-  font-size: 13px;
-  color: var(--ink);
-  background: #fff;
-  border: 0.5px solid var(--hairline);
-  border-radius: 0;
-  padding: 8px 10px;
-  cursor: pointer;
-}
-
-.control select:focus {
-  outline: none;
-  border-color: var(--accent);
 }
 
 .search {

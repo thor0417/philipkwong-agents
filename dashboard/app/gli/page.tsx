@@ -4,10 +4,11 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import type { GLILead } from '@/lib/types';
-import { developmentCategory } from '@/lib/gli-category';
+import { GLI_VENUE_TYPES } from '@/lib/types';
+import { developmentCategory, DEVELOPMENT_CATEGORIES } from '@/lib/gli-category';
 import GLINav from '@/components/GLINav';
 import GLIStats from '@/components/GLIStats';
-import GLIFilters from '@/components/GLIFilters';
+import GLIFilters, { type GLIChip } from '@/components/GLIFilters';
 import GLITable, { type GLIColumn } from '@/components/GLITable';
 import GLIDetail from '@/components/GLIDetail';
 import GLISourceLink from '@/components/GLISourceLink';
@@ -17,6 +18,11 @@ const GLI_COLUMNS =
   'id, title, venue_type, signal_type, location, company, contact_name, contact_email, contact_phone, url, raw_content, date_found, score, source_tier, stream, deadline, published_date, source';
 
 const DASH = '--';
+
+// Canonical accessors (single source of truth). Trimmed so trailing/leading
+// whitespace can never split a value between the count and the filter logic.
+const catOf = (l: GLILead): string => l.development_category ?? 'Other/Uncategorized';
+const venueOf = (l: GLILead): string => (l.venue_type ?? '').trim() || 'Unclassified';
 
 function host(url: string | null): string {
   if (!url) return DASH;
@@ -194,25 +200,66 @@ export default function GLIPage() {
     router.replace('/login');
   }
 
-  // Cross-stream filters: development category (primary), venue, location. Applied
-  // before the stream split so the stats strip and every tab respect them.
-  const filteredAll = useMemo(() => {
-    const q = locationQuery.trim().toLowerCase();
-    return leads.filter((l) => {
-      if (
-        categoryFilter !== 'all' &&
-        (l.development_category ?? 'Other/Uncategorized') !== categoryFilter
-      ) {
-        return false;
-      }
-      if (venueFilter !== 'all' && l.venue_type !== venueFilter) return false;
-      if (q && !(l.location ?? '').toLowerCase().includes(q)) return false;
-      return true;
-    });
-  }, [leads, categoryFilter, venueFilter, locationQuery]);
-
   const active = STREAMS.find((s) => s.key === activeStream) ?? STREAMS[0];
-  const streamLeads = filteredAll.filter((l) => l.stream === active.key);
+
+  // Everything below is scoped to the ACTIVE stream so counts and rows never
+  // disagree. visibleLeads is the exact set the table renders. Chip counts are
+  // faceted: each dimension's counts exclude that dimension's own filter, so a
+  // chip's count equals the rows shown when it is clicked (given the other active
+  // filters). Tab counts apply all filters per stream, so a tab's count equals
+  // the rows it renders when selected.
+  const derived = useMemo(() => {
+    const q = locationQuery.trim().toLowerCase();
+    const mCat = (l: GLILead) => categoryFilter === 'all' || catOf(l) === categoryFilter;
+    const mVen = (l: GLILead) => venueFilter === 'all' || venueOf(l) === venueFilter;
+    const mLoc = (l: GLILead) => !q || (l.location ?? '').toLowerCase().includes(q);
+
+    const streamLeads = leads.filter((l) => l.stream === activeStream);
+    const visibleLeads = streamLeads.filter((l) => mCat(l) && mVen(l) && mLoc(l));
+
+    const catBase = streamLeads.filter((l) => mVen(l) && mLoc(l));
+    const venBase = streamLeads.filter((l) => mCat(l) && mLoc(l));
+    const countBy = (rows: GLILead[], key: (l: GLILead) => string): Map<string, number> => {
+      const m = new Map<string, number>();
+      for (const r of rows) {
+        const k = key(r);
+        m.set(k, (m.get(k) ?? 0) + 1);
+      }
+      return m;
+    };
+    const catCounts = countBy(catBase, catOf);
+    const venCounts = countBy(venBase, venueOf);
+
+    // 'All' plus every canonical value with a nonzero count (or the selected one,
+    // so a selected value stays visible even if another filter zeroes it).
+    const buildChips = (
+      allCount: number,
+      values: readonly string[],
+      counts: Map<string, number>,
+      selected: string
+    ): GLIChip[] => {
+      const out: GLIChip[] = [{ value: 'all', label: 'All', count: allCount }];
+      for (const v of values) {
+        const c = counts.get(v) ?? 0;
+        if (c > 0 || v === selected) out.push({ value: v, label: v, count: c });
+      }
+      return out;
+    };
+    const venueList = GLI_VENUE_TYPES as readonly string[];
+    const extraVenues = [...venCounts.keys()].filter((k) => !venueList.includes(k));
+
+    const categoryChips = buildChips(catBase.length, DEVELOPMENT_CATEGORIES, catCounts, categoryFilter);
+    const venueChips = buildChips(venBase.length, [...venueList, ...extraVenues], venCounts, venueFilter);
+
+    const tabCounts: Record<string, number> = {};
+    for (const s of STREAMS) {
+      tabCounts[s.key] = leads.filter(
+        (l) => l.stream === s.key && mCat(l) && mVen(l) && mLoc(l)
+      ).length;
+    }
+
+    return { visibleLeads, categoryChips, venueChips, tabCounts };
+  }, [leads, activeStream, categoryFilter, venueFilter, locationQuery]);
 
   return (
     <main style={{ maxWidth: 1360, margin: '0 auto', padding: '40px 24px' }}>
@@ -222,8 +269,10 @@ export default function GLIPage() {
         <p className={styles.loading}>Loading...</p>
       ) : (
         <>
-          <GLIStats leads={filteredAll} />
+          <GLIStats leads={derived.visibleLeads} streamLabel={active.label} />
           <GLIFilters
+            categoryChips={derived.categoryChips}
+            venueChips={derived.venueChips}
             categoryFilter={categoryFilter}
             venueFilter={venueFilter}
             locationQuery={locationQuery}
@@ -232,27 +281,21 @@ export default function GLIPage() {
             onLocation={setLocationQuery}
           />
           <div className={styles.tabs} role="tablist">
-            {STREAMS.map((s) => {
-              // Per-stream count over the same filtered set. For the active tab
-              // this equals the rows the table renders, so a tab's count and its
-              // visible rows can never disagree.
-              const count = filteredAll.filter((l) => l.stream === s.key).length;
-              return (
-                <button
-                  key={s.key}
-                  role="tab"
-                  aria-selected={activeStream === s.key}
-                  className={`${styles.tab} ${activeStream === s.key ? styles.tabActive : ''}`}
-                  onClick={() => setActiveStream(s.key)}
-                >
-                  {s.label}
-                  <span className={styles.tabCount}>{count}</span>
-                </button>
-              );
-            })}
+            {STREAMS.map((s) => (
+              <button
+                key={s.key}
+                role="tab"
+                aria-selected={activeStream === s.key}
+                className={`${styles.tab} ${activeStream === s.key ? styles.tabActive : ''}`}
+                onClick={() => setActiveStream(s.key)}
+              >
+                {s.label}
+                <span className={styles.tabCount}>{derived.tabCounts[s.key]}</span>
+              </button>
+            ))}
           </div>
           <GLITable
-            leads={streamLeads}
+            leads={derived.visibleLeads}
             columns={active.columns}
             sectionLabel={active.label}
             groupBySignal={active.group}

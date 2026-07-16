@@ -1,19 +1,17 @@
-/* GLI stats strip. EMPHASIS numbers, TEXT labels. Hairlines, sharp corners, no
-   shadows. Tabular figures so numbers sit evenly. No DM Mono. */
-.bar {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
+/* GLI stats strip, scoped to the active stream. EMPHASIS numbers, TEXT labels,
+   tabular figures. Hairlines, sharp corners, no shadows. No DM Mono. */
+.wrap {
+  display: flex;
+  align-items: stretch;
+  flex-wrap: wrap;
   border: 0.5px solid var(--hairline);
   background: #fff;
   font-variant-numeric: tabular-nums;
 }
 
-.cell {
+.total {
   padding: 18px 22px;
   border-right: 0.5px solid var(--hairline);
-}
-.cell:last-child {
-  border-right: none;
 }
 
 .value {
@@ -30,4 +28,32 @@
   text-transform: uppercase;
   color: var(--muted);
   margin-top: 12px;
+}
+
+.strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 20px;
+  padding: 0 22px;
+}
+
+.item {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 7px;
+}
+
+.itemValue {
+  font-family: var(--font-emphasis);
+  font-size: 16px;
+  color: var(--ink);
+}
+
+.itemLabel {
+  font-family: var(--font-text);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
 }
