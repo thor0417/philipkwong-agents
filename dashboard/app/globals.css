@@ -1,9 +1,40 @@
+/* PP Neue York, three cuts. Files live in public/fonts/ (plural). Roles:
+   DISPLAY (CondensedMedium) wordmark + titles + section headers; EMPHASIS
+   (NormalMedium) stat numbers + column headers + tabs + buttons; TEXT
+   (NormalRegular) body + cells + metadata. Fallback: Georgia serif. */
+@font-face {
+  font-family: 'PP Neue York Display';
+  src: url('/fonts/PPNeueYork-CondensedMedium.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'PP Neue York Emphasis';
+  src: url('/fonts/PPNeueYork-NormalMedium.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'PP Neue York Text';
+  src: url('/fonts/PPNeueYork-NormalRegular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
   --bg: #f9f9f9;
+  --paper: #f9f9f9;
   --ink: #0a0a0a;
   --accent: #b34700;
   --hairline: rgba(10, 10, 10, 0.18);
   --muted: rgba(10, 10, 10, 0.55);
+  /* PP Neue York type roles (GLI type system). */
+  --font-display: 'PP Neue York Display', Georgia, 'Times New Roman', serif;
+  --font-emphasis: 'PP Neue York Emphasis', Georgia, 'Times New Roman', serif;
+  --font-text: 'PP Neue York Text', Georgia, 'Times New Roman', serif;
 }
 
 * {
