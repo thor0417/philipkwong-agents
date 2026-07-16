@@ -38,10 +38,16 @@ interface GovDoc {
 // reflects a real fetched file; the landing page still captures the reference.
 const GOV_DOCUMENTS: GovDoc[] = [
   {
+    // The proven Disney chain: a Blooloop article led to this 400-page plan
+    // reserving specific theme-park acreage. url points at the real PDF (verified
+    // application/pdf), so has_primary_document is true and source-chaining
+    // resolves references here. docDate left null (the exact adoption date is
+    // unknown; undated keeps it in the Active view). Fill in the adoption date to
+    // let the 18-month gate age it correctly.
     jurisdictionLabel: 'Central Florida Tourism Oversight District, FL',
     sourceType: 'Comprehensive Plan',
     title: 'CFTOD 2045 Comprehensive Plan',
-    url: 'https://www.oversightdistrict.org/',
+    url: 'https://www.oversightdistrict.org/wp-content/uploads/2026/01/2045-CFTOD-Comprehensive-Plan.pdf',
     docDate: null,
     matchTerms: ['cftod', 'oversight district', 'central florida tourism', 'reedy creek'],
   },

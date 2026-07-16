@@ -48,21 +48,24 @@ const TOP = Number(process.env.LEGISTAR_TOP ?? '200');
 // subdomain of <client>.legistar.com); `jurisdictionLabel` is the human location
 // tag stored on every lead. Add a market by adding ONE line here.
 //
-// STARTER SET (proof-of-framework, to be revised after Panorama Monday). The
-// client ids are best-effort and verified only by the run itself: a wrong id
-// simply yields zero for that jurisdiction (logged), it does not break the lane.
-// This is a US starter set; the framework is not US-specific -- swap in any
-// Legistar market on earth (e.g. { client: 'toronto', jurisdictionLabel: 'Toronto, ON' }).
+// TARGETED SET. Deliberately pointed at the jurisdictions where leisure /
+// development work happens, and pruned to clients VERIFIED live on the public
+// Legistar API (webapi.legistar.com returns HTTP 200). The framework is not
+// US-specific -- swap in any Legistar market by one line (e.g. { client:
+// 'toronto', jurisdictionLabel: 'Toronto, ON' }). Removed as unavailable on the
+// public API (all HTTP 500): 'lasvegas', 'clarkcountynv' (the correct Clark County
+// code is 'clark'), 'orlando', 'orangecountyfl'. Las Vegas city, Orlando city, and
+// Orange County FL are NOT on public Legistar; their comprehensive plans and the
+// CFTOD special district are captured via sources/govdocs.ts instead.
 export interface LegistarJurisdiction {
   client: string;
   jurisdictionLabel: string;
 }
 const DEFAULT_JURISDICTIONS: LegistarJurisdiction[] = [
-  { client: 'lasvegas', jurisdictionLabel: 'Las Vegas, NV' },
-  { client: 'clarkcountynv', jurisdictionLabel: 'Clark County, NV' },
-  { client: 'orlando', jurisdictionLabel: 'Orlando, FL' },
-  { client: 'orangecountyfl', jurisdictionLabel: 'Orange County, FL' },
+  // Priority targets (leisure/development), verified live:
+  { client: 'clark', jurisdictionLabel: 'Clark County, NV' }, // Las Vegas metro / Area15 territory
   { client: 'miamidade', jurisdictionLabel: 'Miami-Dade County, FL' },
+  // Additional verified US development markets (trim if too broad):
   { client: 'nashville', jurisdictionLabel: 'Nashville, TN' },
   { client: 'phoenix', jurisdictionLabel: 'Phoenix, AZ' },
   { client: 'sanantonio', jurisdictionLabel: 'San Antonio, TX' },
