@@ -142,6 +142,15 @@ export interface GLILead {
   date_found: string | null;
   score: number | null;
   source_tier: string | null;
+  // Lane sub-tag: 'opportunity' (Tier 1), 'intelligence' (Tier 3), 'government'
+  // (Tier 2). The GLI page's three tabs read this column.
+  stream: string | null;
+  // Bid deadline (opportunities) and source publication date (intelligence /
+  // government records), ISO strings when present.
+  deadline: string | null;
+  published_date: string | null;
+  // Raw source slug (portal / trade domain / legistar).
+  source: string | null;
   // Development category (Leisure/Attractions, Smart City/Urban, ...). Derived on
   // read by lib/gli-category.ts when the scraper has not tagged it. Never null in
   // practice (Other/Uncategorized is the fallback).

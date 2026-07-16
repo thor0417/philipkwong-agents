@@ -1,11 +1,39 @@
-/* Matches PipelineTable: hairlines, DM Mono, sharp corners, no shadows. */
-.wrap {
-  margin-top: 24px;
+/* GLI stream table. PP Neue York type system, 0.5px hairlines, sharp corners, no
+   shadows, 40px rows, tabular figures. No DM Mono. */
+.section {
+  margin-top: 8px;
+}
+
+/* Signature section band: 0.5px top rule, name in DISPLAY (CondensedMedium)
+   uppercase, count in EMPHASIS (NormalMedium) accent on the same baseline. */
+.band {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  border-top: 0.5px solid var(--ink);
+  padding: 14px 2px 12px;
+}
+
+.bandName {
+  font-family: var(--font-display);
+  font-size: 20px;
+  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: 0.01em;
+  color: var(--ink);
+}
+
+.bandCount {
+  font-family: var(--font-emphasis);
+  font-size: 20px;
+  line-height: 1;
+  color: var(--accent);
 }
 
 .scroll {
   overflow-x: auto;
   border: 0.5px solid var(--hairline);
+  background: #fff;
 }
 
 .table {
@@ -13,11 +41,13 @@
   border-collapse: collapse;
   background: #fff;
   min-width: 1000px;
+  font-variant-numeric: tabular-nums;
 }
 
+/* Column headers: EMPHASIS 11px uppercase, wide tracking. */
 .table th {
-  font-family: var(--font-dm-mono), monospace;
-  font-size: 10px;
+  font-family: var(--font-emphasis);
+  font-size: 11px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   text-align: left;
@@ -32,113 +62,77 @@
   cursor: pointer;
   user-select: none;
 }
-
 .sortable:hover {
   color: var(--ink);
 }
 
-/* Section header row per signal_type, spanning all columns. */
-.groupRow td {
-  border-bottom: 0.5px solid var(--hairline);
-}
-
+/* Signal-type group band inside a table (Opportunities). Same signature rhythm:
+   0.5px top rule, DISPLAY uppercase name, EMPHASIS accent count. */
 .groupCell {
-  background: rgba(10, 10, 10, 0.04);
-  padding: 9px 12px;
+  border-top: 0.5px solid var(--ink);
+  padding: 13px 12px 9px;
 }
 
-.groupLabel {
-  font-family: var(--font-dm-mono), monospace;
-  font-size: 10px;
-  letter-spacing: 0.08em;
+.groupName {
+  font-family: var(--font-display);
+  font-size: 14px;
   text-transform: uppercase;
-  color: var(--muted);
+  letter-spacing: 0.01em;
+  color: var(--ink);
 }
 
 .groupCount {
-  font-family: var(--font-dm-mono), monospace;
-  font-size: 11px;
-  color: var(--ink);
+  font-family: var(--font-emphasis);
+  font-size: 14px;
+  color: var(--accent);
   margin-left: 10px;
 }
 
 .row {
   cursor: pointer;
 }
-
-.row td {
-  padding: 10px 12px;
-  border-bottom: 0.5px solid var(--hairline);
-  vertical-align: top;
-}
-
 .row:hover {
   background: rgba(10, 10, 10, 0.03);
 }
 
-/* Signal type: raw value, uppercase, small. */
-.signalCell {
-  font-family: var(--font-dm-mono), monospace;
-  font-size: 10px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--muted);
-  white-space: nowrap;
-}
-
-.titleCell {
-  font-family: var(--font-dm-mono), monospace;
-  font-size: 12px;
-  color: var(--ink);
-  line-height: 1.4;
-  max-width: 460px;
-  min-width: 240px;
-}
-
-.titleCell:hover {
-  color: var(--accent);
-}
-
-/* Location leads triage, so it is the most prominent cell. */
-.location {
-  font-family: var(--font-dm-mono), monospace;
+/* Cells: TEXT (NormalRegular) 13px, fixed 40px row height, single line. */
+.cell {
+  font-family: var(--font-text);
   font-size: 13px;
-  font-weight: 500;
   color: var(--ink);
-  min-width: 160px;
-}
-
-.meta {
-  font-family: var(--font-dm-mono), monospace;
-  font-size: 11px;
-  color: var(--muted);
+  height: 40px;
+  padding: 0 12px;
+  border-bottom: 0.5px solid var(--hairline);
   white-space: nowrap;
+  vertical-align: middle;
 }
 
-/* Source tier cell: small caps, colored by tier. */
-.tierCell {
-  font-family: var(--font-dm-mono), monospace;
-  font-size: 10px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  white-space: nowrap;
+/* Title cell: TEXT, truncated to keep the 40px row; full title in the detail. */
+.title {
+  max-width: 460px;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-
-.tierPrimary {
+.title:hover {
   color: var(--accent);
 }
 
-.tierTrade {
+/* Prominent cell (location / jurisdiction): EMPHASIS for triage weight. */
+.strong {
+  font-family: var(--font-emphasis);
+  font-size: 13px;
   color: var(--ink);
 }
 
-.tierNews {
+/* Secondary metadata: muted TEXT. */
+.meta {
   color: var(--muted);
+  font-size: 12px;
 }
 
 .empty {
-  font-family: var(--font-dm-mono), monospace;
-  font-size: 12px;
+  font-family: var(--font-text);
+  font-size: 13px;
   color: var(--muted);
   padding: 24px 12px;
 }

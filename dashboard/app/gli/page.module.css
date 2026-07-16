@@ -1,38 +1,38 @@
-.group {
-  margin-top: 28px;
+/* GLI page: tab bar + loading. Card/bento grid removed. No DM Mono. */
+.tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 0.5px solid var(--hairline);
+  margin: 22px 0 4px;
 }
 
-.groupHead {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-  font-family: var(--font-dm-mono), monospace;
-  font-size: 11px;
-  letter-spacing: 0.08em;
+.tab {
+  font-family: var(--font-emphasis);
+  font-size: 13px;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--muted);
-  margin-bottom: 12px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 10px 16px;
+  margin-bottom: -0.5px;
+  cursor: pointer;
+  border-radius: 0;
 }
 
-.groupCount {
+.tab:hover {
   color: var(--ink);
+  background: transparent;
 }
 
-.grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 14px;
-}
-
-.empty {
-  font-family: var(--font-dm-mono), monospace;
-  font-size: 12px;
-  color: var(--muted);
-  margin-top: 32px;
+.tabActive {
+  color: var(--ink);
+  border-bottom-color: var(--accent);
 }
 
 .loading {
-  font-family: var(--font-dm-mono), monospace;
+  font-family: var(--font-text);
   font-size: 13px;
   color: var(--muted);
 }

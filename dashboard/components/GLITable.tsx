@@ -1,169 +1,162 @@
 'use client';
 
-import { Fragment, useMemo, useState } from 'react';
+import { Fragment, useMemo, useState, type ReactNode } from 'react';
 import type { GLILead } from '@/lib/types';
 import { GLI_SIGNAL_ORDER } from '@/lib/types';
-import SourceLink from './SourceLink';
 import styles from './GLITable.module.css';
 
-// Sortable columns. 'link' is a plain source-link column and is not sortable.
-type SortKey = 'signal' | 'venue' | 'title' | 'location' | 'source' | 'tier' | 'date';
-type SortDir = 'asc' | 'desc';
-
-const COLUMNS: { key: SortKey | null; label: string }[] = [
-  { key: 'signal', label: 'Signal Type' },
-  { key: 'venue', label: 'Venue Type' },
-  { key: 'title', label: 'Title' },
-  { key: 'location', label: 'Location' },
-  { key: 'source', label: 'Source' },
-  { key: 'tier', label: 'Tier' },
-  { key: 'date', label: 'Date' },
-  { key: null, label: 'Link' },
-];
-
-// CSS class for a source_tier value: primary accent, trade ink, news muted.
-function tierClass(tier: string | null): string {
-  if (tier === 'primary') return styles.tierPrimary;
-  if (tier === 'trade') return styles.tierTrade;
-  if (tier === 'news') return styles.tierNews;
-  return styles.tierNews;
+// A column definition, supplied per stream by the page. `render` returns the cell
+// node; `sortValue` (when present) makes the column sortable; `variant` selects
+// the cell type role (title / strong / meta), defaulting to plain TEXT.
+export interface GLIColumn {
+  key: string;
+  label: string;
+  render: (lead: GLILead) => ReactNode;
+  sortValue?: (lead: GLILead) => string | number;
+  variant?: 'title' | 'strong' | 'meta';
 }
+
+type SortDir = 'asc' | 'desc';
 
 const SIGNAL_RANK: Record<string, number> = Object.fromEntries(
   GLI_SIGNAL_ORDER.map((s, i) => [s, i])
 );
-function signalRank(signal: string): number {
-  return SIGNAL_RANK[signal] ?? GLI_SIGNAL_ORDER.length;
+const signalRank = (s: string): number => SIGNAL_RANK[s] ?? GLI_SIGNAL_ORDER.length;
+
+function variantClass(variant: GLIColumn['variant']): string {
+  if (variant === 'title') return styles.title;
+  if (variant === 'strong') return styles.strong;
+  if (variant === 'meta') return styles.meta;
+  return '';
 }
 
-// Bare domain from a url (e.g. planitshop.com), or null when absent/unparseable.
-function sourceHost(url: string | null): string | null {
-  if (!url) return null;
-  try {
-    return new URL(url).hostname.replace(/^www\./, '');
-  } catch {
-    return null;
-  }
-}
-
-function dateValue(iso: string | null): number {
-  return iso ? new Date(iso).getTime() : -Infinity;
-}
-
-// Comparable value for a sort key: a number for date, else a lowercased string.
-function sortValue(lead: GLILead, key: SortKey): string | number {
-  switch (key) {
-    case 'signal':
-      return (lead.signal_type ?? '').toLowerCase();
-    case 'venue':
-      return (lead.venue_type ?? '').toLowerCase();
-    case 'title':
-      return (lead.title ?? '').toLowerCase();
-    case 'location':
-      return (lead.location ?? '').toLowerCase();
-    case 'source':
-      return (sourceHost(lead.url) ?? '').toLowerCase();
-    case 'tier':
-      return (lead.source_tier ?? '').toLowerCase();
-    case 'date':
-      return dateValue(lead.date_found);
-  }
-}
-
-function compare(a: GLILead, b: GLILead, key: SortKey, dir: SortDir): number {
-  const va = sortValue(a, key);
-  const vb = sortValue(b, key);
-  let r: number;
-  if (typeof va === 'number' && typeof vb === 'number') r = va - vb;
-  else r = String(va).localeCompare(String(vb));
-  return dir === 'asc' ? r : -r;
-}
-
+// One stream table. Opens with the signature section band (name in DISPLAY
+// uppercase, count in EMPHASIS accent). groupBySignal renders a signal-type band
+// per group (Feasibility RFP becomes its own section under Opportunities).
 export default function GLITable({
   leads,
+  columns,
+  sectionLabel,
+  groupBySignal = false,
+  defaultSortKey,
+  defaultSortDir = 'asc',
   onSelect,
 }: {
   leads: GLILead[];
+  columns: GLIColumn[];
+  sectionLabel: string;
+  groupBySignal?: boolean;
+  defaultSortKey?: string;
+  defaultSortDir?: SortDir;
   onSelect: (lead: GLILead) => void;
 }) {
-  // Default sort: date_found descending within each signal group.
-  const [sortCol, setSortCol] = useState<SortKey>('date');
-  const [sortDir, setSortDir] = useState<SortDir>('desc');
+  const [sortKey, setSortKey] = useState<string | null>(defaultSortKey ?? null);
+  const [sortDir, setSortDir] = useState<SortDir>(defaultSortDir);
 
-  function toggleSort(key: SortKey) {
-    if (key === sortCol) {
-      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
-    } else {
-      setSortCol(key);
+  const colByKey = useMemo(
+    () => Object.fromEntries(columns.map((c) => [c.key, c])) as Record<string, GLIColumn>,
+    [columns]
+  );
+
+  function toggleSort(key: string) {
+    if (!colByKey[key]?.sortValue) return;
+    if (key === sortKey) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    else {
+      setSortKey(key);
       setSortDir('asc');
     }
   }
 
-  // Group by signal_type (GLI_SIGNAL_ORDER, unknown last), skip empty groups,
-  // and sort within each group by the active column. Groups always stay in
-  // GLI_SIGNAL_ORDER; only the rows inside a group re-sort.
+  const sortRows = useMemo(() => {
+    return (rows: GLILead[]): GLILead[] => {
+      const col = sortKey ? colByKey[sortKey] : undefined;
+      if (!col?.sortValue) return rows;
+      const sv = col.sortValue;
+      return [...rows].sort((a, b) => {
+        const va = sv(a);
+        const vb = sv(b);
+        const r =
+          typeof va === 'number' && typeof vb === 'number'
+            ? va - vb
+            : String(va).localeCompare(String(vb));
+        return sortDir === 'asc' ? r : -r;
+      });
+    };
+  }, [colByKey, sortKey, sortDir]);
+
   const groups = useMemo(() => {
+    if (!groupBySignal) return [{ signal: null as string | null, items: sortRows(leads) }];
     const map = new Map<string, GLILead[]>();
     for (const l of leads) {
-      const key = l.signal_type ?? 'Unclassified';
-      const bucket = map.get(key);
+      const k = l.signal_type ?? 'Unclassified';
+      const bucket = map.get(k);
       if (bucket) bucket.push(l);
-      else map.set(key, [l]);
+      else map.set(k, [l]);
     }
     return [...map.entries()]
       .sort((a, b) => {
         const r = signalRank(a[0]) - signalRank(b[0]);
         return r !== 0 ? r : a[0].localeCompare(b[0]);
       })
-      .map(([signal, items]) => ({
-        signal,
-        items: [...items].sort((a, b) => compare(a, b, sortCol, sortDir)),
-      }));
-  }, [leads, sortCol, sortDir]);
+      .map(([signal, items]) => ({ signal, items: sortRows(items) }));
+  }, [leads, groupBySignal, sortRows]);
 
-  const arrow = (key: SortKey): string =>
-    key === sortCol ? (sortDir === 'asc' ? ' ▲' : ' ▼') : '';
+  const arrow = (key: string): string =>
+    key === sortKey ? (sortDir === 'asc' ? ' ▲' : ' ▼') : '';
 
   return (
-    <section className={styles.wrap}>
+    <section className={styles.section}>
+      <div className={styles.band}>
+        <span className={styles.bandName}>{sectionLabel}</span>
+        <span className={styles.bandCount}>{leads.length}</span>
+      </div>
       <div className={styles.scroll}>
         <table className={styles.table}>
           <thead>
             <tr>
-              {COLUMNS.map((col) =>
-                col.key ? (
-                  <th
-                    key={col.label}
-                    className={styles.sortable}
-                    onClick={() => toggleSort(col.key as SortKey)}
-                  >
-                    {col.label}
-                    {arrow(col.key)}
-                  </th>
-                ) : (
-                  <th key={col.label}>{col.label}</th>
-                )
-              )}
+              {columns.map((col) => (
+                <th
+                  key={col.key}
+                  className={col.sortValue ? styles.sortable : undefined}
+                  onClick={col.sortValue ? () => toggleSort(col.key) : undefined}
+                >
+                  {col.label}
+                  {arrow(col.key)}
+                </th>
+              ))}
             </tr>
           </thead>
           <tbody>
             {leads.length === 0 && (
               <tr>
-                <td className={styles.empty} colSpan={COLUMNS.length}>
-                  No GLI leads match the current filters.
+                <td className={styles.empty} colSpan={columns.length}>
+                  No records in this stream match the current filters.
                 </td>
               </tr>
             )}
             {groups.map((g) => (
-              <Fragment key={g.signal}>
-                <tr className={styles.groupRow}>
-                  <td className={styles.groupCell} colSpan={COLUMNS.length}>
-                    <span className={styles.groupLabel}>{g.signal}</span>
-                    <span className={styles.groupCount}>{g.items.length}</span>
-                  </td>
-                </tr>
+              <Fragment key={g.signal ?? '_all'}>
+                {g.signal && (
+                  <tr className={styles.groupRow}>
+                    <td className={styles.groupCell} colSpan={columns.length}>
+                      <span className={styles.groupName}>{g.signal}</span>
+                      <span className={styles.groupCount}>{g.items.length}</span>
+                    </td>
+                  </tr>
+                )}
                 {g.items.map((lead) => (
-                  <GLIRow key={lead.id} lead={lead} onSelect={onSelect} />
+                  <tr
+                    key={lead.id}
+                    className={styles.row}
+                    onClick={() => onSelect(lead)}
+                    title="Open GLI record detail"
+                  >
+                    {columns.map((col) => (
+                      <td key={col.key} className={`${styles.cell} ${variantClass(col.variant)}`}>
+                        {col.render(lead)}
+                      </td>
+                    ))}
+                  </tr>
                 ))}
               </Fragment>
             ))}
@@ -171,37 +164,5 @@ export default function GLITable({
         </table>
       </div>
     </section>
-  );
-}
-
-function GLIRow({
-  lead,
-  onSelect,
-}: {
-  lead: GLILead;
-  onSelect: (lead: GLILead) => void;
-}) {
-  const host = sourceHost(lead.url);
-  return (
-    <tr
-      className={styles.row}
-      onClick={() => onSelect(lead)}
-      title="Open GLI lead detail"
-    >
-      <td className={styles.signalCell}>{lead.signal_type ?? '--'}</td>
-      <td className={styles.meta}>{lead.venue_type ?? '--'}</td>
-      <td className={styles.titleCell}>{lead.title ?? '--'}</td>
-      <td className={styles.location}>{lead.location ?? '--'}</td>
-      <td className={styles.meta}>{host ?? '--'}</td>
-      <td className={`${styles.tierCell} ${tierClass(lead.source_tier)}`}>
-        {lead.source_tier ?? '--'}
-      </td>
-      <td className={styles.meta}>
-        {lead.date_found ? lead.date_found.slice(0, 10) : '--'}
-      </td>
-      <td>
-        <SourceLink url={lead.url} />
-      </td>
-    </tr>
   );
 }
