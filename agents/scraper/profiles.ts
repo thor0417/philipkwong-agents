@@ -530,13 +530,35 @@ export const CONSULTING_CPV_CODES = [
   '85100000', // Health services
 ];
 
-// Leisure / tourism / recreation / cultural + feasibility CPV codes for TED,
-// sent as an INDEPENDENT TED group (its own result budget) so this low-volume
-// work is not crowded out by high-volume business-consultancy notices. Confirmed
-// on-target against the TED API; 98000000 (miscellaneous community services) and
-// 71300000 (~21k engineering notices) were checked and excluded as off-target.
+// Leisure / tourism / recreation / cultural + advisory CPV codes for TED, sent as
+// an INDEPENDENT TED group (its own result budget) so this low-volume work is not
+// crowded out by high-volume business-consultancy notices. This is the GLI Tier 1
+// (opportunity lane) leisure advisory set: the notices route to the GLI
+// opportunity stream, not the feasibility/consulting lanes (see isLeisureOpportunity).
+//
+// Every code below was verified real against the TED CPV taxonomy:
+//   71241000 Feasibility study, advisory service, analysis        - real (priority)
+//   79310000 Market research services                             - real
+//   79311000 Survey services                                      - real
+//   73220000 Development consultancy services                     - real
+//   79415200 Design consultancy services                          - real
+//   92000000 Recreational, cultural and sporting services         - real (priority)
+//   92100000 Motion picture and video services                    - real
+//   92600000 Sporting services                                    - real
+//   79951000 Seminar / exhibition / congress organisation         - real
+//   71400000 Urban planning and architectural services            - real (tourism/master plans)
+// 71300000 (~21k engineering notices) and 98000000 (miscellaneous community
+// services) were checked and excluded as off-target. 79411000 (general management
+// consultancy) is real and listed in the brief, but is deliberately kept in the
+// CONSULTING group only: its very high volume would crowd this low-volume leisure
+// budget (the exact anti-pattern the independent group exists to prevent). The
+// downstream leisure-keyword gate (isLeisureOpportunity) makes it redundant here.
 export const LEISURE_CPV_CODES = [
   '71241000', // Feasibility study, advisory service, analysis (priority)
+  '79310000', // Market research services (visitor / tourism market studies)
+  '79311000', // Survey services
+  '73220000', // Development consultancy services
+  '79415200', // Design consultancy services
   '92000000', // Recreational, cultural and sporting services (priority)
   '92100000', // Motion picture and video services
   '92600000', // Sporting services
