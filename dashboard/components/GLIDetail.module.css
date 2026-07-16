@@ -1,4 +1,5 @@
-/* Slide-in panel, same pattern as DealRecord. Hairlines, DM Mono, no shadows. */
+/* Slide-in GLI detail panel. PP Neue York type system, 0.5px hairlines, sharp
+   corners, no shadows. No DM Mono. */
 .overlay {
   position: fixed;
   inset: 0;
@@ -9,10 +10,10 @@
 }
 
 .panel {
-  width: 560px;
+  width: 580px;
   max-width: 100%;
   height: 100%;
-  background: var(--bg);
+  background: var(--paper);
   border-left: 0.5px solid var(--ink);
   overflow-y: auto;
   padding: 28px 26px 60px;
@@ -34,16 +35,16 @@
 }
 
 .title {
-  font-family: var(--font-dm-mono), monospace;
-  font-size: 17px;
-  line-height: 1.35;
+  font-family: var(--font-display);
+  font-size: 20px;
+  line-height: 1.25;
+  letter-spacing: 0.01em;
   color: var(--ink);
 }
 
 .location {
-  font-family: var(--font-dm-mono), monospace;
-  font-size: 15px;
-  font-weight: 500;
+  font-family: var(--font-emphasis);
+  font-size: 14px;
   color: var(--ink);
 }
 
@@ -53,23 +54,27 @@
   gap: 8px;
 }
 
-.venueTag {
-  font-family: var(--font-dm-mono), monospace;
+.categoryTag,
+.venueTag,
+.signalTag {
+  font-family: var(--font-emphasis);
   font-size: 10px;
   letter-spacing: 0.04em;
-  color: var(--ink);
+  text-transform: uppercase;
   border: 0.5px solid var(--hairline);
-  padding: 4px 7px;
+  color: var(--ink);
+  padding: 4px 8px;
+}
+
+.categoryTag {
+  color: #fff;
+  background: var(--accent);
+  border-color: var(--accent);
 }
 
 .signalTag {
-  font-family: var(--font-dm-mono), monospace;
-  font-size: 10px;
-  letter-spacing: 0.04em;
   color: var(--accent);
-  border: 0.5px solid var(--accent);
-  background: rgba(179, 71, 0, 0.08);
-  padding: 4px 7px;
+  border-color: var(--accent);
 }
 
 .sourceRow {
@@ -78,9 +83,20 @@
 
 .close {
   flex-shrink: 0;
+  font-family: var(--font-emphasis);
   font-size: 16px;
   line-height: 1;
   padding: 6px 12px;
+  border: 0.5px solid var(--ink);
+  background: transparent;
+  color: var(--ink);
+  border-radius: 0;
+  cursor: pointer;
+}
+
+.close:hover {
+  background: var(--ink);
+  color: var(--paper);
 }
 
 .section {
@@ -89,27 +105,29 @@
 }
 
 .sectionHead {
-  font-family: var(--font-dm-mono), monospace;
-  font-size: 10px;
+  font-family: var(--font-emphasis);
+  font-size: 11px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--muted);
   margin-bottom: 14px;
 }
 
-.snippet {
-  font-family: var(--font-dm-mono), monospace;
-  font-size: 12px;
+/* Detail body: TEXT 14px, full content, wraps and preserves line breaks. */
+.body {
+  font-family: var(--font-text);
+  font-size: 14px;
   line-height: 1.6;
   color: var(--ink);
   white-space: pre-wrap;
+  word-break: break-word;
   margin: 0;
 }
 
 .grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 14px;
+  gap: 16px;
 }
 
 .field {
@@ -119,19 +137,40 @@
 }
 
 .fieldLabel {
-  font-family: var(--font-dm-mono), monospace;
-  font-size: 10px;
+  font-family: var(--font-emphasis);
+  font-size: 11px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--muted);
 }
 
-.tag {
-  font-family: var(--font-dm-mono), monospace;
-  font-size: 11px;
+.fieldValue {
+  font-family: var(--font-text);
+  font-size: 14px;
   color: var(--ink);
-  border: 0.5px solid var(--hairline);
-  padding: 6px 8px;
-  align-self: flex-start;
   word-break: break-word;
+}
+
+.fieldLink {
+  font-family: var(--font-text);
+  font-size: 14px;
+  color: var(--accent);
+  text-decoration: none;
+  word-break: break-word;
+}
+
+.fieldLink:hover {
+  text-decoration: underline;
+}
+
+.urlLink {
+  font-family: var(--font-text);
+  font-size: 12px;
+  color: var(--accent);
+  word-break: break-all;
+  text-decoration: none;
+}
+
+.urlLink:hover {
+  text-decoration: underline;
 }

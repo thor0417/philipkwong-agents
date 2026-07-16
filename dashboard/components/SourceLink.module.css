@@ -1,8 +1,8 @@
 .link {
-  font-family: var(--font-dm-mono), monospace;
-  font-size: 10px;
-  letter-spacing: 0.06em;
-  color: #b34700;
+  font-family: var(--font-emphasis);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--accent);
   text-decoration: none;
   white-space: nowrap;
 }
