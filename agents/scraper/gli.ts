@@ -20,7 +20,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { pathToFileURL } from 'node:url';
 import { supabaseAdmin } from '../../lib/supabase-admin';
 import type { NormalizedLead } from './sources/types';
-import { scrapeSerper, lastSerperSearchCount } from './sources/serper';
+import { scrapeSerper, lastSerperSearchCount, RECENCY_WINDOW_DAYS } from './sources/serper';
 import { gliQueries } from './profiles';
 import { normalizeCompany } from './cross-reference';
 import { keywordMatches } from './prefilter';
@@ -444,6 +444,10 @@ export interface GliReport {
   urlDeduped: number;
   // Dropped before scoring because the source domain is hard-excluded junk.
   droppedJunk: number;
+  // Recency gate (Tier 3 intelligence): dropped because published_date is older
+  // than the window; kept-but-undated (no parseable date, kept and counted).
+  droppedStale: number;
+  undatedKept: number;
   // Already-stored junk rows swept from Supabase this run (self-healing).
   purgedJunk: number;
   kept: number;
@@ -462,6 +466,8 @@ export interface GliReport {
   perCountry: Record<string, number>;
   samples: Array<{
     title: string;
+    published_date: string;
+    domain: string;
     venue_type: string;
     signal_type: string;
     location: string;
@@ -524,7 +530,32 @@ export async function runGliLane(rawLeads: NormalizedLead[]): Promise<GliReport>
   }
   console.log(`GLI: dropped ${droppedJunk} leads as low-quality source.`);
 
-  const classifications = await classifyBatch(leads);
+  // Recency gate (Tier 3 intelligence): drop leads whose published_date is older
+  // than the window; keep undated leads but count them separately so good sources
+  // that omit dates are not silently dropped. Runs before classification to save
+  // LLM cost on stale items.
+  const cutoff = Date.now() - RECENCY_WINDOW_DAYS * 24 * 60 * 60 * 1000;
+  let droppedStale = 0;
+  let undatedKept = 0;
+  const fresh: NormalizedLead[] = [];
+  for (const l of leads) {
+    const t = l.published_date ? new Date(l.published_date).getTime() : NaN;
+    if (Number.isNaN(t)) {
+      undatedKept++;
+      fresh.push(l);
+      continue;
+    }
+    if (t < cutoff) {
+      droppedStale++;
+      continue;
+    }
+    fresh.push(l);
+  }
+  console.log(
+    `GLI: recency gate (${RECENCY_WINDOW_DAYS}d) dropped ${droppedStale} stale, kept ${undatedKept} undated.`
+  );
+
+  const classifications = await classifyBatch(fresh);
 
   // Apply the inclusion gate, then dedup kept leads by project key.
   const perVenueType: Record<string, number> = {};
@@ -537,8 +568,8 @@ export async function runGliLane(rawLeads: NormalizedLead[]): Promise<GliReport>
   let droppedHighRisk = 0;
   let projectDuplicates = 0;
 
-  for (let i = 0; i < leads.length; i++) {
-    const lead = leads[i];
+  for (let i = 0; i < fresh.length; i++) {
+    const lead = fresh[i];
     const c = classifications[i];
     if (!c.keep) {
       droppedNoise++;
@@ -564,6 +595,8 @@ export async function runGliLane(rawLeads: NormalizedLead[]): Promise<GliReport>
     fetched,
     urlDeduped: urlDeduped.length,
     droppedJunk,
+    droppedStale,
+    undatedKept,
     purgedJunk: 0,
     kept: kept.length,
     droppedNoise,
@@ -589,6 +622,8 @@ export async function runGliLane(rawLeads: NormalizedLead[]): Promise<GliReport>
     if (report.samples.length < 10) {
       report.samples.push({
         title: lead.title,
+        published_date: lead.published_date ?? '',
+        domain: hostOf(lead.url),
         venue_type: c.venue_type ?? '',
         signal_type: c.signal_type ?? '',
         location: c.location ?? '',
@@ -609,9 +644,11 @@ export async function runGliLane(rawLeads: NormalizedLead[]): Promise<GliReport>
         status: 'new',
         module: GLI_MODULE,
         industry: GLI_MODULE,
+        stream: 'intelligence',
         company: c.project_name,
         location: c.location,
         deadline: null,
+        published_date: lead.published_date ?? null,
         value_estimate: null,
         lead_type: 'gli',
         venue_type: c.venue_type,
@@ -657,6 +694,8 @@ export function printGliReport(r: GliReport): void {
   console.log(`Fetched from Serper:          ${r.fetched}`);
   console.log(`After URL dedup:              ${r.urlDeduped}`);
   console.log(`Dropped as junk (low-quality):${r.droppedJunk}`);
+  console.log(`Dropped as stale (>${RECENCY_WINDOW_DAYS}d):      ${r.droppedStale}`);
+  console.log(`Kept but undated:             ${r.undatedKept}`);
   console.log(`Purged stored junk rows:      ${r.purgedJunk}`);
   console.log(`Kept after inclusion rule:    ${r.kept}`);
   console.log(`Dropped as noise:             ${r.droppedNoise}`);
@@ -671,10 +710,10 @@ export function printGliReport(r: GliReport): void {
   console.log(table(r.perSignalType));
   console.log('Kept by country/region (global spread):');
   console.log(table(r.perCountry));
-  console.log('Sample GLI leads (up to 10): title | venue_type | signal_type | location | contact');
+  console.log('Sample GLI leads (up to 10): title | published_date | domain | venue_type | signal_type | location');
   for (const s of r.samples) {
     console.log(
-      `    - ${s.title.slice(0, 55)} | ${s.venue_type} | ${s.signal_type} | ${s.location || '(none)'} | ${s.contact ? 'yes' : 'no'}`
+      `    - ${s.title.slice(0, 45)} | ${s.published_date || 'undated'} | ${s.domain || '(none)'} | ${s.venue_type} | ${s.signal_type} | ${s.location || '(none)'}`
     );
   }
   console.log('=====================================');
