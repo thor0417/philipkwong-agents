@@ -1,0 +1,79 @@
+# Weekly manual portal check (GLI Tier 2 government lane, Part B).
+#
+# The gated-portal tier (SEMARNAT, CONFOTUR, and any portal that cannot be
+# reliably automated) is worked by hand. This workflow makes that work scheduled
+# and checklisted: every Thursday morning Bangkok time it opens (or updates) a
+# GitHub Issue holding a config-driven checklist of portals to review. The portal
+# list is pure config (agents/scraper/manual-portals.json): add a portal in any
+# country with one entry. Zero new auth: a repo Issue via the built-in
+# GITHUB_TOKEN is the zero-dependency channel (no Gmail send scope required).
+name: Manual portal check
+
+on:
+  schedule:
+    # 01:00 UTC Thursday = 08:00 Asia/Bangkok (UTC+7) Thursday morning.
+    - cron: '0 1 * * 4'
+  workflow_dispatch: {}
+
+permissions:
+  issues: write
+  contents: read
+
+jobs:
+  checklist:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const configPath = 'agents/scraper/manual-portals.json';
+            let portals = [];
+            try {
+              portals = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+            } catch (e) {
+              core.setFailed(`Could not read ${configPath}: ${e.message}`);
+              return;
+            }
+
+            // Monday of the current week (UTC) for a stable weekly title.
+            const now = new Date();
+            const day = now.getUTCDay();
+            const monday = new Date(now);
+            monday.setUTCDate(now.getUTCDate() + (day === 0 ? -6 : 1 - day));
+            const weekOf = monday.toISOString().slice(0, 10);
+            const title = `Manual portal check, week of ${weekOf}`;
+
+            const lines = [
+              'Weekly manual portal check for the gated-portal tier. Review each portal and tick it off.',
+              '',
+            ];
+            for (const p of portals) {
+              lines.push(`- [ ] **${p.name}** (${p.jurisdiction})`);
+              lines.push(`  - URL: ${p.url}`);
+              lines.push(`  - What to search: ${p.whatToSearch}`);
+              lines.push(`  - Last checked: ${p.lastChecked || 'never'}`);
+              lines.push('');
+            }
+            lines.push('New findings go into the pipeline via `npm run lead:add`.');
+            lines.push('Portal list is config: edit `agents/scraper/manual-portals.json` (one entry per portal).');
+            const body = lines.join('\n');
+
+            const { owner, repo } = context.repo;
+            const label = 'manual-portal-check';
+            const existing = await github.paginate(github.rest.issues.listForRepo, {
+              owner,
+              repo,
+              state: 'open',
+              labels: label,
+              per_page: 100,
+            });
+            const match = existing.find((i) => i.title === title);
+            if (match) {
+              await github.rest.issues.update({ owner, repo, issue_number: match.number, body });
+              core.info(`Updated existing checklist issue #${match.number}`);
+            } else {
+              await github.rest.issues.create({ owner, repo, title, body, labels: [label] });
+              core.info(`Created checklist issue: ${title}`);
+            }
