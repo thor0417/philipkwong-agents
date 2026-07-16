@@ -22,6 +22,10 @@ interface GovDoc {
   sourceType: SourceType;
   title: string;
   url: string;
+  // Distinctive terms that mark an article as referencing THIS document. Used by
+  // source-chaining (intelligence lane) to resolve a referenced-but-not-linked
+  // primary document to its known, verified URL (never a guessed URL).
+  matchTerms: string[];
   // Adoption / amendment date (ISO). Drives the Pass 2 government freshness gate
   // (within 18 months, amendments count as fresh). Null when unknown: the lead is
   // kept as undated (we cannot prove it stale), and the real date should be filled
@@ -39,8 +43,24 @@ const GOV_DOCUMENTS: GovDoc[] = [
     title: 'CFTOD 2045 Comprehensive Plan',
     url: 'https://www.oversightdistrict.org/',
     docDate: null,
+    matchTerms: ['cftod', 'oversight district', 'central florida tourism', 'reedy creek'],
   },
 ];
+
+// Source-chaining resolution from config: when an article references a KNOWN
+// configured primary document (by its distinctive terms), return that document's
+// verified URL. This resolves the proof case (a Blooloop article referencing the
+// CFTOD plan) to the real district document without guessing a URL. hasFile is
+// false: this is a resolved reference to the primary source, not a fetched file.
+export function configuredPrimaryDocument(text: string): { url: string; hasFile: boolean } | null {
+  const lower = text.toLowerCase();
+  for (const d of GOV_DOCUMENTS) {
+    if (d.matchTerms.some((t) => lower.includes(t.toLowerCase()))) {
+      return { url: d.url, hasFile: false };
+    }
+  }
+  return null;
+}
 
 function stripHtml(s: string): string {
   return s

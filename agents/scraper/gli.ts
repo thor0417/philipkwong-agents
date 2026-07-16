@@ -26,6 +26,7 @@ import { normalizeCompany } from './cross-reference';
 import { keywordMatches } from './prefilter';
 import { opportunityVenueHint, opportunitySignalHint } from './classify';
 import { classifyVenueType, categoryForVenue } from '../../lib/taxonomy';
+import { configuredPrimaryDocument } from './sources/govdocs';
 
 const MODEL = 'claude-haiku-4-5-20251001';
 const GLI_MODULE = 'gli';
@@ -713,9 +714,12 @@ export async function runGliLane(rawLeads: NormalizedLead[]): Promise<GliReport>
   // document, follow the reference and resolve the primary_document_url (never
   // fabricated). Runs on the kept subset only, before the write loop.
   for (const { lead } of kept) {
-    if (!referencesPrimarySource(lead.raw_content)) continue;
+    const text = `${lead.title}\n${lead.raw_content}`;
+    if (!referencesPrimarySource(text)) continue;
     report.chainReferenced++;
-    const resolved = await resolvePrimaryDocument(lead.url);
+    // 1. Follow the article's own links to a primary document. 2. Fall back to a
+    // configured primary document the article references (verified URL, not guessed).
+    const resolved = (await resolvePrimaryDocument(lead.url)) ?? configuredPrimaryDocument(text);
     if (!resolved) continue;
     lead.primary_document_url = resolved.url;
     lead.has_primary_document = resolved.hasFile;
