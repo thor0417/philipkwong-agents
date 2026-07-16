@@ -11,7 +11,7 @@
   align-items: baseline;
   gap: 12px;
   border-top: 0.5px solid var(--ink);
-  padding: 14px 2px 12px;
+  padding: 14px 0 12px;
 }
 
 .bandName {
@@ -99,6 +99,7 @@
 .cell {
   font-family: var(--font-text);
   font-size: 13px;
+  line-height: 1.5;
   color: var(--ink);
   height: 40px;
   padding: 0 12px;
