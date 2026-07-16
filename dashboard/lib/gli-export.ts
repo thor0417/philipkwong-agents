@@ -47,7 +47,7 @@ export function buildGliCsv(leads: GLILead[]): string {
   const rows = leads.map((l) =>
     [
       l.title,
-      l.development_category ?? 'Other/Uncategorized',
+      l.development_category ?? 'Other',
       l.venue_type,
       l.signal_type,
       l.stream,

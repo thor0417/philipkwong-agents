@@ -50,7 +50,7 @@ export function buildReportPayload(leads: GLILead[], scope: ReportScope): Report
     const iso = l.stream === 'opportunity' ? l.deadline : l.published_date;
     return {
       title: l.title ?? '',
-      developmentCategory: l.development_category ?? 'Other/Uncategorized',
+      developmentCategory: l.development_category ?? 'Other',
       venueType: l.venue_type ?? '',
       signalType: l.signal_type ?? '',
       stream: l.stream ?? '',

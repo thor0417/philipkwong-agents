@@ -151,9 +151,8 @@ export interface GLILead {
   published_date: string | null;
   // Raw source slug (portal / trade domain / legistar).
   source: string | null;
-  // Development category (Leisure/Attractions, Smart City/Urban, ...). Derived on
-  // read by lib/gli-category.ts when the scraper has not tagged it. Never null in
-  // practice (Other/Uncategorized is the fallback).
+  // Development category. Derived from venue_type via the canonical taxonomy
+  // (lib/taxonomy.ts VENUE_TO_CATEGORY); never null in practice ('Other' fallback).
   development_category?: string | null;
 }
 
@@ -166,20 +165,5 @@ export const GLI_SIGNAL_ORDER = [
   'General News',
 ] as const;
 
-export const GLI_VENUE_TYPES = [
-  'Theme Park',
-  'Amusement Park',
-  'Waterpark',
-  'Family Entertainment Center',
-  'Zoo',
-  'Aquarium',
-  'Museum',
-  'Science Center',
-  'Heritage/Cultural Site',
-  'Hotel',
-  'Resort',
-  'Integrated Resort',
-  'Casino/Gaming',
-  'Expo/Exposition',
-  'Leisure Destination/Mixed',
-] as const;
+// Venue types are the canonical VENUE_TYPES in lib/taxonomy.ts (single source of
+// truth). No parallel list is defined here.

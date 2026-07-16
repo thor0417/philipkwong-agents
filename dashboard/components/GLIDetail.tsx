@@ -1,7 +1,7 @@
 'use client';
 
 import type { GLILead } from '@/lib/types';
-import { developmentCategory } from '@/lib/gli-category';
+import { categoryForVenue } from '@/lib/taxonomy';
 import GLISourceLink from './GLISourceLink';
 import styles from './GLIDetail.module.css';
 
@@ -29,7 +29,7 @@ export default function GLIDetail({
 }) {
   if (!lead) return null;
 
-  const category = lead.development_category ?? developmentCategory(lead);
+  const category = lead.development_category ?? categoryForVenue(lead.venue_type);
   const hasContact = !!(lead.contact_name || lead.contact_email || lead.contact_phone);
 
   const rows: { label: string; value: string }[] = [];

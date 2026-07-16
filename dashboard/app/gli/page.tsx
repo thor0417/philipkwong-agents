@@ -4,8 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import type { GLILead } from '@/lib/types';
-import { GLI_VENUE_TYPES } from '@/lib/types';
-import { developmentCategory, DEVELOPMENT_CATEGORIES } from '@/lib/gli-category';
+import { VENUE_TYPES, DEVELOPMENT_CATEGORIES, categoryForVenue } from '@/lib/taxonomy';
 import GLINav from '@/components/GLINav';
 import GLIStats from '@/components/GLIStats';
 import GLIFilters, { type GLIChip } from '@/components/GLIFilters';
@@ -24,8 +23,10 @@ const DASH = '--';
 
 // Canonical accessors (single source of truth). Trimmed so trailing/leading
 // whitespace can never split a value between the count and the filter logic.
-const catOf = (l: GLILead): string => l.development_category ?? 'Other/Uncategorized';
-const venueOf = (l: GLILead): string => (l.venue_type ?? '').trim() || 'Unclassified';
+// Category derives from the canonical venue_type (single mapping in the taxonomy),
+// so venue and category can never disagree.
+const catOf = (l: GLILead): string => categoryForVenue(l.venue_type);
+const venueOf = (l: GLILead): string => (l.venue_type ?? '').trim() || 'Other';
 
 const MS_DAY = 24 * 60 * 60 * 1000;
 
@@ -232,7 +233,7 @@ export default function GLIPage() {
       .order('date_found', { ascending: false });
     const rows = ((data as unknown as GLILead[]) ?? []).map((l) => ({
       ...l,
-      development_category: developmentCategory(l),
+      development_category: categoryForVenue(l.venue_type),
     }));
     setLeads(rows);
   }, []);
@@ -321,7 +322,7 @@ export default function GLIPage() {
       }
       return out;
     };
-    const venueList = GLI_VENUE_TYPES as readonly string[];
+    const venueList = VENUE_TYPES as readonly string[];
     const extraVenues = [...venCounts.keys()].filter((k) => !venueList.includes(k));
 
     const categoryChips = buildChips(catBase.length, DEVELOPMENT_CATEGORIES, catCounts, categoryFilter);
