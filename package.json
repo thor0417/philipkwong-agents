@@ -14,6 +14,7 @@
     "scrape:opportunity": "node --env-file=.env.local --import tsx agents/scraper/opportunity.ts",
     "scrape:government": "node --env-file=.env.local --import tsx agents/scraper/government.ts",
     "intake": "node --env-file=.env.local --import tsx agents/intake-agent/index.ts",
+    "lead:add": "node --env-file=.env.local --import tsx agents/scraper/lead-add.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
