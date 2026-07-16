@@ -10,7 +10,7 @@ import GLIStats from '@/components/GLIStats';
 import GLIFilters from '@/components/GLIFilters';
 import GLITable, { type GLIColumn } from '@/components/GLITable';
 import GLIDetail from '@/components/GLIDetail';
-import SourceLink from '@/components/SourceLink';
+import GLISourceLink from '@/components/GLISourceLink';
 import styles from './page.module.css';
 
 const GLI_COLUMNS =
@@ -104,7 +104,7 @@ const publishedCol: GLIColumn = {
   render: (l) => ymd(l.published_date),
   sortValue: (l) => timeOf(l.published_date, -Infinity),
 };
-const linkCol: GLIColumn = { key: 'link', label: 'Link', render: (l) => <SourceLink url={l.url} /> };
+const linkCol: GLIColumn = { key: 'link', label: 'Link', render: (l) => <GLISourceLink url={l.url} /> };
 
 // The three streams. Opportunities group by signal_type (Feasibility RFP becomes
 // its own section) and sort by soonest deadline; Intelligence sorts by newest

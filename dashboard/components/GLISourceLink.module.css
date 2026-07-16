@@ -1,0 +1,15 @@
+/* GLI-scoped source link in the EMPHASIS cut. Separate from the shared
+   SourceLink (used by the pipeline views) so the GLI type system does not leak
+   into, or depend on, pipeline styling. */
+.link {
+  font-family: var(--font-emphasis);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--accent);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.link:hover {
+  text-decoration: underline;
+}

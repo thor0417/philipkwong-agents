@@ -2,7 +2,7 @@
 
 import type { GLILead } from '@/lib/types';
 import { developmentCategory } from '@/lib/gli-category';
-import SourceLink from './SourceLink';
+import GLISourceLink from './GLISourceLink';
 import styles from './GLIDetail.module.css';
 
 function ymd(iso: string | null): string {
@@ -64,7 +64,7 @@ export default function GLIDetail({
             </div>
             {lead.url && (
               <div className={styles.sourceRow}>
-                <SourceLink url={lead.url} />
+                <GLISourceLink url={lead.url} />
               </div>
             )}
           </div>
