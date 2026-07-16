@@ -88,6 +88,18 @@ const CURATED_DOMAINS = [
   'str.com',
   'skift.com',
   'hospitalityinvestor.com',
+  // Development / urban / real-estate intelligence. These carry the primary-signal
+  // stories that source-chain to government documents (the class of source that,
+  // like blooloop for the CFTOD plan, surfaces a plan/filing behind an article).
+  // blooloop stays first in the list (top primary-signal source, retained).
+  'bisnow.com',
+  'urbanland.uli.org',
+  'therealdeal.com',
+  'commercialobserver.com',
+  'planetizen.com',
+  'smartcitiesdive.com',
+  'theurbandeveloper.com',
+  'constructiondive.com',
 ];
 
 // Number of Serper searches issued by the most recent scrapeSerper call, for the
