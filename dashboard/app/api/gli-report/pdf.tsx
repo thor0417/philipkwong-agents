@@ -51,11 +51,11 @@ const s = StyleSheet.create({
   scope: { fontFamily: F.text, fontSize: 9, color: MUTED, marginTop: 6 },
   accentRule: { borderBottomWidth: 1.5, borderBottomColor: ACCENT, marginTop: 10, marginBottom: 14 },
 
-  summary: { flexDirection: 'row', gap: 28, marginBottom: 6 },
+  summary: { flexDirection: 'row', flexWrap: 'wrap', gap: 22, marginBottom: 6 },
   sumBlock: { flexDirection: 'column' },
   sumValue: { fontFamily: F.emphasis, fontSize: 20, color: INK },
   sumLabel: { fontFamily: F.text, fontSize: 8, letterSpacing: 0.8, color: MUTED, textTransform: 'uppercase', marginTop: 3 },
-  breakCol: { flexDirection: 'column', maxWidth: 200 },
+  breakCol: { flexDirection: 'column', width: 150 },
   breakLine: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 2 },
   breakLabel: { fontFamily: F.text, fontSize: 8, color: INK },
   breakCount: { fontFamily: F.emphasis, fontSize: 8, color: ACCENT, marginLeft: 10 },
@@ -123,6 +123,7 @@ function ReportDocument({ payload }: { payload: ReportPayload }) {
   const groups = groupLeads(leads, scope.streamKey);
   const perCategory = countBy(leads, (l) => l.developmentCategory);
   const perSignal = countBy(leads, (l) => l.signalType);
+  const perVenue = countBy(leads, (l) => l.venueType).slice(0, 12);
 
   const market = scope.location ? scope.location : 'Global';
   const category = scope.category !== 'all' ? scope.category : 'All categories';
@@ -160,6 +161,15 @@ function ReportDocument({ payload }: { payload: ReportPayload }) {
           <View style={s.breakCol}>
             <Text style={s.sumLabel}>By signal type</Text>
             {perSignal.map(([k, v]) => (
+              <View style={s.breakLine} key={k}>
+                <Text style={s.breakLabel}>{k}</Text>
+                <Text style={s.breakCount}>{v}</Text>
+              </View>
+            ))}
+          </View>
+          <View style={s.breakCol}>
+            <Text style={s.sumLabel}>By venue type</Text>
+            {perVenue.map(([k, v]) => (
               <View style={s.breakLine} key={k}>
                 <Text style={s.breakLabel}>{k}</Text>
                 <Text style={s.breakCount}>{v}</Text>
