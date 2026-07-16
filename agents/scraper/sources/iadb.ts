@@ -21,7 +21,9 @@ const UA = 'philipkwong-agents/1.0 (+scraper)';
 
 // Keyword (q) queries in addition to the recent pull, so tourism/feasibility
 // work is surfaced specifically. Override with a comma-separated list.
-const QUERIES = (process.env.IADB_QUERIES ?? 'tourism,hotel,resort,feasibility')
+const QUERIES = (process.env.IADB_QUERIES ??
+  'tourism,hotel,resort,feasibility,theme park,waterpark,museum,aquarium,casino,' +
+    'integrated resort,attraction,master plan,convention center,destination')
   .split(',')
   .map((s) => s.trim())
   .filter(Boolean);
@@ -107,6 +109,7 @@ export async function scrapeIadb(): Promise<NormalizedLead[]> {
         company: null,
         location: r.countryname ?? null,
         deadline: toIso(r.deadline),
+        published_date: toIso(r.publicationdate),
         value_estimate: null,
         source: 'iadb',
       });
