@@ -48,6 +48,39 @@
   color: var(--muted);
 }
 
+/* Actions row: export / report / focus. EMPHASIS labels, sharp corners, no
+   shadows. */
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin: 16px 0 2px;
+}
+
+.actionBtn {
+  font-family: var(--font-emphasis);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink);
+  background: transparent;
+  border: 0.5px solid var(--ink);
+  border-radius: 0;
+  padding: 8px 14px;
+  cursor: pointer;
+}
+
+.actionBtn:hover:not(:disabled) {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.actionBtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 /* Freshness toggle bar: default view is fresh/open only; the toggle reveals
    closed (opportunity) or older (government / intelligence) records. */
 .freshness {

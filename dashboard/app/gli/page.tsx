@@ -12,6 +12,7 @@ import GLIFilters, { type GLIChip } from '@/components/GLIFilters';
 import GLITable, { type GLIColumn } from '@/components/GLITable';
 import GLIDetail from '@/components/GLIDetail';
 import GLISourceLink from '@/components/GLISourceLink';
+import { buildGliCsv, gliExportFilename } from '@/lib/gli-export';
 import styles from './page.module.css';
 
 const GLI_COLUMNS =
@@ -306,6 +307,20 @@ export default function GLIPage() {
     return { visibleLeads, categoryChips, venueChips, tabCounts, staleHidden };
   }, [leads, activeStream, categoryFilter, venueFilter, locationQuery, showStale]);
 
+  // Export exactly the visible, filtered rows to CSV (what you see is what you get).
+  function exportCsv() {
+    const csv = buildGliCsv(derived.visibleLeads);
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const href = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = href;
+    a.download = gliExportFilename(activeStream, categoryFilter, new Date().toISOString().slice(0, 10));
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(href);
+  }
+
   return (
     <main style={{ maxWidth: 1360, margin: '0 auto', padding: '40px 24px' }}>
       <GLINav onSignOut={signOut} />
@@ -325,6 +340,15 @@ export default function GLIPage() {
             onVenue={setVenueFilter}
             onLocation={setLocationQuery}
           />
+          <div className={styles.actions}>
+            <button
+              className={styles.actionBtn}
+              onClick={exportCsv}
+              disabled={derived.visibleLeads.length === 0}
+            >
+              Export CSV
+            </button>
+          </div>
           <div className={styles.tabs} role="tablist">
             {STREAMS.map((s) => (
               <button
