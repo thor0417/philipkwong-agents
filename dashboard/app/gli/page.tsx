@@ -11,7 +11,7 @@ import GLIFilters, { type GLIChip } from '@/components/GLIFilters';
 import GLITable, { type GLIColumn } from '@/components/GLITable';
 import GLIDetail from '@/components/GLIDetail';
 import GLISourceLink from '@/components/GLISourceLink';
-import { buildGliCsv, gliExportFilename } from '@/lib/gli-export';
+import { buildGliWorkbook, gliXlsxFilename } from '@/lib/gli-xlsx';
 import { buildReportPayload, gliReportFilename, type ReportScope } from '@/lib/gli-report';
 import { GLI_PRESETS } from '@/lib/gli-presets';
 import styles from './page.module.css';
@@ -348,14 +348,33 @@ export default function GLIPage() {
     return { visibleLeads, categoryChips, venueChips, tabCounts, viewCounts };
   }, [leads, activeStream, categoryFilter, venueFilter, locationQuery, view]);
 
-  // Export exactly the visible, filtered rows to CSV (what you see is what you get).
-  function exportCsv() {
-    const csv = buildGliCsv(derived.visibleLeads);
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  // Export exactly the visible, filtered rows (Active/Archive + filters respected)
+  // as a branded XLSX workbook.
+  async function exportXlsx() {
+    const date = new Date().toISOString().slice(0, 10);
+    const dates = derived.visibleLeads
+      .map((l) => (l.stream === 'opportunity' ? l.deadline : l.published_date))
+      .filter((d): d is string => !!d)
+      .map((d) => d.slice(0, 10))
+      .sort();
+    const dateRange = dates.length
+      ? dates[0] === dates[dates.length - 1]
+        ? dates[0]
+        : `${dates[0]} to ${dates[dates.length - 1]}`
+      : 'no dates';
+    const blob = await buildGliWorkbook(derived.visibleLeads, {
+      streamLabel: active.label,
+      view: view === 'archive' ? 'Archive' : 'Active',
+      category: categoryFilter,
+      market: locationQuery || 'Global',
+      dateRange,
+      generatedDate: date,
+      focusLabel,
+    });
     const href = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = href;
-    a.download = gliExportFilename(activeStream, categoryFilter, new Date().toISOString().slice(0, 10));
+    a.download = gliXlsxFilename(activeStream, categoryFilter, date);
     document.body.appendChild(a);
     a.click();
     a.remove();
@@ -448,10 +467,10 @@ export default function GLIPage() {
             </label>
             <button
               className={styles.actionBtn}
-              onClick={exportCsv}
+              onClick={exportXlsx}
               disabled={derived.visibleLeads.length === 0}
             >
-              Export CSV
+              Export XLSX
             </button>
             <button
               className={styles.actionBtn}
