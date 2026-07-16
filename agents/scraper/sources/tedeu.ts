@@ -21,6 +21,7 @@ interface TedNotice {
   'notice-title'?: Record<string, string | string[]>;
   'buyer-name'?: Record<string, string[]>;
   'deadline-receipt-request'?: string[];
+  'publication-date'?: string[];
   'place-of-performance'?: string[];
   'classification-cpv'?: string[];
   links?: { html?: Record<string, string> };
@@ -58,6 +59,7 @@ function noticeToLead(n: TedNotice): NormalizedLead | null {
   const buyer = pick(n['buyer-name']);
   const place = [...new Set((n['place-of-performance'] ?? []).filter(Boolean))].join(', ') || null;
   const deadline = toIso(n['deadline-receipt-request']?.[0]);
+  const published = toIso(n['publication-date']?.[0]);
   const cpv = [...new Set((n['classification-cpv'] ?? []).filter(Boolean))].join(', ');
 
   return {
@@ -74,6 +76,7 @@ function noticeToLead(n: TedNotice): NormalizedLead | null {
     company: buyer,
     location: place,
     deadline,
+    published_date: published,
     value_estimate: null,
     source: 'tedeu',
   };
@@ -97,6 +100,7 @@ async function searchTedGroup(cpvCodes: string[], label: string): Promise<Normal
       'links',
       'buyer-name',
       'deadline-receipt-request',
+      'publication-date',
       'place-of-performance',
       'classification-cpv',
     ],
