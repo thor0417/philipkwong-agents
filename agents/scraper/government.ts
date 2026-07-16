@@ -13,6 +13,7 @@
 // hand-pulled finding becomes a first-class row in the same pipeline.
 
 import { pathToFileURL } from 'node:url';
+import Anthropic from '@anthropic-ai/sdk';
 import type { NormalizedLead } from './sources/types';
 import { supabaseAdmin } from '../../lib/supabase-admin';
 import { classifyGli } from './gli';
@@ -23,6 +24,106 @@ import { scrapeLegistar, lastLegistarStats } from './sources/legistar';
 import { scrapeGovDocs } from './sources/govdocs';
 
 const GOVERNMENT_MODULE = 'gli';
+
+// ---- Player extraction (Pass 4). Local-government records name the people and
+// entities: who presented, the applicant/developer, the consultant, and the
+// specific approval sought. Extracted lightly from the record text; left null
+// when absent, NEVER fabricated. ----
+const playerClient = new Anthropic();
+const PLAYER_MODEL = 'claude-haiku-4-5-20251001';
+const PLAYER_RETRIES = 2;
+const playerSleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
+
+export interface GovernmentPlayers {
+  presented_by: string | null;
+  applicant: string | null;
+  representative: string | null;
+  action_sought: string | null;
+}
+
+const NO_PLAYERS: GovernmentPlayers = {
+  presented_by: null,
+  applicant: null,
+  representative: null,
+  action_sought: null,
+};
+
+const PLAYER_PROMPT = `You extract the named people, entities, and the action from a US local-government record (a council agenda item, planning or zoning minute, staff report, comprehensive plan, or special-district document). Return STRICT JSON only (no preamble, no markdown).
+
+Extract each field ONLY when it is explicitly present in the text. If a field is not clearly stated, return null. Never guess, infer, or fabricate a name.
+- presented_by: the person or department that presented or introduced the item
+- applicant: the applicant, developer, or property owner seeking the approval
+- representative: the consultant, attorney, agent, or firm representing the applicant
+- action_sought: the specific approval or action sought (e.g. rezoning, comprehensive plan amendment, site plan approval, special use permit, development agreement)
+
+Respond in exactly this shape:
+{"presented_by": null, "applicant": null, "representative": null, "action_sought": null}
+
+Record:
+`;
+
+function cleanPlayer(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const t = value.trim();
+  if (!t || ['null', 'none', 'n/a', 'unknown', 'not stated'].includes(t.toLowerCase())) return null;
+  return t;
+}
+
+function parsePlayers(text: string): GovernmentPlayers {
+  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  let body = (fenced ? fenced[1] : text).trim();
+  const first = body.indexOf('{');
+  const last = body.lastIndexOf('}');
+  if (first !== -1 && last > first) body = body.slice(first, last + 1);
+  try {
+    const p = JSON.parse(body);
+    return {
+      presented_by: cleanPlayer(p.presented_by),
+      applicant: cleanPlayer(p.applicant),
+      representative: cleanPlayer(p.representative),
+      action_sought: cleanPlayer(p.action_sought),
+    };
+  } catch {
+    return { ...NO_PLAYERS };
+  }
+}
+
+async function extractPlayers(lead: NormalizedLead): Promise<GovernmentPlayers> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const res = await playerClient.messages.create({
+        model: PLAYER_MODEL,
+        max_tokens: 200,
+        messages: [
+          { role: 'user', content: `${PLAYER_PROMPT}Title: ${lead.title}\n\n${lead.raw_content}` },
+        ],
+      });
+      const block = res.content[0];
+      return parsePlayers(block && block.type === 'text' ? block.text : '');
+    } catch (err) {
+      const status = (err as { status?: number })?.status;
+      if (status === 429 && attempt < PLAYER_RETRIES) {
+        await playerSleep(1000 * 2 ** attempt);
+        continue;
+      }
+      console.error(`Player extraction failed for "${lead.title.slice(0, 50)}": ${String(err).slice(0, 80)}`);
+      return { ...NO_PLAYERS };
+    }
+  }
+}
+
+async function extractPlayersBatch(leads: NormalizedLead[]): Promise<GovernmentPlayers[]> {
+  const out = new Array<GovernmentPlayers>(leads.length);
+  let next = 0;
+  async function worker(): Promise<void> {
+    while (next < leads.length) {
+      const i = next++;
+      out[i] = await extractPlayers(leads[i]);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(MAX_CONCURRENCY, leads.length) }, worker));
+  return out;
+}
 
 // A tagged government record: venue_type / signal_type always populated, plus any
 // contact the classifier surfaced. signal_type defaults to Origination.
@@ -66,7 +167,8 @@ export async function tagGovernmentBatch(leads: NormalizedLead[]): Promise<Gover
 // 'primary'); score is null (captured on legitimacy, never fit-ranked).
 export function buildGovernmentRow(
   lead: NormalizedLead,
-  tag: GovernmentTag
+  tag: GovernmentTag,
+  players: GovernmentPlayers = NO_PLAYERS
 ): { region: string; row: Record<string, unknown> } {
   const region = regionFor(lead, regionOf(lead.source));
   const venue = classifyVenueType(`${lead.title ?? ''} ${lead.raw_content ?? ''} ${tag.venue_type}`);
@@ -96,6 +198,10 @@ export function buildGovernmentRow(
       source_type: lead.source_type ?? null,
       primary_document_url: lead.primary_document_url ?? null,
       has_primary_document: lead.has_primary_document ?? false,
+      presented_by: players.presented_by,
+      applicant: players.applicant,
+      representative: players.representative,
+      action_sought: players.action_sought,
       source_tier: 'primary',
       contact_name: tag.contact_name,
       contact_email: tag.contact_email,
@@ -118,12 +224,17 @@ export interface GovernmentReport {
   perSignalType: Record<string, number>;
   perSourceType: Record<string, number>;
   primaryDocs: number;
+  // Records with at least one player field extracted.
+  playersFound: number;
   samples: Array<{
     title: string;
     jurisdiction: string;
     source_type: string;
     venue_type: string;
     signal_type: string;
+    presented_by: string | null;
+    applicant: string | null;
+    action_sought: string | null;
     url: string;
   }>;
 }
@@ -148,21 +259,25 @@ export async function runGovernmentLane(leads: NormalizedLead[]): Promise<Govern
     perSignalType: {},
     perSourceType: {},
     primaryDocs: 0,
+    playersFound: 0,
     samples: [],
   };
 
   const tags = deduped.length > 0 ? await tagGovernmentBatch(deduped) : [];
+  const players = deduped.length > 0 ? await extractPlayersBatch(deduped) : [];
   const noWrite = process.env.GOVERNMENT_NO_WRITE === '1';
 
   for (let i = 0; i < deduped.length; i++) {
     const lead = deduped[i];
     const tag = tags[i];
-    const { row } = buildGovernmentRow(lead, tag);
+    const p = players[i];
+    const { row } = buildGovernmentRow(lead, tag, p);
     inc(report.perJurisdiction, lead.location ?? '(unknown)');
     inc(report.perVenueType, tag.venue_type);
     inc(report.perSignalType, tag.signal_type);
     inc(report.perSourceType, lead.source_type ?? 'Council Agenda');
     if (lead.has_primary_document) report.primaryDocs++;
+    if (p.presented_by || p.applicant || p.representative || p.action_sought) report.playersFound++;
     if (report.samples.length < 10) {
       report.samples.push({
         title: lead.title,
@@ -170,6 +285,9 @@ export async function runGovernmentLane(leads: NormalizedLead[]): Promise<Govern
         source_type: lead.source_type ?? 'Council Agenda',
         venue_type: tag.venue_type,
         signal_type: tag.signal_type,
+        presented_by: p.presented_by,
+        applicant: p.applicant,
+        action_sought: p.action_sought,
         url: lead.url,
       });
     }
@@ -216,14 +334,16 @@ function printGovernmentReport(
   console.log('Per source_type (document type):');
   console.log(table(r.perSourceType));
   console.log(`Records with a fetched primary document: ${r.primaryDocs}`);
+  console.log(`Records with a player extracted: ${r.playersFound} of ${r.written || r.deduped}`);
   console.log('Per venue_type:');
   console.log(table(r.perVenueType));
   console.log('Per signal_type:');
   console.log(table(r.perSignalType));
-  console.log('Sample (up to 10): title | jurisdiction | source_type | venue_type | signal_type | url');
+  console.log('Sample (up to 10): title | jurisdiction | source_type | signal | players (presented_by / applicant / action_sought)');
   for (const s of r.samples) {
+    const players = [s.presented_by, s.applicant, s.action_sought].map((x) => x ?? '-').join(' / ');
     console.log(
-      `    - ${s.title.slice(0, 50)} | ${s.jurisdiction} | ${s.source_type} | ${s.venue_type} | ${s.signal_type} | ${s.url}`
+      `    - ${s.title.slice(0, 46)} | ${s.jurisdiction} | ${s.source_type} | ${s.signal_type} | ${players}`
     );
   }
 
