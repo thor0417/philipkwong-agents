@@ -465,6 +465,95 @@ export function signalSector(lead: NormalizedLead): string {
   return sector === 'other' ? 'tourism' : sector;
 }
 
+// ---- GLI Tier 1 opportunity lane (leisure / tourism advisory solicitations). ----
+// A biddable leisure/tourism ADVISORY opportunity is captured on legitimacy into
+// the GLI opportunity stream (module 'gli', stream 'opportunity', lead_type
+// 'tender'), never fit-scored. The gate is deliberately two-part:
+//   1. a leisure venue / sector is named (theme park, resort, casino, museum, ...),
+//      AND
+//   2. the work is advisory / planning (feasibility, master plan, market study,
+//      operator selection, ...) rather than construction, supply, or catering.
+// Both parts are required so a highway feasibility study (no leisure term) stays
+// in the feasibility lane and a "construct the resort pool" works tender (no
+// advisory term) is not mistaken for advisory work. The routing runs BEFORE the
+// feasibility / CPV / consulting lanes so these Tier 1 leads land in the GLI
+// stream rather than a generic lane.
+
+// Leisure venue / sector terms. Stored unaccented; matched against an accent-
+// stripped haystack so Spanish/French notices ("turismo", "musee") still match.
+const LEISURE_VENUE_TERMS = [
+  'theme park', 'amusement park', 'water park', 'waterpark', 'family entertainment',
+  'visitor attraction', 'attraction', 'leisure', 'tourism', 'tourist', 'turismo',
+  'turistico', 'destination', 'resort', 'integrated resort', 'hotel', 'hospitality',
+  'casino', 'gaming', 'gambling', 'museum', 'museo', 'musee', 'aquarium', 'zoo',
+  'science center', 'science centre', 'heritage', 'cultural', 'convention center',
+  'convention centre', 'conference center', 'conference centre', 'exhibition centre',
+  'exhibition center', 'expo', 'exposition', 'entertainment district', 'waterfront',
+  'marina', 'golf', 'spa', 'ski resort', 'water park', 'recreation', 'recreational',
+];
+
+// Advisory / planning / solicitation intent. A leisure venue named alongside any
+// of these is Tier 1 advisory work.
+const OPPORTUNITY_ADVISORY_TERMS = [
+  'feasibility study', 'feasibility studies', 'feasibility', 'market study',
+  'market research', 'market assessment', 'master plan', 'masterplan',
+  'tourism master plan', 'economic impact study', 'economic impact assessment',
+  'operator selection', 'operator procurement', 'operator', 'management partner',
+  'management contract', 'management agreement', 'concession', 'development consultancy',
+  'advisory', 'advisory services', 'consultancy', 'consultant', 'consulting',
+  'business case', 'options appraisal', 'concept design', 'concept plan',
+  'strategic plan', 'strategy', 'technical assistance', 'terms of reference',
+  'request for proposal', 'expression of interest', 'invitation to tender',
+  'study', 'studies', 'demand study', 'visitor study', 'destination development',
+];
+
+// Operator / management solicitation terms: when present (and no clearer signal),
+// the opportunity is tagged Operator/Management rather than Feasibility RFP.
+const OPERATOR_TERMS = [
+  'operator selection', 'operator procurement', 'management partner',
+  'management contract', 'management agreement', 'concession', 'operator',
+];
+
+// Consultant-procurement feeds: every notice is an advisory assignment by
+// definition, so a leisure term alone qualifies (part 2 is implied by the source).
+const OPPORTUNITY_ADVISORY_SOURCES = new Set(['worldbank', 'adb', 'undp', 'afdb', 'cdb']);
+
+// True when the lead is a biddable leisure/tourism advisory solicitation.
+export function isLeisureOpportunity(lead: NormalizedLead): boolean {
+  const text = deaccent(haystack(lead));
+  if (isJobPosting(text)) return false;
+  if (keywordMatches(text, LEISURE_VENUE_TERMS).length === 0) return false;
+  return (
+    keywordMatches(text, OPPORTUNITY_ADVISORY_TERMS).length > 0 ||
+    OPPORTUNITY_ADVISORY_SOURCES.has(lead.source)
+  );
+}
+
+// The GLI signal_type hint from keywords, used as a fallback when the LLM tagger
+// returns none. Operator/management language wins; otherwise Feasibility RFP (the
+// dominant Tier 1 shape). Values match gli.ts SIGNAL_TYPES.
+export function opportunitySignalHint(lead: NormalizedLead): string {
+  const text = deaccent(haystack(lead));
+  return keywordMatches(text, OPERATOR_TERMS).length > 0 ? 'Operator/Management' : 'Feasibility RFP';
+}
+
+// The GLI venue_type hint from keywords, used as a fallback when the LLM tagger
+// returns none. Reuses the feasibility sector map, then maps a sector to a venue.
+// Values match gli.ts VENUE_TYPES.
+const SECTOR_TO_VENUE: Record<string, string> = {
+  gaming: 'Casino/Gaming',
+  hospitality: 'Resort',
+  entertainment: 'Theme Park',
+  cultural: 'Museum',
+  tourism: 'Leisure Destination/Mixed',
+  leisure: 'Leisure Destination/Mixed',
+};
+
+export function opportunityVenueHint(lead: NormalizedLead): string {
+  const sector = feasibilitySector(deaccent(haystack(lead)));
+  return SECTOR_TO_VENUE[sector] ?? 'Leisure Destination/Mixed';
+}
+
 // Fuel-module leads: real fuel supply -> category 'fuel'; otherwise excluded.
 export function classifyFuel(lead: NormalizedLead): Classification {
   const text = haystack(lead);
