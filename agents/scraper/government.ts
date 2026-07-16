@@ -92,6 +92,7 @@ export function buildGovernmentRow(
       venue_type: venue,
       signal_type: tag.signal_type,
       development_category: categoryForVenue(venue),
+      source_type: lead.source_type ?? null,
       source_tier: 'primary',
       contact_name: tag.contact_name,
       contact_email: tag.contact_email,

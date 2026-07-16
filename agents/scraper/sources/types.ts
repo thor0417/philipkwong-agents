@@ -32,6 +32,18 @@ export interface NormalizedLead {
   // True when the source can tell the filing was withdrawn/rejected/denied; the
   // signals lane never writes these.
   withdrawn?: boolean;
+  // Government (Tier 2) lane, Pass 4. source_type is the canonical document type
+  // (lib/taxonomy SOURCE_TYPES). Player fields are extracted from the record text
+  // (null when absent, never fabricated). primary_document_url / has_primary_document
+  // carry a resolved primary source (government docs, and intelligence
+  // source-chaining).
+  source_type?: string | null;
+  presented_by?: string | null;
+  applicant?: string | null;
+  representative?: string | null;
+  action_sought?: string | null;
+  primary_document_url?: string | null;
+  has_primary_document?: boolean;
 }
 
 // Track B: registry leads. Entities licensed to physically handle fuel.

@@ -17,6 +17,26 @@
 import type { NormalizedLead } from './types';
 import { toIso } from './types';
 import { keywordMatches } from '../prefilter';
+import type { SourceType } from '../../../lib/taxonomy';
+
+// Canonical government document type (lib/taxonomy SOURCE_TYPES) for a Legistar
+// record, from its matter/body type + title. Ordered most-specific first;
+// defaults to Council Agenda (the base Legistar capture). Additive: it enriches
+// the existing council-agenda capture, it never drops anything.
+const SOURCE_TYPE_RULES: { type: SourceType; keywords: string[] }[] = [
+  { type: 'Plan Amendment', keywords: ['comprehensive plan amendment', 'plan amendment', 'small scale amendment', 'large scale amendment', 'future land use amendment', 'cpa'] },
+  { type: 'Comprehensive Plan', keywords: ['comprehensive plan', 'comp plan', 'future land use', 'comprehensive land use'] },
+  { type: 'Staff Report', keywords: ['staff report', 'staff recommendation'] },
+  { type: 'Budget Document', keywords: ['budget', 'appropriation', 'capital improvement plan', 'cip'] },
+  { type: 'Planning/Zoning Minutes', keywords: ['planning commission', 'planning and zoning', 'zoning board', 'zoning commission', 'plan commission', 'zoning', 'rezoning', 'variance', 'special use permit', 'site plan'] },
+];
+
+function legistarSourceType(text: string): SourceType {
+  for (const rule of SOURCE_TYPE_RULES) {
+    if (keywordMatches(text, rule.keywords).length > 0) return rule.type;
+  }
+  return 'Council Agenda';
+}
 
 const BASE = 'https://webapi.legistar.com/v1';
 const UA = 'philipkwong-agents/1.0 (+scraper)';
@@ -37,7 +57,7 @@ export interface LegistarJurisdiction {
   client: string;
   jurisdictionLabel: string;
 }
-const JURISDICTIONS: LegistarJurisdiction[] = [
+const DEFAULT_JURISDICTIONS: LegistarJurisdiction[] = [
   { client: 'lasvegas', jurisdictionLabel: 'Las Vegas, NV' },
   { client: 'clarkcountynv', jurisdictionLabel: 'Clark County, NV' },
   { client: 'orlando', jurisdictionLabel: 'Orlando, FL' },
@@ -47,6 +67,24 @@ const JURISDICTIONS: LegistarJurisdiction[] = [
   { client: 'phoenix', jurisdictionLabel: 'Phoenix, AZ' },
   { client: 'sanantonio', jurisdictionLabel: 'San Antonio, TX' },
 ];
+
+// Config override: LEGISTAR_CLIENTS="lasvegas:Las Vegas NV,orlando:Orlando FL"
+// swaps the jurisdiction list without a code change (one-line aim at any market).
+function parseJurisdictions(env: string | undefined): LegistarJurisdiction[] | null {
+  if (!env) return null;
+  const out = env
+    .split(',')
+    .map((pair) => {
+      const i = pair.indexOf(':');
+      const client = (i === -1 ? pair : pair.slice(0, i)).trim();
+      const jurisdictionLabel = (i === -1 ? client : pair.slice(i + 1)).trim();
+      return { client, jurisdictionLabel };
+    })
+    .filter((j) => j.client);
+  return out.length ? out : null;
+}
+
+const JURISDICTIONS: LegistarJurisdiction[] = parseJurisdictions(process.env.LEGISTAR_CLIENTS) ?? DEFAULT_JURISDICTIONS;
 
 // ---- CONFIG: signal keywords (SWAPPABLE) ------------------------------------
 // A record matches the lane when any of these appears in its title or text.
@@ -232,6 +270,7 @@ async function scrapeJurisdiction(
       published_date: latestIso(m.MatterIntroDate, m.MatterAgendaDate),
       value_estimate: null,
       source: 'legistar',
+      source_type: legistarSourceType(`${m.MatterTypeName ?? ''} ${title} ${m.MatterBodyName ?? ''}`),
     });
   }
 
@@ -252,6 +291,7 @@ async function scrapeJurisdiction(
       published_date: toIso(e.EventDate),
       value_estimate: null,
       source: 'legistar',
+      source_type: legistarSourceType(`${e.EventBodyName ?? ''} ${e.EventComment ?? ''}`),
     });
   }
 
