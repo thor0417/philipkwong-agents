@@ -132,6 +132,11 @@ const VENUE_RULES: { venue: VenueType; keywords: string[] }[] = [
   { venue: 'Heritage/Cultural Site', keywords: ['heritage', 'cultural site', 'cultural center', 'cultural centre', 'cultural'] },
   { venue: 'Integrated Resort', keywords: ['integrated resort'] },
   { venue: 'Casino/Gaming', keywords: ['casino', 'gaming', 'gambling'] },
+  // Entertainment District is a high-priority specific type: it must win over the
+  // broader urban/redevelopment and convention terms below (a "Downtown
+  // Entertainment District" is an Entertainment District, not Downtown
+  // Redevelopment), so it is ordered before Convention/Expo and the urban block.
+  { venue: 'Entertainment District', keywords: ['entertainment district', 'entertainment complex'] },
   { venue: 'Resort', keywords: ['resort'] },
   { venue: 'Hotel', keywords: ['hotel', 'lodging', 'hospitality'] },
   { venue: 'Convention/Expo', keywords: ['convention center', 'convention centre', 'convention', 'exhibition center', 'exhibition centre', 'expo', 'exposition', 'congress center', 'congress centre'] },
@@ -144,7 +149,6 @@ const VENUE_RULES: { venue: VenueType; keywords: string[] }[] = [
   { venue: 'Urban Regeneration', keywords: ['urban regeneration', 'urban renewal'] },
   { venue: 'Downtown Redevelopment', keywords: ['downtown redevelopment', 'downtown'] },
   { venue: 'Waterfront Development', keywords: ['waterfront'] },
-  { venue: 'Entertainment District', keywords: ['entertainment district', 'entertainment complex'] },
   { venue: 'Mixed-Use Development', keywords: ['mixed-use', 'mixed use'] },
   { venue: 'Leisure Destination', keywords: ['leisure', 'tourism', 'tourist', 'destination', 'visitor attraction', 'attraction', 'marina', 'golf', 'spa', 'recreation'] },
 ];
