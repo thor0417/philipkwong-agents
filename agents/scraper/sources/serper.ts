@@ -165,6 +165,20 @@ function parseSerperDate(raw?: string): string | null {
   return Number.isNaN(d.getTime()) ? null : d.toISOString();
 }
 
+// True when a result URL is on a curated domain (or a subdomain of one). Enforced
+// after fetch so a stray non-site: result Google may return on an OR-site query
+// never enters the intelligence set (guarantees the curated-only invariant; this
+// is a source-scope constraint, not relevance filtering).
+function isCuratedUrl(link: string): boolean {
+  let host: string;
+  try {
+    host = new URL(link).hostname.replace(/^www\./, '').toLowerCase();
+  } catch {
+    return false;
+  }
+  return CURATED_DOMAINS.some((d) => host === d || host.endsWith(`.${d}`));
+}
+
 // The snippet is the raw_content per the source contract; the display domain is
 // appended as a short provenance line so the GLI classifier can weigh the source.
 function buildContent(item: SerperOrganic): string {
@@ -246,6 +260,7 @@ export async function scrapeSerper(queries: string[]): Promise<NormalizedLead[]>
     const items = await runQuery(q, tbs);
     for (const item of items) {
       if (!item.title || !item.link) continue;
+      if (!isCuratedUrl(item.link)) continue;
       if (byUrl.has(item.link)) continue;
       byUrl.set(item.link, {
         title: item.title,
