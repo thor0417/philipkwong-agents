@@ -13,6 +13,7 @@ import GLITable, { type GLIColumn } from '@/components/GLITable';
 import GLIDetail from '@/components/GLIDetail';
 import GLISourceLink from '@/components/GLISourceLink';
 import { buildGliCsv, gliExportFilename } from '@/lib/gli-export';
+import { buildReportPayload, gliReportFilename, type ReportScope } from '@/lib/gli-report';
 import styles from './page.module.css';
 
 const GLI_COLUMNS =
@@ -182,6 +183,7 @@ export default function GLIPage() {
   const [venueFilter, setVenueFilter] = useState('all');
   const [locationQuery, setLocationQuery] = useState('');
   const [showStale, setShowStale] = useState(false);
+  const [reporting, setReporting] = useState(false);
   const [selectedLead, setSelectedLead] = useState<GLILead | null>(null);
 
   const load = useCallback(async () => {
@@ -321,6 +323,44 @@ export default function GLIPage() {
     URL.revokeObjectURL(href);
   }
 
+  // Generate a branded PDF of the visible, filtered set via the server route.
+  async function generateReport() {
+    if (reporting || derived.visibleLeads.length === 0) return;
+    setReporting(true);
+    try {
+      const date = new Date().toISOString().slice(0, 10);
+      const scope: ReportScope = {
+        streamLabel: active.label,
+        streamKey: activeStream,
+        category: categoryFilter,
+        venue: venueFilter,
+        location: locationQuery,
+        includesStale: showStale,
+        generatedDate: date,
+      };
+      const res = await fetch('/api/gli-report', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(buildReportPayload(derived.visibleLeads, scope)),
+      });
+      if (!res.ok) throw new Error(`Report failed: ${res.status}`);
+      const blob = await res.blob();
+      const href = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = href;
+      a.download = gliReportFilename(activeStream, categoryFilter, date);
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(href);
+    } catch (err) {
+      console.error(err);
+      alert('Report generation failed. Please try again.');
+    } finally {
+      setReporting(false);
+    }
+  }
+
   return (
     <main style={{ maxWidth: 1360, margin: '0 auto', padding: '40px 24px' }}>
       <GLINav onSignOut={signOut} />
@@ -347,6 +387,13 @@ export default function GLIPage() {
               disabled={derived.visibleLeads.length === 0}
             >
               Export CSV
+            </button>
+            <button
+              className={styles.actionBtn}
+              onClick={generateReport}
+              disabled={reporting || derived.visibleLeads.length === 0}
+            >
+              {reporting ? 'Generating...' : 'Generate Report'}
             </button>
           </div>
           <div className={styles.tabs} role="tablist">
