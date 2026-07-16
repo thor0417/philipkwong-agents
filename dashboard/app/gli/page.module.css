@@ -81,6 +81,36 @@
   cursor: not-allowed;
 }
 
+.focusControl {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.focusControl span {
+  font-family: var(--font-emphasis);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.focusControl select {
+  font-family: var(--font-text);
+  font-size: 13px;
+  color: var(--ink);
+  background: #fff;
+  border: 0.5px solid var(--hairline);
+  border-radius: 0;
+  padding: 8px 10px;
+  cursor: pointer;
+}
+
+.focusControl select:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
 /* Freshness toggle bar: default view is fresh/open only; the toggle reveals
    closed (opportunity) or older (government / intelligence) records. */
 .freshness {

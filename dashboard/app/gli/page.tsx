@@ -14,6 +14,7 @@ import GLIDetail from '@/components/GLIDetail';
 import GLISourceLink from '@/components/GLISourceLink';
 import { buildGliCsv, gliExportFilename } from '@/lib/gli-export';
 import { buildReportPayload, gliReportFilename, type ReportScope } from '@/lib/gli-report';
+import { GLI_PRESETS } from '@/lib/gli-presets';
 import styles from './page.module.css';
 
 const GLI_COLUMNS =
@@ -184,7 +185,39 @@ export default function GLIPage() {
   const [locationQuery, setLocationQuery] = useState('');
   const [showStale, setShowStale] = useState(false);
   const [reporting, setReporting] = useState(false);
+  const [presetKey, setPresetKey] = useState('all');
+  const [focusLabel, setFocusLabel] = useState<string | undefined>(undefined);
   const [selectedLead, setSelectedLead] = useState<GLILead | null>(null);
+
+  // Applying a focus preset sets the saved filter combination in one click.
+  function applyPreset(key: string) {
+    const p = GLI_PRESETS.find((x) => x.key === key) ?? GLI_PRESETS[0];
+    setPresetKey(p.key);
+    setFocusLabel(p.focusLabel);
+    setCategoryFilter(p.category ?? 'all');
+    setVenueFilter(p.venue ?? 'all');
+    setLocationQuery(p.location ?? '');
+    if (p.stream) setActiveStream(p.stream);
+  }
+
+  // Manual filter changes clear the active focus so the report title never
+  // misrepresents a hand-tuned view.
+  const clearFocus = () => {
+    setPresetKey('all');
+    setFocusLabel(undefined);
+  };
+  const handleCategory = (c: string) => {
+    setCategoryFilter(c);
+    clearFocus();
+  };
+  const handleVenue = (v: string) => {
+    setVenueFilter(v);
+    clearFocus();
+  };
+  const handleLocation = (q: string) => {
+    setLocationQuery(q);
+    clearFocus();
+  };
 
   const load = useCallback(async () => {
     // Only the three real streams are shown. Legacy GLI rows with a null stream
@@ -337,6 +370,7 @@ export default function GLIPage() {
         location: locationQuery,
         includesStale: showStale,
         generatedDate: date,
+        focusLabel,
       };
       const res = await fetch('/api/gli-report', {
         method: 'POST',
@@ -376,11 +410,21 @@ export default function GLIPage() {
             categoryFilter={categoryFilter}
             venueFilter={venueFilter}
             locationQuery={locationQuery}
-            onCategory={setCategoryFilter}
-            onVenue={setVenueFilter}
-            onLocation={setLocationQuery}
+            onCategory={handleCategory}
+            onVenue={handleVenue}
+            onLocation={handleLocation}
           />
           <div className={styles.actions}>
+            <label className={styles.focusControl}>
+              <span>Focus</span>
+              <select value={presetKey} onChange={(e) => applyPreset(e.target.value)}>
+                {GLI_PRESETS.map((p) => (
+                  <option key={p.key} value={p.key}>
+                    {p.label}
+                  </option>
+                ))}
+              </select>
+            </label>
             <button
               className={styles.actionBtn}
               onClick={exportCsv}
