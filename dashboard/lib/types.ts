@@ -142,6 +142,10 @@ export interface GLILead {
   date_found: string | null;
   score: number | null;
   source_tier: string | null;
+  // Development category (Leisure/Attractions, Smart City/Urban, ...). Derived on
+  // read by lib/gli-category.ts when the scraper has not tagged it. Never null in
+  // practice (Other/Uncategorized is the fallback).
+  development_category?: string | null;
 }
 
 export const GLI_SIGNAL_ORDER = [
