@@ -291,6 +291,14 @@ export default function GLIPage() {
     );
     const visibleLeads = streamLeads.filter((l) => mCat(l) && mVen(l) && mLoc(l));
 
+    // Active/Archive counts for the current stream + filters, so the toggle shows
+    // at a glance how many are in each view (Active count = visible rows here).
+    const streamFiltered = leads.filter(
+      (l) => l.stream === activeStream && mCat(l) && mVen(l) && mLoc(l)
+    );
+    const activeCount = streamFiltered.filter((l) => isFresh(l, activeStream, now)).length;
+    const viewCounts = { active: activeCount, archive: streamFiltered.length - activeCount };
+
     const catBase = streamLeads.filter((l) => mVen(l) && mLoc(l));
     const venBase = streamLeads.filter((l) => mCat(l) && mLoc(l));
     const countBy = (rows: GLILead[], key: (l: GLILead) => string): Map<string, number> => {
@@ -337,7 +345,7 @@ export default function GLIPage() {
       ).length;
     }
 
-    return { visibleLeads, categoryChips, venueChips, tabCounts };
+    return { visibleLeads, categoryChips, venueChips, tabCounts, viewCounts };
   }, [leads, activeStream, categoryFilter, venueFilter, locationQuery, view]);
 
   // Export exactly the visible, filtered rows to CSV (what you see is what you get).
@@ -412,6 +420,7 @@ export default function GLIPage() {
                 onClick={() => setView(v)}
               >
                 {v === 'active' ? 'Active' : 'Archive'}
+                <span className={styles.viewCount}>{derived.viewCounts[v]}</span>
               </button>
             ))}
           </div>
