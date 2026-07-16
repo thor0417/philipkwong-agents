@@ -12,11 +12,13 @@
 // this file; the manual CLI (npm run lead:add) reuses buildGovernmentRow so a
 // hand-pulled finding becomes a first-class row in the same pipeline.
 
+import { pathToFileURL } from 'node:url';
 import type { NormalizedLead } from './sources/types';
 import { supabaseAdmin } from '../../lib/supabase-admin';
 import { classifyGli } from './gli';
 import { opportunityVenueHint } from './classify';
 import { regionFor, regionOf } from './regions';
+import { scrapeLegistar, lastLegistarStats } from './sources/legistar';
 
 const GOVERNMENT_MODULE = 'gli';
 
@@ -166,4 +168,76 @@ export async function runGovernmentLane(leads: NormalizedLead[]): Promise<Govern
     report.written++;
   }
   return report;
+}
+
+// ---- Standalone entrypoint (npm run scrape:government) -----------------------
+// Fires ONLY the Legistar adapter and the government routing, so the Tier 2 lane
+// validates cheaply without the full engine. GOVERNMENT_NO_WRITE=1 skips writes.
+
+function printGovernmentReport(
+  r: GovernmentReport,
+  stats: Record<string, { fetched: number; matched: number }>
+): void {
+  const table = (m: Record<string, number>): string =>
+    Object.keys(m).length
+      ? Object.entries(m)
+          .sort((a, b) => b[1] - a[1])
+          .map(([k, v]) => `    ${String(v).padStart(4)}  ${k}`)
+          .join('\n')
+      : '    (none)';
+
+  console.log('\n===== GLI TIER 2 GOVERNMENT LANE (scrape:government) =====');
+  console.log(
+    `Records matched: ${r.input}  ->  deduped: ${r.deduped}  ->  written: ${r.written}` +
+      (r.writeFailed ? `  (write failures: ${r.writeFailed})` : '') +
+      (process.env.GOVERNMENT_NO_WRITE === '1' ? '  (GOVERNMENT_NO_WRITE: no writes)' : '')
+  );
+  console.log('Per jurisdiction (fetched / matched / written):');
+  const jurisdictions = new Set<string>([...Object.keys(stats), ...Object.keys(r.perJurisdiction)]);
+  for (const j of [...jurisdictions].sort()) {
+    const s = stats[j] ?? { fetched: 0, matched: 0 };
+    console.log(`    ${j}: ${s.fetched} fetched / ${s.matched} matched / ${r.perJurisdiction[j] ?? 0} written`);
+  }
+  console.log('Per venue_type:');
+  console.log(table(r.perVenueType));
+  console.log('Per signal_type:');
+  console.log(table(r.perSignalType));
+  console.log('Sample (up to 10): title | jurisdiction | venue_type | signal_type | url');
+  for (const s of r.samples) {
+    console.log(
+      `    - ${s.title.slice(0, 55)} | ${s.jurisdiction} | ${s.venue_type} | ${s.signal_type} | ${s.url}`
+    );
+  }
+
+  // Explicit Las Vegas validation: does the lane surface Area15-adjacent or
+  // comparable-scale pre-tender signals? Reported honestly from the actual data.
+  const lvLabel = 'Las Vegas, NV';
+  const lv = stats[lvLabel] ?? { fetched: 0, matched: 0 };
+  const lvWritten = r.perJurisdiction[lvLabel] ?? 0;
+  console.log('\nLas Vegas validation:');
+  console.log(
+    `    ${lv.fetched} records fetched, ${lv.matched} keyword-matched, ${lvWritten} written.`
+  );
+  const lvSamples = r.samples.filter((s) => s.jurisdiction === lvLabel);
+  if (lvSamples.length) {
+    console.log('    Las Vegas signals surfaced (inspect for Area15-adjacent scale):');
+    for (const s of lvSamples) console.log(`      - ${s.title.slice(0, 70)} [${s.signal_type}]`);
+  } else {
+    console.log('    No Las Vegas signals surfaced this run (check the client id / keywords).');
+  }
+  console.log('=========================================================\n');
+}
+
+async function main(): Promise<void> {
+  console.log('GLI Tier 2 government lane starting (scrape:government)...');
+  const leads = await scrapeLegistar();
+  const report = await runGovernmentLane(leads);
+  printGovernmentReport(report, lastLegistarStats());
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main().catch((err) => {
+    console.error('Government lane failed:', err);
+    process.exitCode = 1;
+  });
 }
