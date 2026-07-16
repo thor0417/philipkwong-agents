@@ -31,6 +31,17 @@
   border-bottom-color: var(--accent);
 }
 
+.tabCount {
+  font-family: var(--font-emphasis);
+  font-size: 12px;
+  margin-left: 7px;
+  color: var(--muted);
+}
+
+.tabActive .tabCount {
+  color: var(--accent);
+}
+
 .loading {
   font-family: var(--font-text);
   font-size: 13px;

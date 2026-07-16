@@ -142,6 +142,8 @@ const STREAMS: {
   },
 ];
 
+const STREAM_KEYS = STREAMS.map((s) => s.key);
+
 export default function GLIPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
@@ -153,10 +155,15 @@ export default function GLIPage() {
   const [selectedLead, setSelectedLead] = useState<GLILead | null>(null);
 
   const load = useCallback(async () => {
+    // Only the three real streams are shown. Legacy GLI rows with a null stream
+    // (pre-stream-tagging news) belong to no tab, so they are excluded at the DB
+    // rather than loaded and counted; counting them made stats disagree with the
+    // per-stream tables (a venue could count 1 with zero visible rows in any tab).
     const { data } = await supabase
       .from('leads')
       .select(GLI_COLUMNS)
       .eq('module', 'gli')
+      .in('stream', STREAM_KEYS)
       .order('date_found', { ascending: false });
     const rows = ((data as unknown as GLILead[]) ?? []).map((l) => ({
       ...l,
@@ -225,17 +232,24 @@ export default function GLIPage() {
             onLocation={setLocationQuery}
           />
           <div className={styles.tabs} role="tablist">
-            {STREAMS.map((s) => (
-              <button
-                key={s.key}
-                role="tab"
-                aria-selected={activeStream === s.key}
-                className={`${styles.tab} ${activeStream === s.key ? styles.tabActive : ''}`}
-                onClick={() => setActiveStream(s.key)}
-              >
-                {s.label}
-              </button>
-            ))}
+            {STREAMS.map((s) => {
+              // Per-stream count over the same filtered set. For the active tab
+              // this equals the rows the table renders, so a tab's count and its
+              // visible rows can never disagree.
+              const count = filteredAll.filter((l) => l.stream === s.key).length;
+              return (
+                <button
+                  key={s.key}
+                  role="tab"
+                  aria-selected={activeStream === s.key}
+                  className={`${styles.tab} ${activeStream === s.key ? styles.tabActive : ''}`}
+                  onClick={() => setActiveStream(s.key)}
+                >
+                  {s.label}
+                  <span className={styles.tabCount}>{count}</span>
+                </button>
+              );
+            })}
           </div>
           <GLITable
             leads={streamLeads}
