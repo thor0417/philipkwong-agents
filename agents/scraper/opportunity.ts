@@ -20,6 +20,7 @@ import { LEISURE_CPV_CODES } from './profiles';
 import { isLeisureOpportunity, isDeadNotice } from './classify';
 import { tagOpportunities, sourceTier, type OpportunityTag } from './gli';
 import { regionFor, regionOf } from './regions';
+import { developmentCategory } from './development-category';
 
 import { scrapeTedEu } from './sources/tedeu';
 import { scrapeCanadaBuys } from './sources/canadabuys';
@@ -81,6 +82,7 @@ export function buildOpportunityRow(
       region,
       venue_type: tag.venue_type,
       signal_type: tag.signal_type,
+      development_category: developmentCategory(lead.title, lead.raw_content, tag.venue_type),
       source_tier: tier,
       contact_name: tag.contact_name,
       contact_email: tag.contact_email,

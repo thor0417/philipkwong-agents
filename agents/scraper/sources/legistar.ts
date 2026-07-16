@@ -52,6 +52,7 @@ const JURISDICTIONS: LegistarJurisdiction[] = [
 // A record matches the lane when any of these appears in its title or text.
 // Whole-word, case-insensitive. Edit freely to retarget what counts as a signal.
 const KEYWORDS = [
+  // Leisure / attractions / hospitality / gaming / culture.
   'entertainment district',
   'tourism improvement district',
   'theme park',
@@ -70,13 +71,34 @@ const KEYWORDS = [
   'aquarium',
   'zoo',
   'attraction',
-  'feasibility study',
-  'master plan',
-  'masterplan',
   'tourism development',
   'visitor',
   'cultural center',
   'entertainment complex',
+  // Full development spectrum (smart city / urban / mixed-use / infrastructure)
+  // plus the planning / entitlement process terms that mark early pre-tender
+  // activity. Non-leisure records are captured and categorized, never filtered out.
+  'smart city',
+  'master-planned community',
+  'master planned community',
+  'mixed-use',
+  'mixed use',
+  'urban regeneration',
+  'urban renewal',
+  'transit-oriented development',
+  'transit oriented development',
+  'downtown redevelopment',
+  'waterfront',
+  'redevelopment',
+  'transit hub',
+  'feasibility study',
+  'master plan',
+  'masterplan',
+  'comprehensive plan',
+  'land use',
+  'rezoning',
+  'development agreement',
+  'entitlement',
 ];
 
 // Per-jurisdiction fetched/matched counts from the most recent scrape, for the

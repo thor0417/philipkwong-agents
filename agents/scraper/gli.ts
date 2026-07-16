@@ -25,6 +25,7 @@ import { gliQueries } from './profiles';
 import { normalizeCompany } from './cross-reference';
 import { keywordMatches } from './prefilter';
 import { opportunityVenueHint, opportunitySignalHint } from './classify';
+import { developmentCategory } from './development-category';
 
 const MODEL = 'claude-haiku-4-5-20251001';
 const GLI_MODULE = 'gli';
@@ -653,6 +654,7 @@ export async function runGliLane(rawLeads: NormalizedLead[]): Promise<GliReport>
         lead_type: 'gli',
         venue_type: c.venue_type,
         signal_type: c.signal_type,
+        development_category: developmentCategory(lead.title, lead.raw_content, c.venue_type),
         source_tier: tier,
         contact_name: c.contact_name,
         contact_email: c.contact_email,

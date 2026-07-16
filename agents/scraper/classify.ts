@@ -479,9 +479,13 @@ export function signalSector(lead: NormalizedLead): string {
 // feasibility / CPV / consulting lanes so these Tier 1 leads land in the GLI
 // stream rather than a generic lane.
 
-// Leisure venue / sector terms. Stored unaccented; matched against an accent-
-// stripped haystack so Spanish/French notices ("turismo", "musee") still match.
+// Development venue / sector terms. NOT leisure-only: the full spectrum (smart
+// city, mixed-use, transit-oriented, waterfront, infrastructure, hospitality)
+// plus leisure. Stored unaccented; matched against an accent-stripped haystack so
+// Spanish/French notices ("turismo", "musee") still match. Non-leisure work is
+// captured and categorized (development_category), never filtered out.
 const LEISURE_VENUE_TERMS = [
+  // Leisure / attractions / hospitality / gaming / culture.
   'theme park', 'amusement park', 'water park', 'waterpark', 'family entertainment',
   'visitor attraction', 'attraction', 'leisure', 'tourism', 'tourist', 'turismo',
   'turistico', 'destination', 'resort', 'integrated resort', 'hotel', 'hospitality',
@@ -490,21 +494,27 @@ const LEISURE_VENUE_TERMS = [
   'convention centre', 'conference center', 'conference centre', 'exhibition centre',
   'exhibition center', 'expo', 'exposition', 'entertainment district', 'waterfront',
   'marina', 'golf', 'spa', 'ski resort', 'water park', 'recreation', 'recreational',
+  // Broader development spectrum (smart city / urban / mixed-use / infrastructure).
+  'smart city', 'master-planned community', 'master planned community', 'masterplanned community',
+  'mixed-use', 'mixed use', 'urban regeneration', 'urban renewal', 'transit-oriented',
+  'transit oriented', 'downtown redevelopment', 'redevelopment', 'arena', 'stadium',
+  'transit hub', 'airport city', 'new city', 'district',
 ];
 
-// Advisory / planning / solicitation intent. A leisure venue named alongside any
-// of these is Tier 1 advisory work.
+// Advisory / planning / solicitation intent. A development venue named alongside
+// any of these is Tier 1 advisory work.
 const OPPORTUNITY_ADVISORY_TERMS = [
   'feasibility study', 'feasibility studies', 'feasibility', 'market study',
   'market research', 'market assessment', 'master plan', 'masterplan',
-  'tourism master plan', 'economic impact study', 'economic impact assessment',
-  'operator selection', 'operator procurement', 'operator', 'management partner',
-  'management contract', 'management agreement', 'concession', 'development consultancy',
-  'advisory', 'advisory services', 'consultancy', 'consultant', 'consulting',
-  'business case', 'options appraisal', 'concept design', 'concept plan',
-  'strategic plan', 'strategy', 'technical assistance', 'terms of reference',
-  'request for proposal', 'expression of interest', 'invitation to tender',
-  'study', 'studies', 'demand study', 'visitor study', 'destination development',
+  'tourism master plan', 'comprehensive plan', 'economic impact study',
+  'economic impact assessment', 'operator selection', 'operator procurement',
+  'operator', 'management partner', 'management contract', 'management agreement',
+  'concession', 'development consultancy', 'advisory', 'advisory services',
+  'consultancy', 'consultant', 'consulting', 'business case', 'options appraisal',
+  'concept design', 'concept plan', 'strategic plan', 'strategy', 'technical assistance',
+  'terms of reference', 'request for proposal', 'expression of interest',
+  'invitation to tender', 'study', 'studies', 'demand study', 'visitor study',
+  'destination development', 'land use', 'rezoning', 'development agreement', 'entitlement',
 ];
 
 // Operator / management solicitation terms: when present (and no clearer signal),

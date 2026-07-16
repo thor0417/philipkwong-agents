@@ -18,6 +18,7 @@ import { supabaseAdmin } from '../../lib/supabase-admin';
 import { classifyGli } from './gli';
 import { opportunityVenueHint } from './classify';
 import { regionFor, regionOf } from './regions';
+import { developmentCategory } from './development-category';
 import { scrapeLegistar, lastLegistarStats } from './sources/legistar';
 
 const GOVERNMENT_MODULE = 'gli';
@@ -89,6 +90,7 @@ export function buildGovernmentRow(
       region,
       venue_type: tag.venue_type,
       signal_type: tag.signal_type,
+      development_category: developmentCategory(lead.title, lead.raw_content, tag.venue_type),
       source_tier: 'primary',
       contact_name: tag.contact_name,
       contact_email: tag.contact_email,
