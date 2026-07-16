@@ -20,6 +20,7 @@ import { opportunityVenueHint } from './classify';
 import { regionFor, regionOf } from './regions';
 import { classifyVenueType, categoryForVenue } from '../../lib/taxonomy';
 import { scrapeLegistar, lastLegistarStats } from './sources/legistar';
+import { scrapeGovDocs } from './sources/govdocs';
 
 const GOVERNMENT_MODULE = 'gli';
 
@@ -93,6 +94,8 @@ export function buildGovernmentRow(
       signal_type: tag.signal_type,
       development_category: categoryForVenue(venue),
       source_type: lead.source_type ?? null,
+      primary_document_url: lead.primary_document_url ?? null,
+      has_primary_document: lead.has_primary_document ?? false,
       source_tier: 'primary',
       contact_name: tag.contact_name,
       contact_email: tag.contact_email,
@@ -113,9 +116,12 @@ export interface GovernmentReport {
   perJurisdiction: Record<string, number>;
   perVenueType: Record<string, number>;
   perSignalType: Record<string, number>;
+  perSourceType: Record<string, number>;
+  primaryDocs: number;
   samples: Array<{
     title: string;
     jurisdiction: string;
+    source_type: string;
     venue_type: string;
     signal_type: string;
     url: string;
@@ -140,6 +146,8 @@ export async function runGovernmentLane(leads: NormalizedLead[]): Promise<Govern
     perJurisdiction: {},
     perVenueType: {},
     perSignalType: {},
+    perSourceType: {},
+    primaryDocs: 0,
     samples: [],
   };
 
@@ -153,10 +161,13 @@ export async function runGovernmentLane(leads: NormalizedLead[]): Promise<Govern
     inc(report.perJurisdiction, lead.location ?? '(unknown)');
     inc(report.perVenueType, tag.venue_type);
     inc(report.perSignalType, tag.signal_type);
+    inc(report.perSourceType, lead.source_type ?? 'Council Agenda');
+    if (lead.has_primary_document) report.primaryDocs++;
     if (report.samples.length < 10) {
       report.samples.push({
         title: lead.title,
         jurisdiction: lead.location ?? '(unknown)',
+        source_type: lead.source_type ?? 'Council Agenda',
         venue_type: tag.venue_type,
         signal_type: tag.signal_type,
         url: lead.url,
@@ -202,14 +213,17 @@ function printGovernmentReport(
     const s = stats[j] ?? { fetched: 0, matched: 0 };
     console.log(`    ${j}: ${s.fetched} fetched / ${s.matched} matched / ${r.perJurisdiction[j] ?? 0} written`);
   }
+  console.log('Per source_type (document type):');
+  console.log(table(r.perSourceType));
+  console.log(`Records with a fetched primary document: ${r.primaryDocs}`);
   console.log('Per venue_type:');
   console.log(table(r.perVenueType));
   console.log('Per signal_type:');
   console.log(table(r.perSignalType));
-  console.log('Sample (up to 10): title | jurisdiction | venue_type | signal_type | url');
+  console.log('Sample (up to 10): title | jurisdiction | source_type | venue_type | signal_type | url');
   for (const s of r.samples) {
     console.log(
-      `    - ${s.title.slice(0, 55)} | ${s.jurisdiction} | ${s.venue_type} | ${s.signal_type} | ${s.url}`
+      `    - ${s.title.slice(0, 50)} | ${s.jurisdiction} | ${s.source_type} | ${s.venue_type} | ${s.signal_type} | ${s.url}`
     );
   }
 
@@ -234,8 +248,8 @@ function printGovernmentReport(
 
 async function main(): Promise<void> {
   console.log('GLI Tier 2 government lane starting (scrape:government)...');
-  const leads = await scrapeLegistar();
-  const report = await runGovernmentLane(leads);
+  const [legistar, govdocs] = await Promise.all([scrapeLegistar(), scrapeGovDocs()]);
+  const report = await runGovernmentLane([...legistar, ...govdocs]);
   printGovernmentReport(report, lastLegistarStats());
 }
 
