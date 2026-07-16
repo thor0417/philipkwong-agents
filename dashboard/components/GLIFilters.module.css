@@ -1,35 +1,89 @@
-/* Matches the pipeline Filters bar: DM Mono, 0.5px hairlines, sharp corners. */
-.bar {
+/* GLI cross-stream filters. Category chips primary; venue + location secondary.
+   PP Neue York, 0.5px hairlines, sharp corners, no shadows. No DM Mono. */
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 22px;
+  margin-bottom: 6px;
+}
+
+.categoryRow {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.groupLabel {
+  font-family: var(--font-emphasis);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.chips {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
-  gap: 14px;
-  margin-top: 32px;
-  margin-bottom: 4px;
+  gap: 8px;
+}
+
+.chip {
+  font-family: var(--font-emphasis);
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  color: var(--ink);
+  background: transparent;
+  border: 0.5px solid var(--hairline);
+  padding: 7px 13px;
+  border-radius: 0;
+  cursor: pointer;
+}
+
+.chip:hover {
+  background: transparent;
+  border-color: var(--ink);
+  color: var(--ink);
+}
+
+.chipActive,
+.chipActive:hover {
+  color: #fff;
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.secondaryRow {
+  display: flex;
+  gap: 18px;
+  align-items: flex-end;
+  flex-wrap: wrap;
 }
 
 .control {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  font-family: var(--font-dm-mono), monospace;
-  font-size: 10px;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.control span {
+  font-family: var(--font-emphasis);
+  font-size: 11px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--muted);
 }
 
 .control select {
-  font-family: var(--font-dm-mono), monospace;
-  font-size: 11px;
+  font-family: var(--font-text);
+  font-size: 13px;
   color: var(--ink);
   background: #fff;
   border: 0.5px solid var(--hairline);
   border-radius: 0;
-  padding: 6px 8px;
+  padding: 8px 10px;
   cursor: pointer;
-  text-transform: none;
-  letter-spacing: normal;
 }
 
 .control select:focus {
@@ -38,14 +92,15 @@
 }
 
 .search {
-  flex: 1 1 280px;
-  min-width: 220px;
-  font-family: var(--font-dm-mono), monospace;
-  font-size: 12px;
+  width: auto;
+  min-width: 240px;
+  font-family: var(--font-text);
+  font-size: 13px;
+  color: var(--ink);
   border: 0.5px solid var(--hairline);
   background: #fff;
   border-radius: 0;
-  padding: 9px 11px;
+  padding: 8px 10px;
 }
 
 .search:focus {

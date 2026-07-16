@@ -1,12 +1,13 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import type { GLILead } from '@/lib/types';
 import { developmentCategory } from '@/lib/gli-category';
 import GLINav from '@/components/GLINav';
 import GLIStats from '@/components/GLIStats';
+import GLIFilters from '@/components/GLIFilters';
 import GLITable, { type GLIColumn } from '@/components/GLITable';
 import GLIDetail from '@/components/GLIDetail';
 import SourceLink from '@/components/SourceLink';
@@ -146,6 +147,9 @@ export default function GLIPage() {
   const [loading, setLoading] = useState(true);
   const [leads, setLeads] = useState<GLILead[]>([]);
   const [activeStream, setActiveStream] = useState('opportunity');
+  const [categoryFilter, setCategoryFilter] = useState('all');
+  const [venueFilter, setVenueFilter] = useState('all');
+  const [locationQuery, setLocationQuery] = useState('');
   const [selectedLead, setSelectedLead] = useState<GLILead | null>(null);
 
   const load = useCallback(async () => {
@@ -183,8 +187,25 @@ export default function GLIPage() {
     router.replace('/login');
   }
 
+  // Cross-stream filters: development category (primary), venue, location. Applied
+  // before the stream split so the stats strip and every tab respect them.
+  const filteredAll = useMemo(() => {
+    const q = locationQuery.trim().toLowerCase();
+    return leads.filter((l) => {
+      if (
+        categoryFilter !== 'all' &&
+        (l.development_category ?? 'Other/Uncategorized') !== categoryFilter
+      ) {
+        return false;
+      }
+      if (venueFilter !== 'all' && l.venue_type !== venueFilter) return false;
+      if (q && !(l.location ?? '').toLowerCase().includes(q)) return false;
+      return true;
+    });
+  }, [leads, categoryFilter, venueFilter, locationQuery]);
+
   const active = STREAMS.find((s) => s.key === activeStream) ?? STREAMS[0];
-  const streamLeads = leads.filter((l) => l.stream === active.key);
+  const streamLeads = filteredAll.filter((l) => l.stream === active.key);
 
   return (
     <main style={{ maxWidth: 1360, margin: '0 auto', padding: '40px 24px' }}>
@@ -194,7 +215,15 @@ export default function GLIPage() {
         <p className={styles.loading}>Loading...</p>
       ) : (
         <>
-          <GLIStats leads={leads} />
+          <GLIStats leads={filteredAll} />
+          <GLIFilters
+            categoryFilter={categoryFilter}
+            venueFilter={venueFilter}
+            locationQuery={locationQuery}
+            onCategory={setCategoryFilter}
+            onVenue={setVenueFilter}
+            onLocation={setLocationQuery}
+          />
           <div className={styles.tabs} role="tablist">
             {STREAMS.map((s) => (
               <button
