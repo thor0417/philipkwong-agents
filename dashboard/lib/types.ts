@@ -154,6 +154,15 @@ export interface GLILead {
   // Development category. Derived from venue_type via the canonical taxonomy
   // (lib/taxonomy.ts VENUE_TO_CATEGORY); never null in practice ('Other' fallback).
   development_category?: string | null;
+  // Pass 4 government (Tier 2) fields. Optional: present only after the 009-011
+  // migrations, and only populated on government-stream leads.
+  source_type?: string | null;
+  presented_by?: string | null;
+  applicant?: string | null;
+  representative?: string | null;
+  action_sought?: string | null;
+  primary_document_url?: string | null;
+  has_primary_document?: boolean | null;
 }
 
 export const GLI_SIGNAL_ORDER = [

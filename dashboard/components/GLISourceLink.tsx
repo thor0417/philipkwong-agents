@@ -6,7 +6,13 @@ import styles from './GLISourceLink.module.css';
 // null; stopPropagation so a click inside a clickable table row does not also
 // select the row. Separate from the shared SourceLink so the pipeline views stay
 // untouched.
-export default function GLISourceLink({ url }: { url: string | null }) {
+export default function GLISourceLink({
+  url,
+  label = 'SOURCE',
+}: {
+  url: string | null;
+  label?: string;
+}) {
   if (!url) return null;
   return (
     <a
@@ -16,7 +22,7 @@ export default function GLISourceLink({ url }: { url: string | null }) {
       rel="noopener noreferrer"
       onClick={(e) => e.stopPropagation()}
     >
-      [ SOURCE ]
+      [ {label} ]
     </a>
   );
 }

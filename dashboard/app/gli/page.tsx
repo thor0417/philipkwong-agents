@@ -16,8 +16,12 @@ import { buildReportPayload, gliReportFilename, type ReportScope } from '@/lib/g
 import { GLI_PRESETS } from '@/lib/gli-presets';
 import styles from './page.module.css';
 
-const GLI_COLUMNS =
+const GLI_COLUMNS_BASE =
   'id, title, venue_type, signal_type, location, company, contact_name, contact_email, contact_phone, url, raw_content, date_found, score, source_tier, stream, deadline, published_date, source';
+// Pass 4 government fields. Selected only when the 009-011 migrations exist; the
+// load falls back to the base set otherwise so the page never breaks.
+const GLI_COLUMNS_FULL =
+  `${GLI_COLUMNS_BASE}, source_type, presented_by, applicant, representative, action_sought, primary_document_url, has_primary_document`;
 
 const DASH = '--';
 
@@ -144,6 +148,26 @@ const publishedCol: GLIColumn = {
   sortValue: (l) => timeOf(l.published_date, -Infinity),
 };
 const linkCol: GLIColumn = { key: 'link', label: 'Link', render: (l) => <GLISourceLink url={l.url} /> };
+// Government (Pass 4) columns.
+const sourceTypeCol: GLIColumn = {
+  key: 'source_type',
+  label: 'Doc Type',
+  variant: 'meta',
+  render: (l) => l.source_type ?? DASH,
+  sortValue: (l) => (l.source_type ?? '').toLowerCase(),
+};
+const applicantCol: GLIColumn = {
+  key: 'applicant',
+  label: 'Applicant / Presenter',
+  variant: 'meta',
+  render: (l) => l.applicant ?? l.presented_by ?? DASH,
+  sortValue: (l) => (l.applicant ?? l.presented_by ?? '').toLowerCase(),
+};
+const primaryDocCol: GLIColumn = {
+  key: 'primary_doc',
+  label: 'Primary Doc',
+  render: (l) => (l.primary_document_url ? <GLISourceLink url={l.primary_document_url} label="DOC" /> : DASH),
+};
 
 // The three streams. Opportunities group by signal_type (Feasibility RFP becomes
 // its own section) and sort by soonest deadline; Intelligence sorts by newest
@@ -175,7 +199,18 @@ const STREAMS: {
   {
     key: 'government',
     label: 'Government',
-    columns: [categoryCol, signalCol, venueCol, titleCol, jurisdictionCol, sourceCol, linkCol],
+    columns: [
+      categoryCol,
+      sourceTypeCol,
+      signalCol,
+      venueCol,
+      titleCol,
+      jurisdictionCol,
+      applicantCol,
+      sourceCol,
+      primaryDocCol,
+      linkCol,
+    ],
     group: false,
     sortDir: 'desc',
   },
@@ -232,12 +267,16 @@ export default function GLIPage() {
     // (pre-stream-tagging news) belong to no tab, so they are excluded at the DB
     // rather than loaded and counted; counting them made stats disagree with the
     // per-stream tables (a venue could count 1 with zero visible rows in any tab).
-    const { data } = await supabase
-      .from('leads')
-      .select(GLI_COLUMNS)
-      .eq('module', 'gli')
-      .in('stream', STREAM_KEYS)
-      .order('date_found', { ascending: false });
+    // Try the full column set (Pass 4 fields); fall back to base if not migrated.
+    const query = (cols: string) =>
+      supabase
+        .from('leads')
+        .select(cols)
+        .eq('module', 'gli')
+        .in('stream', STREAM_KEYS)
+        .order('date_found', { ascending: false });
+    let { data, error } = await query(GLI_COLUMNS_FULL);
+    if (error) ({ data } = await query(GLI_COLUMNS_BASE));
     const rows = ((data as unknown as GLILead[]) ?? []).map((l) => ({
       ...l,
       development_category: categoryForVenue(l.venue_type),

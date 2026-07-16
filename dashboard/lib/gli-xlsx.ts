@@ -57,6 +57,12 @@ const BASE_COLS: Col[] = [
   { header: 'URL', get: (l) => l.url ?? '', hyperlink: true, width: 44 },
 ];
 const OPTIONAL_COLS: Col[] = [
+  { header: 'Doc Type', get: (l) => l.source_type ?? '', width: 20 },
+  { header: 'Presented By', get: (l) => l.presented_by ?? '', width: 22 },
+  { header: 'Applicant', get: (l) => l.applicant ?? '', width: 22 },
+  { header: 'Representative', get: (l) => l.representative ?? '', width: 22 },
+  { header: 'Action Sought', get: (l) => l.action_sought ?? '', width: 40 },
+  { header: 'Primary Document', get: (l) => l.primary_document_url ?? '', hyperlink: true, width: 44 },
   { header: 'Contact Name', get: (l) => l.contact_name ?? '', width: 22 },
   { header: 'Contact Email', get: (l) => l.contact_email ?? '', width: 28 },
   { header: 'Contact Phone', get: (l) => l.contact_phone ?? '', width: 18 },

@@ -31,6 +31,14 @@ export default function GLIDetail({
 
   const category = lead.development_category ?? categoryForVenue(lead.venue_type);
   const hasContact = !!(lead.contact_name || lead.contact_email || lead.contact_phone);
+  const players: { label: string; value: string }[] = [];
+  const pushPlayer = (label: string, value: string | null | undefined) => {
+    if (value) players.push({ label, value });
+  };
+  pushPlayer('Presented by', lead.presented_by);
+  pushPlayer('Applicant', lead.applicant);
+  pushPlayer('Representative', lead.representative);
+  pushPlayer('Action sought', lead.action_sought);
 
   const rows: { label: string; value: string }[] = [];
   const push = (label: string, value: string | number | null) => {
@@ -61,6 +69,7 @@ export default function GLIDetail({
               <span className={styles.categoryTag}>{category}</span>
               {lead.venue_type && <span className={styles.venueTag}>{lead.venue_type}</span>}
               {lead.signal_type && <span className={styles.signalTag}>{lead.signal_type}</span>}
+              {lead.source_type && <span className={styles.venueTag}>{lead.source_type}</span>}
             </div>
             {lead.url && (
               <div className={styles.sourceRow}>
@@ -106,6 +115,34 @@ export default function GLIDetail({
                 </div>
               )}
             </div>
+          </section>
+        )}
+
+        {players.length > 0 && (
+          <section className={styles.section}>
+            <div className={styles.sectionHead}>Players</div>
+            <div className={styles.grid}>
+              {players.map((p) => (
+                <div key={p.label} className={styles.field}>
+                  <span className={styles.fieldLabel}>{p.label}</span>
+                  <span className={styles.fieldValue}>{p.value}</span>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {lead.primary_document_url && (
+          <section className={styles.section}>
+            <div className={styles.sectionHead}>Primary Document</div>
+            <a
+              className={styles.fieldLink}
+              href={lead.primary_document_url}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              View Primary Document
+            </a>
           </section>
         )}
 
