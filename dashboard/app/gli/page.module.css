@@ -47,3 +47,37 @@
   font-size: 13px;
   color: var(--muted);
 }
+
+/* Freshness toggle bar: default view is fresh/open only; the toggle reveals
+   closed (opportunity) or older (government / intelligence) records. */
+.freshness {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 12px 0 2px;
+}
+
+.freshNote {
+  font-family: var(--font-text);
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.freshToggle {
+  font-family: var(--font-emphasis);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink);
+  background: transparent;
+  border: 0.5px solid var(--hairline);
+  border-radius: 0;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+
+.freshToggle:hover {
+  border-color: var(--ink);
+  background: transparent;
+  color: var(--ink);
+}
