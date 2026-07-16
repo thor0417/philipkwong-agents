@@ -19,7 +19,7 @@ import {
   LEISURE_CPV_CODES,
   type IndustryProfile,
 } from './profiles';
-import { runGliLane, type GliReport } from './gli';
+import { runGliLane, tagOpportunities, sourceTier, type GliReport } from './gli';
 import { bestProfileFor, passesPrefilter, keywordMatches } from './prefilter';
 import { isBrokerNoise } from './broker-filter';
 import {
@@ -31,6 +31,7 @@ import {
   specificConsultancyCpvCodes,
   passesSectorGate,
   signalSector,
+  isLeisureOpportunity,
 } from './classify';
 import { scoreLeads, type ScorerInput } from './scorer';
 import { crossReference, normalizeCompany } from './cross-reference';
@@ -88,6 +89,11 @@ const SIGNAL_SOURCE_SET = new Set(SIGNAL_SOURCES);
 // LLM inclusion gate, venue/signal tagging, project dedup. They never touch the
 // feasibility, fuel, consulting, or signals paths.
 const GLI_LEAD_SOURCE = 'gli_serper';
+
+// Module tag shared by every GLI lane write (news lane in gli.ts and the Tier 1
+// opportunity lane below). The opportunity lane additionally sets stream
+// 'opportunity' and lead_type 'tender'.
+const GLI_MODULE_OPPORTUNITY = 'gli';
 
 // Part A development banks whose tourism notices are captured on legitimacy
 // (like the TED CPV lane): IADB/CDB notices otherwise route through the Haiku
@@ -291,6 +297,23 @@ export interface ScrapeReport {
   cpvConsultingExpired: number;
   cpvConsultingWritten: number;
   cpvConsultingPerCode: Record<string, number>;
+  // GLI Tier 1 opportunity lane (leisure/tourism advisory solicitations).
+  opportunityFound: number;
+  opportunityExpired: number;
+  opportunityWritten: number;
+  opportunityWithDeadline: number;
+  opportunityPerSource: Record<string, number>;
+  opportunityPerVenueType: Record<string, number>;
+  opportunityPerSignalType: Record<string, number>;
+  opportunityPerRegion: Record<string, number>;
+  opportunitySamples: Array<{
+    title: string;
+    source: string;
+    venue_type: string;
+    signal_type: string;
+    region: string;
+    deadline: string;
+  }>;
   // LATAM_CARIB region group (Mexico + Caribbean origination territory).
   latamWritten: number;
   latamPerCountry: Record<string, number>;
@@ -378,6 +401,7 @@ export async function orchestrate(): Promise<ScrapeReport> {
   const fuelPrepared: NormalizedLead[] = [];
   const feasibilityPrepared: NormalizedLead[] = [];
   const cpvConsultingPrepared: Array<{ lead: NormalizedLead; codes: string[] }> = [];
+  const opportunityPrepared: NormalizedLead[] = [];
   const signalRaw: NormalizedLead[] = [];
   const gliRaw: NormalizedLead[] = [];
   let prefilterFiltered = 0;
@@ -390,6 +414,8 @@ export async function orchestrate(): Promise<ScrapeReport> {
   let feasibilityExpired = 0;
   let cpvConsultingFound = 0;
   let cpvConsultingExpired = 0;
+  let opportunityFound = 0;
+  let opportunityExpired = 0;
   let nonFuelExpired = 0;
   const now = Date.now();
 
@@ -410,6 +436,25 @@ export async function orchestrate(): Promise<ScrapeReport> {
     // paths. Collect and skip.
     if (SIGNAL_SOURCE_SET.has(lead.source)) {
       signalRaw.push(lead);
+      continue;
+    }
+
+    // GLI Tier 1 opportunity lane (leisure/tourism advisory solicitations): runs
+    // BEFORE the feasibility / CPV / consulting routing so a leisure-sector
+    // advisory solicitation (theme-park feasibility, tourism master plan, resort
+    // operator selection, dev-bank tourism consultancy) lands in the GLI
+    // opportunity stream (module 'gli', stream 'opportunity', lead_type 'tender')
+    // rather than a generic lane. Captured on legitimacy: leisure venue + advisory
+    // intent is the gate (isLeisureOpportunity); expired notices are dropped; no
+    // Haiku fit scoring (the GLI classifier tags venue/signal only, downstream).
+    // Non-leisure feasibility/CPV/consulting/fuel/signals routing is unchanged.
+    if (isLeisureOpportunity(lead)) {
+      opportunityFound++;
+      if (isExpired(lead.deadline, now)) {
+        opportunityExpired++;
+        continue;
+      }
+      opportunityPrepared.push(lead);
       continue;
     }
 
@@ -522,7 +567,8 @@ export async function orchestrate(): Promise<ScrapeReport> {
     console.log(
       `DRY_RUN: ${prepared.length} non-fuel leads would be Haiku-scored; ` +
         `${fuelPrepared.length} fuel leads, ${feasibilityPrepared.length} feasibility ` +
-        `leads, ${cpvConsultingPrepared.length} TED CPV-consultancy leads, and ` +
+        `leads, ${cpvConsultingPrepared.length} TED CPV-consultancy leads, ` +
+        `${opportunityPrepared.length} GLI Tier 1 opportunity leads, and ` +
         `${signalRaw.length} raw signal-source leads would be processed (no Haiku).`
     );
     return {
@@ -554,6 +600,15 @@ export async function orchestrate(): Promise<ScrapeReport> {
       cpvConsultingExpired,
       cpvConsultingWritten: 0,
       cpvConsultingPerCode: {},
+      opportunityFound,
+      opportunityExpired,
+      opportunityWritten: 0,
+      opportunityWithDeadline: 0,
+      opportunityPerSource: {},
+      opportunityPerVenueType: {},
+      opportunityPerSignalType: {},
+      opportunityPerRegion: {},
+      opportunitySamples: [],
       latamWritten: 0,
       latamPerCountry: {},
       latamPerCategory: {},
@@ -867,6 +922,92 @@ export async function orchestrate(): Promise<ScrapeReport> {
     recordLatam(lead, region, 'consulting');
   }
 
+  // 5d-bis. GLI Tier 1 opportunity write path: leisure/tourism advisory
+  // solicitations captured on legitimacy, tagged venue_type/signal_type by the
+  // GLI classifier (tagging only, never a keep/drop gate), written with module
+  // 'gli', stream 'opportunity', lead_type 'tender'. Never fit-scored (score
+  // null). deadline is carried from the source; published_date too where the
+  // source exposes it. Region is tagged by the tender's country (regionFor), not
+  // the source portal. Folded into the shared per-module/lead_type/source tallies.
+  const opportunityPerSource: Record<string, number> = {};
+  const opportunityPerVenueType: Record<string, number> = {};
+  const opportunityPerSignalType: Record<string, number> = {};
+  const opportunityPerRegion: Record<string, number> = {};
+  const opportunitySamples: Array<{
+    title: string;
+    source: string;
+    venue_type: string;
+    signal_type: string;
+    region: string;
+    deadline: string;
+  }> = [];
+  let opportunityWritten = 0;
+  let opportunityWithDeadline = 0;
+  const opportunityTags =
+    opportunityPrepared.length > 0 ? await tagOpportunities(opportunityPrepared) : [];
+  for (let i = 0; i < opportunityPrepared.length; i++) {
+    const lead = opportunityPrepared[i];
+    const tag = opportunityTags[i];
+    const region = regionFor(lead, regionOf(lead.source));
+    const tier = sourceTier(lead.url);
+    const dead = isDeadNotice(lead);
+    const { error } = await supabaseAdmin.from('leads').upsert(
+      {
+        source: lead.source,
+        url: lead.url,
+        title: lead.title,
+        raw_content: lead.raw_content,
+        score: null,
+        score_reason: `GLI Tier 1 opportunity captured on legitimacy (leisure/tourism advisory solicitation): ${tag.signal_type} (${tag.venue_type}). Not fit-scored.`,
+        status: dead ? 'dead' : 'new',
+        module: GLI_MODULE_OPPORTUNITY,
+        industry: GLI_MODULE_OPPORTUNITY,
+        stream: 'opportunity',
+        company: lead.company,
+        location: lead.location,
+        deadline: lead.deadline,
+        published_date: lead.published_date ?? null,
+        value_estimate: lead.value_estimate,
+        lead_type: 'tender',
+        region,
+        venue_type: tag.venue_type,
+        signal_type: tag.signal_type,
+        source_tier: tier,
+        contact_name: tag.contact_name,
+        contact_email: tag.contact_email,
+        contact_phone: tag.contact_phone,
+      },
+      { onConflict: 'url' }
+    );
+    if (error) {
+      console.error(`Opportunity write failed for ${lead.url}: ${error.message}`);
+      continue;
+    }
+    opportunityWritten++;
+    written++;
+    if (lead.deadline) opportunityWithDeadline++;
+    inc(opportunityPerSource, lead.source);
+    inc(opportunityPerVenueType, tag.venue_type);
+    inc(opportunityPerSignalType, tag.signal_type);
+    inc(opportunityPerRegion, region);
+    inc(writtenPerSource, lead.source);
+    inc(writtenPerModule, GLI_MODULE_OPPORTUNITY);
+    inc(writtenPerIndustry, GLI_MODULE_OPPORTUNITY);
+    inc(writtenPerRegion, region);
+    inc(writtenPerLeadType, 'tender');
+    recordLatam(lead, region, 'gli_opportunity');
+    if (opportunitySamples.length < 10) {
+      opportunitySamples.push({
+        title: lead.title,
+        source: lead.source,
+        venue_type: tag.venue_type,
+        signal_type: tag.signal_type,
+        region,
+        deadline: lead.deadline ?? '',
+      });
+    }
+  }
+
   // 5e. Signals lane (Part B): private-developer / regulator pre-tender signals.
   // Captured on legitimacy through the bilingual sector gate, never fit-scored
   // (score null). Delta detection writes only genuinely new filings (fingerprint
@@ -1044,6 +1185,15 @@ export async function orchestrate(): Promise<ScrapeReport> {
     cpvConsultingExpired,
     cpvConsultingWritten,
     cpvConsultingPerCode,
+    opportunityFound,
+    opportunityExpired,
+    opportunityWritten,
+    opportunityWithDeadline,
+    opportunityPerSource,
+    opportunityPerVenueType,
+    opportunityPerSignalType,
+    opportunityPerRegion,
+    opportunitySamples,
     latamWritten,
     latamPerCountry,
     latamPerCategory,
@@ -1214,6 +1364,29 @@ function printReport(r: ScrapeReport): void {
   console.log(`  Written (all legit):              ${r.cpvConsultingWritten}`);
   console.log('  CPV-consultancy written per CPV code:');
   console.log(table(r.cpvConsultingPerCode));
+  console.log('--- GLI Tier 1 opportunity lane (leisure/tourism advisory solicitations, no fit scoring) ---');
+  console.log(`  Opportunities found:          ${r.opportunityFound}`);
+  console.log(`  Dropped (expired deadline):   ${r.opportunityExpired}`);
+  console.log(`  Written (module gli, stream opportunity): ${r.opportunityWritten}`);
+  console.log(
+    `  With a populated deadline:    ${r.opportunityWithDeadline} of ${r.opportunityWritten}  (health metric)`
+  );
+  console.log('  Opportunities written per source:');
+  console.log(table(r.opportunityPerSource));
+  console.log('  Opportunities per venue_type:');
+  console.log(table(r.opportunityPerVenueType));
+  console.log('  Opportunities per signal_type:');
+  console.log(table(r.opportunityPerSignalType));
+  console.log('  Opportunities per region:');
+  console.log(table(r.opportunityPerRegion));
+  if (r.opportunitySamples.length) {
+    console.log('  Sample (up to 10): title | source | venue_type | signal_type | region | deadline');
+    for (const s of r.opportunitySamples) {
+      console.log(
+        `    - ${s.title.slice(0, 50)} | ${s.source} | ${s.venue_type} | ${s.signal_type} | ${s.region} | ${s.deadline || '(none)'}`
+      );
+    }
+  }
   console.log('--- LATAM_CARIB region group (Mexico + Caribbean origination) ---');
   console.log(`  Leads written in LATAM_CARIB: ${r.latamWritten}`);
   console.log('  LATAM_CARIB per country:');

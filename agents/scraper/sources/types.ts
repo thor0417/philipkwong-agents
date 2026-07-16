@@ -14,6 +14,10 @@ export interface NormalizedLead {
   deadline: string | null;
   value_estimate: string | null;
   source: string;
+  // Source publication date (ISO 8601 string), when the source exposes one.
+  // Distinct from deadline; set by sources that carry it (TED, IADB). Optional so
+  // existing adapters that do not populate it are unaffected.
+  published_date?: string | null;
   // Optional ISO-3166 alpha-2 country code. Set by sources that know the
   // project country directly (IADB, and the LATAM/Caribbean signal sources) so
   // region grouping does not have to infer it from a free-text location.

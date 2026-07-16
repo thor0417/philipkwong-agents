@@ -24,6 +24,7 @@ import { scrapeSerper, lastSerperSearchCount } from './sources/serper';
 import { gliQueries } from './profiles';
 import { normalizeCompany } from './cross-reference';
 import { keywordMatches } from './prefilter';
+import { opportunityVenueHint, opportunitySignalHint } from './classify';
 
 const MODEL = 'claude-haiku-4-5-20251001';
 const GLI_MODULE = 'gli';
@@ -188,7 +189,7 @@ const TRADE_DOMAINS = [
 
 // Domain source tier: 'primary' (gov / authority / dev bank), 'trade' (industry
 // press), or 'news' (everything else that cleared the junk filter).
-function sourceTier(url: string | null): string {
+export function sourceTier(url: string | null): string {
   const host = hostOf(url);
   if (!host) return 'news';
   if (host.includes('.gov') || PRIMARY_DOMAINS.some((d) => host.endsWith(d))) {
@@ -392,6 +393,38 @@ async function classifyBatch(leads: NormalizedLead[]): Promise<GliClassification
   const workers = Array.from({ length: Math.min(MAX_CONCURRENCY, leads.length) }, worker);
   await Promise.all(workers);
   return results;
+}
+
+// ---- GLI Tier 1 opportunity tagging -----------------------------------------
+// A tagged opportunity: venue_type / signal_type plus any contact the classifier
+// surfaced. venue_type / signal_type are always populated (LLM value or keyword
+// fallback), so an opportunity lead is never left untagged.
+export interface OpportunityTag {
+  venue_type: string;
+  signal_type: string;
+  contact_name: string | null;
+  contact_email: string | null;
+  contact_phone: string | null;
+}
+
+// Tag Tier 1 opportunity leads with venue_type / signal_type using the GLI
+// classifier for TAGGING ONLY, never as a keep/drop gate: these leads already
+// cleared the leisure-advisory legitimacy gate (isLeisureOpportunity), so they
+// are captured regardless of the classifier's keep verdict. When the classifier
+// returns no venue/signal (e.g. it judged keep=false for a terse tender title), a
+// keyword fallback fills them so every lead is tagged and written.
+export async function tagOpportunities(leads: NormalizedLead[]): Promise<OpportunityTag[]> {
+  const classifications = await classifyBatch(leads);
+  return leads.map((lead, i) => {
+    const c = classifications[i];
+    return {
+      venue_type: c.venue_type ?? opportunityVenueHint(lead),
+      signal_type: c.signal_type ?? opportunitySignalHint(lead),
+      contact_name: c.contact_name,
+      contact_email: c.contact_email,
+      contact_phone: c.contact_phone,
+    };
+  });
 }
 
 // Normalized project key for dedup: project name + location. Two articles about
