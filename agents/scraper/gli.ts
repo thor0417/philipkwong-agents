@@ -25,7 +25,7 @@ import { gliQueries } from './profiles';
 import { normalizeCompany } from './cross-reference';
 import { keywordMatches } from './prefilter';
 import { opportunityVenueHint, opportunitySignalHint } from './classify';
-import { developmentCategory } from './development-category';
+import { classifyVenueType, categoryForVenue } from '../../lib/taxonomy';
 
 const MODEL = 'claude-haiku-4-5-20251001';
 const GLI_MODULE = 'gli';
@@ -616,7 +616,9 @@ export async function runGliLane(rawLeads: NormalizedLead[]): Promise<GliReport>
 
   for (const { lead, c } of kept) {
     const tier = sourceTier(lead.url);
-    inc(perVenueType, c.venue_type ?? 'Unclassified');
+    // Canonical venue is deterministic (lib/taxonomy); the LLM venue is a hint.
+    const venue = classifyVenueType(`${lead.title ?? ''} ${lead.raw_content ?? ''} ${c.venue_type ?? ''}`);
+    inc(perVenueType, venue);
     inc(perSignalType, c.signal_type ?? 'Unclassified');
     inc(perTier, tier);
     inc(perCountry, countryOf(c.location));
@@ -625,7 +627,7 @@ export async function runGliLane(rawLeads: NormalizedLead[]): Promise<GliReport>
         title: lead.title,
         published_date: lead.published_date ?? '',
         domain: hostOf(lead.url),
-        venue_type: c.venue_type ?? '',
+        venue_type: venue,
         signal_type: c.signal_type ?? '',
         location: c.location ?? '',
         contact: !!(c.contact_name || c.contact_email || c.contact_phone),
@@ -641,7 +643,7 @@ export async function runGliLane(rawLeads: NormalizedLead[]): Promise<GliReport>
         title: lead.title,
         raw_content: lead.raw_content,
         score: null,
-        score_reason: `GLI lane: ${c.signal_type} (${c.venue_type}). ${c.reason}`,
+        score_reason: `GLI lane: ${c.signal_type} (${venue}). ${c.reason}`,
         status: 'new',
         module: GLI_MODULE,
         industry: GLI_MODULE,
@@ -652,9 +654,9 @@ export async function runGliLane(rawLeads: NormalizedLead[]): Promise<GliReport>
         published_date: lead.published_date ?? null,
         value_estimate: null,
         lead_type: 'gli',
-        venue_type: c.venue_type,
+        venue_type: venue,
         signal_type: c.signal_type,
-        development_category: developmentCategory(lead.title, lead.raw_content, c.venue_type),
+        development_category: categoryForVenue(venue),
         source_tier: tier,
         contact_name: c.contact_name,
         contact_email: c.contact_email,

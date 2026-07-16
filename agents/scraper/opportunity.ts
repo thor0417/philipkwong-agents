@@ -20,7 +20,7 @@ import { LEISURE_CPV_CODES } from './profiles';
 import { isLeisureOpportunity, isDeadNotice } from './classify';
 import { tagOpportunities, sourceTier, type OpportunityTag } from './gli';
 import { regionFor, regionOf } from './regions';
-import { developmentCategory } from './development-category';
+import { classifyVenueType, categoryForVenue } from '../../lib/taxonomy';
 
 import { scrapeTedEu } from './sources/tedeu';
 import { scrapeCanadaBuys } from './sources/canadabuys';
@@ -57,6 +57,9 @@ export function buildOpportunityRow(
   const region = regionFor(lead, regionOf(lead.source));
   const tier = sourceTier(lead.url);
   const closed = opportunityClosed(lead);
+  // Canonical venue is deterministic (lib/taxonomy), so it never drifts or
+  // collapses; the LLM's venue is folded in as a hint. Category derives from it.
+  const venue = classifyVenueType(`${lead.title ?? ''} ${lead.raw_content ?? ''} ${tag.venue_type}`);
   return {
     region,
     row: {
@@ -80,9 +83,9 @@ export function buildOpportunityRow(
       value_estimate: lead.value_estimate,
       lead_type: 'tender',
       region,
-      venue_type: tag.venue_type,
+      venue_type: venue,
       signal_type: tag.signal_type,
-      development_category: developmentCategory(lead.title, lead.raw_content, tag.venue_type),
+      development_category: categoryForVenue(venue),
       source_tier: tier,
       contact_name: tag.contact_name,
       contact_email: tag.contact_email,

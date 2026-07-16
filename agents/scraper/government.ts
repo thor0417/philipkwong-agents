@@ -18,7 +18,7 @@ import { supabaseAdmin } from '../../lib/supabase-admin';
 import { classifyGli } from './gli';
 import { opportunityVenueHint } from './classify';
 import { regionFor, regionOf } from './regions';
-import { developmentCategory } from './development-category';
+import { classifyVenueType, categoryForVenue } from '../../lib/taxonomy';
 import { scrapeLegistar, lastLegistarStats } from './sources/legistar';
 
 const GOVERNMENT_MODULE = 'gli';
@@ -68,6 +68,7 @@ export function buildGovernmentRow(
   tag: GovernmentTag
 ): { region: string; row: Record<string, unknown> } {
   const region = regionFor(lead, regionOf(lead.source));
+  const venue = classifyVenueType(`${lead.title ?? ''} ${lead.raw_content ?? ''} ${tag.venue_type}`);
   return {
     region,
     row: {
@@ -88,9 +89,9 @@ export function buildGovernmentRow(
       value_estimate: null,
       lead_type: 'record',
       region,
-      venue_type: tag.venue_type,
+      venue_type: venue,
       signal_type: tag.signal_type,
-      development_category: developmentCategory(lead.title, lead.raw_content, tag.venue_type),
+      development_category: categoryForVenue(venue),
       source_tier: 'primary',
       contact_name: tag.contact_name,
       contact_email: tag.contact_email,
