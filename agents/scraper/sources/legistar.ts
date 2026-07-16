@@ -119,6 +119,17 @@ function eventUrl(client: string, e: LegistarEvent): string {
   return `https://${client}.legistar.com/MeetingDetail.aspx?ID=${e.EventId}${guid}`;
 }
 
+// The freshest document date across the supplied fields, as ISO. Used so an
+// amendment or a recent agenda action counts as fresh activity even when the
+// matter was introduced long ago (the government freshness gate keys on this).
+function latestIso(...values: (string | undefined)[]): string | null {
+  const times = values
+    .map((v) => (v ? new Date(v).getTime() : NaN))
+    .filter((t) => !Number.isNaN(t));
+  if (times.length === 0) return null;
+  return new Date(Math.max(...times)).toISOString();
+}
+
 async function fetchJson<T>(url: string, label: string): Promise<T[]> {
   try {
     const res = await fetch(url, {
@@ -194,7 +205,9 @@ async function scrapeJurisdiction(
       company: m.MatterBodyName ?? null,
       location: j.jurisdictionLabel,
       deadline: null,
-      published_date: toIso(m.MatterIntroDate ?? m.MatterAgendaDate),
+      // Freshest of intro / agenda date so recent activity on an old matter reads
+      // as fresh for the government freshness gate.
+      published_date: latestIso(m.MatterIntroDate, m.MatterAgendaDate),
       value_estimate: null,
       source: 'legistar',
     });

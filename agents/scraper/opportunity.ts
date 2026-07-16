@@ -55,7 +55,7 @@ export function buildOpportunityRow(
 ): { region: string; row: Record<string, unknown> } {
   const region = regionFor(lead, regionOf(lead.source));
   const tier = sourceTier(lead.url);
-  const dead = isDeadNotice(lead);
+  const closed = opportunityClosed(lead);
   return {
     region,
     row: {
@@ -65,7 +65,10 @@ export function buildOpportunityRow(
       raw_content: lead.raw_content,
       score: null,
       score_reason: `GLI Tier 1 opportunity captured on legitimacy (leisure/tourism advisory solicitation): ${tag.signal_type} (${tag.venue_type}). Not fit-scored.`,
-      status: dead ? 'dead' : 'new',
+      // Freshness flag keyed to the record's own deadline (open vs closed), not to
+      // scrape time. Closed leads are kept as market intelligence; the dashboard
+      // hides them from the default biddable view (with a show-closed toggle).
+      status: closed ? 'closed' : 'open',
       module: OPPORTUNITY_MODULE,
       industry: OPPORTUNITY_MODULE,
       stream: 'opportunity',
@@ -86,20 +89,25 @@ export function buildOpportunityRow(
   };
 }
 
-// A lead is expired only when it states a deadline already in the past. Missing /
-// unparseable deadlines are kept (many buy-side notices publish no deadline).
-function isExpired(deadline: string | null, now: number): boolean {
-  if (!deadline) return false;
-  const t = new Date(deadline).getTime();
-  if (Number.isNaN(t)) return false;
-  return t < now;
+// An opportunity is CLOSED when its submission deadline has passed, or the notice
+// is already awarded/cancelled/withdrawn. A missing/unparseable deadline is a live
+// (open/undated) solicitation, not closed. Evaluated against the current time so
+// a lead written open becomes closed once its deadline passes.
+export function opportunityClosed(lead: NormalizedLead): boolean {
+  if (isDeadNotice(lead)) return true;
+  if (!lead.deadline) return false;
+  const t = new Date(lead.deadline).getTime();
+  return !Number.isNaN(t) && t < Date.now();
 }
 
 export interface OpportunityReport {
   fetched: number;
   deduped: number;
   matched: number;
-  expired: number;
+  // Freshness: open (future/undated live) vs closed (deadline passed). Closed
+  // leads are captured and flagged, never dropped.
+  open: number;
+  closed: number;
   written: number;
   writeFailed: number;
   // Populated deadlines over the captured (matched, live) set: the health metric.
@@ -151,30 +159,22 @@ export async function fetchOpportunitySources(): Promise<NormalizedLead[]> {
 // stream 'opportunity'). OPPORTUNITY_NO_WRITE=1 skips the writes. The per-source /
 // per-venue / per-signal / per-region tallies and the deadline health count are
 // over the captured (matched, live) set; `written` is the subset persisted.
-export async function runOpportunityLane(
-  all: NormalizedLead[],
-  now: number
-): Promise<OpportunityReport> {
+export async function runOpportunityLane(all: NormalizedLead[]): Promise<OpportunityReport> {
   const byUrl = new Map<string, NormalizedLead>();
   for (const l of all) if (l.url && !byUrl.has(l.url)) byUrl.set(l.url, l);
   const deduped = [...byUrl.values()];
 
+  // Closed opportunities are NOT dropped: they are captured and flagged (status
+  // 'closed') so the dashboard can show them as market intelligence behind a
+  // toggle while the default biddable view stays open-only.
   const candidates = deduped.filter(isLeisureOpportunity);
-  const live: NormalizedLead[] = [];
-  let expired = 0;
-  for (const l of candidates) {
-    if (isExpired(l.deadline, now)) {
-      expired++;
-      continue;
-    }
-    live.push(l);
-  }
 
   const report: OpportunityReport = {
     fetched: all.length,
     deduped: deduped.length,
     matched: candidates.length,
-    expired,
+    open: 0,
+    closed: 0,
     written: 0,
     writeFailed: 0,
     withDeadline: 0,
@@ -185,13 +185,15 @@ export async function runOpportunityLane(
     samples: [],
   };
 
-  const tags = live.length > 0 ? await tagOpportunities(live) : [];
+  const tags = candidates.length > 0 ? await tagOpportunities(candidates) : [];
   const noWrite = process.env.OPPORTUNITY_NO_WRITE === '1';
 
-  for (let i = 0; i < live.length; i++) {
-    const lead = live[i];
+  for (let i = 0; i < candidates.length; i++) {
+    const lead = candidates[i];
     const tag = tags[i];
     const { region, row } = buildOpportunityRow(lead, tag);
+    if (opportunityClosed(lead)) report.closed++;
+    else report.open++;
     inc(report.perSource, lead.source);
     inc(report.perVenueType, tag.venue_type);
     inc(report.perSignalType, tag.signal_type);
@@ -231,8 +233,8 @@ function printOpportunityReport(r: OpportunityReport): void {
   console.log('\n===== GLI TIER 1 OPPORTUNITY LANE (scrape:opportunity) =====');
   console.log(`Fetched (opportunity sources): ${r.fetched}`);
   console.log(`After URL dedup:               ${r.deduped}`);
-  console.log(`Matched (leisure advisory):    ${r.matched}`);
-  console.log(`Dropped (expired deadline):    ${r.expired}`);
+  console.log(`Matched (development advisory): ${r.matched}`);
+  console.log(`Open (future/undated, biddable): ${r.open}   Closed (deadline passed, flagged): ${r.closed}`);
   console.log(
     `Written (module gli, stream opportunity): ${r.written}` +
       (r.writeFailed ? `  (write failures: ${r.writeFailed})` : '') +
@@ -259,7 +261,7 @@ function printOpportunityReport(r: OpportunityReport): void {
 async function main(): Promise<void> {
   console.log('GLI Tier 1 opportunity lane starting (scrape:opportunity)...');
   const all = await fetchOpportunitySources();
-  const report = await runOpportunityLane(all, Date.now());
+  const report = await runOpportunityLane(all);
   printOpportunityReport(report);
 }
 

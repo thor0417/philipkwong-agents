@@ -20,7 +20,7 @@ import {
   type IndustryProfile,
 } from './profiles';
 import { runGliLane, tagOpportunities, type GliReport } from './gli';
-import { buildOpportunityRow } from './opportunity';
+import { buildOpportunityRow, opportunityClosed } from './opportunity';
 import { bestProfileFor, passesPrefilter, keywordMatches } from './prefilter';
 import { isBrokerNoise } from './broker-filter';
 import {
@@ -272,7 +272,8 @@ export interface ScrapeReport {
   cpvConsultingPerCode: Record<string, number>;
   // GLI Tier 1 opportunity lane (leisure/tourism advisory solicitations).
   opportunityFound: number;
-  opportunityExpired: number;
+  opportunityOpen: number;
+  opportunityClosed: number;
   opportunityWritten: number;
   opportunityWithDeadline: number;
   opportunityPerSource: Record<string, number>;
@@ -388,7 +389,6 @@ export async function orchestrate(): Promise<ScrapeReport> {
   let cpvConsultingFound = 0;
   let cpvConsultingExpired = 0;
   let opportunityFound = 0;
-  let opportunityExpired = 0;
   let nonFuelExpired = 0;
   const now = Date.now();
 
@@ -418,15 +418,14 @@ export async function orchestrate(): Promise<ScrapeReport> {
     // operator selection, dev-bank tourism consultancy) lands in the GLI
     // opportunity stream (module 'gli', stream 'opportunity', lead_type 'tender')
     // rather than a generic lane. Captured on legitimacy: leisure venue + advisory
-    // intent is the gate (isLeisureOpportunity); expired notices are dropped; no
-    // Haiku fit scoring (the GLI classifier tags venue/signal only, downstream).
-    // Non-leisure feasibility/CPV/consulting/fuel/signals routing is unchanged.
+    // intent is the gate (isLeisureOpportunity); no Haiku fit scoring (the GLI
+    // classifier tags venue/signal only, downstream). Closed (deadline-passed)
+    // notices are NOT dropped: they are captured and flagged status 'closed' by
+    // buildOpportunityRow so the dashboard can show them as market intelligence
+    // behind a toggle. Non-leisure feasibility/CPV/consulting/fuel/signals routing
+    // is unchanged.
     if (isLeisureOpportunity(lead)) {
       opportunityFound++;
-      if (isExpired(lead.deadline, now)) {
-        opportunityExpired++;
-        continue;
-      }
       opportunityPrepared.push(lead);
       continue;
     }
@@ -574,7 +573,8 @@ export async function orchestrate(): Promise<ScrapeReport> {
       cpvConsultingWritten: 0,
       cpvConsultingPerCode: {},
       opportunityFound,
-      opportunityExpired,
+      opportunityOpen: 0,
+      opportunityClosed: 0,
       opportunityWritten: 0,
       opportunityWithDeadline: 0,
       opportunityPerSource: {},
@@ -916,6 +916,8 @@ export async function orchestrate(): Promise<ScrapeReport> {
   }> = [];
   let opportunityWritten = 0;
   let opportunityWithDeadline = 0;
+  let oppOpen = 0;
+  let oppClosed = 0;
   const opportunityTags =
     opportunityPrepared.length > 0 ? await tagOpportunities(opportunityPrepared) : [];
   for (let i = 0; i < opportunityPrepared.length; i++) {
@@ -930,6 +932,8 @@ export async function orchestrate(): Promise<ScrapeReport> {
       continue;
     }
     opportunityWritten++;
+    if (opportunityClosed(lead)) oppClosed++;
+    else oppOpen++;
     written++;
     if (lead.deadline) opportunityWithDeadline++;
     inc(opportunityPerSource, lead.source);
@@ -1132,7 +1136,8 @@ export async function orchestrate(): Promise<ScrapeReport> {
     cpvConsultingWritten,
     cpvConsultingPerCode,
     opportunityFound,
-    opportunityExpired,
+    opportunityOpen: oppOpen,
+    opportunityClosed: oppClosed,
     opportunityWritten,
     opportunityWithDeadline,
     opportunityPerSource,
@@ -1312,7 +1317,7 @@ function printReport(r: ScrapeReport): void {
   console.log(table(r.cpvConsultingPerCode));
   console.log('--- GLI Tier 1 opportunity lane (leisure/tourism advisory solicitations, no fit scoring) ---');
   console.log(`  Opportunities found:          ${r.opportunityFound}`);
-  console.log(`  Dropped (expired deadline):   ${r.opportunityExpired}`);
+  console.log(`  Open (biddable) / Closed (flagged): ${r.opportunityOpen} / ${r.opportunityClosed}`);
   console.log(`  Written (module gli, stream opportunity): ${r.opportunityWritten}`);
   console.log(
     `  With a populated deadline:    ${r.opportunityWithDeadline} of ${r.opportunityWritten}  (health metric)`
