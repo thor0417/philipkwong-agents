@@ -47,8 +47,15 @@ function isFresh(l: GLILead, stream: string, now: number): boolean {
   return Number.isNaN(t) || t >= now - windowDays * MS_DAY;
 }
 
-// The word used for hidden records in each stream's toggle.
-const staleWord = (stream: string): string => (stream === 'opportunity' ? 'closed' : 'older');
+// Active vs Archive: a lead is Active when it is fresh/open for its stream (or
+// undated), and Archive otherwise. The two views are mutually exclusive and
+// together contain every lead. Nothing is deleted; only the date/deadline status
+// decides which view a lead appears in.
+type GLIView = 'active' | 'archive';
+function passesView(l: GLILead, stream: string, view: GLIView, now: number): boolean {
+  const fresh = isFresh(l, stream, now);
+  return view === 'active' ? fresh : !fresh;
+}
 
 function host(url: string | null): string {
   if (!url) return DASH;
@@ -184,7 +191,7 @@ export default function GLIPage() {
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [venueFilter, setVenueFilter] = useState('all');
   const [locationQuery, setLocationQuery] = useState('');
-  const [showStale, setShowStale] = useState(false);
+  const [view, setView] = useState<GLIView>('active');
   const [reporting, setReporting] = useState(false);
   const [presetKey, setPresetKey] = useState('all');
   const [focusLabel, setFocusLabel] = useState<string | undefined>(undefined);
@@ -275,24 +282,14 @@ export default function GLIPage() {
     const mVen = (l: GLILead) => venueFilter === 'all' || venueOf(l) === venueFilter;
     const mLoc = (l: GLILead) => !q || (l.location ?? '').toLowerCase().includes(q);
 
-    // Freshness is a base filter (default view shows only fresh/open; the toggle
-    // reveals stale/closed). It scopes streamLeads so every downstream count and
-    // the table derive from the same set, preserving count == rows.
+    // Active/Archive is a base filter (Active = fresh/open, Archive = stale/closed;
+    // mutually exclusive, together every lead). It scopes streamLeads so every
+    // downstream count and the table derive from the same set, preserving
+    // count == rows and keeping the two views identical except for which leads show.
     const streamLeads = leads.filter(
-      (l) => l.stream === activeStream && (showStale || isFresh(l, activeStream, now))
+      (l) => l.stream === activeStream && passesView(l, activeStream, view, now)
     );
     const visibleLeads = streamLeads.filter((l) => mCat(l) && mVen(l) && mLoc(l));
-
-    // Records hidden by the freshness gate under the current category/venue/
-    // location filters (drives the toggle label). Independent of showStale.
-    const staleHidden = leads.filter(
-      (l) =>
-        l.stream === activeStream &&
-        !isFresh(l, activeStream, now) &&
-        mCat(l) &&
-        mVen(l) &&
-        mLoc(l)
-    ).length;
 
     const catBase = streamLeads.filter((l) => mVen(l) && mLoc(l));
     const venBase = streamLeads.filter((l) => mCat(l) && mLoc(l));
@@ -333,15 +330,15 @@ export default function GLIPage() {
       tabCounts[s.key] = leads.filter(
         (l) =>
           l.stream === s.key &&
-          (showStale || isFresh(l, s.key, now)) &&
+          passesView(l, s.key, view, now) &&
           mCat(l) &&
           mVen(l) &&
           mLoc(l)
       ).length;
     }
 
-    return { visibleLeads, categoryChips, venueChips, tabCounts, staleHidden };
-  }, [leads, activeStream, categoryFilter, venueFilter, locationQuery, showStale]);
+    return { visibleLeads, categoryChips, venueChips, tabCounts };
+  }, [leads, activeStream, categoryFilter, venueFilter, locationQuery, view]);
 
   // Export exactly the visible, filtered rows to CSV (what you see is what you get).
   function exportCsv() {
@@ -369,7 +366,8 @@ export default function GLIPage() {
         category: categoryFilter,
         venue: venueFilter,
         location: locationQuery,
-        includesStale: showStale,
+        includesStale: view === 'archive',
+        view,
         generatedDate: date,
         focusLabel,
       };
@@ -404,6 +402,19 @@ export default function GLIPage() {
         <p className={styles.loading}>Loading...</p>
       ) : (
         <>
+          <div className={styles.viewToggle} role="tablist" aria-label="Active or Archive">
+            {(['active', 'archive'] as GLIView[]).map((v) => (
+              <button
+                key={v}
+                role="tab"
+                aria-selected={view === v}
+                className={`${styles.viewBtn} ${view === v ? styles.viewBtnActive : ''}`}
+                onClick={() => setView(v)}
+              >
+                {v === 'active' ? 'Active' : 'Archive'}
+              </button>
+            ))}
+          </div>
           <GLIStats leads={derived.visibleLeads} streamLabel={active.label} />
           <GLIFilters
             categoryChips={derived.categoryChips}
@@ -455,18 +466,6 @@ export default function GLIPage() {
               </button>
             ))}
           </div>
-          {(derived.staleHidden > 0 || showStale) && (
-            <div className={styles.freshness}>
-              <span className={styles.freshNote}>
-                {showStale
-                  ? `Including ${staleWord(active.key)} records in the view.`
-                  : `${derived.staleHidden} ${staleWord(active.key)} record${derived.staleHidden === 1 ? '' : 's'} hidden from the default view.`}
-              </span>
-              <button className={styles.freshToggle} onClick={() => setShowStale((v) => !v)}>
-                {showStale ? `Hide ${staleWord(active.key)}` : `Show ${staleWord(active.key)}`}
-              </button>
-            </div>
-          )}
           <GLITable
             leads={derived.visibleLeads}
             columns={active.columns}

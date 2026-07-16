@@ -111,36 +111,39 @@
   border-color: var(--accent);
 }
 
-/* Freshness toggle bar: default view is fresh/open only; the toggle reveals
-   closed (opportunity) or older (government / intelligence) records. */
-.freshness {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  margin: 12px 0 2px;
+/* Active / Archive view toggle: a filled segmented control at the top, visually
+   distinct from the underlined stream tabs so the current view is unmistakable. */
+.viewToggle {
+  display: inline-flex;
+  border: 0.5px solid var(--ink);
+  margin-bottom: 20px;
 }
 
-.freshNote {
-  font-family: var(--font-text);
-  font-size: 12px;
-  color: var(--muted);
-}
-
-.freshToggle {
+.viewBtn {
   font-family: var(--font-emphasis);
-  font-size: 11px;
-  letter-spacing: 0.04em;
+  font-size: 12px;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--ink);
   background: transparent;
-  border: 0.5px solid var(--hairline);
+  border: none;
+  border-right: 0.5px solid var(--ink);
   border-radius: 0;
-  padding: 6px 12px;
+  padding: 9px 22px;
   cursor: pointer;
 }
 
-.freshToggle:hover {
-  border-color: var(--ink);
+.viewBtn:last-child {
+  border-right: none;
+}
+
+.viewBtn:hover {
   background: transparent;
   color: var(--ink);
+}
+
+.viewBtnActive,
+.viewBtnActive:hover {
+  background: var(--ink);
+  color: var(--paper);
 }

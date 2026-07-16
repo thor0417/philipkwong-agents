@@ -26,6 +26,7 @@ export interface ReportScope {
   venue: string; // 'all' or a venue_type
   location: string; // free-text location filter
   includesStale: boolean; // whether closed/older records are included
+  view?: string; // 'active' | 'archive'
   generatedDate: string; // YYYY-MM-DD
   focusLabel?: string; // preset label, when a focus preset is active
 }

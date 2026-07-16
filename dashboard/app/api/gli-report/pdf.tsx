@@ -126,10 +126,10 @@ function ReportDocument({ payload }: { payload: ReportPayload }) {
 
   const market = scope.location ? scope.location : 'Global';
   const category = scope.category !== 'all' ? scope.category : 'All categories';
+  const viewLabel = scope.view === 'archive' ? 'Archive' : 'Active';
   const scopeLine =
-    `${scope.streamLabel}  |  ${category}  |  Market: ${market}  |  ` +
-    `${dateRange(leads)}  |  Generated ${scope.generatedDate}` +
-    (scope.includesStale ? '  |  incl. closed/older' : '');
+    `${scope.streamLabel}  |  ${viewLabel}  |  ${category}  |  Market: ${market}  |  ` +
+    `${dateRange(leads)}  |  Generated ${scope.generatedDate}`;
 
   return (
     <Document title={`GLI ${scope.streamLabel} report`}>
