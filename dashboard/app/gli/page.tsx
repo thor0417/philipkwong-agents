@@ -66,9 +66,16 @@ function objectTypeOf(l: GLILead): 'opportunity' | 'project_event' {
   if (l.object_type === 'opportunity' || l.object_type === 'project_event') return l.object_type;
   return Number.isNaN(timeOf(l.deadline, NaN)) ? 'project_event' : 'opportunity';
 }
+// Start of the UTC calendar day, so liveness is judged on the date (matching the
+// agent-side classifier), not the exact instant -- a deadline/milestone dated
+// today reads as live today, not archived mid-afternoon.
+function startOfUtcDay(ms: number): number {
+  const d = new Date(ms);
+  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+}
 const isFutureIso = (iso: string | null | undefined, now: number): boolean => {
   const t = timeOf(iso ?? null, NaN);
-  return !Number.isNaN(t) && t > now;
+  return !Number.isNaN(t) && startOfUtcDay(t) > startOfUtcDay(now);
 };
 
 // Read-time liveness, keyed to each lead's OWN dates (not scrape time), by object:
@@ -83,7 +90,7 @@ const isFutureIso = (iso: string | null | undefined, now: number): boolean => {
 function isFresh(l: GLILead, _stream: string, now: number): boolean {
   if (objectTypeOf(l) === 'opportunity') {
     const dl = timeOf(l.deadline, NaN);
-    return Number.isNaN(dl) ? true : dl >= now;
+    return Number.isNaN(dl) ? true : dl >= startOfUtcDay(now);
   }
   if (isFutureIso(l.milestone_date, now)) return true; // future milestone -> always live
   const t = contentTime(l, 'project_event'); // last-activity proxy (published/parsed)
