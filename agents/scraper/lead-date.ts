@@ -12,11 +12,9 @@
 // dashboard can filter on the best available date and visibly badge the leads
 // whose date is genuinely unknown. first_seen itself is the DB default (now()),
 // set once on insert; it is never overwritten here.
-//
-// (The Part C text-parse pass slots in as step 2; until then a lead with no
-// source date falls straight through to first_seen.)
 
 import type { NormalizedLead } from './sources/types';
+import { parseDateFromText } from './date-parse';
 
 // A parsed date is evidence of AGE, not a submission deadline, so it always lands
 // in published_date regardless of stream. Only a real source deadline is ever a
@@ -47,8 +45,15 @@ export function deriveLeadDates(lead: NormalizedLead, _stream: LeadStream): Deri
     return { deadline, published_date: published, date_source: 'source' };
   }
 
-  // 2/3. No source date. (Part C derives one from the lead text here.) With
-  // nothing usable, first_seen (DB default) is the best available date, and the
+  // 2. No source date: derive one from the lead's own text (this is what catches
+  // the 2011-RFP class -- an undated feed row whose title says "2011"). A parsed
+  // date is an age signal, so it always lands in published_date.
+  const parsed = parseDateFromText(`${lead.title ?? ''}\n${lead.raw_content ?? ''}`);
+  if (parsed) {
+    return { deadline: null, published_date: parsed, date_source: 'parsed' };
+  }
+
+  // 3. Nothing usable: first_seen (DB default) is the best available date, and the
   // dashboard badges these as DATE UNKNOWN.
   return { deadline: null, published_date: null, date_source: 'first_seen' };
 }
