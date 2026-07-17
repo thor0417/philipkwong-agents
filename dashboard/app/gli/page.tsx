@@ -18,10 +18,12 @@ import styles from './page.module.css';
 
 const GLI_COLUMNS_BASE =
   'id, title, venue_type, signal_type, location, company, contact_name, contact_email, contact_phone, url, raw_content, date_found, score, source_tier, stream, deadline, published_date, source';
-// Pass 4 government fields. Selected only when the 009-011 migrations exist; the
-// load falls back to the base set otherwise so the page never breaks.
+// Pass 4 government fields + date provenance (012). Selected only when the 009-012
+// migrations exist; the load falls back to the base set otherwise so the page never
+// breaks (date_source then reads as undefined and the badge falls back to the date
+// columns, which are always in the base set).
 const GLI_COLUMNS_FULL =
-  `${GLI_COLUMNS_BASE}, source_type, presented_by, applicant, representative, action_sought, primary_document_url, has_primary_document`;
+  `${GLI_COLUMNS_BASE}, source_type, presented_by, applicant, representative, action_sought, primary_document_url, has_primary_document, date_source, first_seen`;
 
 const DASH = '--';
 
@@ -34,21 +36,52 @@ const venueOf = (l: GLILead): string => (l.venue_type ?? '').trim() || 'Other';
 
 const MS_DAY = 24 * 60 * 60 * 1000;
 
-// Read-time freshness per stream, keyed to each lead's OWN date (not scrape time)
-// so a lead goes stale/closed on its own schedule. Undated leads are kept (never
-// silently dropped). Opportunity: OPEN = future deadline or undated live
-// solicitation. Government: document (published) date within 18 months.
-// Intelligence: publish date within 90 days.
-function isFresh(l: GLILead, stream: string, now: number): boolean {
+const streamOf = (l: GLILead): string => l.stream ?? 'opportunity';
+
+// The lead's best-available CONTENT date (ms), or null when it has only a
+// first_seen floor. Opportunity keys off its bid deadline first (a real
+// submission deadline), then falls back to a published/parsed date; government
+// and intelligence key off published_date (which also carries any parsed date).
+function contentTime(l: GLILead, stream: string): number | null {
   if (stream === 'opportunity') {
-    if (!l.deadline) return true;
-    const t = new Date(l.deadline).getTime();
-    return Number.isNaN(t) || t >= now;
+    const dl = timeOf(l.deadline, NaN);
+    if (!Number.isNaN(dl)) return dl;
   }
-  const windowDays = stream === 'government' ? 548 : 90; // ~18 months vs 90 days
-  if (!l.published_date) return true;
-  const t = new Date(l.published_date).getTime();
-  return Number.isNaN(t) || t >= now - windowDays * MS_DAY;
+  const pub = timeOf(l.published_date, NaN);
+  return Number.isNaN(pub) ? null : pub;
+}
+
+// A lead's date is genuinely UNKNOWN when its provenance is not a real source or
+// parsed date. Uses date_source when present (migration 012); before backfill it
+// falls back to "no usable date column for this stream" so it never mislabels.
+function isDateUnknown(l: GLILead, stream: string): boolean {
+  if (l.date_source === 'source' || l.date_source === 'parsed') return false;
+  return contentTime(l, stream) === null;
+}
+
+// Read-time freshness per stream, keyed to each lead's OWN best-available date
+// (not scrape time) so a lead goes stale/closed on its own schedule. Rules:
+//  - Opportunity: a real future deadline is OPEN, a past deadline is closed
+//    (Archive). With no deadline, fall back to the published/parsed date and
+//    archive when older than 12 months. This closes the hole where an undated
+//    2011 RFP rendered as a live opportunity.
+//  - Government: document/parsed date within 18 months (amendment dates count as
+//    fresh, since the adapter records the freshest date).
+//  - Intelligence: publish/parsed date within 90 days.
+// Genuinely undated leads (no source/parsed date) are kept ACTIVE but badged
+// DATE UNKNOWN. Hard backstop: any content date of 2024 or earlier is archived,
+// so nothing with old date evidence can masquerade as verified-current.
+function isFresh(l: GLILead, stream: string, now: number): boolean {
+  // A real submission deadline governs an opportunity outright.
+  if (stream === 'opportunity') {
+    const dl = timeOf(l.deadline, NaN);
+    if (!Number.isNaN(dl)) return dl >= now;
+  }
+  const t = contentTime(l, stream);
+  if (t === null) return true; // no date at all -> Active (badged DATE UNKNOWN)
+  if (new Date(t).getUTCFullYear() <= 2024) return false; // hard backstop
+  const windowDays = stream === 'opportunity' ? 365 : stream === 'government' ? 548 : 90;
+  return t >= now - windowDays * MS_DAY;
 }
 
 // Active vs Archive: a lead is Active when it is fresh/open for its stream (or
@@ -76,6 +109,29 @@ function timeOf(iso: string | null, fallback: number): number {
   if (!iso) return fallback;
   const t = new Date(iso).getTime();
   return Number.isNaN(t) ? fallback : t;
+}
+
+// Muted badge for a lead whose date is genuinely unknown (only a first_seen
+// floor). Kept Active but flagged so nothing undated reads as verified-current.
+// Accent-muted house style: EMPHASIS font, uppercase, hairline border, no fill.
+function DateUnknownBadge() {
+  return (
+    <span
+      title="No source or parsed date; shown by first-seen order"
+      style={{
+        fontFamily: 'var(--font-emphasis)',
+        fontSize: '9px',
+        letterSpacing: '0.06em',
+        textTransform: 'uppercase',
+        color: 'var(--muted)',
+        border: '0.5px solid var(--hairline)',
+        padding: '2px 5px',
+        whiteSpace: 'nowrap',
+      }}
+    >
+      Date Unknown
+    </span>
+  );
 }
 
 // Deadline cell: accent + EMPHASIS when the deadline is within the next 30 days.
@@ -137,14 +193,22 @@ const deadlineCol: GLIColumn = {
   key: 'deadline',
   label: 'Deadline',
   variant: 'meta',
-  render: (l) => <DeadlineCell deadline={l.deadline} />,
+  render: (l) =>
+    l.deadline ? (
+      <DeadlineCell deadline={l.deadline} />
+    ) : isDateUnknown(l, streamOf(l)) ? (
+      <DateUnknownBadge />
+    ) : (
+      DASH
+    ),
   sortValue: (l) => timeOf(l.deadline, Infinity),
 };
 const publishedCol: GLIColumn = {
   key: 'published',
   label: 'Published',
   variant: 'meta',
-  render: (l) => ymd(l.published_date),
+  render: (l) =>
+    l.published_date ? ymd(l.published_date) : isDateUnknown(l, streamOf(l)) ? <DateUnknownBadge /> : DASH,
   sortValue: (l) => timeOf(l.published_date, -Infinity),
 };
 const linkCol: GLIColumn = { key: 'link', label: 'Link', render: (l) => <GLISourceLink url={l.url} /> };

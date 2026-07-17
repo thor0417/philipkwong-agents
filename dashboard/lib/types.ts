@@ -149,6 +149,12 @@ export interface GLILead {
   // government records), ISO strings when present.
   deadline: string | null;
   published_date: string | null;
+  // Date provenance (migration 012). date_source records how the filterable date
+  // was obtained: 'source' (adapter exposed it), 'parsed' (extracted from the lead
+  // text), 'first_seen' (no date; the honest floor), or null (not yet backfilled).
+  // first_seen is when the row was first written. Optional: present only after 012.
+  date_source?: string | null;
+  first_seen?: string | null;
   // Raw source slug (portal / trade domain / legistar).
   source: string | null;
   // Development category. Derived from venue_type via the canonical taxonomy
