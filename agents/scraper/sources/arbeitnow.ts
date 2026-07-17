@@ -71,9 +71,11 @@ export async function scrapeArbeitnow(): Promise<NormalizedLead[]> {
           raw_content: buildContent(j),
           company: j.company_name || null,
           location: j.location || null,
-          // created_at is a post date (unix epoch), not a closing date, so
-          // deadline stays null.
+          // created_at is a post date (unix epoch SECONDS), not a closing date,
+          // so deadline stays null and the post date becomes published_date.
           deadline: null,
+          published_date:
+            typeof j.created_at === 'number' ? new Date(j.created_at * 1000).toISOString() : null,
           value_estimate: null,
           source: 'arbeitnow',
         });

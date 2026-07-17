@@ -95,6 +95,9 @@ function parseRows(html: string, byUrl: Map<string, NormalizedLead>): void {
       company: agency || null,
       location: country,
       deadline: parseDeadline(deadlineRaw),
+      // First plain cell is the DatePublished column (DD-MMM-YYYY); parseDeadline
+      // normalizes the same dash-date format.
+      published_date: plainCells.length ? parseDeadline(plainCells[0]) : null,
       value_estimate: null,
       source: 'ungm',
     });

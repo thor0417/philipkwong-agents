@@ -191,6 +191,7 @@ export async function scrapeTexasEsbd(): Promise<NormalizedLead[]> {
             company: line.agencyName ?? null,
             location: 'Texas, USA',
             deadline: dueIso(line),
+            published_date: toIso(line.postingDate),
             value_estimate: null,
             source: 'texasesbd',
           });

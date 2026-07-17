@@ -120,6 +120,7 @@ export async function scrapeSamGov(): Promise<NormalizedLead[]> {
           company: j.fullParentPathName || j.organizationType || null,
           location: placeText(j.placeOfPerformance),
           deadline: toIso(j.responseDeadLine),
+          published_date: toIso(j.postedDate),
           value_estimate: null,
           source: 'samgov',
         });

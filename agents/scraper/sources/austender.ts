@@ -7,6 +7,7 @@
 // useful buyer signal: they identify agencies that procure relevant services.
 
 import type { NormalizedLead } from './types';
+import { toIso } from './types';
 
 const WINDOW_DAYS = Number(process.env.AUSTENDER_WINDOW_DAYS ?? '30');
 // Page cap (100 releases/page). Bounds the run; logs if more pages remain.
@@ -38,6 +39,8 @@ interface OcdsContract {
 
 interface OcdsRelease {
   ocid?: string;
+  // Release publication date (ISO 8601 Z, e.g. "2026-07-17T06:55:29Z").
+  date?: string;
   parties?: OcdsParty[];
   tender?: { procurementMethodDetails?: string };
   contracts?: OcdsContract[];
@@ -123,8 +126,10 @@ export async function scrapeAusTender(): Promise<NormalizedLead[]> {
           ].join('\n'),
           company: buyer?.name ?? null,
           location: partyLocation(buyer),
-          // Awarded contract: no live bid deadline.
+          // Awarded contract: no live bid deadline. The release date is the notice
+          // publication date (this OCDS feed carries no tenderPeriod).
           deadline: null,
+          published_date: toIso(r.date),
           value_estimate: valueText(c.value),
           source: 'austender',
         });

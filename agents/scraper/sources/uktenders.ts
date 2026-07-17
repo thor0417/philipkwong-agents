@@ -20,6 +20,8 @@ interface FtsValue {
 interface FtsRelease {
   id?: string;
   ocid?: string;
+  // OCDS release publication date (ISO 8601 with offset, e.g. 2026-07-16T16:01:16+01:00).
+  date?: string;
   buyer?: { name?: string };
   tender?: {
     title?: string;
@@ -93,6 +95,7 @@ export async function scrapeUkTenders(): Promise<NormalizedLead[]> {
         company: r.buyer?.name ?? null,
         location: null,
         deadline: toIso(r.tender?.tenderPeriod?.endDate),
+        published_date: toIso(r.date),
         value_estimate: valueText(r.tender?.value),
         source: 'uktenders',
       });

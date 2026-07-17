@@ -86,6 +86,7 @@ export async function scrapeUndp(): Promise<NormalizedLead[]> {
       company: null,
       location: country || null,
       deadline: parseUndpDate(c['Deadline'] ?? ''),
+      published_date: parseUndpDate(c['Posted'] ?? ''),
       value_estimate: null,
       source: 'undp',
     });

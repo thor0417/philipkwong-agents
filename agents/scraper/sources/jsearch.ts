@@ -9,6 +9,7 @@
 // assigns each posting to a profile.
 
 import type { NormalizedLead } from './types';
+import { toIso } from './types';
 
 const API_HOST = 'jsearch.p.rapidapi.com';
 const API_KEY = process.env.RAPIDAPI_KEY;
@@ -123,6 +124,7 @@ export async function scrapeJSearch(): Promise<NormalizedLead[]> {
           company: j.employer_name || null,
           location: locationOf(j),
           deadline: null,
+          published_date: toIso(j.job_posted_at_datetime_utc),
           value_estimate: salaryText(j),
           source: 'jsearch',
         });

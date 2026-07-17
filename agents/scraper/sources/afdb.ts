@@ -46,6 +46,13 @@ export async function scrapeAfdb(): Promise<NormalizedLead[]> {
   // Best-effort: EOI rows on the Drupal listing link to a document/notice page
   // under /en/documents/... . If the reachable markup is JS-rendered this matches
   // nothing and we degrade to 0.
+  //
+  // DATE: when the listing is reachable, each row carries a publication date in a
+  // sibling `<span class="date-display-single" ... content="2026-07-16T00:00:00+00:00">`
+  // block (the `content` attr is ISO). It is NOT inside the <a> matched below, so
+  // capturing it into published_date requires reworking this row parser to iterate
+  // per-row blocks -- deferred (the adapter is WAF-gated and yields ~0 here). No
+  // submission deadline is exposed on the listing (it lives on each detail page).
   const byUrl = new Map<string, NormalizedLead>();
   const re = /<a[^>]+href="(\/en\/documents\/[^"]*(?:interest|procurement|notice)[^"]*)"[^>]*>\s*([^<]{12,200})</gi;
   for (const m of html.matchAll(re)) {

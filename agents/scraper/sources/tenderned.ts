@@ -11,6 +11,7 @@
 // TenderNed against TED by normalized title + buyer. On failure: log + [].
 
 import type { NormalizedLead } from './types';
+import { toIso } from './types';
 
 // 8-digit CPV -> standard check digit (fuel set).
 const CPV_CHECK: Record<string, string> = {
@@ -30,6 +31,9 @@ const UA = 'philipkwong-agents/1.0 (+scraper)';
 interface TnPublication {
   publicatieId?: string;
   publicatieDatum?: string;
+  // Submission/closing deadline (naive ISO, e.g. "2026-09-15T10:00:00"); present
+  // on open procedures, absent on awards/terminations.
+  sluitingsDatum?: string;
   aanbestedingNaam?: string;
   opdrachtgeverNaam?: string;
   opdrachtBeschrijving?: string;
@@ -106,7 +110,8 @@ export async function scrapeTenderNed(cpvCodes: string[]): Promise<NormalizedLea
         ].join('\n'),
         company: r.opdrachtgeverNaam ?? null,
         location: 'Netherlands',
-        deadline: null,
+        deadline: toIso(r.sluitingsDatum),
+        published_date: toIso(r.publicatieDatum),
         value_estimate: null,
         source: 'tenderned',
       });

@@ -7,6 +7,7 @@
 
 import { parse } from 'csv-parse/sync';
 import type { RawLead } from './scraper';
+import { toIso } from '../scraper/sources/types';
 
 const CSV_URL =
   'https://canadabuys.canada.ca/opendata/pub/openTenderNotice-ouvertAvisAppelOffres.csv';
@@ -78,6 +79,7 @@ const COL = {
   category: 'procurementCategory-categorieApprovisionnement',
   region: 'regionsOfOpportunity-regionAppelOffres-eng',
   closing: 'tenderClosingDate-appelOffresDateCloture',
+  published: 'publicationDate-datePublication',
   entity: 'contractingEntityName-nomEntitContractante-eng',
 } as const;
 
@@ -140,7 +142,14 @@ export async function scrapeCanadaBuys(): Promise<RawLead[]> {
       field(row, COL.description),
     ].join('\n');
 
-    leads.push({ title, url, content, source: 'canadabuys' });
+    leads.push({
+      title,
+      url,
+      content,
+      source: 'canadabuys',
+      deadline: toIso(field(row, COL.closing)),
+      published_date: toIso(field(row, COL.published)),
+    });
     if (leads.length >= MAX_TENDERS) {
       console.warn(`CanadaBuys: hit MAX_TENDERS cap (${MAX_TENDERS}); newer matches skipped.`);
       break;

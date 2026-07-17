@@ -4,6 +4,7 @@
 // used and overridable via env. Skipped gracefully if the key is absent.
 
 import type { NormalizedLead } from './types';
+import { toIso } from './types';
 
 const AFFID = process.env.CAREERJET_API_KEY;
 
@@ -99,6 +100,7 @@ export async function scrapeCareerjet(): Promise<NormalizedLead[]> {
           company: j.company || null,
           location: j.locations || null,
           deadline: null,
+          published_date: toIso(j.date),
           value_estimate: j.salary || null,
           source: 'careerjet',
         });

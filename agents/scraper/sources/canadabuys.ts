@@ -24,6 +24,7 @@ const COL = {
   category: 'procurementCategory-categorieApprovisionnement',
   region: 'regionsOfOpportunity-regionAppelOffres-eng',
   closing: 'tenderClosingDate-appelOffresDateCloture',
+  published: 'publicationDate-datePublication',
   entity: 'contractingEntityName-nomEntitContractante-eng',
 } as const;
 
@@ -71,6 +72,7 @@ export async function scrapeCanadaBuys(): Promise<NormalizedLead[]> {
     const category = field(row, COL.gsin) || field(row, COL.unspsc);
     const region = field(row, COL.region);
     const closing = field(row, COL.closing);
+    const published = field(row, COL.published);
     const entity = field(row, COL.entity);
 
     const raw_content = [
@@ -90,6 +92,7 @@ export async function scrapeCanadaBuys(): Promise<NormalizedLead[]> {
       company: entity || null,
       location: region || null,
       deadline: toIso(closing),
+      published_date: toIso(published),
       value_estimate: null,
       source: 'canadabuys',
     });

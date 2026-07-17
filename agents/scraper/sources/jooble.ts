@@ -5,6 +5,7 @@
 // orchestrator prefilter assigns each posting to a profile.
 
 import type { NormalizedLead } from './types';
+import { toIso } from './types';
 
 const API_KEY = process.env.JOOBLE_API_KEY;
 
@@ -89,6 +90,7 @@ export async function scrapeJooble(): Promise<NormalizedLead[]> {
           company: j.company || null,
           location: j.location || null,
           deadline: null,
+          published_date: toIso(j.updated),
           value_estimate: j.salary || null,
           source: 'jooble',
         });

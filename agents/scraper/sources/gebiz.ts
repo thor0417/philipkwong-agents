@@ -14,6 +14,7 @@
 // orchestrator's per-profile prefilter. On any parse failure: log + [].
 
 import type { NormalizedLead } from './types';
+import { toIso } from './types';
 
 export interface GeBizOptions {
   // UNSPSC codes for Singapore (declared/retained; the open listing is not
@@ -69,8 +70,19 @@ export async function scrapeGeBiz(opts: GeBizOptions = {}): Promise<NormalizedLe
 
     const vals = [...block.matchAll(/VALUE-DIV[^>]*>([^<]{1,160})</g)].map((m) => decode(m[1]));
     const agency = vals[0] || null;
-    const date = vals[1] || '';
+    const date = vals[1] || ''; // "Published" value, e.g. "17 Jul 2026 03:05 PM"
     const category = vals[2] || '';
+
+    // Closing date lives in a separate DATE-GREEN element (not a VALUE-DIV), with
+    // an embedded <br /> and no space before AM/PM; normalize before parsing.
+    const closeM = block.match(/outputText_DATE-GREEN"[^>]*>([\s\S]{1,40}?)<\/div>/);
+    const closeRaw = closeM
+      ? decode(closeM[1])
+          .replace(/<br\s*\/?>/gi, ' ')
+          .replace(/(\d)(AM|PM)/i, '$1 $2')
+          .replace(/\s+/g, ' ')
+          .trim()
+      : null;
 
     // English-keyword relevance filter (when configured).
     if (kw.length) {
@@ -94,7 +106,8 @@ export async function scrapeGeBiz(opts: GeBizOptions = {}): Promise<NormalizedLe
       ].join('\n'),
       company: agency,
       location: 'Singapore',
-      deadline: null,
+      deadline: toIso(closeRaw),
+      published_date: toIso(date),
       value_estimate: null,
       source: 'gebiz',
     });

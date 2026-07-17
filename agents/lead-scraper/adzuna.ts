@@ -3,6 +3,7 @@
 // If keys are absent the source is skipped gracefully so CanadaBuys still runs.
 
 import type { RawLead } from './scraper';
+import { toIso } from '../scraper/sources/types';
 
 const APP_ID = process.env.ADZUNA_APP_ID;
 const APP_KEY = process.env.ADZUNA_APP_KEY;
@@ -44,6 +45,8 @@ interface AdzunaResult {
   salary_min?: number;
   salary_max?: number;
   category?: { label?: string };
+  // Posting date, ISO 8601.
+  created?: string;
 }
 
 interface AdzunaResponse {
@@ -99,6 +102,7 @@ export async function scrapeAdzuna(): Promise<RawLead[]> {
             url: j.redirect_url,
             content: buildContent(j),
             source: 'adzuna',
+            published_date: toIso(j.created),
           });
         }
       }

@@ -5,6 +5,7 @@
 // prefilter then assigns each posting to a profile.
 
 import type { NormalizedLead } from './types';
+import { toIso } from './types';
 
 const APP_ID = process.env.ADZUNA_APP_ID;
 const APP_KEY = process.env.ADZUNA_APP_KEY;
@@ -46,6 +47,8 @@ interface AdzunaResult {
   salary_min?: number;
   salary_max?: number;
   category?: { label?: string };
+  // Posting date, ISO 8601 (e.g. "2026-04-01T14:00:00Z").
+  created?: string;
 }
 
 interface AdzunaResponse {
@@ -103,6 +106,7 @@ export async function scrapeAdzuna(): Promise<NormalizedLead[]> {
           company: j.company?.display_name ?? null,
           location: j.location?.display_name ?? null,
           deadline: null,
+          published_date: toIso(j.created),
           value_estimate: salaryText(j),
           source: 'adzuna',
         });

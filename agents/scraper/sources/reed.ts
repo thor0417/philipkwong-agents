@@ -4,6 +4,7 @@
 // Skipped gracefully if the key is absent.
 
 import type { NormalizedLead } from './types';
+import { toIso } from './types';
 
 const API_KEY = process.env.REED_API_KEY;
 
@@ -42,6 +43,14 @@ interface ReedJob {
 
 interface ReedResponse {
   results?: ReedJob[];
+}
+
+// Reed returns dates as DD/MM/YYYY; reorder to ISO before parsing (new Date reads
+// slashed dates month-first, so any day > 12 would otherwise be Invalid Date).
+function reedDate(d: string | undefined): string | null {
+  if (!d) return null;
+  const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(d);
+  return m ? toIso(`${m[3]}-${m[2]}-${m[1]}`) : toIso(d);
 }
 
 function salaryText(j: ReedJob): string | null {
@@ -94,6 +103,7 @@ export async function scrapeReed(): Promise<NormalizedLead[]> {
           company: j.employerName || null,
           location: j.locationName || null,
           deadline: null,
+          published_date: reedDate(j.date),
           value_estimate: salaryText(j),
           source: 'reed',
         });

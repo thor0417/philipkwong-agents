@@ -10,6 +10,10 @@ export interface RawLead {
   url: string;
   content: string;
   source: string;
+  // Source-captured dates (ISO), when the adapter exposes them. Optional so the
+  // shape stays backward-compatible; the writer records provenance in date_source.
+  deadline?: string | null;
+  published_date?: string | null;
 }
 
 export async function scrapeAll(): Promise<RawLead[]> {
