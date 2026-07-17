@@ -23,7 +23,7 @@ const GLI_COLUMNS_BASE =
 // breaks (date_source then reads as undefined and the badge falls back to the date
 // columns, which are always in the base set).
 const GLI_COLUMNS_FULL =
-  `${GLI_COLUMNS_BASE}, source_type, presented_by, applicant, representative, action_sought, primary_document_url, has_primary_document, date_source, first_seen`;
+  `${GLI_COLUMNS_BASE}, source_type, presented_by, applicant, representative, action_sought, primary_document_url, has_primary_document, date_source, first_seen, object_type, milestone_date`;
 
 const DASH = '--';
 
@@ -59,29 +59,36 @@ function isDateUnknown(l: GLILead, stream: string): boolean {
   return contentTime(l, stream) === null;
 }
 
-// Read-time freshness per stream, keyed to each lead's OWN best-available date
-// (not scrape time) so a lead goes stale/closed on its own schedule. Rules:
-//  - Opportunity: a real future deadline is OPEN, a past deadline is closed
-//    (Archive). With no deadline, fall back to the published/parsed date and
-//    archive when older than 12 months. This closes the hole where an undated
-//    2011 RFP rendered as a live opportunity.
-//  - Government: document/parsed date within 18 months (amendment dates count as
-//    fresh, since the adapter records the freshest date).
-//  - Intelligence: publish/parsed date within 90 days.
-// Genuinely undated leads (no source/parsed date) are kept ACTIVE but badged
-// DATE UNKNOWN. Hard backstop: any content date of 2024 or earlier is archived,
-// so nothing with old date evidence can masquerade as verified-current.
-function isFresh(l: GLILead, stream: string, now: number): boolean {
-  // A real submission deadline governs an opportunity outright.
-  if (stream === 'opportunity') {
+// The lead's object_type (two-object model): a deadline-bound OPPORTUNITY or a
+// PROJECT EVENT. Uses the stored object_type when present (migration 013); before
+// backfill, falls back to the deadline rule so the page never breaks.
+function objectTypeOf(l: GLILead): 'opportunity' | 'project_event' {
+  if (l.object_type === 'opportunity' || l.object_type === 'project_event') return l.object_type;
+  return Number.isNaN(timeOf(l.deadline, NaN)) ? 'project_event' : 'opportunity';
+}
+const isFutureIso = (iso: string | null | undefined, now: number): boolean => {
+  const t = timeOf(iso ?? null, NaN);
+  return !Number.isNaN(t) && t > now;
+};
+
+// Read-time liveness, keyed to each lead's OWN dates (not scrape time), by object:
+//  - OPPORTUNITY: a deadline-bound solicitation. LIVE iff its deadline is today or
+//    later; a passed deadline is Archive. (Dead pre-2026 opportunities are purged,
+//    so they do not appear.)
+//  - PROJECT EVENT: lives by heartbeat. LIVE iff a future milestone exists, OR its
+//    last activity is within 12 months, OR it is undated (never assumed old,
+//    badged DATE UNKNOWN). Older-and-silent (dormant 12-24mo, archived >24mo) fall
+//    to the Archive view for Phase 1. Origination date is NEVER a liveness filter,
+//    so a 2022-origin project with 2026 activity or a 2028 milestone stays LIVE.
+function isFresh(l: GLILead, _stream: string, now: number): boolean {
+  if (objectTypeOf(l) === 'opportunity') {
     const dl = timeOf(l.deadline, NaN);
-    if (!Number.isNaN(dl)) return dl >= now;
+    return Number.isNaN(dl) ? true : dl >= now;
   }
-  const t = contentTime(l, stream);
-  if (t === null) return true; // no date at all -> Active (badged DATE UNKNOWN)
-  if (new Date(t).getUTCFullYear() <= 2024) return false; // hard backstop
-  const windowDays = stream === 'opportunity' ? 365 : stream === 'government' ? 548 : 90;
-  return t >= now - windowDays * MS_DAY;
+  if (isFutureIso(l.milestone_date, now)) return true; // future milestone -> always live
+  const t = contentTime(l, 'project_event'); // last-activity proxy (published/parsed)
+  if (t === null) return true; // undated -> Active (badged DATE UNKNOWN)
+  return t >= now - 365 * MS_DAY; // active within 12 months
 }
 
 // Active vs Archive: a lead is Active when it is fresh/open for its stream (or

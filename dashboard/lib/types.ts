@@ -155,6 +155,12 @@ export interface GLILead {
   // first_seen is when the row was first written. Optional: present only after 012.
   date_source?: string | null;
   first_seen?: string | null;
+  // Two-object model (migration 013). object_type: 'opportunity' (deadline-bound
+  // solicitation) or 'project_event' (everything else). milestone_date: the max
+  // FUTURE date parsed from the lead text (opening/completion/hearing) -- a project
+  // with a future milestone is always live. Optional: present only after 013.
+  object_type?: string | null;
+  milestone_date?: string | null;
   // Raw source slug (portal / trade domain / legistar).
   source: string | null;
   // Development category. Derived from venue_type via the canonical taxonomy
