@@ -21,6 +21,7 @@ import {
 } from './profiles';
 import { runGliLane, tagOpportunities, type GliReport } from './gli';
 import { buildOpportunityRow, opportunityClosed } from './opportunity';
+import { deriveLeadDates } from './lead-date';
 import { bestProfileFor, passesPrefilter, keywordMatches } from './prefilter';
 import { isBrokerNoise } from './broker-filter';
 import {
@@ -696,6 +697,7 @@ export async function orchestrate(): Promise<ScrapeReport> {
     const region = regionFor(lead, regionOf(lead.source));
     const tags = classifyConsulting(lead);
     const dead = isDeadNotice(lead);
+    const dates = deriveLeadDates(lead);
 
     const { error } = await supabaseAdmin.from('leads').upsert(
       {
@@ -710,7 +712,9 @@ export async function orchestrate(): Promise<ScrapeReport> {
         industry: profile.name,
         company: lead.company,
         location: lead.location,
-        deadline: lead.deadline,
+        deadline: dates.deadline,
+        published_date: dates.published_date,
+        date_source: dates.date_source,
         value_estimate: lead.value_estimate,
         lead_type: 'tender',
         region,
@@ -746,6 +750,7 @@ export async function orchestrate(): Promise<ScrapeReport> {
     const region = regionFor(lead, regionOf(lead.source));
     const tags = classifyFuel(lead);
     const dead = isDeadNotice(lead);
+    const dates = deriveLeadDates(lead);
     const { error } = await supabaseAdmin.from('leads').upsert(
       {
         source: lead.source,
@@ -760,7 +765,9 @@ export async function orchestrate(): Promise<ScrapeReport> {
         industry: fuelIndustry,
         company: lead.company,
         location: lead.location,
-        deadline: lead.deadline,
+        deadline: dates.deadline,
+        published_date: dates.published_date,
+        date_source: dates.date_source,
         value_estimate: lead.value_estimate,
         lead_type: 'tender',
         region,
@@ -800,6 +807,7 @@ export async function orchestrate(): Promise<ScrapeReport> {
     const region = regionFor(lead, regionOf(lead.source));
     const tags = classifyFeasibility(lead);
     const dead = isDeadNotice(lead);
+    const dates = deriveLeadDates(lead);
     const { error } = await supabaseAdmin.from('leads').upsert(
       {
         source: lead.source,
@@ -813,7 +821,9 @@ export async function orchestrate(): Promise<ScrapeReport> {
         industry: 'feasibility',
         company: lead.company,
         location: lead.location,
-        deadline: lead.deadline,
+        deadline: dates.deadline,
+        published_date: dates.published_date,
+        date_source: dates.date_source,
         value_estimate: lead.value_estimate,
         lead_type: 'tender',
         region,
@@ -854,6 +864,7 @@ export async function orchestrate(): Promise<ScrapeReport> {
     const region = regionFor(lead, regionOf(lead.source));
     const tags = classifyConsulting(lead);
     const dead = isDeadNotice(lead);
+    const dates = deriveLeadDates(lead);
     const { error } = await supabaseAdmin.from('leads').upsert(
       {
         source: lead.source,
@@ -867,7 +878,9 @@ export async function orchestrate(): Promise<ScrapeReport> {
         industry: 'general_consulting',
         company: lead.company,
         location: lead.location,
-        deadline: lead.deadline,
+        deadline: dates.deadline,
+        published_date: dates.published_date,
+        date_source: dates.date_source,
         value_estimate: lead.value_estimate,
         lead_type: 'tender',
         region,
@@ -1018,6 +1031,9 @@ export async function orchestrate(): Promise<ScrapeReport> {
     const region = regionFor(lead, regionOf(lead.source));
     const subcategory = signalSector(lead);
     const signalDate = lead.signal_date ? lead.signal_date.slice(0, 10) : null;
+    // The filing/announcement date (signal_date) is this lead's real source date;
+    // mirror it into published_date + date_source so every lane is uniform.
+    const dates = deriveLeadDates({ ...lead, published_date: lead.signal_date ?? null });
     const { error } = await supabaseAdmin.from('leads').upsert(
       {
         source: lead.source,
@@ -1033,6 +1049,8 @@ export async function orchestrate(): Promise<ScrapeReport> {
         company: lead.company,
         location: lead.location,
         deadline: null,
+        published_date: dates.published_date,
+        date_source: dates.date_source,
         value_estimate: null,
         lead_type: 'signal',
         region,

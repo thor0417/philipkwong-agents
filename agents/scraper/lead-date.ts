@@ -36,7 +36,7 @@ function usable(iso: string | null | undefined): string | null {
   return Number.isNaN(new Date(iso).getTime()) ? null : iso;
 }
 
-export function deriveLeadDates(lead: NormalizedLead, _stream: LeadStream): DerivedDates {
+export function deriveLeadDates(lead: NormalizedLead, _stream: LeadStream = 'opportunity'): DerivedDates {
   const deadline = usable(lead.deadline);
   const published = usable(lead.published_date);
 
