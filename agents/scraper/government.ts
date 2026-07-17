@@ -20,7 +20,7 @@ import { classifyGli } from './gli';
 import { opportunityVenueHint } from './classify';
 import { regionFor, regionOf } from './regions';
 import { classifyVenueType, categoryForVenue } from '../../lib/taxonomy';
-import { deriveLeadDates } from './lead-date';
+import { deriveLeadDates, isBeforeGliCutoff } from './lead-date';
 import { scrapeLegistar, lastLegistarStats } from './sources/legistar';
 import { scrapeGovDocs } from './sources/govdocs';
 
@@ -272,10 +272,17 @@ export async function runGovernmentLane(leads: NormalizedLead[]): Promise<Govern
   const players = deduped.length > 0 ? await extractPlayersBatch(deduped) : [];
   const noWrite = process.env.GOVERNMENT_NO_WRITE === '1';
 
+  let rejectedPreCutoff = 0;
   for (let i = 0; i < deduped.length; i++) {
     const lead = deduped[i];
     const tag = tags[i];
     const p = players[i];
+    // Hard GLI date cutoff: never write a government record dated before 2026.
+    // Undated records pass (kept + flagged), never assumed old.
+    if (isBeforeGliCutoff(lead, 'government')) {
+      rejectedPreCutoff++;
+      continue;
+    }
     const { row } = buildGovernmentRow(lead, tag, p);
     inc(report.perJurisdiction, lead.location ?? '(unknown)');
     inc(report.perVenueType, tag.venue_type);
@@ -304,6 +311,9 @@ export async function runGovernmentLane(leads: NormalizedLead[]): Promise<Govern
       continue;
     }
     report.written++;
+  }
+  if (rejectedPreCutoff > 0) {
+    console.log(`Government: rejected ${rejectedPreCutoff} records dated before the 2026 cutoff.`);
   }
   return report;
 }

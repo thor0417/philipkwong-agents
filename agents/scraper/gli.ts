@@ -27,7 +27,7 @@ import { keywordMatches } from './prefilter';
 import { opportunityVenueHint, opportunitySignalHint } from './classify';
 import { classifyVenueType, categoryForVenue } from '../../lib/taxonomy';
 import { configuredPrimaryDocument } from './sources/govdocs';
-import { deriveLeadDates } from './lead-date';
+import { deriveLeadDates, isBeforeGliCutoff } from './lead-date';
 
 const MODEL = 'claude-haiku-4-5-20251001';
 const GLI_MODULE = 'gli';
@@ -733,7 +733,14 @@ export async function runGliLane(rawLeads: NormalizedLead[]): Promise<GliReport>
 
   const noWrite = process.env.GLI_NO_WRITE === '1';
 
+  let rejectedPreCutoff = 0;
   for (const { lead, c } of kept) {
+    // Hard GLI date cutoff: never write a lead dated before 2026 (current-year
+    // only). Undated leads pass (kept + flagged), never assumed old.
+    if (isBeforeGliCutoff(lead, 'intelligence')) {
+      rejectedPreCutoff++;
+      continue;
+    }
     const tier = sourceTier(lead.url);
     // Canonical venue is deterministic (lib/taxonomy); the LLM venue is a hint.
     const venue = classifyVenueType(`${lead.title ?? ''} ${lead.raw_content ?? ''} ${c.venue_type ?? ''}`);
@@ -796,6 +803,9 @@ export async function runGliLane(rawLeads: NormalizedLead[]): Promise<GliReport>
       continue;
     }
     report.written++;
+  }
+  if (rejectedPreCutoff > 0) {
+    console.log(`GLI: rejected ${rejectedPreCutoff} intelligence leads dated before the 2026 cutoff.`);
   }
 
   // Sweep any junk rows already stored from earlier runs (defense-in-depth so

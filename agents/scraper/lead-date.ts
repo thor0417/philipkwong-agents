@@ -57,3 +57,37 @@ export function deriveLeadDates(lead: NormalizedLead, _stream: LeadStream = 'opp
   // dashboard badges these as DATE UNKNOWN.
   return { deadline: null, published_date: null, date_source: 'first_seen' };
 }
+
+// ---- Hard GLI date cutoff (current-year only) --------------------------------
+// GLI keeps only current-year leads: anything whose best-available date is before
+// this instant is deleted (not archived) and rejected at capture. Genuinely
+// undated leads are NEVER assumed old -- they are held for review.
+export const GLI_CUTOFF_MS = Date.UTC(2026, 0, 1); // 2026-01-01T00:00:00Z
+
+export type GliDateVerdict = 'current' | 'pre-cutoff' | 'unknown';
+
+// Classify a GLI lead against the cutoff using the SAME best-available-date logic
+// as the write path (source date wins; else a date parsed from title/body; else
+// unknown). For opportunities the bid deadline leads, else the publication/parsed
+// date. Returns the verdict plus the ISO date it was judged on (null when unknown).
+export function classifyGliByCutoff(
+  lead: NormalizedLead,
+  stream: LeadStream = 'opportunity'
+): { verdict: GliDateVerdict; date: string | null } {
+  const dates = deriveLeadDates(lead, stream);
+  if (dates.date_source === 'first_seen') return { verdict: 'unknown', date: null };
+  const pick =
+    stream === 'opportunity'
+      ? dates.deadline ?? dates.published_date
+      : dates.published_date ?? dates.deadline;
+  if (!pick) return { verdict: 'unknown', date: null };
+  const t = new Date(pick).getTime();
+  if (Number.isNaN(t)) return { verdict: 'unknown', date: null };
+  return { verdict: t < GLI_CUTOFF_MS ? 'pre-cutoff' : 'current', date: pick };
+}
+
+// Convenience for the capture gate: true only when the lead is DEFINITIVELY dated
+// before the cutoff. Undated leads return false (kept + flagged, never assumed old).
+export function isBeforeGliCutoff(lead: NormalizedLead, stream: LeadStream = 'opportunity'): boolean {
+  return classifyGliByCutoff(lead, stream).verdict === 'pre-cutoff';
+}

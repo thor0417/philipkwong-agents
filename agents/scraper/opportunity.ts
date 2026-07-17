@@ -21,7 +21,7 @@ import { isLeisureOpportunity, isDeadNotice } from './classify';
 import { tagOpportunities, sourceTier, type OpportunityTag } from './gli';
 import { regionFor, regionOf } from './regions';
 import { classifyVenueType, categoryForVenue } from '../../lib/taxonomy';
-import { deriveLeadDates } from './lead-date';
+import { deriveLeadDates, isBeforeGliCutoff } from './lead-date';
 
 import { scrapeTedEu } from './sources/tedeu';
 import { scrapeCanadaBuys } from './sources/canadabuys';
@@ -198,9 +198,16 @@ export async function runOpportunityLane(all: NormalizedLead[]): Promise<Opportu
   const tags = candidates.length > 0 ? await tagOpportunities(candidates) : [];
   const noWrite = process.env.OPPORTUNITY_NO_WRITE === '1';
 
+  let rejectedPreCutoff = 0;
   for (let i = 0; i < candidates.length; i++) {
     const lead = candidates[i];
     const tag = tags[i];
+    // Hard GLI date cutoff: never write an opportunity dated before 2026 (a
+    // closed/old solicitation). Undated leads pass (kept + flagged).
+    if (isBeforeGliCutoff(lead, 'opportunity')) {
+      rejectedPreCutoff++;
+      continue;
+    }
     const { region, row } = buildOpportunityRow(lead, tag);
     if (opportunityClosed(lead)) report.closed++;
     else report.open++;
@@ -227,6 +234,9 @@ export async function runOpportunityLane(all: NormalizedLead[]): Promise<Opportu
       continue;
     }
     report.written++;
+  }
+  if (rejectedPreCutoff > 0) {
+    console.log(`Opportunity: rejected ${rejectedPreCutoff} leads dated before the 2026 cutoff.`);
   }
   return report;
 }

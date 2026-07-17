@@ -21,7 +21,7 @@ import {
 } from './profiles';
 import { runGliLane, tagOpportunities, type GliReport } from './gli';
 import { buildOpportunityRow, opportunityClosed } from './opportunity';
-import { deriveLeadDates } from './lead-date';
+import { deriveLeadDates, isBeforeGliCutoff } from './lead-date';
 import { bestProfileFor, passesPrefilter, keywordMatches } from './prefilter';
 import { isBrokerNoise } from './broker-filter';
 import {
@@ -929,6 +929,7 @@ export async function orchestrate(): Promise<ScrapeReport> {
   }> = [];
   let opportunityWritten = 0;
   let opportunityWithDeadline = 0;
+  let opportunityRejectedPreCutoff = 0;
   let oppOpen = 0;
   let oppClosed = 0;
   const opportunityTags =
@@ -936,6 +937,12 @@ export async function orchestrate(): Promise<ScrapeReport> {
   for (let i = 0; i < opportunityPrepared.length; i++) {
     const lead = opportunityPrepared[i];
     const tag = opportunityTags[i];
+    // Hard GLI date cutoff: never write an opportunity dated before 2026 (a
+    // closed/old solicitation). Undated leads pass (kept + flagged).
+    if (isBeforeGliCutoff(lead, 'opportunity')) {
+      opportunityRejectedPreCutoff++;
+      continue;
+    }
     // Shared row shape (see opportunity.ts) so the standalone scrape:opportunity
     // validation run and this production path never drift.
     const { region, row } = buildOpportunityRow(lead, tag);
@@ -969,6 +976,11 @@ export async function orchestrate(): Promise<ScrapeReport> {
         deadline: lead.deadline ?? '',
       });
     }
+  }
+  if (opportunityRejectedPreCutoff > 0) {
+    console.log(
+      `GLI opportunity: rejected ${opportunityRejectedPreCutoff} leads dated before the 2026 cutoff.`
+    );
   }
 
   // 5e. Signals lane (Part B): private-developer / regulator pre-tender signals.
