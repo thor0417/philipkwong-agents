@@ -20,7 +20,7 @@ import { classifyGli } from './gli';
 import { opportunityVenueHint } from './classify';
 import { regionFor, regionOf } from './regions';
 import { classifyVenueType, categoryForVenue } from '../../lib/taxonomy';
-import { deriveLeadDates, isBeforeGliCutoff } from './lead-date';
+import { deriveLeadDates, objectFields, shouldDelete } from './lead-date';
 import { scrapeLegistar, lastLegistarStats } from './sources/legistar';
 import { scrapeGovDocs } from './sources/govdocs';
 
@@ -176,6 +176,8 @@ export function buildGovernmentRow(
   // Government records carry a document date (published_date), never a bid
   // deadline; parsed dates and the first_seen floor route through the same helper.
   const dates = deriveLeadDates(lead, 'government');
+  // A government record has no submission deadline -> always a project_event.
+  const om = objectFields(dates, lead.title, lead.raw_content);
   return {
     region,
     row: {
@@ -194,6 +196,8 @@ export function buildGovernmentRow(
       deadline: dates.deadline,
       published_date: dates.published_date,
       date_source: dates.date_source,
+      object_type: om.object_type,
+      milestone_date: om.milestone_date,
       value_estimate: null,
       lead_type: 'record',
       region,
@@ -277,9 +281,9 @@ export async function runGovernmentLane(leads: NormalizedLead[]): Promise<Govern
     const lead = deduped[i];
     const tag = tags[i];
     const p = players[i];
-    // Hard GLI date cutoff: never write a government record dated before 2026.
-    // Undated records pass (kept + flagged), never assumed old.
-    if (isBeforeGliCutoff(lead, 'government')) {
+    // Capture gate: government records are project events (no deadline), so they
+    // are never rejected here. shouldDelete stays as the single gate for symmetry.
+    if (shouldDelete(lead)) {
       rejectedPreCutoff++;
       continue;
     }
@@ -313,7 +317,7 @@ export async function runGovernmentLane(leads: NormalizedLead[]): Promise<Govern
     report.written++;
   }
   if (rejectedPreCutoff > 0) {
-    console.log(`Government: rejected ${rejectedPreCutoff} records dated before the 2026 cutoff.`);
+    console.log(`Government: rejected ${rejectedPreCutoff} records (dead pre-2026 opportunities only).`);
   }
   return report;
 }

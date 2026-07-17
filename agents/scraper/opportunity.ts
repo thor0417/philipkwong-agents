@@ -21,7 +21,7 @@ import { isLeisureOpportunity, isDeadNotice } from './classify';
 import { tagOpportunities, sourceTier, type OpportunityTag } from './gli';
 import { regionFor, regionOf } from './regions';
 import { classifyVenueType, categoryForVenue } from '../../lib/taxonomy';
-import { deriveLeadDates, isBeforeGliCutoff } from './lead-date';
+import { deriveLeadDates, objectFields, shouldDelete } from './lead-date';
 
 import { scrapeTedEu } from './sources/tedeu';
 import { scrapeCanadaBuys } from './sources/canadabuys';
@@ -61,6 +61,8 @@ export function buildOpportunityRow(
   // Best-available date + provenance (source deadline/published, else parsed from
   // text, else first_seen). Filtering keys off these; date_source drives the badge.
   const dates = deriveLeadDates(lead, 'opportunity');
+  // object_type (deadline rule) + future milestone, derived from the same dates.
+  const om = objectFields(dates, lead.title, lead.raw_content);
   // Canonical venue is deterministic (lib/taxonomy), so it never drifts or
   // collapses; the LLM's venue is folded in as a hint. Category derives from it.
   const venue = classifyVenueType(`${lead.title ?? ''} ${lead.raw_content ?? ''} ${tag.venue_type}`);
@@ -85,6 +87,8 @@ export function buildOpportunityRow(
       deadline: dates.deadline,
       published_date: dates.published_date,
       date_source: dates.date_source,
+      object_type: om.object_type,
+      milestone_date: om.milestone_date,
       value_estimate: lead.value_estimate,
       lead_type: 'tender',
       region,
@@ -202,9 +206,9 @@ export async function runOpportunityLane(all: NormalizedLead[]): Promise<Opportu
   for (let i = 0; i < candidates.length; i++) {
     const lead = candidates[i];
     const tag = tags[i];
-    // Hard GLI date cutoff: never write an opportunity dated before 2026 (a
-    // closed/old solicitation). Undated leads pass (kept + flagged).
-    if (isBeforeGliCutoff(lead, 'opportunity')) {
+    // Capture gate: reject only a dead old opportunity (pre-2026 deadline, no
+    // future milestone). Project events and anything with a future milestone pass.
+    if (shouldDelete(lead)) {
       rejectedPreCutoff++;
       continue;
     }
@@ -236,7 +240,7 @@ export async function runOpportunityLane(all: NormalizedLead[]): Promise<Opportu
     report.written++;
   }
   if (rejectedPreCutoff > 0) {
-    console.log(`Opportunity: rejected ${rejectedPreCutoff} leads dated before the 2026 cutoff.`);
+    console.log(`Opportunity: rejected ${rejectedPreCutoff} dead pre-2026 opportunities (no future milestone).`);
   }
   return report;
 }

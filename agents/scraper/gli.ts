@@ -27,7 +27,7 @@ import { keywordMatches } from './prefilter';
 import { opportunityVenueHint, opportunitySignalHint } from './classify';
 import { classifyVenueType, categoryForVenue } from '../../lib/taxonomy';
 import { configuredPrimaryDocument } from './sources/govdocs';
-import { deriveLeadDates, isBeforeGliCutoff } from './lead-date';
+import { deriveLeadDates, objectFields, shouldDelete } from './lead-date';
 
 const MODEL = 'claude-haiku-4-5-20251001';
 const GLI_MODULE = 'gli';
@@ -735,9 +735,9 @@ export async function runGliLane(rawLeads: NormalizedLead[]): Promise<GliReport>
 
   let rejectedPreCutoff = 0;
   for (const { lead, c } of kept) {
-    // Hard GLI date cutoff: never write a lead dated before 2026 (current-year
-    // only). Undated leads pass (kept + flagged), never assumed old.
-    if (isBeforeGliCutoff(lead, 'intelligence')) {
+    // Capture gate: intelligence leads are project events (no deadline), so they
+    // are never rejected here. shouldDelete stays as the single gate for symmetry.
+    if (shouldDelete(lead)) {
       rejectedPreCutoff++;
       continue;
     }
@@ -765,6 +765,8 @@ export async function runGliLane(rawLeads: NormalizedLead[]): Promise<GliReport>
     // Best-available date + provenance for the intelligence stream (source
     // published_date, else parsed from text, else first_seen).
     const dates = deriveLeadDates(lead, 'intelligence');
+    // Intelligence coverage has no submission deadline -> always a project_event.
+    const om = objectFields(dates, lead.title, lead.raw_content);
 
     const { error } = await supabaseAdmin.from('leads').upsert(
       {
@@ -783,6 +785,8 @@ export async function runGliLane(rawLeads: NormalizedLead[]): Promise<GliReport>
         deadline: dates.deadline,
         published_date: dates.published_date,
         date_source: dates.date_source,
+        object_type: om.object_type,
+        milestone_date: om.milestone_date,
         value_estimate: null,
         lead_type: 'gli',
         venue_type: venue,
@@ -805,7 +809,7 @@ export async function runGliLane(rawLeads: NormalizedLead[]): Promise<GliReport>
     report.written++;
   }
   if (rejectedPreCutoff > 0) {
-    console.log(`GLI: rejected ${rejectedPreCutoff} intelligence leads dated before the 2026 cutoff.`);
+    console.log(`GLI: rejected ${rejectedPreCutoff} intelligence leads (dead pre-2026 opportunities only).`);
   }
 
   // Sweep any junk rows already stored from earlier runs (defense-in-depth so

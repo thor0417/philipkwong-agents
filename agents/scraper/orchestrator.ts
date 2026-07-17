@@ -21,7 +21,7 @@ import {
 } from './profiles';
 import { runGliLane, tagOpportunities, type GliReport } from './gli';
 import { buildOpportunityRow, opportunityClosed } from './opportunity';
-import { deriveLeadDates, isBeforeGliCutoff } from './lead-date';
+import { deriveLeadDates, shouldDelete } from './lead-date';
 import { bestProfileFor, passesPrefilter, keywordMatches } from './prefilter';
 import { isBrokerNoise } from './broker-filter';
 import {
@@ -937,9 +937,9 @@ export async function orchestrate(): Promise<ScrapeReport> {
   for (let i = 0; i < opportunityPrepared.length; i++) {
     const lead = opportunityPrepared[i];
     const tag = opportunityTags[i];
-    // Hard GLI date cutoff: never write an opportunity dated before 2026 (a
-    // closed/old solicitation). Undated leads pass (kept + flagged).
-    if (isBeforeGliCutoff(lead, 'opportunity')) {
+    // Capture gate: reject only a dead old opportunity (pre-2026 deadline, no
+    // future milestone). Project events / future-milestone leads pass.
+    if (shouldDelete(lead)) {
       opportunityRejectedPreCutoff++;
       continue;
     }
@@ -979,7 +979,7 @@ export async function orchestrate(): Promise<ScrapeReport> {
   }
   if (opportunityRejectedPreCutoff > 0) {
     console.log(
-      `GLI opportunity: rejected ${opportunityRejectedPreCutoff} leads dated before the 2026 cutoff.`
+      `GLI opportunity: rejected ${opportunityRejectedPreCutoff} dead pre-2026 opportunities (no future milestone).`
     );
   }
 

@@ -58,36 +58,119 @@ export function deriveLeadDates(lead: NormalizedLead, _stream: LeadStream = 'opp
   return { deadline: null, published_date: null, date_source: 'first_seen' };
 }
 
-// ---- Hard GLI date cutoff (current-year only) --------------------------------
-// GLI keeps only current-year leads: anything whose best-available date is before
-// this instant is deleted (not archived) and rejected at capture. Genuinely
-// undated leads are NEVER assumed old -- they are held for review.
-export const GLI_CUTOFF_MS = Date.UTC(2026, 0, 1); // 2026-01-01T00:00:00Z
+// ---- Two-object liveness model (Opportunity vs Project event) ----------------
+// A deadline-bound solicitation is an OPPORTUNITY (binary: open or closed); it
+// dies on its deadline. Everything else is a PROJECT EVENT that attaches to a
+// long-lived project and lives by heartbeat (recent activity or a future
+// milestone). The classifier is the presence of a real SOURCE submission
+// deadline -- text-parsed dates never make a lead an opportunity.
+//
+// Only pre-2026 opportunities with no future milestone are ever DELETED. Project
+// events are NEVER deleted (archived/dormant instead), and anything with a future
+// milestone is never purged.
+import { parseMaxFutureDate } from './date-parse';
 
-export type GliDateVerdict = 'current' | 'pre-cutoff' | 'unknown';
+export const GLI_CUTOFF_MS = Date.UTC(2026, 0, 1); // 2026-01-01 (opportunity purge boundary)
 
-// Classify a GLI lead against the cutoff using the SAME best-available-date logic
-// as the write path (source date wins; else a date parsed from title/body; else
-// unknown). For opportunities the bid deadline leads, else the publication/parsed
-// date. Returns the verdict plus the ISO date it was judged on (null when unknown).
-export function classifyGliByCutoff(
-  lead: NormalizedLead,
-  stream: LeadStream = 'opportunity'
-): { verdict: GliDateVerdict; date: string | null } {
-  const dates = deriveLeadDates(lead, stream);
-  if (dates.date_source === 'first_seen') return { verdict: 'unknown', date: null };
-  const pick =
-    stream === 'opportunity'
-      ? dates.deadline ?? dates.published_date
-      : dates.published_date ?? dates.deadline;
-  if (!pick) return { verdict: 'unknown', date: null };
-  const t = new Date(pick).getTime();
-  if (Number.isNaN(t)) return { verdict: 'unknown', date: null };
-  return { verdict: t < GLI_CUTOFF_MS ? 'pre-cutoff' : 'current', date: pick };
+export type ObjectType = 'opportunity' | 'project_event';
+export type OpportunityVerdict = 'live' | 'archive' | 'delete';
+export type ProjectEventVerdict = 'live' | 'dormant' | 'archived';
+
+// ms of an ISO date, or NaN.
+function ms(iso: string | null): number {
+  if (!iso) return NaN;
+  const t = new Date(iso).getTime();
+  return Number.isNaN(t) ? NaN : t;
+}
+// Start of the UTC calendar day of a timestamp.
+function startOfUtcDay(t: number): number {
+  const d = new Date(t);
+  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+}
+// `now` minus n calendar months (UTC), for the 12/24-month project windows.
+function monthsBefore(now: number, n: number): number {
+  const d = new Date(now);
+  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth() - n, d.getUTCDate());
+}
+// True when the ISO date is strictly after today's UTC day.
+function isFutureDate(iso: string | null, now: number): boolean {
+  const t = ms(iso);
+  return !Number.isNaN(t) && startOfUtcDay(t) > startOfUtcDay(now);
 }
 
-// Convenience for the capture gate: true only when the lead is DEFINITIVELY dated
-// before the cutoff. Undated leads return false (kept + flagged, never assumed old).
-export function isBeforeGliCutoff(lead: NormalizedLead, stream: LeadStream = 'opportunity'): boolean {
-  return classifyGliByCutoff(lead, stream).verdict === 'pre-cutoff';
+// OPPORTUNITY lifecycle. deadline is the real source submission deadline.
+//   live    -> deadline today or later.
+//   delete  -> deadline before 2026 AND no future milestone (a dead old tender).
+//   archive -> any other passed deadline (recently closed feeds the pipeline; a
+//              2026+ closed tender, or one protected by a future milestone).
+export function opportunityVerdict(
+  deadline: string | null,
+  milestoneDate: string | null,
+  now: number = Date.now()
+): OpportunityVerdict {
+  const dl = ms(deadline);
+  if (Number.isNaN(dl)) return 'archive'; // defensive; an opportunity always has one
+  if (dl >= startOfUtcDay(now)) return 'live';
+  if (dl < GLI_CUTOFF_MS && !isFutureDate(milestoneDate, now)) return 'delete';
+  return 'archive';
+}
+
+// PROJECT EVENT lifecycle. bestDate is the last-activity proxy (source or
+// text-parsed date); origination date is NEVER a liveness filter. A future
+// milestone always wins. Never deleted.
+//   live     -> future milestone, OR last activity within 12 months, OR undated.
+//   dormant  -> silent 12-24 months, no future milestone.
+//   archived -> silent beyond 24 months, no future milestone.
+export function projectEventVerdict(
+  bestDate: string | null,
+  milestoneDate: string | null,
+  now: number = Date.now()
+): ProjectEventVerdict {
+  if (isFutureDate(milestoneDate, now)) return 'live';
+  const t = ms(bestDate);
+  if (Number.isNaN(t)) return 'live'; // undated: never assume old (badge DATE UNKNOWN)
+  if (t >= monthsBefore(now, 12)) return 'live';
+  if (t >= monthsBefore(now, 24)) return 'dormant';
+  return 'archived';
+}
+
+export interface LeadModel {
+  object_type: ObjectType;
+  milestone_date: string | null;
+  verdict: OpportunityVerdict | ProjectEventVerdict;
+}
+
+// The full object-model classification of a lead: object_type (by the deadline
+// rule), its future milestone_date, and its lifecycle verdict.
+export function classifyLead(lead: NormalizedLead, now: number = Date.now()): LeadModel {
+  const dates = deriveLeadDates(lead);
+  const milestone_date = parseMaxFutureDate(`${lead.title ?? ''}\n${lead.raw_content ?? ''}`, now);
+  const object_type: ObjectType = dates.deadline ? 'opportunity' : 'project_event';
+  const verdict =
+    object_type === 'opportunity'
+      ? opportunityVerdict(dates.deadline, milestone_date, now)
+      : projectEventVerdict(dates.published_date, milestone_date, now);
+  return { object_type, milestone_date, verdict };
+}
+
+// The two columns written on every GLI row. Derived from the same source dates as
+// the row, so the gate and the row never disagree.
+export function objectFields(
+  dates: DerivedDates,
+  title: string | null,
+  rawContent: string | null,
+  now: number = Date.now()
+): { object_type: ObjectType; milestone_date: string | null } {
+  return {
+    object_type: dates.deadline ? 'opportunity' : 'project_event',
+    milestone_date: parseMaxFutureDate(`${title ?? ''}\n${rawContent ?? ''}`, now),
+  };
+}
+
+// Capture gate + purge predicate: true ONLY for a dead old opportunity (pre-2026
+// deadline, no future milestone). Project events are never deleted; undated leads
+// are never assumed old.
+export function shouldDelete(lead: NormalizedLead, now: number = Date.now()): boolean {
+  const m = classifyLead(lead, now);
+  return m.object_type === 'opportunity' && m.verdict === 'delete';
 }
