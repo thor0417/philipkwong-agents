@@ -62,7 +62,37 @@ const ADDRESS_BEFORE = /(?:suite|ste|unit|apt|apartment|room|rm|floor|fl|no|numb
 // Extract the freshest obvious date from free text as an ISO date-only string, or
 // null when there is no clear evidence. Never throws.
 export function parseDateFromText(text: string | null | undefined): string | null {
-  if (!text) return null;
+  const candidates = extractDateCandidates(text);
+  // Freshest wins; ISO date strings sort chronologically as plain strings.
+  return candidates.length ? candidates[candidates.length - 1] : null;
+}
+
+// UTC calendar day (YYYY-MM-DD) of a timestamp. Used so "future" is judged on the
+// date, not the exact instant.
+function utcDay(ms: number): string {
+  const d = new Date(ms);
+  return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
+}
+
+// The MAX future date in the text (a milestone: opening/completion/hearing date),
+// or null when no candidate is after today. "Future" is strictly after today's
+// UTC day. Shares the same conservative candidate extraction as the age parser, so
+// a project's "opening 2028" is caught while its past origination year is ignored.
+export function parseMaxFutureDate(
+  text: string | null | undefined,
+  now: number = Date.now()
+): string | null {
+  const today = utcDay(now);
+  // ISO date-only strings compare lexically as they do chronologically.
+  const future = extractDateCandidates(text).filter((iso) => iso > today);
+  return future.length ? future[future.length - 1] : null;
+}
+
+// All validated ISO date-only (YYYY-MM-DD) candidates found in the text, sorted
+// ascending (oldest first). The single source of date evidence for both the
+// freshest-wins age parser and the future-milestone parser.
+export function extractDateCandidates(text: string | null | undefined): string[] {
+  if (!text) return [];
   const hay = text.toLowerCase();
   const candidates: string[] = [];
 
@@ -94,8 +124,7 @@ export function parseDateFromText(text: string | null | undefined): string | nul
     if (iso) candidates.push(iso);
   }
 
-  if (candidates.length === 0) return null;
-  // Freshest wins; ISO date strings sort chronologically as plain strings.
+  // Sorted ascending so callers can take the max (freshest) or filter by date.
   candidates.sort();
-  return candidates[candidates.length - 1];
+  return candidates;
 }
