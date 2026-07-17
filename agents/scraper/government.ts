@@ -20,6 +20,7 @@ import { classifyGli } from './gli';
 import { opportunityVenueHint } from './classify';
 import { regionFor, regionOf } from './regions';
 import { classifyVenueType, categoryForVenue } from '../../lib/taxonomy';
+import { deriveLeadDates } from './lead-date';
 import { scrapeLegistar, lastLegistarStats } from './sources/legistar';
 import { scrapeGovDocs } from './sources/govdocs';
 
@@ -172,6 +173,9 @@ export function buildGovernmentRow(
 ): { region: string; row: Record<string, unknown> } {
   const region = regionFor(lead, regionOf(lead.source));
   const venue = classifyVenueType(`${lead.title ?? ''} ${lead.raw_content ?? ''} ${tag.venue_type}`);
+  // Government records carry a document date (published_date), never a bid
+  // deadline; parsed dates and the first_seen floor route through the same helper.
+  const dates = deriveLeadDates(lead, 'government');
   return {
     region,
     row: {
@@ -187,8 +191,9 @@ export function buildGovernmentRow(
       stream: 'government',
       company: lead.company,
       location: lead.location,
-      deadline: null,
-      published_date: lead.published_date ?? null,
+      deadline: dates.deadline,
+      published_date: dates.published_date,
+      date_source: dates.date_source,
       value_estimate: null,
       lead_type: 'record',
       region,

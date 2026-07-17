@@ -8,6 +8,7 @@
 // failure it logs and returns [] without throwing.
 
 import type { NormalizedLead } from './types';
+import { toIso } from './types';
 
 const FEED_URL = process.env.ADB_URL ?? 'https://feeds.feedburner.com/adb-csrn';
 const ATTEMPTS = Number(process.env.ADB_ATTEMPTS ?? '3');
@@ -72,6 +73,9 @@ export async function scrapeAdb(): Promise<NormalizedLead[]> {
     const category = tag(item, 'category');
     const country = metaField(category, 'Countries');
     const sectors = metaField(category, 'Sectors');
+    // The category packs a "Date: YYYY-MM-DD" posting date; capture it as the
+    // notice publication date (the feed exposes no bid deadline).
+    const posted = toIso(metaField(category, 'Date'));
     byUrl.set(link, {
       title,
       url: link,
@@ -86,9 +90,11 @@ export async function scrapeAdb(): Promise<NormalizedLead[]> {
         .join('\n'),
       company: null,
       location: country || null,
-      // The feed carries the posting date, not a bid deadline; keep null so the
-      // orchestrator does not drop the notice as expired.
+      // The feed carries the posting date, not a bid deadline; keep deadline null
+      // so the orchestrator does not drop the notice as expired, and record the
+      // posting date as published_date (the notice's age signal).
       deadline: null,
+      published_date: posted,
       value_estimate: null,
       source: 'adb',
     });

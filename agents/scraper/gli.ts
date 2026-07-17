@@ -27,6 +27,7 @@ import { keywordMatches } from './prefilter';
 import { opportunityVenueHint, opportunitySignalHint } from './classify';
 import { classifyVenueType, categoryForVenue } from '../../lib/taxonomy';
 import { configuredPrimaryDocument } from './sources/govdocs';
+import { deriveLeadDates } from './lead-date';
 
 const MODEL = 'claude-haiku-4-5-20251001';
 const GLI_MODULE = 'gli';
@@ -754,6 +755,10 @@ export async function runGliLane(rawLeads: NormalizedLead[]): Promise<GliReport>
 
     if (noWrite) continue;
 
+    // Best-available date + provenance for the intelligence stream (source
+    // published_date, else parsed from text, else first_seen).
+    const dates = deriveLeadDates(lead, 'intelligence');
+
     const { error } = await supabaseAdmin.from('leads').upsert(
       {
         source: lead.source,
@@ -768,8 +773,9 @@ export async function runGliLane(rawLeads: NormalizedLead[]): Promise<GliReport>
         stream: 'intelligence',
         company: c.project_name,
         location: c.location,
-        deadline: null,
-        published_date: lead.published_date ?? null,
+        deadline: dates.deadline,
+        published_date: dates.published_date,
+        date_source: dates.date_source,
         value_estimate: null,
         lead_type: 'gli',
         venue_type: venue,

@@ -21,6 +21,7 @@ import { isLeisureOpportunity, isDeadNotice } from './classify';
 import { tagOpportunities, sourceTier, type OpportunityTag } from './gli';
 import { regionFor, regionOf } from './regions';
 import { classifyVenueType, categoryForVenue } from '../../lib/taxonomy';
+import { deriveLeadDates } from './lead-date';
 
 import { scrapeTedEu } from './sources/tedeu';
 import { scrapeCanadaBuys } from './sources/canadabuys';
@@ -57,6 +58,9 @@ export function buildOpportunityRow(
   const region = regionFor(lead, regionOf(lead.source));
   const tier = sourceTier(lead.url);
   const closed = opportunityClosed(lead);
+  // Best-available date + provenance (source deadline/published, else parsed from
+  // text, else first_seen). Filtering keys off these; date_source drives the badge.
+  const dates = deriveLeadDates(lead, 'opportunity');
   // Canonical venue is deterministic (lib/taxonomy), so it never drifts or
   // collapses; the LLM's venue is folded in as a hint. Category derives from it.
   const venue = classifyVenueType(`${lead.title ?? ''} ${lead.raw_content ?? ''} ${tag.venue_type}`);
@@ -78,8 +82,9 @@ export function buildOpportunityRow(
       stream: 'opportunity',
       company: lead.company,
       location: lead.location,
-      deadline: lead.deadline,
-      published_date: lead.published_date ?? null,
+      deadline: dates.deadline,
+      published_date: dates.published_date,
+      date_source: dates.date_source,
       value_estimate: lead.value_estimate,
       lead_type: 'tender',
       region,

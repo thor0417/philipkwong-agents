@@ -30,6 +30,11 @@ interface WbNotice {
   id?: string;
   notice_type?: string;
   notice_status?: string;
+  // Notice publication date (e.g. "15-Jul-2026"); submission_date is the same day
+  // in ISO. Distinct from submission_deadline_date (the bid deadline). Captured as
+  // published_date so an undated-deadline notice still carries an age signal.
+  noticedate?: string;
+  submission_date?: string;
   submission_deadline_date?: string;
   project_ctry_name?: string;
   project_id?: string;
@@ -67,6 +72,7 @@ function buildContent(n: WbNotice): string {
     `Country: ${n.project_ctry_name ?? ''}`,
     `Buyer: ${n.contact_organization ?? ''}`,
     `Reference: ${n.bid_reference_no ?? ''}`,
+    `Published: ${n.noticedate ?? ''}`,
     '',
     stripHtml(n.notice_text).slice(0, 800),
   ].join('\n');
@@ -110,6 +116,7 @@ export async function scrapeWorldBank(): Promise<NormalizedLead[]> {
         company: n.contact_organization ?? null,
         location: n.project_ctry_name ?? null,
         deadline: toIso(n.submission_deadline_date),
+        published_date: toIso(n.noticedate) ?? toIso(n.submission_date),
         value_estimate: null,
         source: 'worldbank',
       });
