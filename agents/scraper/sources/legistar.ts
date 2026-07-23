@@ -18,6 +18,7 @@ import type { NormalizedLead } from './types';
 import { toIso } from './types';
 import { keywordMatches } from '../prefilter';
 import type { SourceType } from '../../../lib/taxonomy';
+import { governmentGate } from '../../../lib/taxonomy';
 
 // Canonical government document type (lib/taxonomy SOURCE_TYPES) for a Legistar
 // record, from its matter/body type + title. Ordered most-specific first;
@@ -107,63 +108,24 @@ function parseJurisdictions(env: string | undefined): LegistarJurisdiction[] | n
 
 const JURISDICTIONS: LegistarJurisdiction[] = parseJurisdictions(process.env.LEGISTAR_CLIENTS) ?? DEFAULT_JURISDICTIONS;
 
-// ---- CONFIG: signal keywords (SWAPPABLE) ------------------------------------
-// A record matches the lane when any of these appears in its title or text.
-// Whole-word, case-insensitive. Edit freely to retarget what counts as a signal.
-const KEYWORDS = [
-  // Leisure / attractions / hospitality / gaming / culture.
-  'entertainment district',
-  'tourism improvement district',
-  'theme park',
-  'water park',
-  'waterpark',
-  'amusement',
-  'resort',
-  'hotel development',
-  'casino',
-  'gaming',
-  'integrated resort',
-  'arena',
-  'stadium',
-  'convention center',
-  'museum',
-  'aquarium',
-  'zoo',
-  'attraction',
-  'tourism development',
-  'visitor',
-  'cultural center',
-  'entertainment complex',
-  // Full development spectrum (smart city / urban / mixed-use / infrastructure)
-  // plus the planning / entitlement process terms that mark early pre-tender
-  // activity. Non-leisure records are captured and categorized, never filtered out.
-  'smart city',
-  'master-planned community',
-  'master planned community',
-  'mixed-use',
-  'mixed use',
-  'urban regeneration',
-  'urban renewal',
-  'transit-oriented development',
-  'transit oriented development',
-  'downtown redevelopment',
-  'waterfront',
-  'redevelopment',
-  'transit hub',
-  'feasibility study',
-  'master plan',
-  'masterplan',
-  'comprehensive plan',
-  'land use',
-  'rezoning',
-  'development agreement',
-  'entitlement',
-];
+// ---- MATCH GATE ------------------------------------------------------------
+// The flat KEYWORDS list was replaced by the two-tier gate in lib/taxonomy.ts
+// (governmentGate: STRONG matches alone, WEAK needs a corroborating ACTION,
+// EXCLUSIONS override). The gate lists live in the taxonomy as the single source
+// of truth; this lane only applies them (and honors the jurisdiction bypassGate).
 
-// Per-jurisdiction fetched/matched counts from the most recent scrape, for the
-// validation report. Reset at the start of each scrapeLegistar call.
-let lastStats: Record<string, { fetched: number; matched: number }> = {};
-export function lastLegistarStats(): Record<string, { fetched: number; matched: number }> {
+// Per-jurisdiction gate telemetry from the most recent scrape, for the validation
+// report. Reset at the start of each scrapeLegistar call.
+export interface LegistarJurisdictionStats {
+  fetched: number;
+  matched: number;
+  droppedExcluded: number;
+  droppedWeakNoAction: number;
+  droppedNoMatch: number;
+  bypassed: boolean;
+}
+let lastStats: Record<string, LegistarJurisdictionStats> = {};
+export function lastLegistarStats(): Record<string, LegistarJurisdictionStats> {
   return lastStats;
 }
 
@@ -317,13 +279,29 @@ async function scrapeJurisdiction(
   );
 
   let matched = 0;
+  let droppedExcluded = 0;
+  let droppedWeakNoAction = 0;
+  let droppedNoMatch = 0;
+
+  // Apply the two-tier gate, or bypass it entirely for a single-purpose district
+  // (where the jurisdiction itself is the signal). Returns true to KEEP; otherwise
+  // tallies the drop reason for gate telemetry.
+  const passesGate = (text: string): boolean => {
+    if (j.bypassGate) return true;
+    const g = governmentGate(text);
+    if (g.matched) return true;
+    if (g.reason === 'excluded') droppedExcluded++;
+    else if (g.reason === 'weak-without-action') droppedWeakNoAction++;
+    else droppedNoMatch++;
+    return false;
+  };
 
   for (const m of matters) {
     if (!m.MatterId) continue;
     const title = m.MatterTitle || m.MatterName || m.MatterFile || '';
     if (!title) continue;
     const text = `${title}\n${m.MatterName ?? ''}\n${m.MatterFile ?? ''}\n${m.MatterTypeName ?? ''}`;
-    if (keywordMatches(text, KEYWORDS).length === 0) continue;
+    if (!passesGate(text)) continue;
     matched++;
     const url = await publicMatterUrl(j.client, m.MatterId);
     if (byUrl.has(url)) continue;
@@ -345,8 +323,12 @@ async function scrapeJurisdiction(
 
   for (const e of events) {
     if (!e.EventId) continue;
-    const text = `${e.EventBodyName ?? ''}\n${e.EventComment ?? ''}\n${e.EventLocation ?? ''}`;
-    if (keywordMatches(text, KEYWORDS).length === 0) continue;
+    // Gate an event on its BODY NAME only. The event comment/location routinely
+    // carry a meeting VENUE name (a council that meets at a convention center, a
+    // board that meets at a performing-arts hall), which would false-match STRONG
+    // terms; the body name is the event's own identity. The comment/location are
+    // still kept in raw_content for context and player extraction.
+    if (!passesGate(e.EventBodyName ?? '')) continue;
     matched++;
     const url = await publicEventUrl(j.client, e.EventId);
     if (byUrl.has(url)) continue;
@@ -364,9 +346,20 @@ async function scrapeJurisdiction(
     });
   }
 
-  lastStats[j.jurisdictionLabel] = { fetched: matters.length + events.length, matched };
+  lastStats[j.jurisdictionLabel] = {
+    fetched: matters.length + events.length,
+    matched,
+    droppedExcluded,
+    droppedWeakNoAction,
+    droppedNoMatch,
+    bypassed: !!j.bypassGate,
+  };
   console.log(
-    `Legistar ${j.jurisdictionLabel}: ${matters.length + events.length} records fetched, ${matched} keyword-matched.`
+    `Legistar ${j.jurisdictionLabel}: ${matters.length + events.length} fetched, ${matched} matched` +
+      (j.bypassGate
+        ? ' (gate bypassed)'
+        : ` (dropped: ${droppedExcluded} excluded, ${droppedWeakNoAction} weak-no-action, ${droppedNoMatch} no-match)`) +
+      '.'
   );
 }
 

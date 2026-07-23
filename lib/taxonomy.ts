@@ -168,3 +168,91 @@ export function classifyVenueType(text: string): VenueType {
   }
   return 'Other';
 }
+
+// ---- GLI GOVERNMENT GATE (two-tier, single source of truth) -----------------
+// THE TWO-TIER PRINCIPLE. Do NOT flatten these back into one flat keyword list:
+// the flat list both missed real leads (it carried only compound terms like
+// "hotel development", so bare "hotel" plats and liquor licenses fell through) and
+// admitted noise. The redesign:
+//   STRONG  - names a leisure venue or project type UNAMBIGUOUSLY -> matches ALONE.
+//   WEAK    - a real leisure signal but ambiguous in isolation (a "hotel" tax note,
+//             a "gaming" ordinance) -> matches ONLY with a corroborating ACTION term.
+//   ACTION  - entitlement / deal vocabulary that proves a live project or filing.
+//   EXCLUSIONS - known governance noise; drop even when a term matched.
+// Match = any STRONG, OR (any WEAK AND any ACTION). EXCLUSIONS override everything.
+// All matching is whole-word (hasWord) and case-insensitive.
+export const GOV_GATE_STRONG = [
+  'theme park', 'amusement park', 'amusement', 'water park', 'waterpark',
+  'family entertainment center', 'entertainment center', 'entertainment district',
+  'entertainment complex', 'entertainment facility', 'entertainment venue',
+  'recreational facility', 'recreation center', 'integrated resort', 'resort',
+  'casino', 'arena', 'stadium', 'ballpark', 'amphitheater', 'amphitheatre',
+  'convention center', 'exposition', 'fairgrounds', 'museum', 'aquarium', 'zoo',
+  'cultural center', 'performing arts', 'visitor center', 'attraction',
+  'tourism improvement district', 'tourism development', 'marina', 'pier',
+  'master-planned community', 'master planned community', 'comprehensive plan',
+  'downtown redevelopment', 'urban regeneration',
+  'transit-oriented development', 'transit oriented development',
+  'entertainment district overlay',
+] as const;
+
+// TIER REFINEMENT (proven by the Part B 30-record precision test): 'master plan',
+// 'masterplan', 'mixed use', 'mixed-use' were demoted from STRONG to WEAK. They are
+// ambiguous alone -- "Storm Drainage Master Plan", "amend the Zoning Ordinance
+// re mixed-use standards" are infrastructure/code housekeeping, not leisure
+// projects. As WEAK they still catch real work (a mixed-use plan amendment, a
+// downtown master plan RFP) because those carry a corroborating ACTION term, while
+// the housekeeping items drop. This IS the two-tier principle, not a flattening.
+export const GOV_GATE_WEAK = [
+  'hotel', 'motel', 'spa', 'golf', 'waterfront', 'redevelopment', 'hospitality',
+  'tourism', 'gaming', 'entertainment', 'recreation',
+  'master plan', 'masterplan', 'mixed use', 'mixed-use',
+] as const;
+
+export const GOV_GATE_ACTION = [
+  'use permit', 'special use permit', 'conditional use', 'zone change', 'rezoning',
+  'zoning application', 'plan amendment', 'plat', 'tentative map', 'site plan',
+  'design review', 'variance', 'waiver of development standards',
+  'development agreement', 'disposition and development agreement', 'ground lease',
+  'entitlement', 'land use', 'tax increment', 'TIF', 'feasibility',
+  'request for proposals', 'liquor license',
+] as const;
+
+export const GOV_GATE_EXCLUSIONS = [
+  'adult entertainment', 'proclamation', 'appointment', 'reappointment',
+  'employment agreement', 'personnel', 'retirement', 'condolence', 'commendation',
+] as const;
+
+export type GateReason = 'strong' | 'weak+action' | 'excluded' | 'weak-without-action' | 'no-match';
+export interface GateVerdict {
+  matched: boolean;
+  reason: GateReason;
+  strongHits: string[];
+  weakHits: string[];
+  actionHits: string[];
+  exclusionHits: string[];
+}
+
+// Two-tier gate verdict for a government record's combined text. Exclusions win
+// over any match; a STRONG term matches alone; a WEAK term needs a corroborating
+// ACTION term. The hit lists feed gate telemetry (Part F) and audit sampling.
+export function governmentGate(text: string): GateVerdict {
+  const strongHits = GOV_GATE_STRONG.filter((t) => hasWord(text, t));
+  const weakHits = GOV_GATE_WEAK.filter((t) => hasWord(text, t));
+  const actionHits = GOV_GATE_ACTION.filter((t) => hasWord(text, t));
+  const exclusionHits = GOV_GATE_EXCLUSIONS.filter((t) => hasWord(text, t));
+
+  if (exclusionHits.length > 0) {
+    return { matched: false, reason: 'excluded', strongHits, weakHits, actionHits, exclusionHits };
+  }
+  if (strongHits.length > 0) {
+    return { matched: true, reason: 'strong', strongHits, weakHits, actionHits, exclusionHits };
+  }
+  if (weakHits.length > 0 && actionHits.length > 0) {
+    return { matched: true, reason: 'weak+action', strongHits, weakHits, actionHits, exclusionHits };
+  }
+  if (weakHits.length > 0) {
+    return { matched: false, reason: 'weak-without-action', strongHits, weakHits, actionHits, exclusionHits };
+  }
+  return { matched: false, reason: 'no-match', strongHits, weakHits, actionHits, exclusionHits };
+}
