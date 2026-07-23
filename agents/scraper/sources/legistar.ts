@@ -43,32 +43,50 @@ const UA = 'philipkwong-agents/1.0 (+scraper)';
 // Records pulled per endpoint per jurisdiction (most recent first). Bounds the run.
 const TOP = Number(process.env.LEGISTAR_TOP ?? '200');
 
-// ---- CONFIG: jurisdictions (SWAPPABLE) --------------------------------------
+// ---- CONFIG: jurisdictions (SWAPPABLE), AS A DOCUMENTED DECISION -------------
 // One entry = one Legistar market. `client` is the Legistar API client id (the
 // subdomain of <client>.legistar.com); `jurisdictionLabel` is the human location
-// tag stored on every lead. Add a market by adding ONE line here.
+// tag stored on every lead; `reason` records WHY the market is here. Add a market
+// by adding ONE line here.
 //
-// TARGETED SET. Deliberately pointed at the jurisdictions where leisure /
-// development work happens, and pruned to clients VERIFIED live on the public
-// Legistar API (webapi.legistar.com returns HTTP 200). The framework is not
-// US-specific -- swap in any Legistar market by one line (e.g. { client:
-// 'toronto', jurisdictionLabel: 'Toronto, ON' }). Removed as unavailable on the
-// public API (all HTTP 500): 'lasvegas', 'clarkcountynv' (the correct Clark County
-// code is 'clark'), 'orlando', 'orangecountyfl'. Las Vegas city, Orlando city, and
-// Orange County FL are NOT on public Legistar; their comprehensive plans and the
-// CFTOD special district are captured via sources/govdocs.ts instead.
+// SELECTION CRITERIA (every entry must meet all three):
+//   1. Active leisure / attractions / hospitality / entertainment-district capital
+//      in motion.
+//   2. A market where GLI or its partners can plausibly work.
+//   3. Machine-readable records (verified HTTP 200 on webapi.legistar.com/v1/{code}).
+//
+// `bypassGate` (optional): a single-purpose district where the jurisdiction ITSELF
+// is the signal (a stadium authority, a tourism-improvement district). Such a
+// market skips the keyword gate entirely - every record is captured. No Legistar
+// market here is single-purpose, so none set it; the field exists so a future
+// district can. CFTOD (a single-purpose district) is captured via the document
+// sources in sources/govdocs.ts, where the same bypass principle is applied.
+//
+// VERIFIED against webapi.legistar.com/v1/{code}/Bodies on this brief:
+//   Live (HTTP 200): clark, miamidade, phoenix, nashville, sanantonio, oakland.
+//   NOT on public Legistar (HTTP 500 on every code variant tried):
+//     - City of Las Vegas ('lasvegas','vegas','cityoflasvegas','lvnv','clvnv') ->
+//       captured via its agenda portal as a DOCUMENT SOURCE (sources/govdocs.ts).
+//       (Clark County still covers the Strip/Top Gun county entitlement layer.)
+//     - Anaheim ('anaheim','cityofanaheim') -> DOCUMENT SOURCE (OCVibe / Disneyland
+//       Forward planning + council records).
+//     - Orange County FL ('orangecountyfl','ocfl','orange') and Orlando
+//       ('orlando','orlandofl','cityoforlando') -> not on Legistar; the Disney/
+//       Universal orbit is covered by CFTOD + FL comprehensive-plan document sources.
 export interface LegistarJurisdiction {
   client: string;
   jurisdictionLabel: string;
+  reason: string;
+  // Single-purpose district: capture every record, skip the keyword gate.
+  bypassGate?: boolean;
 }
 const DEFAULT_JURISDICTIONS: LegistarJurisdiction[] = [
-  // Priority targets (leisure/development), verified live:
-  { client: 'clark', jurisdictionLabel: 'Clark County, NV' }, // Las Vegas metro / Area15 territory
-  { client: 'miamidade', jurisdictionLabel: 'Miami-Dade County, FL' },
-  // Additional verified US development markets (trim if too broad):
-  { client: 'nashville', jurisdictionLabel: 'Nashville, TN' },
-  { client: 'phoenix', jurisdictionLabel: 'Phoenix, AZ' },
-  { client: 'sanantonio', jurisdictionLabel: 'San Antonio, TX' },
+  { client: 'clark', jurisdictionLabel: 'Clark County, NV', reason: 'Strip-adjacent entitlement; Top Gun / The Strat county layer; Area15 territory.' },
+  { client: 'miamidade', jurisdictionLabel: 'Miami-Dade County, FL', reason: 'Hospitality supply pipeline; proven producer.' },
+  { client: 'nashville', jurisdictionLabel: 'Nashville, TN', reason: 'East Bank redevelopment, stadium district, hotel boom; proven producer.' },
+  { client: 'phoenix', jurisdictionLabel: 'Phoenix, AZ', reason: 'Proven producer; hotel and entertainment growth.' },
+  { client: 'sanantonio', jurisdictionLabel: 'San Antonio, TX', reason: 'Lowest priority; produced 8 real records and costs nothing once verified.' },
+  { client: 'oakland', jurisdictionLabel: 'Oakland, CA', reason: 'Waterfront / ballpark / Coliseum-site redevelopment; verified live on Legistar.' },
 ];
 
 // Config override: LEGISTAR_CLIENTS="lasvegas:Las Vegas NV,orlando:Orlando FL"
@@ -81,7 +99,7 @@ function parseJurisdictions(env: string | undefined): LegistarJurisdiction[] | n
       const i = pair.indexOf(':');
       const client = (i === -1 ? pair : pair.slice(0, i)).trim();
       const jurisdictionLabel = (i === -1 ? client : pair.slice(i + 1)).trim();
-      return { client, jurisdictionLabel };
+      return { client, jurisdictionLabel, reason: 'Configured via LEGISTAR_CLIENTS env override.' };
     })
     .filter((j) => j.client);
   return out.length ? out : null;
