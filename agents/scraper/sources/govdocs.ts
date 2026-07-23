@@ -22,6 +22,11 @@ interface GovDoc {
   sourceType: SourceType;
   title: string;
   url: string;
+  // Single-purpose district / dedicated document source: the jurisdiction itself
+  // is the signal, so the record bypasses the keyword gate entirely (every
+  // document captured). All document sources here bypass by nature; the flag is
+  // explicit so the config reads as a decision, per Part B rule 3.
+  bypass: boolean;
   // Distinctive terms that mark an article as referencing THIS document. Used by
   // source-chaining (intelligence lane) to resolve a referenced-but-not-linked
   // primary document to its known, verified URL (never a guessed URL).
@@ -33,23 +38,104 @@ interface GovDoc {
   docDate?: string | null;
 }
 
-// STARTER config (swappable; add plans / special-district docs as one line each).
-// Point url at the actual plan document (PDF preferred) so has_primary_document
-// reflects a real fetched file; the landing page still captures the reference.
+// CONFIG (swappable; one line per document / index page). Each entry is fetched
+// and VERIFIED before storing (never store a URL that errors, Part D URL rule).
+// url points at a real document (PDF -> has_primary_document true) or an official
+// index/portal page (HTML -> captured as a reference). Every entry bypasses the
+// keyword gate: a special-district or a jurisdiction's own plan/agenda portal is
+// the signal. Seeded with CFTOD (the Disney proof case), the agenda portals of the
+// Part A jurisdictions that are NOT on Legistar (City of Las Vegas, Anaheim), and
+// two verified Florida comprehensive-plan pages.
+const CFTOD = 'Central Florida Tourism Oversight District, FL';
+const CFTOD_TERMS = ['cftod', 'oversight district', 'central florida tourism', 'reedy creek'];
 const GOV_DOCUMENTS: GovDoc[] = [
   {
-    // The proven Disney chain: a Blooloop article led to this 400-page plan
-    // reserving specific theme-park acreage. url points at the real PDF (verified
-    // application/pdf), so has_primary_document is true and source-chaining
-    // resolves references here. docDate left null (the exact adoption date is
-    // unknown; undated keeps it in the Active view). Fill in the adoption date to
-    // let the 18-month gate age it correctly.
-    jurisdictionLabel: 'Central Florida Tourism Oversight District, FL',
+    // The proven Disney chain: the ~400-page plan reserving specific theme-park
+    // acreage. url is the real PDF (verified application/pdf), so
+    // has_primary_document is true and source-chaining resolves references here.
+    jurisdictionLabel: CFTOD,
     sourceType: 'Comprehensive Plan',
     title: 'CFTOD 2045 Comprehensive Plan',
     url: 'https://www.oversightdistrict.org/wp-content/uploads/2026/01/2045-CFTOD-Comprehensive-Plan.pdf',
+    bypass: true,
+    docDate: '2026-01-01',
+    matchTerms: CFTOD_TERMS,
+  },
+  {
+    jurisdictionLabel: CFTOD,
+    sourceType: 'Council Agenda',
+    title: 'CFTOD Board of Supervisors Agenda Packet - January 23, 2026',
+    url: 'https://www.oversightdistrict.org/wp-content/uploads/2026/01/1-23-2026-BOS-Agenda-Packet-FINALcs.pdf',
+    bypass: true,
+    docDate: '2026-01-23',
+    matchTerms: CFTOD_TERMS,
+  },
+  {
+    jurisdictionLabel: CFTOD,
+    sourceType: 'Council Agenda',
+    title: 'CFTOD Board of Supervisors Agenda Packet - February 27, 2026',
+    url: 'https://www.oversightdistrict.org/wp-content/uploads/2026/02/2-27-2026-BOS-Agenda-Packet-FINAL.pdf',
+    bypass: true,
+    docDate: '2026-02-27',
+    matchTerms: CFTOD_TERMS,
+  },
+  {
+    jurisdictionLabel: CFTOD,
+    sourceType: 'Council Agenda',
+    title: 'CFTOD Board of Supervisors Agenda Packet - March 27, 2026',
+    url: 'https://www.oversightdistrict.org/wp-content/uploads/2026/03/3-27-2026-BOS-Agenda-Packet-FINAL.pdf',
+    bypass: true,
+    docDate: '2026-03-27',
+    matchTerms: CFTOD_TERMS,
+  },
+  {
+    jurisdictionLabel: CFTOD,
+    sourceType: 'Council Agenda',
+    title: 'CFTOD Notice of 2026 Regular Board Meetings',
+    url: 'https://www.oversightdistrict.org/wp-content/uploads/2025/12/NOTICE-OF-2026-CFTOD-REGULAR-BOARD-MEETINGS.pdf',
+    bypass: true,
+    docDate: '2025-12-01',
+    matchTerms: CFTOD_TERMS,
+  },
+  {
+    // City of Las Vegas is NOT on public Legistar (Part A): its agenda portal is
+    // the capture path so The Strat / Top Gun city-limit records are reachable.
+    jurisdictionLabel: 'Las Vegas, NV',
+    sourceType: 'Council Agenda',
+    title: 'City of Las Vegas - Agendas and Minutes portal',
+    url: 'https://www.lasvegasnevada.gov/Government/Agendas-Minutes',
+    bypass: true,
     docDate: null,
-    matchTerms: ['cftod', 'oversight district', 'central florida tourism', 'reedy creek'],
+    matchTerms: ['city of las vegas', 'las vegas city council', 'the strat', 'top gun'],
+  },
+  {
+    // Anaheim is NOT on public Legistar (Part A): its agenda document portal is the
+    // capture path for OCVibe / Disneyland Forward records.
+    jurisdictionLabel: 'Anaheim, CA',
+    sourceType: 'Council Agenda',
+    title: 'City of Anaheim - Agenda documents portal',
+    url: 'https://local.anaheim.net/docs_agend/',
+    bypass: true,
+    docDate: null,
+    matchTerms: ['anaheim', 'ocvibe', 'disneyland forward', 'platinum triangle'],
+  },
+  {
+    jurisdictionLabel: 'Orlando, FL',
+    sourceType: 'Comprehensive Plan',
+    title: 'City of Orlando Growth Management Plan (comprehensive plan)',
+    url: 'https://www.orlando.gov/Our-Government/Departments-Offices/Economic-Development/City-Planning/Growth-Management-Plan',
+    bypass: true,
+    docDate: null,
+    matchTerms: ['orlando growth management plan', 'orlando comprehensive plan'],
+  },
+  {
+    jurisdictionLabel: 'Orange County, FL',
+    sourceType: 'Comprehensive Plan',
+    title: 'Orange County FL Comprehensive Plan (Vision 2050)',
+    url: 'https://www.orangecountyfl.net/PlanningDevelopment/ComprehensivePlanning/Vision2050.aspx',
+    bypass: true,
+    docDate: null,
+    matchTerms: ['vision 2050', 'orange county comprehensive plan'],
   },
 ];
 
@@ -79,7 +165,9 @@ function stripHtml(s: string): string {
     .trim();
 }
 
-async function fetchDoc(d: GovDoc): Promise<NormalizedLead> {
+// Fetch and verify ONE document. Returns null when the URL does not resolve to a
+// real page (HTTP not ok, or a network error): we never store a URL that errors.
+async function fetchDoc(d: GovDoc): Promise<NormalizedLead | null> {
   let reachable = false;
   let isFile = false;
   let snippet = '';
@@ -98,6 +186,11 @@ async function fetchDoc(d: GovDoc): Promise<NormalizedLead> {
     console.warn(`Gov document "${d.title}": fetch failed (${String(error).slice(0, 70)}).`);
   }
 
+  if (!reachable) {
+    console.warn(`Gov document "${d.title}": URL not reachable -> NOT stored (${d.url}).`);
+    return null;
+  }
+
   return {
     title: d.title,
     url: d.url,
@@ -105,8 +198,8 @@ async function fetchDoc(d: GovDoc): Promise<NormalizedLead> {
       `Government document: ${d.title}`,
       `Jurisdiction: ${d.jurisdictionLabel}`,
       `Type: ${d.sourceType}`,
-      `Primary document: ${d.url}`,
-      `Reachable: ${reachable ? 'yes' : 'no'}; primary file fetched: ${isFile ? 'yes' : 'no'}`,
+      isFile ? `Primary document: ${d.url}` : `Source page: ${d.url}`,
+      `Verified reachable: yes; primary file fetched: ${isFile ? 'yes' : 'no (index/portal page)'}`,
       snippet ? `\n${snippet}` : '',
     ]
       .filter(Boolean)
@@ -118,7 +211,9 @@ async function fetchDoc(d: GovDoc): Promise<NormalizedLead> {
     value_estimate: null,
     source: 'govdoc',
     source_type: d.sourceType,
-    primary_document_url: d.url,
+    // A distinct primary-document link only when the url is a real document file.
+    // Index/portal pages are the source url itself, not a separate primary doc.
+    primary_document_url: isFile ? d.url : null,
     has_primary_document: isFile,
   };
 }
@@ -127,12 +222,15 @@ export async function scrapeGovDocs(): Promise<NormalizedLead[]> {
   const settled = await Promise.allSettled(GOV_DOCUMENTS.map(fetchDoc));
   const leads: NormalizedLead[] = [];
   for (const r of settled) {
-    if (r.status === 'fulfilled') leads.push(r.value);
-    else console.error('Gov document fetch rejected:', r.reason);
+    if (r.status === 'fulfilled') {
+      if (r.value) leads.push(r.value);
+    } else {
+      console.error('Gov document fetch rejected:', r.reason);
+    }
   }
   const withFile = leads.filter((l) => l.has_primary_document).length;
   console.log(
-    `Gov documents: ${leads.length} captured (${withFile} with a fetched primary file) across ${GOV_DOCUMENTS.length} configured.`
+    `Gov documents: ${leads.length} of ${GOV_DOCUMENTS.length} configured captured (verified reachable; ${withFile} with a fetched primary file).`
   );
   return leads;
 }
