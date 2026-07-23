@@ -203,6 +203,7 @@ export async function runOpportunityLane(all: NormalizedLead[]): Promise<Opportu
   const noWrite = process.env.OPPORTUNITY_NO_WRITE === '1';
 
   let rejectedPreCutoff = 0;
+  let unearnedSignal = 0;
   for (let i = 0; i < candidates.length; i++) {
     const lead = candidates[i];
     const tag = tags[i];
@@ -210,6 +211,13 @@ export async function runOpportunityLane(all: NormalizedLead[]): Promise<Opportu
     // future milestone). Project events and anything with a future milestone pass.
     if (shouldDelete(lead)) {
       rejectedPreCutoff++;
+      continue;
+    }
+    // Earned-signal gate: no LLM signal and no hint term -> no signal type was
+    // earned, so the lead is NOT written to the opportunity stream (a signal is
+    // earned, never assumed). This is what kept German job ads out of the stream.
+    if (!tag.signal_type) {
+      unearnedSignal++;
       continue;
     }
     const { region, row } = buildOpportunityRow(lead, tag);
@@ -241,6 +249,9 @@ export async function runOpportunityLane(all: NormalizedLead[]): Promise<Opportu
   }
   if (rejectedPreCutoff > 0) {
     console.log(`Opportunity: rejected ${rejectedPreCutoff} dead pre-2026 opportunities (no future milestone).`);
+  }
+  if (unearnedSignal > 0) {
+    console.log(`Opportunity: dropped ${unearnedSignal} leads with no earned signal type (not written).`);
   }
   return report;
 }

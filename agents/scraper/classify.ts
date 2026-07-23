@@ -539,12 +539,26 @@ export function isLeisureOpportunity(lead: NormalizedLead): boolean {
   );
 }
 
-// The GLI signal_type hint from keywords, used as a fallback when the LLM tagger
-// returns none. Operator/management language wins; otherwise Feasibility RFP (the
-// dominant Tier 1 shape). Values match gli.ts SIGNAL_TYPES.
-export function opportunitySignalHint(lead: NormalizedLead): string {
+// Terms that EARN a 'Feasibility RFP' signal from keywords alone. Without one of
+// these (and with no operator language and no LLM-assigned signal), an opportunity
+// has no earned signal type.
+const FEASIBILITY_SIGNAL_TERMS = [
+  'feasibility', 'feasibility study', 'feasibility studies', 'market study',
+  'market assessment', 'demand study', 'visitor study', 'economic impact study',
+  'economic impact assessment', 'business case', 'options appraisal',
+  'concept design', 'concept plan', 'master plan', 'masterplan',
+];
+
+// The GLI signal_type hint from keywords, a FALLBACK for when the LLM tagger
+// returns none. Operator/management language wins; feasibility/study language
+// earns Feasibility RFP; otherwise NULL. It never defaults to a signal: a signal
+// is earned, never assumed, and an opportunity with no earned signal is not
+// written (see the opportunity write paths). Values match gli.ts SIGNAL_TYPES.
+export function opportunitySignalHint(lead: NormalizedLead): string | null {
   const text = deaccent(haystack(lead));
-  return keywordMatches(text, OPERATOR_TERMS).length > 0 ? 'Operator/Management' : 'Feasibility RFP';
+  if (keywordMatches(text, OPERATOR_TERMS).length > 0) return 'Operator/Management';
+  if (keywordMatches(text, FEASIBILITY_SIGNAL_TERMS).length > 0) return 'Feasibility RFP';
+  return null;
 }
 
 // The GLI venue_type hint from keywords, used as a fallback when the LLM tagger

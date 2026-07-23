@@ -92,6 +92,14 @@ const SIGNAL_SOURCE_SET = new Set(SIGNAL_SOURCES);
 // feasibility, fuel, consulting, or signals paths.
 const GLI_LEAD_SOURCE = 'gli_serper';
 
+// Job-board sources. Their postings are employment ads, never leisure/tourism
+// advisory solicitations, so they must NEVER enter the opportunity gate (they
+// leaked in before, stamped Feasibility RFP). They stay on the normal prefilter/
+// jobs path. The standalone scrape:opportunity already excludes them by not
+// fetching them; this makes the full orchestrator match. Add any new job board
+// here.
+const JOB_BOARD_SOURCES = new Set(['arbeitnow', 'jooble', 'reed', 'careerjet', 'jsearch']);
+
 // Module tag shared by every GLI lane write (news lane in gli.ts and the Tier 1
 // opportunity lane below). The opportunity lane additionally sets stream
 // 'opportunity' and lead_type 'tender'.
@@ -425,7 +433,7 @@ export async function orchestrate(): Promise<ScrapeReport> {
     // buildOpportunityRow so the dashboard can show them as market intelligence
     // behind a toggle. Non-leisure feasibility/CPV/consulting/fuel/signals routing
     // is unchanged.
-    if (isLeisureOpportunity(lead)) {
+    if (!JOB_BOARD_SOURCES.has(lead.source) && isLeisureOpportunity(lead)) {
       opportunityFound++;
       opportunityPrepared.push(lead);
       continue;
@@ -930,6 +938,7 @@ export async function orchestrate(): Promise<ScrapeReport> {
   let opportunityWritten = 0;
   let opportunityWithDeadline = 0;
   let opportunityRejectedPreCutoff = 0;
+  let opportunityUnearnedSignal = 0;
   let oppOpen = 0;
   let oppClosed = 0;
   const opportunityTags =
@@ -941,6 +950,12 @@ export async function orchestrate(): Promise<ScrapeReport> {
     // future milestone). Project events / future-milestone leads pass.
     if (shouldDelete(lead)) {
       opportunityRejectedPreCutoff++;
+      continue;
+    }
+    // Earned-signal gate: no LLM signal and no hint term -> not written to the
+    // opportunity stream. A signal type is earned, never assumed.
+    if (!tag.signal_type) {
+      opportunityUnearnedSignal++;
       continue;
     }
     // Shared row shape (see opportunity.ts) so the standalone scrape:opportunity
@@ -976,6 +991,11 @@ export async function orchestrate(): Promise<ScrapeReport> {
         deadline: lead.deadline ?? '',
       });
     }
+  }
+  if (opportunityUnearnedSignal > 0) {
+    console.log(
+      `GLI opportunity: dropped ${opportunityUnearnedSignal} leads with no earned signal type (not written).`
+    );
   }
   if (opportunityRejectedPreCutoff > 0) {
     console.log(

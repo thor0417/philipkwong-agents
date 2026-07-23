@@ -490,7 +490,9 @@ async function classifyBatch(leads: NormalizedLead[]): Promise<GliClassification
 // fallback), so an opportunity lead is never left untagged.
 export interface OpportunityTag {
   venue_type: string;
-  signal_type: string;
+  // Null when no signal was earned (LLM returned none and no hint term matched);
+  // such a lead is NOT written to the opportunity stream. A signal is earned.
+  signal_type: string | null;
   contact_name: string | null;
   contact_email: string | null;
   contact_phone: string | null;
