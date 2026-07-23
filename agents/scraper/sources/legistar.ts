@@ -171,15 +171,63 @@ interface LegistarEvent {
   EventComment?: string;
 }
 
-// Public InSite record links. Include the GUID when the API exposes it (the
-// detail pages want it); the ID alone still makes a stable, unique dedup key.
-function matterUrl(client: string, m: LegistarMatter): string {
-  const guid = m.MatterGuid ? `&GUID=${encodeURIComponent(m.MatterGuid)}` : '';
-  return `https://${client}.legistar.com/LegislationDetail.aspx?ID=${m.MatterId}${guid}`;
+// ---- Public citizen URLs (InSite gateway) -----------------------------------
+// The InSite viewer keys LegislationDetail/MeetingDetail on InSite's OWN internal
+// ids, which DIFFER from the Web API's MatterId/EventId. A detail URL built from
+// the API ids therefore renders "Invalid parameters!" (verified against the live
+// portal). gateway.aspx takes the API id, resolves it server-side, and
+// 302-redirects to the correct public detail page -- so it is the stable citizen
+// link. We CONFIRM each gateway resolves (302 -> detail page) before storing it,
+// and fall back to the jurisdiction's public search (matters) or calendar (events)
+// page for a record that is not published to the public portal, so we never store
+// a URL that errors. Matters use M=l; Events use M=e.
+function matterGateway(client: string, id: number): string {
+  return `https://${client}.legistar.com/gateway.aspx?M=l&ID=${id}`;
 }
-function eventUrl(client: string, e: LegistarEvent): string {
-  const guid = e.EventGuid ? `&GUID=${encodeURIComponent(e.EventGuid)}` : '';
-  return `https://${client}.legistar.com/MeetingDetail.aspx?ID=${e.EventId}${guid}`;
+function eventGateway(client: string, id: number): string {
+  return `https://${client}.legistar.com/gateway.aspx?M=e&ID=${id}`;
+}
+// Honest per-record fallbacks: a real public page for the jurisdiction, made
+// unique per record with a fragment (ignored by the server, so the page still
+// loads) so distinct records never collapse on the url dedup / upsert key.
+function legislationSearchUrl(client: string, id: number): string {
+  return `https://${client}.legistar.com/Legislation.aspx#matter-${id}`;
+}
+function calendarUrl(client: string, id: number): string {
+  return `https://${client}.legistar.com/Calendar.aspx#event-${id}`;
+}
+
+// True when the gateway 302-redirects to the expected public detail page (a valid,
+// published record). An unavailable/unpublished record returns HTTP 200 with a
+// "currently unavailable" / "Invalid parameters!" body and no redirect. Any error
+// (timeout, network) is treated as unresolved so the caller uses the fallback.
+async function gatewayResolves(gatewayUrl: string, detailMarker: string): Promise<boolean> {
+  try {
+    const res = await fetch(gatewayUrl, {
+      headers: { 'User-Agent': UA },
+      redirect: 'manual',
+      signal: AbortSignal.timeout(15000),
+    });
+    if (res.status >= 300 && res.status < 400) {
+      return (res.headers.get('location') ?? '').includes(detailMarker);
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+// The verified public URL for a Matter: the gateway when it resolves to a real
+// LegislationDetail page, else the jurisdiction's legislation search page.
+export async function publicMatterUrl(client: string, id: number): Promise<string> {
+  const gw = matterGateway(client, id);
+  return (await gatewayResolves(gw, 'LegislationDetail.aspx')) ? gw : legislationSearchUrl(client, id);
+}
+// The verified public URL for an Event: the gateway when it resolves to a real
+// MeetingDetail page, else the jurisdiction's public calendar page.
+export async function publicEventUrl(client: string, id: number): Promise<string> {
+  const gw = eventGateway(client, id);
+  return (await gatewayResolves(gw, 'MeetingDetail.aspx')) ? gw : calendarUrl(client, id);
 }
 
 // The freshest document date across the supplied fields, as ISO. Used so an
@@ -259,7 +307,7 @@ async function scrapeJurisdiction(
     const text = `${title}\n${m.MatterName ?? ''}\n${m.MatterFile ?? ''}\n${m.MatterTypeName ?? ''}`;
     if (keywordMatches(text, KEYWORDS).length === 0) continue;
     matched++;
-    const url = matterUrl(j.client, m);
+    const url = await publicMatterUrl(j.client, m.MatterId);
     if (byUrl.has(url)) continue;
     byUrl.set(url, {
       title,
@@ -282,7 +330,7 @@ async function scrapeJurisdiction(
     const text = `${e.EventBodyName ?? ''}\n${e.EventComment ?? ''}\n${e.EventLocation ?? ''}`;
     if (keywordMatches(text, KEYWORDS).length === 0) continue;
     matched++;
-    const url = eventUrl(j.client, e);
+    const url = await publicEventUrl(j.client, e.EventId);
     if (byUrl.has(url)) continue;
     byUrl.set(url, {
       title: `${e.EventBodyName || 'Meeting'} (${j.jurisdictionLabel})`,
