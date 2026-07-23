@@ -21,7 +21,7 @@ import { opportunityVenueHint } from './classify';
 import { regionFor, regionOf } from './regions';
 import { classifyVenueType, categoryForVenue } from '../../lib/taxonomy';
 import { deriveLeadDates, objectFields, shouldDelete } from './lead-date';
-import { scrapeLegistar, lastLegistarStats } from './sources/legistar';
+import { scrapeLegistar, lastLegistarStats, type LegistarJurisdictionStats } from './sources/legistar';
 import { scrapeGovDocs } from './sources/govdocs';
 
 const GOVERNMENT_MODULE = 'gli';
@@ -328,7 +328,7 @@ export async function runGovernmentLane(leads: NormalizedLead[]): Promise<Govern
 
 function printGovernmentReport(
   r: GovernmentReport,
-  stats: Record<string, { fetched: number; matched: number }>
+  stats: Record<string, LegistarJurisdictionStats>
 ): void {
   const table = (m: Record<string, number>): string =>
     Object.keys(m).length
@@ -344,11 +344,22 @@ function printGovernmentReport(
       (r.writeFailed ? `  (write failures: ${r.writeFailed})` : '') +
       (process.env.GOVERNMENT_NO_WRITE === '1' ? '  (GOVERNMENT_NO_WRITE: no writes)' : '')
   );
-  console.log('Per jurisdiction (fetched / matched / written):');
+  console.log('Gate telemetry per jurisdiction (fetched / matched / written | dropped: excluded / weak-no-action / no-match):');
   const jurisdictions = new Set<string>([...Object.keys(stats), ...Object.keys(r.perJurisdiction)]);
   for (const j of [...jurisdictions].sort()) {
-    const s = stats[j] ?? { fetched: 0, matched: 0 };
-    console.log(`    ${j}: ${s.fetched} fetched / ${s.matched} matched / ${r.perJurisdiction[j] ?? 0} written`);
+    const s = stats[j];
+    const written = r.perJurisdiction[j] ?? 0;
+    if (!s) {
+      // A document-source jurisdiction (govdoc): no Legistar gate telemetry.
+      console.log(`    ${j}: ${written} written (document source, gate bypassed)`);
+      continue;
+    }
+    const drops = s.bypassed
+      ? 'gate bypassed'
+      : `dropped ${s.droppedExcluded} excluded / ${s.droppedWeakNoAction} weak-no-action / ${s.droppedNoMatch} no-match`;
+    console.log(
+      `    ${j}: ${s.fetched} fetched / ${s.matched} matched / ${written} written | ${drops}`
+    );
   }
   console.log('Per source_type (document type):');
   console.log(table(r.perSourceType));
