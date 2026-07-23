@@ -40,7 +40,9 @@
   width: 100%;
   border-collapse: collapse;
   background: #fff;
-  min-width: 1000px;
+  /* Fit the viewport: no forced 1000px width. A modest floor keeps cells legible
+     on narrow screens; below it the wrapper (.scroll) scrolls, not the page. */
+  min-width: 680px;
   font-variant-numeric: tabular-nums;
 }
 
@@ -108,13 +110,25 @@
   vertical-align: middle;
 }
 
-/* Title cell: TEXT, truncated to keep the 40px row; full title in the detail. */
+/* Title: the flexible column. width:100% + max-width:0 makes it absorb the
+   leftover width and truncate with an ellipsis, so the table fits the viewport and
+   the other (nowrap, content-sized) columns are never pushed off-screen. Sticky on
+   the left so the title stays visible if a narrow viewport forces the wrapper to
+   scroll. Full title always available in the detail panel on row click. */
 .title {
-  max-width: 460px;
+  width: 100%;
+  max-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+  position: sticky;
+  left: 0;
+  background: #fff;
+  z-index: 1;
 }
-.title:hover {
+.row:hover .title {
+  background: #f7f7f7;
+}
+td.title:hover {
   color: var(--accent);
 }
 

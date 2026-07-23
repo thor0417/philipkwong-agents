@@ -108,14 +108,6 @@ function passesView(l: GLILead, stream: string, view: GLIView, now: number): boo
   return view === 'active' ? fresh : !fresh;
 }
 
-function host(url: string | null): string {
-  if (!url) return DASH;
-  try {
-    return new URL(url).hostname.replace(/^www\./, '');
-  } catch {
-    return DASH;
-  }
-}
 function ymd(iso: string | null): string {
   return iso ? iso.slice(0, 10) : DASH;
 }
@@ -167,20 +159,6 @@ const categoryCol: GLIColumn = {
   render: (l) => l.development_category ?? 'Other/Uncategorized',
   sortValue: (l) => l.development_category ?? 'Other/Uncategorized',
 };
-const signalCol: GLIColumn = {
-  key: 'signal',
-  label: 'Signal',
-  variant: 'meta',
-  render: (l) => l.signal_type ?? DASH,
-  sortValue: (l) => (l.signal_type ?? '').toLowerCase(),
-};
-const venueCol: GLIColumn = {
-  key: 'venue',
-  label: 'Venue',
-  variant: 'meta',
-  render: (l) => l.venue_type ?? DASH,
-  sortValue: (l) => (l.venue_type ?? '').toLowerCase(),
-};
 const titleCol: GLIColumn = {
   key: 'title',
   label: 'Title',
@@ -196,13 +174,6 @@ const locationCol: GLIColumn = {
   sortValue: (l) => (l.location ?? '').toLowerCase(),
 };
 const jurisdictionCol: GLIColumn = { ...locationCol, key: 'jurisdiction', label: 'Jurisdiction' };
-const sourceCol: GLIColumn = {
-  key: 'source',
-  label: 'Source',
-  variant: 'meta',
-  render: (l) => host(l.url),
-  sortValue: (l) => host(l.url),
-};
 const deadlineCol: GLIColumn = {
   key: 'deadline',
   label: 'Deadline',
@@ -225,7 +196,7 @@ const publishedCol: GLIColumn = {
     l.published_date ? ymd(l.published_date) : isDateUnknown(l, streamOf(l)) ? <DateUnknownBadge /> : DASH,
   sortValue: (l) => timeOf(l.published_date, -Infinity),
 };
-const linkCol: GLIColumn = { key: 'link', label: 'Link', render: (l) => <GLISourceLink url={l.url} /> };
+const linkCol: GLIColumn = { key: 'link', label: 'Source', render: (l) => <GLISourceLink url={l.url} /> };
 // Government (Pass 4) columns.
 const sourceTypeCol: GLIColumn = {
   key: 'source_type',
@@ -234,19 +205,6 @@ const sourceTypeCol: GLIColumn = {
   render: (l) => l.source_type ?? DASH,
   sortValue: (l) => (l.source_type ?? '').toLowerCase(),
 };
-const applicantCol: GLIColumn = {
-  key: 'applicant',
-  label: 'Applicant / Presenter',
-  variant: 'meta',
-  render: (l) => l.applicant ?? l.presented_by ?? DASH,
-  sortValue: (l) => (l.applicant ?? l.presented_by ?? '').toLowerCase(),
-};
-const primaryDocCol: GLIColumn = {
-  key: 'primary_doc',
-  label: 'Primary Doc',
-  render: (l) => (l.primary_document_url ? <GLISourceLink url={l.primary_document_url} label="DOC" /> : DASH),
-};
-
 // The three streams. Opportunities group by signal_type (Feasibility RFP becomes
 // its own section) and sort by soonest deadline; Intelligence sorts by newest
 // publication; Government keeps the query order (newest first).
@@ -258,10 +216,15 @@ const STREAMS: {
   sortKey?: string;
   sortDir: 'asc' | 'desc';
 }[] = [
+  // Table view keeps only the high-value triage columns and fits the viewport
+  // (no horizontal scroll). Title leads as the flexible, sticky, truncating column.
+  // Signal, Venue, Applicant/Presenter, and the Primary Document link move to the
+  // detail panel (GLIDetail) on row click -- nothing is lost. Opportunities still
+  // surface signal_type as the group band.
   {
     key: 'opportunity',
     label: 'Opportunities',
-    columns: [categoryCol, signalCol, venueCol, titleCol, locationCol, deadlineCol, sourceCol, linkCol],
+    columns: [titleCol, categoryCol, locationCol, deadlineCol, linkCol],
     group: true,
     sortKey: 'deadline',
     sortDir: 'asc',
@@ -269,7 +232,7 @@ const STREAMS: {
   {
     key: 'intelligence',
     label: 'Intelligence',
-    columns: [categoryCol, venueCol, titleCol, locationCol, publishedCol, sourceCol, linkCol],
+    columns: [titleCol, categoryCol, locationCol, publishedCol, linkCol],
     group: false,
     sortKey: 'published',
     sortDir: 'desc',
@@ -277,18 +240,7 @@ const STREAMS: {
   {
     key: 'government',
     label: 'Government',
-    columns: [
-      categoryCol,
-      sourceTypeCol,
-      signalCol,
-      venueCol,
-      titleCol,
-      jurisdictionCol,
-      applicantCol,
-      sourceCol,
-      primaryDocCol,
-      linkCol,
-    ],
+    columns: [titleCol, categoryCol, sourceTypeCol, jurisdictionCol, publishedCol, linkCol],
     group: false,
     sortDir: 'desc',
   },

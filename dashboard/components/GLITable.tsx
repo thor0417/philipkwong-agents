@@ -117,7 +117,9 @@ export default function GLITable({
               {columns.map((col) => (
                 <th
                   key={col.key}
-                  className={col.sortValue ? styles.sortable : undefined}
+                  className={[variantClass(col.variant), col.sortValue ? styles.sortable : '']
+                    .filter(Boolean)
+                    .join(' ') || undefined}
                   onClick={col.sortValue ? () => toggleSort(col.key) : undefined}
                 >
                   {col.label}
