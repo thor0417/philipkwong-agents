@@ -432,6 +432,7 @@ export default function GLIPage() {
         : `${dates[0]} to ${dates[dates.length - 1]}`
       : 'no dates';
     const blob = await buildGliWorkbook(derived.visibleLeads, {
+      streamKey: activeStream,
       streamLabel: active.label,
       view: view === 'archive' ? 'Archive' : 'Active',
       category: categoryFilter,
