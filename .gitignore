@@ -20,3 +20,10 @@ dist/
 .vercel
 *.log
 .DS_Store
+
+# brand fonts: commit only the flat woff2 (web) + ttf (PDF) the app references;
+# ignore the vendor originals (versioned folders, otf, woff) to keep the tree lean.
+dashboard/public/fonts/PP Neue York*/
+dashboard/public/fonts/*.otf
+dashboard/public/fonts/*.woff
+scratch-leads.json
