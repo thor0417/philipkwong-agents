@@ -23,6 +23,7 @@ import { classifyVenueType, categoryForVenue } from '../../lib/taxonomy';
 import { deriveLeadDates, objectFields, shouldDelete } from './lead-date';
 import { scrapeLegistar, lastLegistarStats, type LegistarJurisdictionStats } from './sources/legistar';
 import { scrapeGovDocs } from './sources/govdocs';
+import { scrapeCftodPdfItems } from './sources/pdf-agenda';
 
 const GOVERNMENT_MODULE = 'gli';
 
@@ -398,8 +399,12 @@ function printGovernmentReport(
 
 async function main(): Promise<void> {
   console.log('GLI Tier 2 government lane starting (scrape:government)...');
-  const [legistar, govdocs] = await Promise.all([scrapeLegistar(), scrapeGovDocs()]);
-  const report = await runGovernmentLane([...legistar, ...govdocs]);
+  const [legistar, govdocs, cftodItems] = await Promise.all([
+    scrapeLegistar(),
+    scrapeGovDocs(),
+    scrapeCftodPdfItems(),
+  ]);
+  const report = await runGovernmentLane([...legistar, ...govdocs, ...cftodItems]);
   printGovernmentReport(report, lastLegistarStats());
 }
 

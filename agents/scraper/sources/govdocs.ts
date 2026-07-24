@@ -17,7 +17,7 @@ import type { SourceType } from '../../../lib/taxonomy';
 
 const UA = 'philipkwong-agents/1.0 (+scraper)';
 
-interface GovDoc {
+export interface GovDoc {
   jurisdictionLabel: string;
   sourceType: SourceType;
   title: string;
@@ -138,6 +138,14 @@ const GOV_DOCUMENTS: GovDoc[] = [
     matchTerms: ['vision 2050', 'orange county comprehensive plan'],
   },
 ];
+
+// The CFTOD PDF documents (agenda packets and the 2045 plan) whose interiors the
+// Part A PDF-item extractor reads. Derived from the single GOV_DOCUMENTS config so
+// the verified URLs never drift. Portal/index pages and non-CFTOD plans are
+// excluded (the extractor only opens real CFTOD PDF files).
+export const CFTOD_PDF_SOURCES: GovDoc[] = GOV_DOCUMENTS.filter(
+  (d) => d.jurisdictionLabel === CFTOD && /\.pdf(\?|$)/i.test(d.url)
+);
 
 // Source-chaining resolution from config: when an article references a KNOWN
 // configured primary document (by its distinctive terms), return that document's
