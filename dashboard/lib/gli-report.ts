@@ -10,10 +10,20 @@ export interface ReportLead {
   developmentCategory: string;
   venueType: string;
   signalType: string;
+  // Pass 4 government (Tier 2) fields. Empty string when absent (never fabricated);
+  // the report renders players and the primary-document link only where present, so
+  // the deliverable reads as intelligence, not a link list.
+  sourceType: string;
+  applicant: string;
+  presentedBy: string;
+  representative: string;
+  actionSought: string;
+  primaryDocumentUrl: string;
   stream: string;
+  // Jurisdiction on government rows; location elsewhere (same underlying field).
   location: string;
   // Stream-appropriate date (deadline for opportunities, publication/document
-  // date otherwise), YYYY-MM-DD or ''.
+  // date otherwise), YYYY-MM-DD or '' when the row is undated.
   date: string;
   sourceDomain: string;
   url: string;
@@ -54,6 +64,12 @@ export function buildReportPayload(leads: GLILead[], scope: ReportScope): Report
       developmentCategory: l.development_category ?? 'Other',
       venueType: l.venue_type ?? '',
       signalType: l.signal_type ?? '',
+      sourceType: l.source_type ?? '',
+      applicant: l.applicant ?? '',
+      presentedBy: l.presented_by ?? '',
+      representative: l.representative ?? '',
+      actionSought: l.action_sought ?? '',
+      primaryDocumentUrl: l.primary_document_url ?? '',
       stream: l.stream ?? '',
       location: l.location ?? '',
       date: iso ? iso.slice(0, 10) : '',
