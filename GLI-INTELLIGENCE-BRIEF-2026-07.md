@@ -3,7 +3,7 @@
 
 **Scope.** This brief is generated from the GLI development-intelligence system, which monitors primary-source records across municipal agenda platforms (Anaheim via Granicus, City of Las Vegas via PrimeGov, and Clark County, Oakland and other jurisdictions via Legistar), special-district documents (the Central Florida Tourism Oversight District board packets and its 2045 Comprehensive Plan, read at the page level), California state environmental filings (CEQAnet), South Florida water permits (SFWMD Environmental Resource Permits), federal and public procurement, and leisure trade press. Every item below was pulled from a record captured in the system, and every link was fetch-verified before inclusion. The only facts not drawn from a captured record are marked [press-sourced].
 
-Prepared for Keith Robertson, Andy Grant, and GLI partners.
+Prepared for Keith Robertson.
 
 ---
 
@@ -18,6 +18,7 @@ The Anaheim City Council approved a Games Agreement with the Los Angeles Organiz
 ### 2. Anaheim sends a Tourism Mobility Tax to the ballot
 A City Council resolution ordered submission to the voters of a general tax measure, the Tourism Mobility Tax, establishing a 10% tax on rideshare trips. A dedicated mobility-funding stream reshapes how the Resort, OCVibe, and Platinum Triangle corridor pays for access and transit, which feeds directly into project economics and phasing for every developer in the district. The measure is worth tracking to its vote because the outcome changes the funding backdrop for the whole corridor.
 - Players: City of Anaheim.
+- Timing: the 2026-07-27 date is the upcoming Anaheim City Council meeting at which the measure is scheduled, so it is only days away as of this brief.
 - Date: 2026-07-27. Source type: Council Agenda (Anaheim, Granicus).
 - Link: https://anaheim.granicus.com/AgendaViewer.php?view_id=2&event_id=1858#item-16
 
@@ -30,6 +31,7 @@ Two records read together. First, a Council determination on the OCVIBE Master S
 ### 4. Walt Disney Parks and Resorts easement and roadway reimbursement at CFTOD
 Two consent items from the CFTOD Board of Supervisors packet of January 23, 2026. One approves a non-exclusive and permanent easement to Walt Disney Parks and Resorts U.S. Inc. for underground communication lines (packet page 146). The other approves the First Amendment to the Roadway Expansion Land Dedication and Reimbursement Agreement (packet page 12). Together they expose the live district-to-Disney cost sharing and land mechanics behind current Walt Disney World infrastructure work, including who is executing it.
 - Players: Walt Disney Parks and Resorts U.S. Inc. (applicant on the easement); presented by Katherine Luetzow (Director, Planning and Engineering) and Craig Sandt (Director of Construction Management).
+- Contact in record: Katherine Luetzow, Director, Planning and Engineering Department, Public Works (presenter on the easement item); Craig Sandt, Director of Construction Management (presenter on the roadway item). No phone or email appears in the record.
 - Date: 2026-01-23. Source type: Council Agenda (CFTOD special-district packet, page references retained).
 - Links: https://www.oversightdistrict.org/wp-content/uploads/2026/01/1-23-2026-BOS-Agenda-Packet-FINALcs.pdf#item-6.4-p146 and https://www.oversightdistrict.org/wp-content/uploads/2026/01/1-23-2026-BOS-Agenda-Packet-FINALcs.pdf#item-6.2-p12
 
@@ -54,6 +56,7 @@ The Paramount and Advent Allen "Top Gun" attraction relocated from The Strat to 
 ### 8. PT Metro LLC resets the Platinum Triangle Expansion timeframe
 An Anaheim Council item, Development Agreement No. 2005-00008 Addendum No. 4 to the Platinum Triangle Expansion Project, establishes new development timeframes and a performance schedule. Platinum Triangle is the OCVibe-adjacent growth zone, so a timeframe reset signals that PT Metro is re-phasing a major mixed-use entitlement, which is a natural opening for partner engagement and consulting.
 - Players: PT Metro, LLC (and Joey Caucas).
+- Contact in record: Joey Caucas, named with the applicant PT Metro, LLC (address of record 20 Enterprise, Suite #125, Aliso Viejo, CA 92656). No phone or email appears in the record.
 - Date: 2026-01-26. Source type: Council Agenda (Anaheim, Granicus).
 - Link: https://anaheim.granicus.com/AgendaViewer.php?view_id=2&clip_id=3560#item-19
 
@@ -70,17 +73,12 @@ A Council item proposes a Specific Plan Amendment to amend Specific Plan No. 90-
 - Date: 2026-01-12. Source type: Council Agenda (Anaheim, Granicus).
 - Link: https://anaheim.granicus.com/AgendaViewer.php?view_id=2&clip_id=3552#item-20
 
-### 11. Anaheim Resort Specific Plan No. 92-2 amended (Amendment No. 18)
-A Council development application seeks a General Plan Amendment and Amendment No. 18 to the Anaheim Resort Specific Plan No. 92-2. The Anaheim Resort specific plan governs the hotel and visitor core around the Disneyland Resort, so any amendment to it is directly relevant to hospitality and attraction development in the resort district.
-- Players: Alice Hsu (applicant).
+### 11. Wyndham Hotel expansion in the Anaheim Resort district
+Per the stored record, the application seeks to increase the Wyndham Hotel at 515 West Katella Avenue (about 260 feet east of Harbor Boulevard) from the previously approved 78 rooms to 107 rooms, with changes to accessory use areas. It requires a General Plan Amendment creating a new Medium Density (Modified B) category, Amendment No. 18 to the Anaheim Resort Specific Plan No. 92-2 and its zoning code, and an Administrative Adjustment for a 28% reduction in required parking. The Anaheim Resort specific plan governs the hotel and visitor core around the Disneyland Resort, so a room-count increase here is a direct hospitality-supply signal in the resort district.
+- Players: owner representative Alice Hsu; applicant agent Kenneth Pang.
+- Contact in record: Alice Hsu, owner representative, 515 W. Katella Avenue, Anaheim, CA 92802; Kenneth Pang, applicant agent, 150 El Camino Real, #112, Tustin, CA 92780. No phone or email appears in the record.
 - Date: 2026-02-23. Source type: Council Agenda (Anaheim, Granicus).
 - Link: https://anaheim.granicus.com/AgendaViewer.php?view_id=2&clip_id=3570#item-24
-
-### 12. Named developer entitlement in the Las Vegas growth corridor
-A Clark County Board item introduces an ordinance to adopt a Development Agreement with Toll South LV LLC for a single-family residential subdivision. It is a named-developer entitlement in the Las Vegas area, and it demonstrates that the county lane is capturing active development agreements in the corridor we are watching for Top Gun.
-- Players: Toll South LV LLC.
-- Date: 2026-07-21. Source type: Planning and Zoning proceedings (Clark County, Legistar).
-- Link: https://clark.legistar.com/gateway.aspx?M=l&ID=110431
 
 ---
 
