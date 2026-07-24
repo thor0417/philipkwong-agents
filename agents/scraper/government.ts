@@ -27,6 +27,7 @@ import { scrapeCftodPdfItems } from './sources/pdf-agenda';
 import { scrapeAnaheimAgendas } from './sources/agenda-portal';
 import { scrapeLasVegasAgendas } from './sources/lasvegas';
 import { scrapeCeqanet } from './sources/ceqanet';
+import { scrapeSfwmd } from './sources/sfwmd';
 
 const GOVERNMENT_MODULE = 'gli';
 
@@ -402,13 +403,14 @@ function printGovernmentReport(
 
 async function main(): Promise<void> {
   console.log('GLI Tier 2 government lane starting (scrape:government)...');
-  const [legistar, govdocs, cftodItems, anaheim, lasVegas, ceqa] = await Promise.all([
+  const [legistar, govdocs, cftodItems, anaheim, lasVegas, ceqa, sfwmd] = await Promise.all([
     scrapeLegistar(),
     scrapeGovDocs(),
     scrapeCftodPdfItems(),
     scrapeAnaheimAgendas(),
     scrapeLasVegasAgendas(),
     scrapeCeqanet(),
+    scrapeSfwmd(),
   ]);
   const report = await runGovernmentLane([
     ...legistar,
@@ -417,6 +419,7 @@ async function main(): Promise<void> {
     ...anaheim,
     ...lasVegas,
     ...ceqa,
+    ...sfwmd,
   ]);
   printGovernmentReport(report, lastLegistarStats());
 }
