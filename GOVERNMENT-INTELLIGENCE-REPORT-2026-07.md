@@ -194,21 +194,31 @@ _Market total: 96 records (29 in project entries, 13 standalone, 54 context)._
 Records show holdover use permits and a tentative map for a proposed resort hotel and recreational facility on 11.95 acres in a Commercial Resort zone east of Las Vegas Boulevard South and south of Mandalay Bay Road, including a request to expand the gaming enterprise district.
 - **2026-07-21.** Holdover use permits to expand the gaming enterprise district, resort hotel, and recreational facility, with a waiver of development standards and design review, on 11.95 acres. Players: Kulik River Capital, LLC. Link: https://clark.legistar.com/gateway.aspx?M=l&ID=110426
 - **2026-07-21.** Holdover tentative map of one commercial lot on the same 11.95 acres in a Commercial Resort zone. Players: Kulik River Capital, LLC. Link: https://clark.legistar.com/gateway.aspx?M=l&ID=110427
+- People (record): owner KULIK RIVER CAPITAL, LLC; filing agent TEMP VENTURES; representative NANCY AMUNDSEN, BROWN, BROWN, & PREMSRIRUT, 520 S. 4TH STREET, LAS VEGAS, NV 89101. Source: Clark County staff report 11 26-0219-072226.pdf. No phone or email for the party in the record.
+- People (record): owner KULIK RIVER CAPITAL, LLC; filing agent TEMP VENTURES; representative NANCY AMUNDSEN, BROWN, BROWN, & PREMSRIRUT, 520 S. 4TH STREET, LAS VEGAS, NV 89101. Source: Clark County staff report 12 26-500056-072226.pdf. No phone or email for the party in the record.
+- Principal (press-sourced): Eli Applebaum, reported president of High Desert, a Las Vegas real estate firm. Not named in the fetched filings.
+- Architect (press-sourced): Steelman Partners. Not named in the fetched filings.
 
 #### Nevada Palace redevelopment (Boulder Highway)
 Records show a plan amendment and companion zone change to convert 29.46 acres near Boulder Highway and Harmon Avenue from resort/entertainment designation to residential, within Sunrise Manor and Whitney.
 - **2026-07-06.** Holdover plan amendment to redesignate 29.46 acres from Entertainment Mixed-Use (EM) to Compact Neighborhood (CN). Players: Nevada Palace, LLC. Link: https://clark.legistar.com/gateway.aspx?M=l&ID=110279
 - **2026-07-06.** Holdover zone change to reclassify the same 29.46 acres from CR (Commercial Resort) to RS2 (Residential Single-Family 2). Players: Nevada Palace, LLC. Link: https://clark.legistar.com/gateway.aspx?M=l&ID=110280
+- People (record): owner NEVADA PALACE, LLC; filing agent GREYSTONE NEVADA, LLC; representative LENNAR, ATTN: PARKER SIECK, 6385 S. RAINBOW BOULEVARD, SUITE 300, LAS VEGAS, NV 89118. Source: Clark County staff report 43 26-700023-070726.pdf. No phone or email for the party in the record.
+- People (record): owner NEVADA PALACE, LLC; filing agent GREYSTONE NEVADA, LLC; representative LENNAR, ATTN: PARKER SIECK, 6385 S. RAINBOW BOULEVARD, SUITE 300, LAS VEGAS, NV 89118. Source: Clark County staff report 44 26-0265-070726.pdf. No phone or email for the party in the record.
 
 #### Happy Miner mixed-use (Winchester)
 Records show a plan amendment and companion use permit / design review for a proposed mixed-use development on 2.16 acres in a Commercial Resort zone north of Desert Inn Road and west of Pawnee Drive.
 - **2026-07-06.** Holdover plan amendment to redesignate 2.16 acres from Neighborhood Commercial (NC) to Entertainment Mixed-Use (EM). Players: Happy Miner LLC. Link: https://clark.legistar.com/gateway.aspx?M=l&ID=110269
 - **2026-07-06.** Holdover use permit for office as a principal use, waivers of development standards, and design review for the proposed mixed-use development. Players: Happy Miner, LLC. Link: https://clark.legistar.com/gateway.aspx?M=l&ID=110271
+- People (record): owner HAPPY MINER LLC; filing agent ACG DESIGN; representative ACG DESIGN, 4310 CAMERON STREET, SUITE 12-A, LAS VEGAS, NV 89103. Source: Clark County staff report 33 26-700020-070726.pdf. No phone or email for the party in the record.
+- People (record): owner Happy Miner, LLC; filing agent ACG DESIGN; representative ACG DESIGN, 4310 CAMERON STREET, SUITE 12-A, LAS VEGAS, NV 89103. Source: Clark County staff report 35 25-0896-070726.pdf. No phone or email for the party in the record.
 
 #### South Decatur Holding Co plan amendment (Enterprise)
 Records show the same 2.64-acre plan amendment (NC to Compact Neighborhood) east of Decatur Boulevard heard first by the Planning Commission and later by the Zoning Commission.
 - **2026-07-06.** Holdover plan amendment to redesignate 2.64 acres from Neighborhood Commercial (NC) to Compact Neighborhood (CN). Players: South Decatur Holding Co, LLC. Link: https://clark.legistar.com/gateway.aspx?M=l&ID=110260
 - **2026-07-21.** Plan amendment for the same 2.64 acres, NC to CN. Players: South Decatur Holding Co., LLC. Link: https://clark.legistar.com/gateway.aspx?M=l&ID=110447
+- People (record): owner South Decatur Holding Co, LLC; filing agent WIGMAR, LLC; representative SUZANA RUTAR ARCHITECT LTD., 1950 E. WARM SPRINGS ROAD, LAS VEGAS, NV 89119. Source: Clark County staff report 24 26-700010-070726.pdf. No phone or email for the party in the record.
+- People (record): owner South Decatur Holding Co., LLC; filing agent WIGMAR, LLC; representative SUZANA RUTAR ARCHITECT LTD., 1950 E. WARM SPRINGS ROAD, LAS VEGAS, NV 89119. Source: Clark County staff report 32 26-700010-072226.pdf. No phone or email for the party in the record.
 
 #### Toll South LV single-family subdivision (ORD-26-900159)
 Records show introduction and public hearing of a development agreement for a single-family residential subdivision on 0.89 acres east of Hinson Street and north of Silverado Ranch Boulevard, in Enterprise.
@@ -223,14 +233,17 @@ Records show introduction and public hearing of a development agreement for a ve
 #### Mirage Propco theater expansion (Hard Rock Hotel & Casino)
 Standalone record: a design review for a proposed theater expansion tied to the previously approved resort hotel (Hard Rock Hotel & Casino) on a portion of 76.93 acres in a Commercial Resort zone, west of Las Vegas Boulevard South within Paradise.
 - **2026-07-21.** Design review for the theater expansion at the Hard Rock Hotel & Casino resort. Players: Mirage Propco, LLC. Link: https://clark.legistar.com/gateway.aspx?M=l&ID=110419
+- People (record): owner MIRAGE PROPCO, LLC; filing agent HR LAS VEGAS OWNER, LLC; representative KAEMPFER CROWELL, JENNIFER LAZOVICH, 1980 FESTIVAL PLAZA DRIVE #650, LAS VEGAS, NV 89135. Source: Clark County staff report 04 26-0313-072226.pdf. No phone or email for the party in the record.
 
 #### Tropicana Land resort hotel
 Standalone record: a holdover waiver of development standards and design review for a resort hotel on a 26.11-acre portion of 35.11 acres in a Commercial Resort zone, south of Tropicana Avenue and east of Las Vegas Boulevard South within Paradise.
 - **2026-07-21.** Holdover waiver of development standards (modified driveway geometrics) and design review for the resort hotel. Players: Tropicana Land, LLC. Link: https://clark.legistar.com/gateway.aspx?M=l&ID=110434
+- People (record): owner TROPICANA LAND, LLC; filing agent TROPICANA LAND, LLC; representative HOLLAND & HART LLP, 5470 KIETZKE LANE #100, RENO, NV 89511. Source: Clark County staff report 19 26-0113-072226.pdf. No phone or email for the party in the record.
 
 #### GD Carden Entertainment facility and museum
 Standalone record: a first extension of time on use permits for a recreational or entertainment facility, museum, and live entertainment, with waivers and design review, on 1.82 acres in a residential zone within a Historic Designation Overlay.
 - **2026-07-21.** Use permits first extension of time and design review for the recreational/entertainment facility, museum, and live entertainment. Players: GD Carden Entertainment, LLC. Link: https://clark.legistar.com/gateway.aspx?M=l&ID=110423
+- People (record): owner GD CARDEN ENTERTAINMENT, LLC; filing agent G D CARDEN ENTERTAINMENT, LLC; representative ERIK DENMAN, GCW ENGINEERING, 1555 S. RAINBOW BOULEVARD, LAS VEGAS, NV 89146. Source: Clark County staff report 08 26-400054-072226.pdf. No phone or email for the party in the record.
 
 #### Strip Resort Corridor transportation bonds
 Standalone record: a public hearing on issuing up to $101,190,000 in general obligation (limited tax) transportation improvement bonds to finance transportation projects in the Strip Resort Corridor.
@@ -243,14 +256,17 @@ Standalone record: the Redevelopment Agency reviewing and approving Spring Mount
 #### RDXNWP ice rink (Spring Valley)
 Standalone record: a use permit, waivers of development standards, and design review for a proposed recreational and entertainment facility (ice rink) within an existing shopping center on a 7.02-acre portion of 10.85 acres.
 - **2026-07-07.** Use permit for outdoor storage, waivers, and design review for the proposed ice rink within an existing shopping center. Players: RDXNWP, LLC. Link: https://clark.legistar.com/gateway.aspx?M=l&ID=110314
+- People (record): owner RDXNWP, LLC; filing agent RDX NWP, LLC; representative KAEMPFER CROWELL, JENNIFER LAZOVICH, 1980 FESTIVAL PLAZA DRIVE #650, LAS VEGAS, NV 89135. Source: Clark County staff report 20 26-0302-070826.pdf. No phone or email for the party in the record.
 
 #### Visible Noise recreational and entertainment facility
 Standalone record: a use permit for a proposed recreational or entertainment facility within an existing office/warehouse complex on a portion of 5.31 acres in an Industrial Park zone within the Airport Environs Overlay, in Spring Valley.
 - **2026-07-20.** Use permit for the proposed recreational or entertainment facility within an existing office/warehouse complex. Players: Visible Noise, LLC. Link: https://clark.legistar.com/gateway.aspx?M=l&ID=110385
+- People (record): owner VISIBLE NOISE, LLC; filing agent VISIBLE NOISE, LLC; representative DIONICIO GORDILLO, 9500 HILLWOOD DRIVE, SUITE 201, LAS VEGAS, NV 89134. Source: Clark County staff report 05 26-0303-072126.pdf. No phone or email for the party in the record.
 
 #### Shamaim Henderson training and entertainment facility
 Standalone record: use permits for an avocational or vocational training facility and a recreational or entertainment facility on a portion of 5.11 acres in Industrial Light and Industrial Park zones within the Airport Environs Overlay, in Enterprise.
 - **2026-07-20.** Use permits for the training facility and the recreational or entertainment facility. Players: Shamaim Henderson, LLC. Link: https://clark.legistar.com/gateway.aspx?M=l&ID=110386
+- People (record): owner SHAMAIM HENDERSON, LLC; filing agent LV STUNT AND TUMBLE; representative ANN PIERCE, KAEMPFER CROWEL, 1980 FESTIVAL PLAZA DRIVE, SUITE 650, LAS VEGAS, NV 89135. Source: Clark County staff report 06 26-0309-072126.pdf. No phone or email for the party in the record.
 
 #### ZL II training facility (ORD-26-900259)
 Standalone record: a public hearing on a development agreement for an avocational or vocational training facility and parking lot expansion on 12.04 acres in Enterprise.
@@ -263,6 +279,7 @@ Standalone record: nomination of a 20-acre BLM site at I-215 and Windmill Lane f
 #### City of Las Vegas plan amendment (Sunrise Manor)
 Standalone record: a plan amendment to redesignate a 15.20-acre portion of a 31.58-acre site from Public Use (PU) to Urban Neighborhood (UN), south of Vegas Valley Drive within Sunrise Manor.
 - **2026-07-06.** Holdover plan amendment to redesignate 15.20 acres from Public Use (PU) to Urban Neighborhood (UN). Players: City of Las Vegas (applicant). Link: https://clark.legistar.com/gateway.aspx?M=l&ID=110275
+- People (record): owner City of Las Vegas; filing agent FIXX DEVELOPMENT; representative MARK MULHALL, KAEMPFER CROWELL, 1980 FESTIVAL PLAZA DRIVE, SUITE 650, LAS VEGAS, NV 89135. Source: Clark County staff report 39 26-700022-070726.pdf. No phone or email for the party in the record.
 
 **Context records (14)**
 - 2025-07-15. Clark County Redevelopment Agency meeting (no agenda detail in record). https://clark.legistar.com/Calendar.aspx#event-2853
@@ -597,6 +614,9 @@ A batch of rezoning applications acted on at City Council Formal Meetings, mostl
 - **2026-06-30.** Ordinance G-7530 adopted, Rezoning Application Z-27-26-8, southwest corner of 14th Street and Hess Avenue (District 8). Players: City Council Formal Meeting. Link: https://phoenix.legistar.com/gateway.aspx?M=l&ID=35403
 - **2026-06-30.** Ordinance G-7531 adopted, Rezoning Application PHO-1-26--Z-29-23-7(8), about 300 feet east of the northeast corner of 43rd Avenue and Baseline Road (District 8). Players: City Council Formal Meeting. Link: https://phoenix.legistar.com/gateway.aspx?M=l&ID=35415
 - **2026-06-30.** Ordinance G-7532 adopted, Rezoning Application PHO-1-26--Z-45-22-8, southeast corner of 59th Avenue and Dobbins Road (District 8). Players: City Council Formal Meeting. Link: https://phoenix.legistar.com/gateway.aspx?M=l&ID=35416
+- People (record): owner Arizona State Land Department c/o Jim Perry; applicant Jason Thorburg and Jeff Jankins, WareSpace; representative Shane Ross, Tiffany & Bosco, P.A. Source: staff report Attachment B - Staff Report - Z-104-L-75-3.pdf.
+- People (record): owner North Phoenix Growers, LLC et. al.; applicant Ric Toris / Earl & Curley, P.C.; representative Taylor Earl / Earl & Curley, P.C. Source: staff report Attachment B - Staff Report - Z-25-26-1-2.pdf.
+- People (record): owner Arizona State Land Department; applicant Francisco Castell, K Hovnanian Great Western Homes Building Company, LLC; representative Nick Wood, Snell & Wilmer, LLP. Source: staff report Attachment B - Staff Report - Z-15-26-2.pdf.
 
 #### Fire N Ice (Hotel and Arena, District 2)
 Two liquor-license items for the Fire N Ice hotel and arena venue, both recommended for approval at City Council Formal Meetings. The source tags the arena as a theme-park venue and the hotel as a resort.
@@ -649,6 +669,7 @@ A pair of bills rezoning a 0.46-acre parcel at 1205 2nd Avenue North (about 129 
 A pair of bills rezoning a 3.6-acre parcel at 12802 Old Hickory Boulevard (about 148 feet southwest of Logistics Way) from AR2a to SP zoning to permit a mixed use development (Proposal No. 2026SP-025-001). Records show both bills at Public Hearing before the Metropolitan Council.
 - **2026-08-03.** Bill BL2026-1484 amending Title 17 (Zoning Ordinance) to change the parcel from AR2a to SP zoning for mixed use development. Status: Public Hearing. Players: Metropolitan Council. Link: https://nashville.legistar.com/gateway.aspx?M=l&ID=20788
 - **2026-08-03.** Bill BL2026-1485 authorizing building material restrictions and requirements for the BL2026-1484 Specific Plan district. Status: Public Hearing. Players: Metropolitan Council. Link: https://nashville.legistar.com/gateway.aspx?M=l&ID=20789
+- People (record): contact JOHN GORE, P.E. Source: 2026SP-025-001 Revised Plan 05202026.
 
 #### Music City Center Financing Agreement
 An intergovernmental project agreement between the Metropolitan Government and the Convention Center Authority relating to the financing and refinancing of the Music City Center, taken up by the Ad-Hoc East Bank Committee.
