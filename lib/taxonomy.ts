@@ -153,9 +153,35 @@ const VENUE_RULES: { venue: VenueType; keywords: string[] }[] = [
   { venue: 'Leisure Destination', keywords: ['leisure', 'tourism', 'tourist', 'destination', 'visitor attraction', 'attraction', 'marina', 'golf', 'spa', 'recreation'] },
 ];
 
-function hasWord(text: string, keyword: string): boolean {
+// Whole-word match, tried twice: once on the text as written, and once with
+// intra-word punctuation folded out of BOTH sides. The second pass exists
+// because government documents hyphenate at will - SFWMD files "Disney's
+// Magnolia Golf Course Holes 14-17 Re-Development", which a plain
+// \bredevelopment\b test cannot see - so a real redevelopment permit was
+// invisible to the gate.
+//
+// It is deliberately ADDITIVE rather than a replacement. Folding alone loses
+// matches, because removing hyphens also glues tokens together: Clark County
+// writes "UC-26-0128-MARINA ESTATES", which folds to "UC260128MARINA" and takes
+// the word boundary in front of 'marina' with it. Measured on the stored corpus,
+// fold-only lost 4 records and rescued none. Trying the raw text first means the
+// fold can only ever add a match, never remove one.
+const INTRA_WORD_PUNCT = /[-‐-―_'‘’./]/g;
+
+function foldPunctuation(s: string): string {
+  return s.replace(INTRA_WORD_PUNCT, '');
+}
+
+function wholeWord(text: string, keyword: string): boolean {
   const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   return new RegExp(`\\b${escaped}\\b`, 'i').test(text);
+}
+
+function hasWord(text: string, keyword: string): boolean {
+  if (wholeWord(text, keyword)) return true;
+  const foldedKeyword = foldPunctuation(keyword);
+  if (!foldedKeyword) return false;
+  return wholeWord(foldPunctuation(text), foldedKeyword);
 }
 
 // The canonical venue_type for a lead, from its title + content (+ any existing
