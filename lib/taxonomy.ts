@@ -229,9 +229,16 @@ export const GOV_GATE_STRONG = [
 // projects. As WEAK they still catch real work (a mixed-use plan amendment, a
 // downtown master plan RFP) because those carry a corroborating ACTION term, while
 // the housekeeping items drop. This IS the two-tier principle, not a flattening.
+// Accommodation vocabulary ('lodge', 'cabin') sits here for the same reason
+// 'hotel' and 'motel' do: it names lodging without proving a project on its own.
+// Added with the permitting ACTION terms, because a resort's own construction is
+// often filed under the accommodation type rather than the resort name -
+// "Disney's Fort Wilderness Cabin Improvements" and the Animal Kingdom Lodge
+// parcel are the cases. Measured over the whole government stream, the two terms
+// reach exactly those two records and nothing else.
 export const GOV_GATE_WEAK = [
-  'hotel', 'motel', 'spa', 'golf', 'waterfront', 'redevelopment', 'hospitality',
-  'tourism', 'gaming', 'entertainment', 'recreation',
+  'hotel', 'motel', 'lodge', 'cabin', 'spa', 'golf', 'waterfront', 'redevelopment',
+  'hospitality', 'tourism', 'gaming', 'entertainment', 'recreation',
   'master plan', 'masterplan', 'mixed use', 'mixed-use',
 ] as const;
 
@@ -242,11 +249,40 @@ export const GOV_GATE_ACTION = [
   'development agreement', 'disposition and development agreement', 'ground lease',
   'entitlement', 'land use', 'tax increment', 'TIF', 'feasibility',
   'request for proposals', 'liquor license',
+  // PERMITTING VOCABULARY. Entitlement records (a use permit, a plan amendment)
+  // are only one half of how a project appears in government records; the other
+  // half is the permit a water-management or environmental agency issues, and
+  // that half carries none of the entitlement vocabulary above. Eight SFWMD
+  // records covering real Disney construction (Magnolia golf course
+  // redevelopment, Fort Wilderness cabin improvements) failed the gate for
+  // exactly this reason: 'golf' and 'redevelopment' are WEAK, and a permit
+  // record has no zone change to corroborate them. These terms are the missing
+  // corroboration. 'redevelopment' stays WEAK: the ambiguity that demoted it is
+  // unchanged, and the fix belongs on the ACTION side.
+  'environmental resource permit', 'permit application', 'permit modification',
+  'water use permit', 'construction permit', 'dredge and fill', 'mitigation bank',
 ] as const;
 
+// GOVERNANCE NOISE. These override any match, so every term here must name an
+// item's SUBJECT and must not appear as agenda boilerplate inside a real item.
+// The second group came out of a 30-record precision sample: labour
+// negotiations, legal-counsel conferences, and council recognition items were
+// passing on STRONG terms printed elsewhere on the page, never in the item's own
+// subject.
+//
+// 'closed session', 'closed meeting', 'public comment period', 'ceremonial' and
+// 'minutes of the meeting' were tried here and REMOVED. Because exclusions
+// override, and because the agenda lanes gate on an item excerpt that carries
+// the meeting's standing boilerplate, those five killed real records: a
+// development-application withdrawal notice, an Anaheim resort-district
+// resolution, and two assessment-district hearings all died on boilerplate that
+// had nothing to do with their subject. Precision bought there costs recall
+// somewhere worse.
 export const GOV_GATE_EXCLUSIONS = [
   'adult entertainment', 'proclamation', 'appointment', 'reappointment',
   'employment agreement', 'personnel', 'retirement', 'condolence', 'commendation',
+  'labor negotiator', 'labour negotiator', 'conference with legal counsel',
+  'conference with labor', 'council member recognition',
 ] as const;
 
 export type GateReason = 'strong' | 'weak+action' | 'excluded' | 'weak-without-action' | 'no-match';
