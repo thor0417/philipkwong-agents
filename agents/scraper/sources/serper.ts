@@ -1,6 +1,9 @@
 // Serper search source (GLI Tier 3 intelligence lane).
 //
-// CURATED TRADE PRESS ONLY. This replaces the whole-web, multi-region Serper
+// CURATED TRADE PRESS, PLUS AN EXPLICIT WATCH-TERM PASS. The sector queries run
+// curated-domain-only (below); the named targets in targets.ts run unrestricted
+// and are exempt from the curated check (see WATCH-TERM PASS). This replaces the
+// whole-web, multi-region Serper
 // pass. The GLI queries now run only against a curated domain list using batched
 // `site:` operators (one query per term per batch of domains, joined with OR),
 // and every query is date-restricted to a recency window (Serper tbs date range).
@@ -23,6 +26,8 @@
 // logs and continues (never throws), returning whatever it gathered.
 
 import type { NormalizedLead } from './types';
+import { TARGETS, bypassHits } from '../targets';
+import { JUNK_DOMAINS } from '../junk-domains';
 
 const API_KEY = process.env.SERPER_API_KEY;
 
@@ -101,6 +106,64 @@ const CURATED_DOMAINS = [
   'theurbandeveloper.com',
   'constructiondive.com',
 ];
+
+// ---- WATCH-TERM PASS (the curated-allowlist escape hatch) -------------------
+// The curated list is what makes this lane intelligence rather than news, and it
+// is also what made it blind: a named target announced anywhere other than the
+// ~50 curated domains could not be returned by any query the lane issued. The
+// Top Gun relocation is the proof case - it ran in four outlets on 2026-07-21
+// (casino.org, reviewjournal.com, deadline.com, 8newsnow.com), none of them
+// curated, and probing all 22 sector terms against those four domains returned
+// 147 results and zero Top Gun, so curating them would not have helped either.
+//
+// So the bypass terms in targets.ts (the projects and parties we are explicitly
+// watching) are issued as their OWN queries with no site: restriction, and their
+// results are exempt from the curated-domain check. Nothing else changes: the
+// sector queries stay curated-only, and watch results still face every
+// downstream gate (junk domains, recency, the LLM inclusion rule).
+//
+// The terms are quoted and OR-grouped so the whole watch list costs a handful of
+// searches rather than one per term.
+const WATCH_GROUP_SIZE = Number(process.env.SERPER_WATCH_GROUP ?? '5');
+// Set SERPER_WATCH=0 to run the curated pass alone.
+const WATCH_ENABLED = process.env.SERPER_WATCH !== '0';
+
+export function watchTerms(): string[] {
+  return [...new Set(TARGETS.flatMap((t) => t.bypass))];
+}
+
+// Junk hosts are excluded IN THE QUERY on this pass. Google returns ten organic
+// slots; on an unrestricted watch query the social and reference sites take most
+// of them ("top gun" is a film before it is a Las Vegas parcel), pushing the real
+// coverage off the page. These results would be dropped downstream anyway, so
+// not asking for them costs nothing and buys back the slots. Measured: without
+// this, 6 of the first 10 results for the Top Gun watch group were Facebook,
+// YouTube, Letterboxd, and a film-anniversary site.
+const WATCH_EXCLUSIONS = JUNK_DOMAINS.map((d) => `-site:${d}`).join(' ');
+
+// The watch list as OR-grouped, phrase-quoted queries.
+export function watchQueries(): string[] {
+  const terms = watchTerms();
+  const out: string[] = [];
+  for (let i = 0; i < terms.length; i += Math.max(1, WATCH_GROUP_SIZE)) {
+    const group = terms.slice(i, i + Math.max(1, WATCH_GROUP_SIZE)).map((t) => `"${t}"`).join(' OR ');
+    out.push(`${group} ${WATCH_EXCLUSIONS}`);
+  }
+  return out;
+}
+
+export interface WatchStats {
+  searches: number;
+  results: number;
+  // Results kept that are NOT on a curated domain: exactly what the old lane
+  // could never return.
+  offCurated: number;
+  hostsOffCurated: Record<string, number>;
+}
+let lastWatch: WatchStats = { searches: 0, results: 0, offCurated: 0, hostsOffCurated: {} };
+export function lastWatchStats(): WatchStats {
+  return lastWatch;
+}
 
 // Number of Serper searches issued by the most recent scrapeSerper call, for the
 // run report. Reset at the start of each call.
@@ -239,9 +302,14 @@ export async function scrapeSerper(queries: string[]): Promise<NormalizedLead[]>
     console.warn('Serper: SERPER_API_KEY not set, skipping source.');
     return [];
   }
-  if (queries.length === 0) {
-    console.warn('Serper: no queries configured, skipping source.');
+  // The watch-term pass stands on its own: it is driven by targets.ts, not by
+  // the profile's sector terms, so an empty sector list still runs the watch.
+  if (queries.length === 0 && !WATCH_ENABLED) {
+    console.warn('Serper: no queries configured and the watch pass is off, skipping source.');
     return [];
+  }
+  if (queries.length === 0) {
+    console.warn('Serper: no sector queries configured; running the watch-term pass only.');
   }
 
   const batchSize = planBatchSize(queries.length, CURATED_DOMAINS.length);
@@ -259,6 +327,58 @@ export async function scrapeSerper(queries: string[]): Promise<NormalizedLead[]>
 
   const byUrl = new Map<string, NormalizedLead>();
   let searches = 0;
+
+  // WATCH-TERM PASS FIRST. It is the cheapest and the highest-signal pass, and
+  // running it before the curated plan means it is never the pass that gets cut
+  // when the search ceiling bites.
+  lastWatch = { searches: 0, results: 0, offCurated: 0, hostsOffCurated: {} };
+  if (WATCH_ENABLED) {
+    for (const wq of watchQueries()) {
+      if (searches >= MAX_SEARCHES_PER_RUN) break;
+      searches++;
+      lastWatch.searches++;
+      const items = await runQuery(wq, tbs);
+      for (const item of items) {
+        if (!item.title || !item.link) continue;
+        if (byUrl.has(item.link)) continue;
+        // A watch result must actually contain a watch term (Google will return
+        // near matches on an OR query); the term is recorded as provenance.
+        const hits = bypassHits(`${item.title}\n${item.snippet ?? ''}\n${item.link}`);
+        if (hits.length === 0) continue;
+        const terms = [...new Set(hits.map((h) => h.term))];
+        lastWatch.results++;
+        if (!isCuratedUrl(item.link)) {
+          lastWatch.offCurated++;
+          const host = (() => {
+            try {
+              return new URL(item.link as string).hostname.replace(/^www\./, '');
+            } catch {
+              return '(unparseable)';
+            }
+          })();
+          lastWatch.hostsOffCurated[host] = (lastWatch.hostsOffCurated[host] ?? 0) + 1;
+        }
+        byUrl.set(item.link, {
+          title: item.title,
+          url: item.link,
+          // The matched watch terms are provenance: this lead is here because a
+          // named target was hit, not because the domain is curated.
+          raw_content: `${buildContent(item)}\nWatch-term match: ${terms.join(', ')}`,
+          company: null,
+          location: null,
+          deadline: null,
+          published_date: parseSerperDate(item.date),
+          value_estimate: null,
+          source: 'gli_serper',
+        });
+      }
+    }
+    console.log(
+      `Serper watch-term pass: ${lastWatch.searches} searches over ${watchTerms().length} watch terms -> ` +
+        `${lastWatch.results} results, ${lastWatch.offCurated} of them off the curated list ` +
+        `(${JSON.stringify(lastWatch.hostsOffCurated)}).`
+    );
+  }
 
   for (const q of plan) {
     if (searches >= MAX_SEARCHES_PER_RUN) {
@@ -292,7 +412,8 @@ export async function scrapeSerper(queries: string[]): Promise<NormalizedLead[]>
   const leads = [...byUrl.values()];
   console.log(
     `Serper (curated intelligence): ${searches} searches ` +
-      `(${queries.length} terms x ${batches.length} domain batches of ${batchSize}, ` +
+      `(${lastWatch.searches} watch-term + ${searches - lastWatch.searches} curated: ` +
+      `${queries.length} terms x ${batches.length} domain batches of ${batchSize}, ` +
       `${CURATED_DOMAINS.length} curated domains, last ${RECENCY_WINDOW_DAYS}d); ` +
       `${leads.length} unique results.`
   );

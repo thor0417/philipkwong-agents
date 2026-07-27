@@ -39,7 +39,11 @@ export const TARGETS: TargetDef[] = [
     bypass: [
       'kulik river capital',
       'kulik river',
-      'applebaum',
+      // 'eli applebaum', not the bare surname. Once the watch terms became live
+      // web queries (the unrestricted watch pass in sources/serper), a bare
+      // 'applebaum' returned funeral homes, a stone company, a Substack, and a
+      // university library guide. Verified on the watch probe.
+      'eli applebaum',
       'temp ventures',
       'skyvue',
       '3941 las vegas blvd',
