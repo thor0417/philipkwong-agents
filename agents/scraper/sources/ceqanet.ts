@@ -1,4 +1,4 @@
-// Part D: CEQA / CEQAnet (ceqanet.opr.ca.gov) state-level environmental filings.
+// Part D: CEQA / CEQAnet (ceqanet.lci.ca.gov) state-level environmental filings.
 // Every large California entertainment / mixed-use project files here, often
 // earlier than municipal agendas. CEQAnet's free-text box is delegated to Google
 // CSE (not a server API), but its Advanced Search IS server-side and fetchable,
@@ -14,7 +14,11 @@ import { governmentGate } from '../../../lib/taxonomy';
 import { bypassHits, bypassesGate } from '../targets';
 
 const UA = 'Mozilla/5.0 (compatible; philipkwong-agents/1.0 +scraper)';
-const BASE = 'https://ceqanet.opr.ca.gov';
+// CEQAnet moved from ceqanet.opr.ca.gov to ceqanet.lci.ca.gov (the Land Use and
+// Climate Innovation host). The old host still 302s to the new one, so URLs
+// already stored on captured leads keep resolving and are deliberately left
+// alone; only new captures are written against the current host.
+const BASE = 'https://ceqanet.lci.ca.gov';
 
 // Advanced Search filters that actually narrow server-side (verified live):
 // County and DocumentType. Free text is Google-CSE only, so we scope by the target
