@@ -12,6 +12,7 @@ import type { NormalizedLead } from './types';
 import type { SourceType } from '../../../lib/taxonomy';
 import { governmentGate } from '../../../lib/taxonomy';
 import { bypassHits, bypassesGate } from '../targets';
+import { fetchPdfPages } from './pdf-agenda';
 
 const UA = 'Mozilla/5.0 (compatible; philipkwong-agents/1.0 +scraper)';
 const FETCH_TIMEOUT_MS = 45000;
@@ -65,14 +66,28 @@ export interface AgendaItem {
 // Split agenda text into numbered items. Markers are `N. ` where N is a small
 // integer at a token boundary; a segment runs to the next marker. Section headers
 // restart numbering, so the running seq (not the printed number) keys uniqueness.
+//
+// Some agendas number their hearings `ITEM NO. 1` with no trailing period on the
+// number (Anaheim's Planning Commission is the case that surfaced this), which
+// the bare `N.` marker cannot see. Those markers are tried FIRST and, when the
+// document uses them, they alone define the split: an agenda written that way
+// carries stray `N.` sequences in its boilerplate that would fragment it.
+const ITEM_NO_RE = /\bITEM\s+NO\.?\s*(\d{1,3})[.:]?\s+(?=[A-Z(])/g;
+
 export function splitNumberedAgenda(text: string): AgendaItem[] {
-  const re = /(?:^|[\s;:.)])(\d{1,3})\.\s+(?=[A-Z(])/g;
   const marks: { num: string; start: number }[] = [];
   let m: RegExpExecArray | null;
-  while ((m = re.exec(text)) !== null) {
-    const num = parseInt(m[1], 10);
-    if (num < 1 || num > 80) continue;
-    marks.push({ num: m[1], start: m.index + m[0].indexOf(m[1]) });
+  ITEM_NO_RE.lastIndex = 0;
+  while ((m = ITEM_NO_RE.exec(text)) !== null) {
+    marks.push({ num: m[1], start: m.index });
+  }
+  if (marks.length === 0) {
+    const re = /(?:^|[\s;:.)])(\d{1,3})\.\s+(?=[A-Z(])/g;
+    while ((m = re.exec(text)) !== null) {
+      const num = parseInt(m[1], 10);
+      if (num < 1 || num > 80) continue;
+      marks.push({ num: m[1], start: m.index + m[0].indexOf(m[1]) });
+    }
   }
   const items: AgendaItem[] = [];
   for (let i = 0; i < marks.length; i++) {
@@ -177,8 +192,26 @@ export function leadsFromAgendaText(meeting: MeetingRef, text: string): Normaliz
 
 // ---- Part B: Anaheim (Granicus) --------------------------------------------
 // Anaheim City Council + Planning Commission both publish through Granicus
-// view_id=2, one <tr> per meeting: Name (body), Date, and an Agenda link
-// (AgendaViewer.php?view_id=2&event_id=NNNN). Fully fetchable; no browser.
+// view_id=2, one <tr> per meeting: Name (body), Date, and Agenda / Minutes
+// links (AgendaViewer.php, MinutesViewer.php). Fully fetchable; no browser.
+//
+// REGRESSION FIXED (2026-07-27). Granicus stopped serving the agenda inline.
+// AgendaViewer.php and MinutesViewer.php now 302 to one of four places, and only
+// two of them are documents this runtime can actually read:
+//   anaheim.granicus.com/DocumentViewer.php?file=...pdf  - reachable PDF, via a
+//       docs.google.com/gview wrapper whose `url=` parameter holds the real link
+//   www.anaheim.net/DocumentCenter|AgendaCenter/...      - reachable PDF
+//   local.anaheim.net/docs_agend/...Agenda.html          - connection times out
+//   records.anaheim.net/CityClerk/DocView.aspx           - connection times out
+// The lane previously followed the redirect blind, landed on a 13 KB JavaScript
+// shell or an unreachable host, reduced it to "DocumentViewer.php Loading..."
+// (34 characters), and wrote nothing while reporting agendas as fetched.
+//
+// So a meeting is now resolved through EVERY viewer link it publishes, in order,
+// until one yields items: the redirect is read manually, a gview wrapper is
+// unwrapped, PDFs are parsed as PDFs, HTML is still handled as before, and a
+// host that cannot be reached is counted and logged rather than silently
+// producing an empty agenda.
 
 const ANAHEIM = 'Anaheim, CA';
 const ANAHEIM_VIEWPUBLISHER = 'https://anaheim.granicus.com/ViewPublisher.php?view_id=2';
@@ -188,14 +221,22 @@ function bodySourceType(body: string): SourceType {
   return /planning/i.test(body) ? 'Planning/Zoning Minutes' : 'Council Agenda';
 }
 
+// A meeting plus every viewer link its row publishes (agenda first, then
+// minutes). The agendaUrl stays the citizen-facing viewer link until a document
+// resolves, at which point the resolved document URL replaces it.
+export interface AnaheimMeeting extends MeetingRef {
+  viewerUrls: string[];
+}
+
 // Parse the Granicus meeting table into meeting refs (Council + Planning, 2025+).
 // The page carries two row shapes: an "upcoming" table (cells tagged
 // headers="Name"/"Date") and the large archived listing (plain <td> cells). This
-// reads both by scanning each <tr> for a body name, a date, and an Agenda link.
-export function parseAnaheimMeetings(html: string): MeetingRef[] {
+// reads both by scanning each <tr> for a body name, a date, and viewer links.
+export function parseAnaheimMeetings(html: string): AnaheimMeeting[] {
   const rows = html.split(/<tr[\s>]/i).slice(1);
-  const out: MeetingRef[] = [];
+  const out: AnaheimMeeting[] = [];
   const seen = new Set<string>();
+  const abs = (u: string): string => (u.startsWith('//') ? 'https:' + u : u);
   for (const row of rows) {
     const agM = row.match(/href="([^"]*AgendaViewer\.php[^"]*)"/i);
     if (!agM) continue;
@@ -205,19 +246,62 @@ export function parseAnaheimMeetings(html: string): MeetingRef[] {
     const dateM = row.match(/>\s*([A-Za-z]{3,9} \d{1,2}, \d{4})/);
     const dateIso = dateM ? new Date(dateM[1]).toISOString() : null;
     if (!dateIso || Number.isNaN(Date.parse(dateIso)) || Date.parse(dateIso) < ANAHEIM_SINCE) continue;
-    let agendaUrl = agM[1];
-    if (agendaUrl.startsWith('//')) agendaUrl = 'https:' + agendaUrl;
+    const agendaUrl = abs(agM[1]);
     if (seen.has(agendaUrl)) continue;
     seen.add(agendaUrl);
+    // Agenda first (the meeting's own document), then every minutes link on the
+    // row: when the agenda resolves to an unreachable host, the minutes are the
+    // same meeting's record and are usually on a host that answers.
+    const minutes = [...row.matchAll(/href="([^"]*MinutesViewer\.php[^"]*)"/gi)].map((m) => abs(m[1]));
     out.push({
       jurisdictionLabel: ANAHEIM,
       body: /planning/i.test(body) ? 'Planning Commission' : 'City Council',
       sourceType: bodySourceType(body),
       dateIso,
       agendaUrl,
+      viewerUrls: [agendaUrl, ...new Set(minutes)],
     });
   }
   return out;
+}
+
+// The document a Granicus viewer link actually points at. The viewer 302s; when
+// the target is a docs.google.com/gview wrapper, the real document is its `url`
+// parameter. Returns null when the viewer does not redirect at all.
+export async function resolveViewerDocument(viewerUrl: string): Promise<string | null> {
+  try {
+    const res = await fetch(viewerUrl, {
+      headers: { 'User-Agent': UA },
+      redirect: 'manual',
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    });
+    const loc = res.headers.get('location');
+    if (!loc) return null;
+    const wrapped = loc.match(/[?&]url=([^&]+)/);
+    return wrapped ? decodeURIComponent(wrapped[1]) : loc;
+  } catch (error) {
+    console.warn(`Agenda portal: viewer redirect failed for ${viewerUrl} (${String(error).slice(0, 60)}).`);
+    return null;
+  }
+}
+
+// Fetch a resolved document and reduce it to text, whether it is a PDF or HTML.
+// Returns null when the host is unreachable or the document will not parse.
+async function documentText(url: string): Promise<string | null> {
+  if (/\.pdf(\?|$)/i.test(url) || /DocumentViewer\.php/i.test(url) || /DocumentCenter|AgendaCenter/i.test(url)) {
+    const pages = await fetchPdfPages(url);
+    if (!pages || pages.length === 0) return null;
+    return pages.join('\n').replace(/\s+/g, ' ').trim();
+  }
+  const html = await fetchText(url);
+  return html ? htmlToText(html) : null;
+}
+
+// Anaheim publishes a Spanish translation of the same agenda alongside the
+// English one. The government gate is English, so a Spanish document under-gates
+// its own meeting; it is used only when nothing else for that meeting resolves.
+function isSpanish(text: string): boolean {
+  return /ORDEN\s+DEL\s+D[IÍ]A|AYUNTAMIENTO/i.test(text.slice(0, 4000));
 }
 
 export interface AgendaPortalStats {
@@ -225,8 +309,20 @@ export interface AgendaPortalStats {
   meetingsFetched: number;
   itemsKept: number;
   bypassHits: number;
+  // Meetings whose every published document sits on a host this runtime cannot
+  // reach. Counted and reported, never mistaken for a meeting with no items.
+  meetingsUnreachable: number;
+  // Documents read, by host, so a host going dark is visible in the run report.
+  perDocumentHost: Record<string, number>;
 }
-export const anaheimStats: AgendaPortalStats = { meetingsListed: 0, meetingsFetched: 0, itemsKept: 0, bypassHits: 0 };
+export const anaheimStats: AgendaPortalStats = {
+  meetingsListed: 0,
+  meetingsFetched: 0,
+  itemsKept: 0,
+  bypassHits: 0,
+  meetingsUnreachable: 0,
+  perDocumentHost: {},
+};
 
 export async function scrapeAnaheimAgendas(): Promise<NormalizedLead[]> {
   const listing = await fetchText(ANAHEIM_VIEWPUBLISHER);
@@ -245,11 +341,39 @@ export async function scrapeAnaheimAgendas(): Promise<NormalizedLead[]> {
   async function worker(): Promise<void> {
     while (next < meetings.length) {
       const meeting = meetings[next++];
-      const html = await fetchText(meeting.agendaUrl);
-      if (!html) continue;
+      // Try every viewer link the row published until one yields items. A
+      // Spanish duplicate is held back and used only if nothing else resolves.
+      let spanish: { url: string; text: string } | null = null;
+      let got: NormalizedLead[] = [];
+      let read = false;
+      for (const viewer of meeting.viewerUrls) {
+        const docUrl = (await resolveViewerDocument(viewer)) ?? viewer;
+        const text = await documentText(docUrl);
+        if (!text || text.length < 200) continue;
+        read = true;
+        const host = (() => {
+          try {
+            return new URL(docUrl).hostname;
+          } catch {
+            return '(unparseable)';
+          }
+        })();
+        anaheimStats.perDocumentHost[host] = (anaheimStats.perDocumentHost[host] ?? 0) + 1;
+        if (isSpanish(text)) {
+          spanish ??= { url: docUrl, text };
+          continue;
+        }
+        got = leadsFromAgendaText({ ...meeting, agendaUrl: docUrl, hasPrimaryDocument: true }, text);
+        if (got.length > 0) break;
+      }
+      if (got.length === 0 && spanish) {
+        got = leadsFromAgendaText({ ...meeting, agendaUrl: spanish.url, hasPrimaryDocument: true }, spanish.text);
+      }
+      if (!read) {
+        anaheimStats.meetingsUnreachable++;
+        continue;
+      }
       anaheimStats.meetingsFetched++;
-      const text = htmlToText(html);
-      const got = leadsFromAgendaText(meeting, text);
       for (const l of got) {
         if (bypassesGate(`${l.title}\n${l.raw_content}`)) anaheimStats.bypassHits++;
         leads.push(l);
@@ -259,7 +383,9 @@ export async function scrapeAnaheimAgendas(): Promise<NormalizedLead[]> {
   await Promise.all(Array.from({ length: CONC }, worker));
   anaheimStats.itemsKept = leads.length;
   console.log(
-    `Anaheim: ${anaheimStats.meetingsFetched} agendas fetched -> ${leads.length} item/meeting leads (${anaheimStats.bypassHits} with a target bypass hit).`
+    `Anaheim: ${anaheimStats.meetingsFetched} meetings read, ${anaheimStats.meetingsUnreachable} with no reachable document ` +
+      `-> ${leads.length} item/meeting leads (${anaheimStats.bypassHits} with a target bypass hit).`
   );
+  console.log(`Anaheim documents read by host: ${JSON.stringify(anaheimStats.perDocumentHost)}`);
   return leads;
 }
