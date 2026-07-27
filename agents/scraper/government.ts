@@ -22,6 +22,7 @@ import { regionFor, regionOf } from './regions';
 import { classifyVenueType, categoryForVenue } from '../../lib/taxonomy';
 import { deriveLeadDates, objectFields, shouldDelete } from './lead-date';
 import { scrapeLegistar, lastLegistarStats, type LegistarJurisdictionStats } from './sources/legistar';
+import { lastAttachmentStats } from './sources/legistar-attachments';
 import { scrapeGovDocs } from './sources/govdocs';
 import { scrapeCftodPdfItems } from './sources/pdf-agenda';
 import { scrapeAnaheimAgendas } from './sources/agenda-portal';
@@ -117,6 +118,19 @@ async function extractPlayers(lead: NormalizedLead): Promise<GovernmentPlayers> 
       return { ...NO_PLAYERS };
     }
   }
+}
+
+// Document-sourced people (read out of the matter's own attachments by
+// sources/legistar-attachments) OUTRANK the model's reading of the record text:
+// the staff report states them, the title only implies them. The model fills the
+// fields the documents left null, never the reverse.
+export function mergePlayers(lead: NormalizedLead, llm: GovernmentPlayers): GovernmentPlayers {
+  return {
+    presented_by: lead.presented_by ?? llm.presented_by,
+    applicant: lead.applicant ?? llm.applicant,
+    representative: lead.representative ?? llm.representative,
+    action_sought: lead.action_sought ?? llm.action_sought,
+  };
 }
 
 async function extractPlayersBatch(leads: NormalizedLead[]): Promise<GovernmentPlayers[]> {
@@ -241,6 +255,9 @@ export interface GovernmentReport {
   primaryDocs: number;
   // Records with at least one player field extracted.
   playersFound: number;
+  // Records whose people came from the matter's own documents (attachment depth),
+  // as opposed to the model's reading of the record text.
+  documentContacts: number;
   samples: Array<{
     title: string;
     jurisdiction: string;
@@ -275,6 +292,7 @@ export async function runGovernmentLane(leads: NormalizedLead[]): Promise<Govern
     perSourceType: {},
     primaryDocs: 0,
     playersFound: 0,
+    documentContacts: 0,
     samples: [],
   };
 
@@ -286,7 +304,8 @@ export async function runGovernmentLane(leads: NormalizedLead[]): Promise<Govern
   for (let i = 0; i < deduped.length; i++) {
     const lead = deduped[i];
     const tag = tags[i];
-    const p = players[i];
+    const p = mergePlayers(lead, players[i]);
+    if (lead.presented_by || lead.applicant || lead.representative) report.documentContacts++;
     // Capture gate: government records are project events (no deadline), so they
     // are never rejected here. shouldDelete stays as the single gate for symmetry.
     if (shouldDelete(lead)) {
@@ -371,6 +390,17 @@ function printGovernmentReport(
   console.log(table(r.perSourceType));
   console.log(`Records with a fetched primary document: ${r.primaryDocs}`);
   console.log(`Records with a player extracted: ${r.playersFound} of ${r.written || r.deduped}`);
+  console.log(`Records whose people came from the matter's own documents: ${r.documentContacts}`);
+  console.log('Attachment depth per jurisdiction (matters processed / attachments listed / fetched / contact blocks):');
+  const att = lastAttachmentStats();
+  if (Object.keys(att).length === 0) {
+    console.log('    (none: no Legistar matter passed the gate, or LEGISTAR_ATTACHMENTS=0)');
+  }
+  for (const [j, s] of Object.entries(att).sort()) {
+    console.log(
+      `    ${j}: ${s.mattersProcessed} matters / ${s.attachmentsListed} listed / ${s.attachmentsFetched} fetched / ${s.contactsExtracted} contact blocks`
+    );
+  }
   console.log('Per venue_type:');
   console.log(table(r.perVenueType));
   console.log('Per signal_type:');

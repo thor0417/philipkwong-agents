@@ -19,6 +19,7 @@ import { toIso } from './types';
 import { keywordMatches } from '../prefilter';
 import type { SourceType } from '../../../lib/taxonomy';
 import { governmentGate } from '../../../lib/taxonomy';
+import { matterContacts, contactProvenance, resetAttachmentStats } from './legistar-attachments';
 
 // Canonical government document type (lib/taxonomy SOURCE_TYPES) for a Legistar
 // record, from its matter/body type + title. Ordered most-specific first;
@@ -43,6 +44,8 @@ const BASE = 'https://webapi.legistar.com/v1';
 const UA = 'philipkwong-agents/1.0 (+scraper)';
 // Records pulled per endpoint per jurisdiction (most recent first). Bounds the run.
 const TOP = Number(process.env.LEGISTAR_TOP ?? '200');
+// Matters whose attachments are fetched at once (multi-megabyte PDFs, one host).
+const ATTACHMENT_CONCURRENCY = 4;
 
 // ---- CONFIG: jurisdictions (SWAPPABLE), AS A DOCUMENTED DECISION -------------
 // One entry = one Legistar market. `client` is the Legistar API client id (the
@@ -296,6 +299,8 @@ async function scrapeJurisdiction(
     return false;
   };
 
+  // Matters that cleared the gate, held until their attachment depth is fetched.
+  const gated: { m: LegistarMatter; title: string; url: string }[] = [];
   for (const m of matters) {
     if (!m.MatterId) continue;
     const title = m.MatterTitle || m.MatterName || m.MatterFile || '';
@@ -304,11 +309,30 @@ async function scrapeJurisdiction(
     if (!passesGate(text)) continue;
     matched++;
     const url = await publicMatterUrl(j.client, m.MatterId);
-    if (byUrl.has(url)) continue;
+    if (byUrl.has(url) || gated.some((g) => g.url === url)) continue;
+    gated.push({ m, title, url });
+  }
+
+  // ATTACHMENT DEPTH. Every gated matter's own documents are read for the
+  // owner / applicant / representative block (sources/legistar-attachments).
+  // Bounded concurrency: these are multi-megabyte PDFs on the county's server.
+  const contacts = new Array<Awaited<ReturnType<typeof matterContacts>>>(gated.length).fill(null);
+  let nextDoc = 0;
+  async function docWorker(): Promise<void> {
+    while (nextDoc < gated.length) {
+      const i = nextDoc++;
+      contacts[i] = await matterContacts(j.client, gated[i].m.MatterId as number, j.jurisdictionLabel);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(ATTACHMENT_CONCURRENCY, gated.length) }, docWorker));
+
+  for (let i = 0; i < gated.length; i++) {
+    const { m, title, url } = gated[i];
+    const c = contacts[i];
     byUrl.set(url, {
       title,
       url,
-      raw_content: matterContent(m, j.jurisdictionLabel),
+      raw_content: matterContent(m, j.jurisdictionLabel) + (c ? contactProvenance(c) : ''),
       company: m.MatterBodyName ?? null,
       location: j.jurisdictionLabel,
       deadline: null,
@@ -318,6 +342,14 @@ async function scrapeJurisdiction(
       value_estimate: null,
       source: 'legistar',
       source_type: legistarSourceType(`${m.MatterTypeName ?? ''} ${title} ${m.MatterBodyName ?? ''}`),
+      // Document-sourced people. Null when the documents do not state them; the
+      // government lane fills any gap from the record text, never the reverse.
+      presented_by: c?.presented_by ?? null,
+      applicant: c?.applicant ?? null,
+      representative: c?.representative ?? null,
+      // The staff report actually read is this record's primary document.
+      primary_document_url: c?.documentUrl ?? null,
+      has_primary_document: !!c,
     });
   }
 
@@ -365,6 +397,7 @@ async function scrapeJurisdiction(
 
 export async function scrapeLegistar(): Promise<NormalizedLead[]> {
   lastStats = {};
+  resetAttachmentStats();
   const byUrl = new Map<string, NormalizedLead>();
   // Each jurisdiction runs independently; one broken client cannot kill the run.
   await Promise.allSettled(JURISDICTIONS.map((j) => scrapeJurisdiction(j, byUrl)));
