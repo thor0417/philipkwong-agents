@@ -28,6 +28,7 @@ import { opportunityVenueHint, opportunitySignalHint } from './classify';
 import { classifyVenueType, categoryForVenue } from '../../lib/taxonomy';
 import { configuredPrimaryDocument } from './sources/govdocs';
 import { deriveLeadDates, objectFields, shouldDelete } from './lead-date';
+import { hostOf, isJunkDomain } from './junk-domains';
 
 const MODEL = 'claude-haiku-4-5-20251001';
 const GLI_MODULE = 'gli';
@@ -196,49 +197,9 @@ function countryOf(location: string | null): string {
 }
 
 // ---- Junk domain hard-exclusion (GLI gate) ---------------------------------
-// Hard-excluded domains. Leads from these domains are dropped before scoring.
-// Edit this list to add/remove junk sources.
-const JUNK_DOMAINS = [
-  'facebook.com',
-  'youtube.com',
-  'twitter.com',
-  'x.com',
-  'instagram.com',
-  'tiktok.com',
-  'reddit.com',
-  // TV news and local news affiliates
-  'abcnews.go.com',
-  'nbcnews.com',
-  'cbsnews.com',
-  'foxnews.com',
-  'cnn.com',
-  'msnbc.com',
-  'usatoday.com',
-  // Add local TV affiliates as encountered
-];
-
-// Bare hostname of a url (leading www. stripped, lowercased), or '' when the url
-// is missing or unparseable. Protocol-less and protocol-relative links (e.g.
-// "facebook.com/x" or "//facebook.com/x") are retried with an https:// prefix so
-// no url form escapes the junk filter.
-function hostOf(url: string | null): string {
-  if (!url) return '';
-  const parse = (u: string): string | null => {
-    try {
-      return new URL(u).hostname;
-    } catch {
-      return null;
-    }
-  };
-  const host = parse(url) ?? parse(`https://${url.replace(/^\/\//, '')}`);
-  return host ? host.replace(/^www\./, '').toLowerCase() : '';
-}
-
-// True when the host is (or is a subdomain of) a hard-excluded junk domain.
-function isJunkDomain(host: string): boolean {
-  if (!host) return false;
-  return JUNK_DOMAINS.some((d) => host === d || host.endsWith(`.${d}`));
-}
+// Leads from these domains are dropped before scoring, and already-stored rows
+// on them are swept (purgeStoredJunk). The list lives in ../junk-domains so the
+// Serper watch pass can exclude the same domains at QUERY time.
 
 // ---- source_tier classification --------------------------------------------
 // Primary sources: government, planning authorities, tourism boards, RFP portals.
