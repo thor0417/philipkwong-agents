@@ -27,3 +27,6 @@ dashboard/public/fonts/PP Neue York*/
 dashboard/public/fonts/*.otf
 dashboard/public/fonts/*.woff
 scratch-leads.json
+
+# next.js generated types: regenerated on every build, never hand-edited
+dashboard/next-env.d.ts
