@@ -87,10 +87,16 @@ export function splitNumberedAgenda(text: string): AgendaItem[] {
 
 export interface MeetingRef {
   jurisdictionLabel: string;
-  body: string; // 'City Council' | 'Planning Commission'
+  body: string; // 'City Council' | 'Planning Commission' | a named advisory board
   sourceType: SourceType;
   dateIso: string | null;
   agendaUrl: string;
+  // Adapter tag written to the lead's source column. Defaults to 'agenda-portal'
+  // (Anaheim / Las Vegas); a portal with its own identity sets its own.
+  source?: string;
+  // True when agendaUrl is itself the fetched primary document (a PDF agenda),
+  // rather than a portal page that merely displays one.
+  hasPrimaryDocument?: boolean;
 }
 
 function targetHitLine(text: string): string {
@@ -108,10 +114,10 @@ export function leadsFromAgendaText(meeting: MeetingRef, text: string): Normaliz
     location: meeting.jurisdictionLabel,
     deadline: null,
     value_estimate: null,
-    source: 'agenda-portal',
+    source: meeting.source ?? 'agenda-portal',
     source_type: meeting.sourceType,
     primary_document_url: meeting.agendaUrl,
-    has_primary_document: false as boolean,
+    has_primary_document: meeting.hasPrimaryDocument ?? false,
     published_date: meeting.dateIso,
   };
 
