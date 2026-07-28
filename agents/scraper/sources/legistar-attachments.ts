@@ -26,6 +26,7 @@
 // document with no contact block costs the matter its depth, never the run.
 
 import { fetchPdfPages } from './pdf-agenda';
+import { LegistarAttachmentSchema, parseRecords } from './schemas';
 
 const BASE = 'https://webapi.legistar.com/v1';
 const UA = 'philipkwong-agents/1.0 (+scraper)';
@@ -272,7 +273,14 @@ async function listAttachments(client: string, matterId: number): Promise<Legist
     });
     if (!res.ok) return [];
     const data = await res.json();
-    return Array.isArray(data) ? (data as LegistarAttachment[]) : [];
+    if (!Array.isArray(data)) return [];
+    // An attachment with no hyperlink cannot be fetched, so the schema requires
+    // one and the rest are skipped rather than half-processed.
+    return parseRecords(LegistarAttachmentSchema, data, {
+      source: `legistar:${client}`,
+      endpoint: `Matters/${matterId}/Attachments`,
+      quiet: true,
+    }).records as LegistarAttachment[];
   } catch {
     return [];
   }

@@ -28,6 +28,7 @@
 import type { NormalizedLead } from './types';
 import { TARGETS, bypassHits } from '../targets';
 import { JUNK_DOMAINS } from '../junk-domains';
+import { SerperOrganicSchema, parseRecords } from './schemas';
 
 const API_KEY = process.env.SERPER_API_KEY;
 
@@ -289,7 +290,13 @@ async function runQuery(q: string, tbs: string): Promise<SerperOrganic[]> {
       return [];
     }
     const data = (await res.json()) as SerperResponse;
-    return data.organic ?? [];
+    // A result with no title or no link is not a lead; validated here so a
+    // change in Serper's response shape is counted rather than silently empty.
+    return parseRecords(SerperOrganicSchema, data.organic ?? [], {
+      source: 'serper',
+      endpoint: 'search',
+      quiet: true,
+    }).records as SerperOrganic[];
   } catch (error) {
     console.error(`Serper "${q.slice(0, 60)}" error:`, error);
     return [];

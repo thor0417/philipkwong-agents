@@ -31,6 +31,7 @@ import { deriveLeadDates, objectFields, shouldDelete } from './lead-date';
 import { geographyFields } from '../../lib/geography';
 import { hostOf, isJunkDomain } from './junk-domains';
 import { guardedUpsert, emptyWriteReport, printWriteReport } from './write-guard';
+import { resetParseReports, printParseReports } from './sources/schemas';
 
 const MODEL = 'claude-haiku-4-5-20251001';
 const GLI_MODULE = 'gli';
@@ -882,6 +883,7 @@ export function printGliReport(r: GliReport): void {
 // every other source. Guarded so importing this module never triggers a run.
 async function main(): Promise<void> {
   console.log('GLI lane starting...');
+  resetParseReports();
   const queries = gliQueries();
   if (queries.length === 0) {
     console.error('GLI lane: no queries configured (gli profile inactive or missing).');
@@ -891,6 +893,7 @@ async function main(): Promise<void> {
   const report = await runGliLane(raw);
   report.searches = lastSerperSearchCount();
   printGliReport(report);
+  printParseReports('Boundary schemas');
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

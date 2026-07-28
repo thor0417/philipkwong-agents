@@ -24,6 +24,7 @@ import { guardedUpsert, emptyWriteReport, printWriteReport, type WriteReport } f
 import { deriveLeadDates, objectFields, shouldDelete } from './lead-date';
 import { scrapeLegistar, lastLegistarStats, type LegistarJurisdictionStats } from './sources/legistar';
 import { lastAttachmentStats } from './sources/legistar-attachments';
+import { resetParseReports, printParseReports } from './sources/schemas';
 import { scrapeGovDocs } from './sources/govdocs';
 import { scrapeCftodPdfItems } from './sources/pdf-agenda';
 import { scrapeAnaheimAgendas } from './sources/agenda-portal';
@@ -446,6 +447,7 @@ function printGovernmentReport(
 
 async function main(): Promise<void> {
   console.log('GLI Tier 2 government lane starting (scrape:government)...');
+  resetParseReports();
   const [legistar, govdocs, cftodItems, anaheim, lasVegas, clarkTab, ceqa, sfwmd] = await Promise.all([
     scrapeLegistar(),
     scrapeGovDocs(),
@@ -467,6 +469,7 @@ async function main(): Promise<void> {
     ...sfwmd,
   ]);
   printGovernmentReport(report, lastLegistarStats());
+  printParseReports('Boundary schemas');
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

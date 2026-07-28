@@ -14,6 +14,7 @@ import type { NormalizedLead } from './types';
 import type { SourceType } from '../../../lib/taxonomy';
 import { fetchText, htmlToText, leadsFromAgendaText, type MeetingRef } from './agenda-portal';
 import { bypassesGate } from '../targets';
+import { PrimeGovMeetingSchema, parseRecords } from './schemas';
 
 const UA = 'Mozilla/5.0 (compatible; philipkwong-agents/1.0 +scraper)';
 const LV = 'Las Vegas, NV';
@@ -47,7 +48,11 @@ async function listYear(year: number): Promise<PrimeGovMeeting[]> {
       return [];
     }
     const data = (await res.json()) as unknown;
-    return Array.isArray(data) ? (data as PrimeGovMeeting[]) : [];
+    if (!Array.isArray(data)) return [];
+    return parseRecords(PrimeGovMeetingSchema, data, {
+      source: 'primegov:lasvegas',
+      endpoint: `ListArchivedMeetings?year=${year}`,
+    }).records as PrimeGovMeeting[];
   } catch (error) {
     console.warn(`Las Vegas: list ${year} failed (${String(error).slice(0, 70)}).`);
     return [];

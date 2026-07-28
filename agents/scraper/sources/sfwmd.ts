@@ -9,6 +9,7 @@
 // On any failure this logs and continues.
 
 import type { NormalizedLead } from './types';
+import { SfwmdFeatureSchema, parseRecords } from './schemas';
 import { strongBypassHits } from '../targets';
 
 const UA = 'Mozilla/5.0 (compatible; philipkwong-agents/1.0 +scraper)';
@@ -53,8 +54,14 @@ async function queryLayer(path: string): Promise<ErpAttrs[]> {
       console.warn(`SFWMD: layer ${path} -> HTTP ${res.status}.`);
       return [];
     }
-    const data = (await res.json()) as { features?: { attributes: ErpAttrs }[] };
-    return (data.features ?? []).map((f) => f.attributes);
+    const data = (await res.json()) as { features?: unknown[] };
+    // ArcGIS wraps every record in { attributes: {...} }. That envelope is the
+    // part most likely to change silently, so it is validated before use.
+    const features = parseRecords(SfwmdFeatureSchema, data.features ?? [], {
+      source: 'sfwmd',
+      endpoint: 'ArcGIS query',
+    }).records;
+    return features.map((f) => f.attributes as unknown as ErpAttrs);
   } catch (error) {
     console.warn(`SFWMD: layer ${path} failed (${String(error).slice(0, 70)}).`);
     return [];

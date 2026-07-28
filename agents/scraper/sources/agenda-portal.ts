@@ -13,6 +13,7 @@ import type { SourceType } from '../../../lib/taxonomy';
 import { governmentGate } from '../../../lib/taxonomy';
 import { bypassHits, bypassesGate } from '../targets';
 import { fetchPdfPages } from './pdf-agenda';
+import { GranicusMeetingSchema, parseRecords } from './schemas';
 
 const UA = 'Mozilla/5.0 (compatible; philipkwong-agents/1.0 +scraper)';
 const FETCH_TIMEOUT_MS = 45000;
@@ -262,7 +263,16 @@ export function parseAnaheimMeetings(html: string): AnaheimMeeting[] {
       viewerUrls: [agendaUrl, ...new Set(minutes)],
     });
   }
-  return out;
+  // Granicus serves HTML, so the boundary is the PARSED row. Validating it
+  // catches the failure that actually happened here: a listing that still
+  // returns rows but no longer yields a usable agenda link or a parseable date.
+  const checked = parseRecords(
+    GranicusMeetingSchema,
+    out.map((m) => ({ body: m.body, dateIso: m.dateIso, agendaUrl: m.agendaUrl, viewerUrls: m.viewerUrls })),
+    { source: 'granicus:anaheim', endpoint: 'ViewPublisher view_id=2' }
+  ).records;
+  const valid = new Set(checked.map((c) => c.agendaUrl));
+  return out.filter((m) => valid.has(m.agendaUrl));
 }
 
 // The document a Granicus viewer link actually points at. The viewer 302s; when

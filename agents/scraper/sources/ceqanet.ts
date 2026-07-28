@@ -12,6 +12,7 @@
 import type { NormalizedLead } from './types';
 import { governmentGate } from '../../../lib/taxonomy';
 import { bypassHits, bypassesGate } from '../targets';
+import { CeqanetRowSchema, parseRecords } from './schemas';
 
 const UA = 'Mozilla/5.0 (compatible; philipkwong-agents/1.0 +scraper)';
 // CEQAnet moved from ceqanet.opr.ca.gov to ceqanet.lci.ca.gov (the Land Use and
@@ -51,7 +52,19 @@ function parseRows(html: string): CeqaRow[] {
     const title = (tr.match(/itemprop="name">([^<]+)/) ?? [])[1]?.trim() ?? '';
     if (sch && title) out.push({ sch, docType, agency, date, title });
   }
-  return out;
+  // Validated at the boundary: CEQAnet serves microdata scraped from HTML, so a
+  // layout change shows up here as rejected rows rather than as a quiet zero.
+  return parseRecords(
+    CeqanetRowSchema,
+    out.map((r) => ({ sch: r.sch, title: r.title, documentType: r.docType, leadAgency: r.agency, received: r.date })),
+    { source: 'ceqanet', endpoint: 'Search' }
+  ).records.map((r) => ({
+    sch: r.sch,
+    title: r.title,
+    docType: r.documentType ?? '',
+    agency: r.leadAgency ?? '',
+    date: r.received ?? '',
+  }));
 }
 
 async function fetchQuery(query: string): Promise<CeqaRow[]> {

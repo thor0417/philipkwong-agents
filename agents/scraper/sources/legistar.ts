@@ -20,6 +20,7 @@ import { keywordMatches } from '../prefilter';
 import type { SourceType } from '../../../lib/taxonomy';
 import { governmentGate } from '../../../lib/taxonomy';
 import { matterContacts, contactProvenance, resetAttachmentStats } from './legistar-attachments';
+import { LegistarMatterSchema, LegistarEventSchema, parseRecords } from './schemas';
 
 // Canonical government document type (lib/taxonomy SOURCE_TYPES) for a Legistar
 // record, from its matter/body type + title. Ordered most-specific first;
@@ -271,15 +272,22 @@ async function scrapeJurisdiction(
   byUrl: Map<string, NormalizedLead>
 ): Promise<void> {
   const order = encodeURIComponent('MatterId desc');
-  const matters = await fetchJson<LegistarMatter>(
-    `${BASE}/${j.client}/Matters?$top=${TOP}&$orderby=${order}`,
-    `${j.client} Matters`
-  );
+  const mattersUrl = `${BASE}/${j.client}/Matters?$top=${TOP}&$orderby=${order}`;
+  const rawMatters = await fetchJson<unknown>(mattersUrl, `${j.client} Matters`);
+  // Validated at the boundary: a record that does not match the schema is
+  // skipped and counted, never written half-understood, and never fatal.
+  const matters = parseRecords(LegistarMatterSchema, rawMatters, {
+    source: `legistar:${j.client}`,
+    endpoint: 'Matters',
+  }).records as LegistarMatter[];
+
   const eventOrder = encodeURIComponent('EventId desc');
-  const events = await fetchJson<LegistarEvent>(
-    `${BASE}/${j.client}/Events?$top=${TOP}&$orderby=${eventOrder}`,
-    `${j.client} Events`
-  );
+  const eventsUrl = `${BASE}/${j.client}/Events?$top=${TOP}&$orderby=${eventOrder}`;
+  const rawEvents = await fetchJson<unknown>(eventsUrl, `${j.client} Events`);
+  const events = parseRecords(LegistarEventSchema, rawEvents, {
+    source: `legistar:${j.client}`,
+    endpoint: 'Events',
+  }).records as LegistarEvent[];
 
   let matched = 0;
   let droppedExcluded = 0;
