@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@react-pdf/renderer": "^3.4.5",
+    "@sentry/nextjs": "^10.68.0",
     "@supabase/supabase-js": "^2.39.0",
     "@tanstack/react-query": "^5.101.4",
     "date-fns": "^4.4.0",

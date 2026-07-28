@@ -20,6 +20,7 @@
 
 import { z } from 'zod';
 import { logger } from '../logger';
+import { captureSchemaDrift } from '../sentry';
 
 // ---- Legistar (webapi.legistar.com) -----------------------------------------
 // Only MatterId is truly required: the adapter tolerates a missing title by
@@ -186,6 +187,9 @@ export function parseRecords<T>(
       `${ctx.source} rejected ${rejected} of ${rows.length} records from ${ctx.endpoint}`
     );
   }
+  // A rejection RATE above the threshold means the shape has probably changed,
+  // which is the alert worth waking someone for.
+  captureSchemaDrift(ctx.source, ctx.endpoint, records.length, rejected, reasons);
   return { records, report };
 }
 

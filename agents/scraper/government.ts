@@ -26,6 +26,7 @@ import { scrapeLegistar, lastLegistarStats, type LegistarJurisdictionStats } fro
 import { lastAttachmentStats } from './sources/legistar-attachments';
 import { resetParseReports, printParseReports, allParseReports } from './sources/schemas';
 import { RunTimer } from './logger';
+import { initSentry, captureEmptyLane, captureError, flushSentry } from './sentry';
 import { scrapeGovDocs } from './sources/govdocs';
 import { scrapeCftodPdfItems } from './sources/pdf-agenda';
 import { scrapeAnaheimAgendas } from './sources/agenda-portal';
@@ -447,6 +448,7 @@ function printGovernmentReport(
 }
 
 async function main(): Promise<void> {
+  initSentry();
   const run = new RunTimer('government');
   resetParseReports();
   const [legistar, govdocs, cftodItems, anaheim, lasVegas, clarkTab, ceqa, sfwmd] = await Promise.all([
@@ -472,6 +474,13 @@ async function main(): Promise<void> {
   printGovernmentReport(report, lastLegistarStats());
   printParseReports('Boundary schemas');
 
+  // A lane that wrote nothing when it normally writes something is the Granicus
+  // failure stated as a rule. GOVERNMENT_NO_WRITE runs are excluded: writing
+  // nothing is the point of them.
+  if (process.env.GOVERNMENT_NO_WRITE !== '1') {
+    captureEmptyLane('government', report.written, report.deduped);
+  }
+
   const schemas = allParseReports();
   run.finish({
     fetched: report.input,
@@ -492,8 +501,11 @@ async function main(): Promise<void> {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  main().catch((err) => {
-    console.error('Government lane failed:', err);
-    process.exitCode = 1;
-  });
+  main()
+    .catch(async (err) => {
+      console.error('Government lane failed:', err);
+      captureError(err, { lane: 'government' });
+      process.exitCode = 1;
+    })
+    .finally(() => flushSentry());
 }
