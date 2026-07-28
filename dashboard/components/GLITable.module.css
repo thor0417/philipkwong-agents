@@ -151,3 +151,35 @@ td.title:hover {
   color: var(--muted);
   padding: 24px 12px;
 }
+
+/* Selection and per-row triage. Hairline furniture, no fill, EMPHASIS caps. */
+.checkCell {
+  width: 28px;
+  padding: 6px 4px 6px 8px;
+  vertical-align: middle;
+}
+.actionsCell {
+  width: 168px;
+  white-space: nowrap;
+  text-align: right;
+  padding-right: 8px;
+}
+.rowActions {
+  display: inline-flex;
+  gap: 6px;
+}
+.rowAction {
+  font-family: var(--font-emphasis);
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  background: none;
+  border: 0.5px solid var(--hairline);
+  padding: 3px 7px;
+  cursor: pointer;
+}
+.rowAction:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}

@@ -22,6 +22,7 @@ import {
   type LeadQuery,
   type LeadPage,
 } from '@/lib/query';
+import { setStatus, STATUS_LABELS, type LeadStatus } from '@/lib/mutations';
 import styles from './page.module.css';
 
 const GLI_COLUMNS_BASE =
@@ -256,6 +257,23 @@ const STREAMS: {
 
 const STREAM_KEYS = STREAMS.map((s) => s.key);
 
+// Triage views. Each is a status filter applied in the database. 'all' is the
+// working set (everything except Trash); 'trash' is dismissed rows only, which
+// is where Restore lives. Nothing is ever deleted, so Trash is a view, not a bin.
+type TriageView = 'all' | 'new' | 'watchlist' | 'client_ready' | 'trash';
+const TRIAGE_VIEWS: { key: TriageView; label: string }[] = [
+  { key: 'all', label: 'All' },
+  { key: 'new', label: 'New' },
+  { key: 'watchlist', label: 'Watchlist' },
+  { key: 'client_ready', label: 'Client Ready' },
+  { key: 'trash', label: 'Trash' },
+];
+function statusFilterFor(v: TriageView): Pick<LeadQuery, 'status' | 'excludeStatus'> {
+  if (v === 'trash') return { status: 'dismissed' };
+  if (v === 'all') return { excludeStatus: 'dismissed' };
+  return { status: v };
+}
+
 export default function GLIPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
@@ -280,6 +298,20 @@ export default function GLIPage() {
   const [venueChips, setVenueChips] = useState<GLIChip[]>([]);
   const [facetVia, setFacetVia] = useState<'rpc' | 'fallback'>('fallback');
 
+  // ---- Triage. `triageView` is a status filter, not a client-side predicate.
+  // Trash is status = 'dismissed'; every other view excludes it.
+  const [triageView, setTriageView] = useState<TriageView>('all');
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [triageBusy, setTriageBusy] = useState(false);
+  const [backlog, setBacklog] = useState(0);
+  const [statusCounts, setStatusCounts] = useState<Record<TriageView, number>>({
+    all: 0,
+    new: 0,
+    watchlist: 0,
+    client_ready: 0,
+    trash: 0,
+  });
+
   // The one query object every read on this page derives from. `view` maps onto
   // lifecycle, which is the scraper's axis (active / expired / dead). Status is
   // Philip's axis and is filtered separately; dismissed rows are excluded here
@@ -289,12 +321,12 @@ export default function GLIPage() {
       module: 'gli',
       stream: activeStream,
       lifecycle: view === 'active' ? 'active' : ['expired', 'dead'],
-      excludeStatus: 'dismissed',
+      ...statusFilterFor(triageView),
       development_category: categoryFilter === 'all' ? undefined : categoryFilter,
       venue_type: venueFilter === 'all' ? undefined : venueFilter,
       search: locationQuery.trim() || undefined,
     }),
-    [activeStream, view, categoryFilter, venueFilter, locationQuery]
+    [activeStream, view, categoryFilter, venueFilter, locationQuery, triageView]
   );
 
   // Applying a focus preset sets the saved filter combination in one click.
@@ -385,6 +417,22 @@ export default function GLIPage() {
     };
     setCategoryChips(toChips(cat.counts, DEVELOPMENT_CATEGORIES, categoryFilter));
     setVenueChips(toChips(ven.counts, VENUE_TYPES, venueFilter));
+
+    // Triage counts. Each is its own indexed count query over the same filters
+    // minus the status axis, so a view's count equals the rows it renders.
+    const withoutStatus: LeadQuery = { ...baseQuery, status: undefined, excludeStatus: undefined };
+    const [all, isNew, watch, ready, trash] = await Promise.all([
+      countLeads({ ...withoutStatus, excludeStatus: 'dismissed' }),
+      countLeads({ ...withoutStatus, status: 'new' }),
+      countLeads({ ...withoutStatus, status: 'watchlist' }),
+      countLeads({ ...withoutStatus, status: 'client_ready' }),
+      countLeads({ ...withoutStatus, status: 'dismissed' }),
+    ]);
+    setStatusCounts({ all, new: isNew, watchlist: watch, client_ready: ready, trash });
+
+    // The untriaged pile, across every stream and both lifecycle views, so the
+    // badge always reports the whole backlog rather than the current tab.
+    setBacklog(await countLeads({ module: 'gli', status: 'new' }));
   }, [baseQuery, categoryFilter, venueFilter]);
 
   useEffect(() => {
@@ -408,6 +456,46 @@ export default function GLIPage() {
     await supabase.auth.signOut();
     router.replace('/login');
   }
+
+  // Applying a status re-queries, so a row that leaves the current view
+  // disappears from it immediately and every count updates with it.
+  const applyStatus = useCallback(
+    async (ids: string[], status: LeadStatus) => {
+      if (ids.length === 0 || triageBusy) return;
+      setTriageBusy(true);
+      try {
+        await setStatus(ids, status);
+        setSelectedIds(new Set());
+        await Promise.all([loadPage(), loadCounts()]);
+      } catch (err) {
+        console.error(err);
+        alert('Status update failed. Please try again.');
+      } finally {
+        setTriageBusy(false);
+      }
+    },
+    [triageBusy, loadPage, loadCounts]
+  );
+
+  const toggleSelect = useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const toggleSelectAll = useCallback((ids: string[], select: boolean) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      for (const id of ids) {
+        if (select) next.add(id);
+        else next.delete(id);
+      }
+      return next;
+    });
+  }, []);
 
   const rows = pageData?.rows ?? [];
   const total = pageData?.total ?? 0;
@@ -570,6 +658,49 @@ export default function GLIPage() {
               {reporting ? 'Generating...' : 'Generate Report'}
             </button>
           </div>
+          <div className={styles.triageBar}>
+            <div className={styles.triageViews} role="tablist" aria-label="Triage view">
+              {TRIAGE_VIEWS.map((v) => (
+                <button
+                  key={v.key}
+                  role="tab"
+                  aria-selected={triageView === v.key}
+                  className={`${styles.triageView} ${triageView === v.key ? styles.triageViewActive : ''}`}
+                  onClick={() => {
+                    setTriageView(v.key);
+                    setPage(1);
+                    setSelectedIds(new Set());
+                  }}
+                >
+                  {v.label}
+                  <span className={styles.triageCount}>{statusCounts[v.key]}</span>
+                </button>
+              ))}
+            </div>
+            <span className={styles.backlog} title="Records still at status new, across every stream">
+              Triage backlog <strong>{backlog}</strong>
+            </span>
+          </div>
+          {selectedIds.size > 0 && (
+            <div className={styles.bulkBar}>
+              <span className={styles.bulkCount}>{selectedIds.size} selected</span>
+              <div className={styles.bulkActions}>
+                {(['watchlist', 'client_ready', 'new', 'dismissed'] as LeadStatus[]).map((st) => (
+                  <button
+                    key={st}
+                    className={styles.bulkBtn}
+                    disabled={triageBusy}
+                    onClick={() => applyStatus([...selectedIds], st)}
+                  >
+                    {st === 'new' ? 'Reset to New' : STATUS_LABELS[st]}
+                  </button>
+                ))}
+                <button className={styles.bulkBtn} onClick={() => setSelectedIds(new Set())}>
+                  Clear
+                </button>
+              </div>
+            </div>
+          )}
           <div className={styles.tabs} role="tablist">
             {STREAMS.map((s) => (
               <button
@@ -595,6 +726,10 @@ export default function GLIPage() {
             defaultSortKey={active.sortKey}
             defaultSortDir={active.sortDir}
             onSelect={setSelectedLead}
+            selectedIds={selectedIds}
+            onToggleSelect={toggleSelect}
+            onToggleSelectAll={toggleSelectAll}
+            onRowStatus={(lead, status) => applyStatus([lead.id], status)}
           />
           <div className={styles.pager}>
             <span className={styles.pagerInfo}>
@@ -624,7 +759,13 @@ export default function GLIPage() {
               </button>
             </div>
           </div>
-          <GLIDetail lead={selectedLead} onClose={() => setSelectedLead(null)} />
+          <GLIDetail
+            lead={selectedLead}
+            onClose={() => setSelectedLead(null)}
+            onChanged={async () => {
+              await Promise.all([loadPage(), loadCounts()]);
+            }}
+          />
         </>
       )}
     </main>

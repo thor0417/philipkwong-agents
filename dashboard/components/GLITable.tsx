@@ -2,6 +2,7 @@
 
 import { Fragment, useMemo, useState, type ReactNode } from 'react';
 import type { GLILead } from '@/lib/types';
+import type { LeadStatus } from '@/lib/mutations';
 import { GLI_SIGNAL_ORDER } from '@/lib/types';
 import styles from './GLITable.module.css';
 
@@ -41,6 +42,10 @@ export default function GLITable({
   defaultSortKey,
   defaultSortDir = 'asc',
   onSelect,
+  selectedIds,
+  onToggleSelect,
+  onToggleSelectAll,
+  onRowStatus,
 }: {
   leads: GLILead[];
   columns: GLIColumn[];
@@ -49,7 +54,16 @@ export default function GLITable({
   defaultSortKey?: string;
   defaultSortDir?: SortDir;
   onSelect: (lead: GLILead) => void;
+  // Selection is owned by the page (it survives paging and drives bulk actions).
+  selectedIds?: Set<string>;
+  onToggleSelect?: (id: string) => void;
+  onToggleSelectAll?: (ids: string[], select: boolean) => void;
+  // Compact per-row triage. Undefined in read-only contexts (exports, reports).
+  onRowStatus?: (lead: GLILead, status: LeadStatus) => void;
 }) {
+  const selectable = !!onToggleSelect;
+  const pageIds = leads.map((l) => l.id);
+  const allOnPageSelected = pageIds.length > 0 && pageIds.every((id) => selectedIds?.has(id));
   const [sortKey, setSortKey] = useState<string | null>(defaultSortKey ?? null);
   const [sortDir, setSortDir] = useState<SortDir>(defaultSortDir);
 
@@ -114,6 +128,16 @@ export default function GLITable({
         <table className={styles.table}>
           <thead>
             <tr>
+              {selectable && (
+                <th className={styles.checkCell}>
+                  <input
+                    type="checkbox"
+                    aria-label="Select all on this page"
+                    checked={allOnPageSelected}
+                    onChange={() => onToggleSelectAll?.(pageIds, !allOnPageSelected)}
+                  />
+                </th>
+              )}
               {columns.map((col) => (
                 <th
                   key={col.key}
@@ -126,12 +150,13 @@ export default function GLITable({
                   {arrow(col.key)}
                 </th>
               ))}
+              {onRowStatus && <th className={styles.actionsCell}>Triage</th>}
             </tr>
           </thead>
           <tbody>
             {leads.length === 0 && (
               <tr>
-                <td className={styles.empty} colSpan={columns.length}>
+                <td className={styles.empty} colSpan={columns.length + (selectable ? 1 : 0) + (onRowStatus ? 1 : 0)}>
                   No records in this stream match the current filters.
                 </td>
               </tr>
@@ -140,7 +165,7 @@ export default function GLITable({
               <Fragment key={g.signal ?? '_all'}>
                 {g.signal && (
                   <tr className={styles.groupRow}>
-                    <td className={styles.groupCell} colSpan={columns.length}>
+                    <td className={styles.groupCell} colSpan={columns.length + (selectable ? 1 : 0) + (onRowStatus ? 1 : 0)}>
                       <span className={styles.groupName}>{g.signal}</span>
                       <span className={styles.groupCount}>{g.items.length}</span>
                     </td>
@@ -153,11 +178,50 @@ export default function GLITable({
                     onClick={() => onSelect(lead)}
                     title="Open GLI record detail"
                   >
+                    {selectable && (
+                      <td className={styles.checkCell} onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          aria-label="Select record"
+                          checked={selectedIds?.has(lead.id) ?? false}
+                          onChange={() => onToggleSelect?.(lead.id)}
+                        />
+                      </td>
+                    )}
                     {columns.map((col) => (
                       <td key={col.key} className={`${styles.cell} ${variantClass(col.variant)}`}>
                         {col.render(lead)}
                       </td>
                     ))}
+                    {onRowStatus && (
+                      <td className={styles.actionsCell} onClick={(e) => e.stopPropagation()}>
+                        <span className={styles.rowActions}>
+                          <button
+                            className={styles.rowAction}
+                            title="Watchlist"
+                            onClick={() => onRowStatus(lead, 'watchlist')}
+                          >
+                            Watch
+                          </button>
+                          <button
+                            className={styles.rowAction}
+                            title="Client Ready"
+                            onClick={() => onRowStatus(lead, 'client_ready')}
+                          >
+                            Client
+                          </button>
+                          <button
+                            className={styles.rowAction}
+                            title={lead.status === 'dismissed' ? 'Restore to New' : 'Dismiss to Trash'}
+                            onClick={() =>
+                              onRowStatus(lead, lead.status === 'dismissed' ? 'new' : 'dismissed')
+                            }
+                          >
+                            {lead.status === 'dismissed' ? 'Restore' : 'Dismiss'}
+                          </button>
+                        </span>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </Fragment>

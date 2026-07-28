@@ -210,3 +210,84 @@
   min-width: 56px;
   text-align: center;
 }
+
+/* Triage bar: views, backlog badge, bulk actions. */
+.triageBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 20px 0 8px;
+}
+.triageViews {
+  display: flex;
+  gap: 8px;
+}
+.triageView {
+  font-family: var(--font-emphasis);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  background: none;
+  border: 0.5px solid var(--hairline);
+  padding: 6px 12px;
+  cursor: pointer;
+}
+.triageViewActive {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.triageCount {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  margin-left: 8px;
+  opacity: 0.75;
+}
+.backlog {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--muted);
+}
+.backlog strong {
+  color: var(--accent);
+  font-family: var(--font-emphasis);
+  margin-left: 6px;
+}
+.bulkBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 8px 12px;
+  margin-bottom: 8px;
+  border: 0.5px solid var(--accent);
+}
+.bulkCount {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--accent);
+}
+.bulkActions {
+  display: flex;
+  gap: 8px;
+}
+.bulkBtn {
+  font-family: var(--font-emphasis);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fg);
+  background: none;
+  border: 0.5px solid var(--hairline);
+  padding: 5px 10px;
+  cursor: pointer;
+}
+.bulkBtn:hover:not(:disabled) {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.bulkBtn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}

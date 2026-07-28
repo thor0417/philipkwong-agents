@@ -163,6 +163,21 @@ export interface GLILead {
   milestone_date?: string | null;
   // Raw source slug (portal / trade domain / legistar).
   source: string | null;
+  // Curation (Phase 1 migration). Two separate axes that must never be conflated:
+  //   status    Philip's triage decision. new | watchlist | client_ready | dismissed.
+  //             Written only from the dashboard; no scrape path may touch it.
+  //   lifecycle the scraper's factual axis. active | expired | dead.
+  // manual_overrides records every hand correction (field, previous, next, at) and
+  // is what stops the classifiers overwriting a correction on the next run.
+  status?: string | null;
+  lifecycle?: string | null;
+  status_changed_at?: string | null;
+  manual_overrides?: Record<string, unknown> | null;
+  notes?: string | null;
+  // Stored geography, resolved once at write time and indexed for navigation.
+  country?: string | null;
+  region_state?: string | null;
+  market?: string | null;
   // Development category. Derived from venue_type via the canonical taxonomy
   // (lib/taxonomy.ts VENUE_TO_CATEGORY); never null in practice ('Other' fallback).
   development_category?: string | null;
