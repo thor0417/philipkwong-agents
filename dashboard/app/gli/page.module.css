@@ -160,3 +160,53 @@
 .viewBtnActive .viewCount {
   color: var(--paper);
 }
+
+/* Pagination footer. Hairline rule, no fill, DM Mono for the numbers, matching
+   the table's own furniture. */
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 0.5px solid var(--hairline);
+}
+.pagerInfo {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  color: var(--muted);
+}
+.pagerBtns {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.pagerBtn {
+  font-family: var(--font-emphasis);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fg);
+  background: none;
+  border: 0.5px solid var(--hairline);
+  padding: 6px 12px;
+  cursor: pointer;
+}
+.pagerBtn:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.pagerBtn:disabled {
+  color: var(--muted);
+  cursor: default;
+  opacity: 0.5;
+}
+.pagerPage {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--muted);
+  min-width: 56px;
+  text-align: center;
+}

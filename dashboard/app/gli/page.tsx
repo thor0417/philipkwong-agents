@@ -14,6 +14,14 @@ import GLISourceLink from '@/components/GLISourceLink';
 import { buildGliWorkbook, gliXlsxFilename } from '@/lib/gli-xlsx';
 import { buildReportPayload, gliReportFilename, type ReportScope } from '@/lib/gli-report';
 import { GLI_PRESETS } from '@/lib/gli-presets';
+import {
+  fetchLeadPage,
+  countLeads,
+  facetCounts,
+  DEFAULT_PAGE_SIZE,
+  type LeadQuery,
+  type LeadPage,
+} from '@/lib/query';
 import styles from './page.module.css';
 
 const GLI_COLUMNS_BASE =
@@ -251,7 +259,6 @@ const STREAM_KEYS = STREAMS.map((s) => s.key);
 export default function GLIPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
-  const [leads, setLeads] = useState<GLILead[]>([]);
   const [activeStream, setActiveStream] = useState('opportunity');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [venueFilter, setVenueFilter] = useState('all');
@@ -262,6 +269,34 @@ export default function GLIPage() {
   const [focusLabel, setFocusLabel] = useState<string | undefined>(undefined);
   const [selectedLead, setSelectedLead] = useState<GLILead | null>(null);
 
+  // ---- Server-side query state. Every one of these is a database filter, not a
+  // client-side predicate: changing any of them re-queries a single page.
+  const [page, setPage] = useState(1);
+  const pageSize = DEFAULT_PAGE_SIZE;
+  const [pageData, setPageData] = useState<LeadPage<GLILead> | null>(null);
+  const [tabCounts, setTabCounts] = useState<Record<string, number>>({});
+  const [viewCounts, setViewCounts] = useState<Record<GLIView, number>>({ active: 0, archive: 0 });
+  const [categoryChips, setCategoryChips] = useState<GLIChip[]>([]);
+  const [venueChips, setVenueChips] = useState<GLIChip[]>([]);
+  const [facetVia, setFacetVia] = useState<'rpc' | 'fallback'>('fallback');
+
+  // The one query object every read on this page derives from. `view` maps onto
+  // lifecycle, which is the scraper's axis (active / expired / dead). Status is
+  // Philip's axis and is filtered separately; dismissed rows are excluded here
+  // and are reachable only through Trash.
+  const baseQuery: LeadQuery = useMemo(
+    () => ({
+      module: 'gli',
+      stream: activeStream,
+      lifecycle: view === 'active' ? 'active' : ['expired', 'dead'],
+      excludeStatus: 'dismissed',
+      development_category: categoryFilter === 'all' ? undefined : categoryFilter,
+      venue_type: venueFilter === 'all' ? undefined : venueFilter,
+      search: locationQuery.trim() || undefined,
+    }),
+    [activeStream, view, categoryFilter, venueFilter, locationQuery]
+  );
+
   // Applying a focus preset sets the saved filter combination in one click.
   function applyPreset(key: string) {
     const p = GLI_PRESETS.find((x) => x.key === key) ?? GLI_PRESETS[0];
@@ -271,157 +306,139 @@ export default function GLIPage() {
     setVenueFilter(p.venue ?? 'all');
     setLocationQuery(p.location ?? '');
     if (p.stream) setActiveStream(p.stream);
+    setPage(1);
   }
 
   // Manual filter changes clear the active focus so the report title never
-  // misrepresents a hand-tuned view.
+  // misrepresents a hand-tuned view, and reset to page one so the visible page
+  // always belongs to the filter that produced it.
   const clearFocus = () => {
     setPresetKey('all');
     setFocusLabel(undefined);
   };
   const handleCategory = (c: string) => {
     setCategoryFilter(c);
+    setPage(1);
     clearFocus();
   };
   const handleVenue = (v: string) => {
     setVenueFilter(v);
+    setPage(1);
     clearFocus();
   };
   const handleLocation = (q: string) => {
     setLocationQuery(q);
+    setPage(1);
     clearFocus();
   };
 
-  const load = useCallback(async () => {
-    // Only the three real streams are shown. Legacy GLI rows with a null stream
-    // (pre-stream-tagging news) belong to no tab, so they are excluded at the DB
-    // rather than loaded and counted; counting them made stats disagree with the
-    // per-stream tables (a venue could count 1 with zero visible rows in any tab).
-    // Try the full column set (Pass 4 fields); fall back to base if not migrated.
-    const query = (cols: string) =>
-      supabase
-        .from('leads')
-        .select(cols)
-        .eq('module', 'gli')
-        .in('stream', STREAM_KEYS)
-        .order('date_found', { ascending: false });
-    let { data, error } = await query(GLI_COLUMNS_FULL);
-    if (error) ({ data } = await query(GLI_COLUMNS_BASE));
-    const rows = ((data as unknown as GLILead[]) ?? []).map((l) => ({
-      ...l,
-      development_category: categoryForVenue(l.venue_type),
-    }));
-    setLeads(rows);
-  }, []);
+  const active = STREAMS.find((s) => s.key === activeStream) ?? STREAMS[0];
+  const sortField = activeStream === 'opportunity' ? 'deadline' : 'published_date';
+  const sortDir: 'asc' | 'desc' = activeStream === 'opportunity' ? 'asc' : 'desc';
+
+  // One page of rows, plus its exact total. Nothing else is fetched.
+  const loadPage = useCallback(async () => {
+    const data = await fetchLeadPage<GLILead>({
+      ...baseQuery,
+      sortField,
+      sortDir,
+      page,
+      pageSize,
+    });
+    setPageData(data);
+  }, [baseQuery, sortField, sortDir, page, pageSize]);
+
+  // Every count on the page comes from its own indexed count query, or from the
+  // grouped facet query. None of them counts loaded rows.
+  const loadCounts = useCallback(async () => {
+    const streamCounts = await Promise.all(
+      STREAMS.map(async (s) => [s.key, await countLeads({ ...baseQuery, stream: s.key })] as const)
+    );
+    setTabCounts(Object.fromEntries(streamCounts));
+
+    const [activeCount, archiveCount] = await Promise.all([
+      countLeads({ ...baseQuery, lifecycle: 'active' }),
+      countLeads({ ...baseQuery, lifecycle: ['expired', 'dead'] }),
+    ]);
+    setViewCounts({ active: activeCount, archive: archiveCount });
+
+    // Faceted: each dimension's counts exclude that dimension's own filter, so a
+    // chip's count equals the rows shown when it is clicked.
+    const [cat, ven] = await Promise.all([
+      facetCounts({ ...baseQuery, development_category: undefined }, 'development_category'),
+      facetCounts({ ...baseQuery, venue_type: undefined }, 'venue_type'),
+    ]);
+    setFacetVia(cat.viaRpc ? 'rpc' : 'fallback');
+    const toChips = (
+      counts: { value: string; count: number }[],
+      order: readonly string[],
+      selected: string
+    ): GLIChip[] => {
+      const m = new Map(counts.map((c) => [c.value, c.count]));
+      const totalCount = counts.reduce((a, c) => a + c.count, 0);
+      const known = order.filter((v) => (m.get(v) ?? 0) > 0 || v === selected);
+      const extra = counts.map((c) => c.value).filter((v) => !order.includes(v));
+      return [
+        { value: 'all', label: 'All', count: totalCount },
+        ...[...known, ...extra].map((v) => ({ value: v, label: v, count: m.get(v) ?? 0 })),
+      ];
+    };
+    setCategoryChips(toChips(cat.counts, DEVELOPMENT_CATEGORIES, categoryFilter));
+    setVenueChips(toChips(ven.counts, VENUE_TYPES, venueFilter));
+  }, [baseQuery, categoryFilter, venueFilter]);
 
   useEffect(() => {
-    let active = true;
+    let alive = true;
     async function init() {
       const { data: session } = await supabase.auth.getSession();
       if (!session.session) {
         router.replace('/login');
         return;
       }
-      await load();
-      if (active) setLoading(false);
+      await Promise.all([loadPage(), loadCounts()]);
+      if (alive) setLoading(false);
     }
     init();
     return () => {
-      active = false;
+      alive = false;
     };
-  }, [router, load]);
+  }, [router, loadPage, loadCounts]);
 
   async function signOut() {
     await supabase.auth.signOut();
     router.replace('/login');
   }
 
-  const active = STREAMS.find((s) => s.key === activeStream) ?? STREAMS[0];
+  const rows = pageData?.rows ?? [];
+  const total = pageData?.total ?? 0;
+  const pageCount = pageData?.pageCount ?? 1;
 
-  // Everything below is scoped to the ACTIVE stream so counts and rows never
-  // disagree. visibleLeads is the exact set the table renders. Chip counts are
-  // faceted: each dimension's counts exclude that dimension's own filter, so a
-  // chip's count equals the rows shown when it is clicked (given the other active
-  // filters). Tab counts apply all filters per stream, so a tab's count equals
-  // the rows it renders when selected.
-  const derived = useMemo(() => {
-    const now = Date.now();
-    const q = locationQuery.trim().toLowerCase();
-    const mCat = (l: GLILead) => categoryFilter === 'all' || catOf(l) === categoryFilter;
-    const mVen = (l: GLILead) => venueFilter === 'all' || venueOf(l) === venueFilter;
-    const mLoc = (l: GLILead) => !q || (l.location ?? '').toLowerCase().includes(q);
-
-    // Active/Archive is a base filter (Active = fresh/open, Archive = stale/closed;
-    // mutually exclusive, together every lead). It scopes streamLeads so every
-    // downstream count and the table derive from the same set, preserving
-    // count == rows and keeping the two views identical except for which leads show.
-    const streamLeads = leads.filter(
-      (l) => l.stream === activeStream && passesView(l, activeStream, view, now)
-    );
-    const visibleLeads = streamLeads.filter((l) => mCat(l) && mVen(l) && mLoc(l));
-
-    // Active/Archive counts for the current stream + filters, so the toggle shows
-    // at a glance how many are in each view (Active count = visible rows here).
-    const streamFiltered = leads.filter(
-      (l) => l.stream === activeStream && mCat(l) && mVen(l) && mLoc(l)
-    );
-    const activeCount = streamFiltered.filter((l) => isFresh(l, activeStream, now)).length;
-    const viewCounts = { active: activeCount, archive: streamFiltered.length - activeCount };
-
-    const catBase = streamLeads.filter((l) => mVen(l) && mLoc(l));
-    const venBase = streamLeads.filter((l) => mCat(l) && mLoc(l));
-    const countBy = (rows: GLILead[], key: (l: GLILead) => string): Map<string, number> => {
-      const m = new Map<string, number>();
-      for (const r of rows) {
-        const k = key(r);
-        m.set(k, (m.get(k) ?? 0) + 1);
-      }
-      return m;
-    };
-    const catCounts = countBy(catBase, catOf);
-    const venCounts = countBy(venBase, venueOf);
-
-    // 'All' plus every canonical value with a nonzero count (or the selected one,
-    // so a selected value stays visible even if another filter zeroes it).
-    const buildChips = (
-      allCount: number,
-      values: readonly string[],
-      counts: Map<string, number>,
-      selected: string
-    ): GLIChip[] => {
-      const out: GLIChip[] = [{ value: 'all', label: 'All', count: allCount }];
-      for (const v of values) {
-        const c = counts.get(v) ?? 0;
-        if (c > 0 || v === selected) out.push({ value: v, label: v, count: c });
-      }
-      return out;
-    };
-    const venueList = VENUE_TYPES as readonly string[];
-    const extraVenues = [...venCounts.keys()].filter((k) => !venueList.includes(k));
-
-    const categoryChips = buildChips(catBase.length, DEVELOPMENT_CATEGORIES, catCounts, categoryFilter);
-    const venueChips = buildChips(venBase.length, [...venueList, ...extraVenues], venCounts, venueFilter);
-
-    const tabCounts: Record<string, number> = {};
-    for (const s of STREAMS) {
-      tabCounts[s.key] = leads.filter(
-        (l) =>
-          l.stream === s.key &&
-          passesView(l, s.key, view, now) &&
-          mCat(l) &&
-          mVen(l) &&
-          mLoc(l)
-      ).length;
+  // Exports cover the whole filtered set, not the visible page, so a report is
+  // never silently one page of its own scope. Paged server-side and capped, with
+  // the cap reported rather than silently truncating.
+  const EXPORT_CAP = 2000;
+  async function fetchFilteredForExport(): Promise<GLILead[]> {
+    const out: GLILead[] = [];
+    for (let p = 1; out.length < EXPORT_CAP; p++) {
+      const chunk = await fetchLeadPage<GLILead>({
+        ...baseQuery,
+        sortField,
+        sortDir,
+        page: p,
+        pageSize: 200,
+      });
+      out.push(...chunk.rows);
+      if (p >= chunk.pageCount || chunk.rows.length === 0) break;
     }
-
-    return { visibleLeads, categoryChips, venueChips, tabCounts, viewCounts };
-  }, [leads, activeStream, categoryFilter, venueFilter, locationQuery, view]);
+    return out.slice(0, EXPORT_CAP);
+  }
 
   // Export exactly the visible, filtered rows (Active/Archive + filters respected)
   // as a branded XLSX workbook.
   async function exportXlsx() {
     const date = new Date().toISOString().slice(0, 10);
-    const dates = derived.visibleLeads
+    const exportRows = await fetchFilteredForExport();
+    const dates = exportRows
       .map((l) => (l.stream === 'opportunity' ? l.deadline : l.published_date))
       .filter((d): d is string => !!d)
       .map((d) => d.slice(0, 10))
@@ -431,7 +448,7 @@ export default function GLIPage() {
         ? dates[0]
         : `${dates[0]} to ${dates[dates.length - 1]}`
       : 'no dates';
-    const blob = await buildGliWorkbook(derived.visibleLeads, {
+    const blob = await buildGliWorkbook(exportRows, {
       streamKey: activeStream,
       streamLabel: active.label,
       view: view === 'archive' ? 'Archive' : 'Active',
@@ -453,7 +470,7 @@ export default function GLIPage() {
 
   // Generate a branded PDF of the visible, filtered set via the server route.
   async function generateReport() {
-    if (reporting || derived.visibleLeads.length === 0) return;
+    if (reporting || total === 0) return;
     setReporting(true);
     try {
       const date = new Date().toISOString().slice(0, 10);
@@ -471,7 +488,7 @@ export default function GLIPage() {
       const res = await fetch('/api/gli-report', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(buildReportPayload(derived.visibleLeads, scope)),
+        body: JSON.stringify(buildReportPayload(await fetchFilteredForExport(), scope)),
       });
       if (!res.ok) throw new Error(`Report failed: ${res.status}`);
       const blob = await res.blob();
@@ -506,17 +523,20 @@ export default function GLIPage() {
                 role="tab"
                 aria-selected={view === v}
                 className={`${styles.viewBtn} ${view === v ? styles.viewBtnActive : ''}`}
-                onClick={() => setView(v)}
+                onClick={() => {
+                  setView(v);
+                  setPage(1);
+                }}
               >
                 {v === 'active' ? 'Active' : 'Archive'}
-                <span className={styles.viewCount}>{derived.viewCounts[v]}</span>
+                <span className={styles.viewCount}>{viewCounts[v]}</span>
               </button>
             ))}
           </div>
-          <GLIStats leads={derived.visibleLeads} streamLabel={active.label} />
+          <GLIStats leads={rows} streamLabel={active.label} total={total} />
           <GLIFilters
-            categoryChips={derived.categoryChips}
-            venueChips={derived.venueChips}
+            categoryChips={categoryChips}
+            venueChips={venueChips}
             categoryFilter={categoryFilter}
             venueFilter={venueFilter}
             locationQuery={locationQuery}
@@ -538,14 +558,14 @@ export default function GLIPage() {
             <button
               className={styles.actionBtn}
               onClick={exportXlsx}
-              disabled={derived.visibleLeads.length === 0}
+              disabled={total === 0}
             >
               Export XLSX
             </button>
             <button
               className={styles.actionBtn}
               onClick={generateReport}
-              disabled={reporting || derived.visibleLeads.length === 0}
+              disabled={reporting || total === 0}
             >
               {reporting ? 'Generating...' : 'Generate Report'}
             </button>
@@ -557,15 +577,18 @@ export default function GLIPage() {
                 role="tab"
                 aria-selected={activeStream === s.key}
                 className={`${styles.tab} ${activeStream === s.key ? styles.tabActive : ''}`}
-                onClick={() => setActiveStream(s.key)}
+                onClick={() => {
+                  setActiveStream(s.key);
+                  setPage(1);
+                }}
               >
                 {s.label}
-                <span className={styles.tabCount}>{derived.tabCounts[s.key]}</span>
+                <span className={styles.tabCount}>{tabCounts[s.key] ?? 0}</span>
               </button>
             ))}
           </div>
           <GLITable
-            leads={derived.visibleLeads}
+            leads={rows}
             columns={active.columns}
             sectionLabel={active.label}
             groupBySignal={active.group}
@@ -573,6 +596,34 @@ export default function GLIPage() {
             defaultSortDir={active.sortDir}
             onSelect={setSelectedLead}
           />
+          <div className={styles.pager}>
+            <span className={styles.pagerInfo}>
+              {total === 0
+                ? 'No records'
+                : `${(page - 1) * pageSize + 1}-${Math.min(page * pageSize, total)} of ${total}`}
+              {pageData ? ` | page ${pageData.rowsMs} ms, count ${pageData.countMs} ms` : ''}
+              {facetVia === 'fallback' ? ' | facet counts: interim path (apply migration 015)' : ''}
+            </span>
+            <div className={styles.pagerBtns}>
+              <button
+                className={styles.pagerBtn}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page <= 1}
+              >
+                Previous
+              </button>
+              <span className={styles.pagerPage}>
+                {page} / {pageCount}
+              </span>
+              <button
+                className={styles.pagerBtn}
+                onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
+                disabled={page >= pageCount}
+              >
+                Next
+              </button>
+            </div>
+          </div>
           <GLIDetail lead={selectedLead} onClose={() => setSelectedLead(null)} />
         </>
       )}
