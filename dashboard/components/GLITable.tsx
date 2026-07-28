@@ -46,6 +46,8 @@ export default function GLITable({
   onToggleSelect,
   onToggleSelectAll,
   onRowStatus,
+  serverSort,
+  onServerSort,
 }: {
   leads: GLILead[];
   columns: GLIColumn[];
@@ -60,12 +62,21 @@ export default function GLITable({
   onToggleSelectAll?: (ids: string[], select: boolean) => void;
   // Compact per-row triage. Undefined in read-only contexts (exports, reports).
   onRowStatus?: (lead: GLILead, status: LeadStatus) => void;
+  // When the page sorts server-side, it passes the current sort and a handler.
+  // The header then reorders the WHOLE result set rather than the visible page,
+  // and local sorting is bypassed entirely. Without these props the component
+  // keeps its original local-sort behaviour.
+  serverSort?: { key: string; dir: SortDir };
+  onServerSort?: (key: string) => void;
 }) {
   const selectable = !!onToggleSelect;
   const pageIds = leads.map((l) => l.id);
   const allOnPageSelected = pageIds.length > 0 && pageIds.every((id) => selectedIds?.has(id));
-  const [sortKey, setSortKey] = useState<string | null>(defaultSortKey ?? null);
-  const [sortDir, setSortDir] = useState<SortDir>(defaultSortDir);
+  const [localSortKey, setLocalSortKey] = useState<string | null>(defaultSortKey ?? null);
+  const [localSortDir, setLocalSortDir] = useState<SortDir>(defaultSortDir);
+  // Server sort wins when the page provides it.
+  const sortKey = serverSort ? serverSort.key : localSortKey;
+  const sortDir = serverSort ? serverSort.dir : localSortDir;
 
   const colByKey = useMemo(
     () => Object.fromEntries(columns.map((c) => [c.key, c])) as Record<string, GLIColumn>,
@@ -74,15 +85,22 @@ export default function GLITable({
 
   function toggleSort(key: string) {
     if (!colByKey[key]?.sortValue) return;
-    if (key === sortKey) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    if (onServerSort) {
+      onServerSort(key);
+      return;
+    }
+    if (key === localSortKey) setLocalSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
     else {
-      setSortKey(key);
-      setSortDir('asc');
+      setLocalSortKey(key);
+      setLocalSortDir('asc');
     }
   }
 
   const sortRows = useMemo(() => {
     return (rows: GLILead[]): GLILead[] => {
+      // Already ordered by the database; re-sorting the page would only reorder
+      // the 50 rows on screen and misrepresent them as the whole set.
+      if (serverSort) return rows;
       const col = sortKey ? colByKey[sortKey] : undefined;
       if (!col?.sortValue) return rows;
       const sv = col.sortValue;
@@ -96,7 +114,7 @@ export default function GLITable({
         return sortDir === 'asc' ? r : -r;
       });
     };
-  }, [colByKey, sortKey, sortDir]);
+  }, [colByKey, sortKey, sortDir, serverSort]);
 
   const groups = useMemo(() => {
     if (!groupBySignal) return [{ signal: null as string | null, items: sortRows(leads) }];

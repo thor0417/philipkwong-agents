@@ -287,6 +287,19 @@ function firstSeenFloor(w: DateWindow, customFrom: string): string | undefined {
   return undefined;
 }
 
+// Table column key to database column. A column absent here is not sortable,
+// which is the same set the table already treated as sortable (those with a
+// sortValue accessor).
+const SORT_COLUMN: Record<string, string> = {
+  title: 'title',
+  category: 'development_category',
+  location: 'location',
+  jurisdiction: 'location',
+  deadline: 'deadline',
+  published: 'published_date',
+  source_type: 'source_type',
+};
+
 function statusFilterFor(v: TriageView): Pick<LeadQuery, 'status' | 'excludeStatus'> {
   if (v === 'trash') return { status: 'dismissed' };
   if (v === 'all') return { excludeStatus: 'dismissed' };
@@ -323,6 +336,7 @@ export default function GLIPage() {
   const [geo, setGeo] = useState<{ country?: string; region_state?: string; market?: string }>({});
   const [dateWindow, setDateWindow] = useState<DateWindow>('all');
   const [customFrom, setCustomFrom] = useState('');
+  const [sortOverride, setSortOverride] = useState<{ key: string; dir: 'asc' | 'desc' } | null>(null);
 
   // The one query object every read on this page derives from. `view` maps onto
   // lifecycle, which is the scraper's axis (active / expired / dead). Status is
@@ -393,8 +407,33 @@ export default function GLIPage() {
   };
 
   const active = STREAMS.find((s) => s.key === activeStream) ?? STREAMS[0];
-  const sortField = activeStream === 'opportunity' ? 'deadline' : 'published_date';
-  const sortDir: 'asc' | 'desc' = activeStream === 'opportunity' ? 'asc' : 'desc';
+  // The stream's default sort, unchanged: opportunities by soonest deadline,
+  // everything else by newest document date. `sortOverride` is set when a header
+  // is clicked and re-sorts the WHOLE result set in the database.
+  const defaultSort = {
+    key: activeStream === 'opportunity' ? 'deadline' : 'published',
+    dir: (activeStream === 'opportunity' ? 'asc' : 'desc') as 'asc' | 'desc',
+  };
+  const sort = sortOverride ?? defaultSort;
+  const sortField = SORT_COLUMN[sort.key] ?? 'published_date';
+  const sortDir = sort.dir;
+
+  // A header click sorts server-side: same column flips direction, new column
+  // starts ascending. Paging resets, because page 3 of the old order is
+  // meaningless in the new one.
+  const handleSort = useCallback(
+    (key: string) => {
+      if (!SORT_COLUMN[key]) return;
+      setSortOverride((prev) => {
+        const current = prev ?? defaultSort;
+        return current.key === key
+          ? { key, dir: current.dir === 'asc' ? 'desc' : 'asc' }
+          : { key, dir: 'asc' };
+      });
+      setPage(1);
+    },
+    [defaultSort.key, defaultSort.dir]
+  );
 
   // ---- Reads. Each is a keyed query; a filter change is a key change.
   const pageQuery = useLeadPage({ ...baseQuery, sortField, sortDir, page, pageSize });
@@ -786,6 +825,7 @@ export default function GLIPage() {
                 onClick={() => {
                   setActiveStream(s.key);
                   setPage(1);
+                  setSortOverride(null);
                 }}
               >
                 {s.label}
@@ -805,6 +845,8 @@ export default function GLIPage() {
             onToggleSelect={toggleSelect}
             onToggleSelectAll={toggleSelectAll}
             onRowStatus={(lead, status) => applyStatus([lead.id], status)}
+            serverSort={sort}
+            onServerSort={handleSort}
           />
           <div className={styles.pager}>
             <span className={styles.pagerInfo}>
