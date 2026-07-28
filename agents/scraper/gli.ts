@@ -31,7 +31,8 @@ import { deriveLeadDates, objectFields, shouldDelete } from './lead-date';
 import { geographyFields } from '../../lib/geography';
 import { hostOf, isJunkDomain } from './junk-domains';
 import { guardedUpsert, emptyWriteReport, printWriteReport } from './write-guard';
-import { resetParseReports, printParseReports } from './sources/schemas';
+import { resetParseReports, printParseReports, allParseReports } from './sources/schemas';
+import { RunTimer } from './logger';
 import { subDays } from 'date-fns';
 
 const MODEL = 'claude-haiku-4-5-20251001';
@@ -885,7 +886,7 @@ export function printGliReport(r: GliReport): void {
 // Kept separate from the full orchestrator so a GLI run does not fan out to
 // every other source. Guarded so importing this module never triggers a run.
 async function main(): Promise<void> {
-  console.log('GLI lane starting...');
+  const run = new RunTimer('intelligence');
   resetParseReports();
   const queries = gliQueries();
   if (queries.length === 0) {
@@ -897,6 +898,27 @@ async function main(): Promise<void> {
   report.searches = lastSerperSearchCount();
   printGliReport(report);
   printParseReports('Boundary schemas');
+
+  const schemas = allParseReports();
+  run.finish({
+    fetched: report.fetched,
+    matched: report.kept,
+    written: report.written,
+    skipped: report.droppedJunk + report.droppedStale + report.droppedNoise + report.skippedDismissed,
+    failed: report.writeFailed,
+    detail: {
+      searches: report.searches,
+      droppedJunk: report.droppedJunk,
+      droppedStale: report.droppedStale,
+      droppedNoise: report.droppedNoise,
+      droppedHighRisk: report.droppedHighRisk,
+      projectDuplicates: report.projectDuplicates,
+      tombstoneSkips: report.skippedDismissed,
+      overridesProtected: report.protectedByOverride,
+      schemaParsed: schemas.reduce((a, r) => a + r.parsed, 0),
+      schemaRejected: schemas.reduce((a, r) => a + r.rejected, 0),
+    },
+  });
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

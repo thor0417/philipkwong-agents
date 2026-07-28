@@ -20,6 +20,7 @@
 // here. That separation is the reason status can be protected absolutely.
 
 import { supabaseAdmin } from '../../lib/supabase-admin';
+import { logger } from './logger';
 
 // Columns only Philip writes. Stripped from every scrape payload.
 export const OWNED_BY_USER = ['status', 'notes', 'manual_overrides', 'status_changed_at'] as const;
@@ -114,6 +115,7 @@ export async function guardedUpsert(
     if (prior?.status === 'dismissed') {
       report.skippedDismissed++;
       if (report.skippedUrls.length < 200) report.skippedUrls.push(url);
+      logger.debug({ event: 'write.tombstone', url }, 'skipped a dismissed row');
       if (opts.logSkips) console.log(`  tombstone: skipped dismissed row ${url}`);
       continue;
     }
@@ -136,7 +138,7 @@ export async function guardedUpsert(
 
     const { error } = await supabaseAdmin.from('leads').upsert(payload, { onConflict: 'url' });
     if (error) {
-      console.error(`write-guard: write failed for ${url}: ${error.message}`);
+      logger.error({ event: 'write.failed', url, err: error.message }, 'lead write failed');
       report.failed++;
       continue;
     }

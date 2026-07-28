@@ -19,6 +19,7 @@
 //      visible the day it happens rather than a week later.
 
 import { z } from 'zod';
+import { logger } from '../logger';
 
 // ---- Legistar (webapi.legistar.com) -----------------------------------------
 // Only MatterId is truly required: the adapter tolerates a missing title by
@@ -178,9 +179,11 @@ export function parseRecords<T>(
   reports.push(report);
 
   if (rejected > 0 && !ctx.quiet) {
-    console.warn(
-      `Schema: ${ctx.source} rejected ${rejected} of ${rows.length} records from ${ctx.endpoint}. ` +
-        `First reasons: ${reasons.join(' | ')}`
+    // Structured: a source drifting is the event the observability phase alerts
+    // on, so it carries fields rather than a sentence.
+    logger.warn(
+      { event: 'schema.rejected', source: ctx.source, endpoint: ctx.endpoint, rejected, total: rows.length, reasons },
+      `${ctx.source} rejected ${rejected} of ${rows.length} records from ${ctx.endpoint}`
     );
   }
   return { records, report };

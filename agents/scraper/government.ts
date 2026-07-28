@@ -24,7 +24,8 @@ import { guardedUpsert, emptyWriteReport, printWriteReport, type WriteReport } f
 import { deriveLeadDates, objectFields, shouldDelete } from './lead-date';
 import { scrapeLegistar, lastLegistarStats, type LegistarJurisdictionStats } from './sources/legistar';
 import { lastAttachmentStats } from './sources/legistar-attachments';
-import { resetParseReports, printParseReports } from './sources/schemas';
+import { resetParseReports, printParseReports, allParseReports } from './sources/schemas';
+import { RunTimer } from './logger';
 import { scrapeGovDocs } from './sources/govdocs';
 import { scrapeCftodPdfItems } from './sources/pdf-agenda';
 import { scrapeAnaheimAgendas } from './sources/agenda-portal';
@@ -446,7 +447,7 @@ function printGovernmentReport(
 }
 
 async function main(): Promise<void> {
-  console.log('GLI Tier 2 government lane starting (scrape:government)...');
+  const run = new RunTimer('government');
   resetParseReports();
   const [legistar, govdocs, cftodItems, anaheim, lasVegas, clarkTab, ceqa, sfwmd] = await Promise.all([
     scrapeLegistar(),
@@ -470,6 +471,24 @@ async function main(): Promise<void> {
   ]);
   printGovernmentReport(report, lastLegistarStats());
   printParseReports('Boundary schemas');
+
+  const schemas = allParseReports();
+  run.finish({
+    fetched: report.input,
+    matched: report.deduped,
+    written: report.written,
+    skipped: report.write?.skippedDismissed ?? 0,
+    failed: report.writeFailed,
+    detail: {
+      documentContacts: report.documentContacts,
+      playersFound: report.playersFound,
+      primaryDocs: report.primaryDocs,
+      overridesProtected: report.write?.rowsWithProtectedFields ?? 0,
+      schemaParsed: schemas.reduce((a, r) => a + r.parsed, 0),
+      schemaRejected: schemas.reduce((a, r) => a + r.rejected, 0),
+      perJurisdiction: report.perJurisdiction,
+    },
+  });
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
