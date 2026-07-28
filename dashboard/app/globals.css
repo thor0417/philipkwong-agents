@@ -98,3 +98,64 @@ input:focus {
   outline: none;
   border-color: var(--accent);
 }
+
+/* Geographic navigation. Hairline chips, sharp corners, no fill; accent marks
+   the selected level. Global rather than a CSS module because GeoNav is shared
+   furniture used above the table on every stream. */
+.geoNav {
+  border-top: 0.5px solid var(--hairline);
+  border-bottom: 0.5px solid var(--hairline);
+  padding: 12px 0;
+  margin-top: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.geoLevel {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+.geoLabel {
+  font-family: var(--font-emphasis);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  min-width: 96px;
+}
+.geoChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.geoChip {
+  font-family: var(--font-emphasis);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: var(--fg);
+  background: none;
+  border: 0.5px solid var(--hairline);
+  padding: 4px 9px;
+  cursor: pointer;
+}
+.geoChip:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.geoChipActive {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.geoCount {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  margin-left: 7px;
+  opacity: 0.7;
+}
+.geoUnresolved {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--muted);
+  padding-left: 108px;
+}

@@ -23,6 +23,8 @@ import {
   type LeadPage,
 } from '@/lib/query';
 import { setStatus, STATUS_LABELS, type LeadStatus } from '@/lib/mutations';
+import { countUnresolvedGeography, daysAgoIso, type FacetCount } from '@/lib/query';
+import GeoNav from '@/components/GeoNav';
 import styles from './page.module.css';
 
 const GLI_COLUMNS_BASE =
@@ -268,6 +270,23 @@ const TRIAGE_VIEWS: { key: TriageView; label: string }[] = [
   { key: 'client_ready', label: 'Client Ready' },
   { key: 'trash', label: 'Trash' },
 ];
+// Delta windows, all on first_seen (when the row was captured), which is the
+// only date that answers "what is new since I last looked". The stream's own
+// date stays available as the table sort.
+type DateWindow = 'all' | '7d' | '30d' | 'custom';
+const DATE_WINDOWS: { key: DateWindow; label: string }[] = [
+  { key: 'all', label: 'All time' },
+  { key: '7d', label: 'New this week' },
+  { key: '30d', label: 'Last 30 days' },
+  { key: 'custom', label: 'Since' },
+];
+function firstSeenFloor(w: DateWindow, customFrom: string): string | undefined {
+  if (w === '7d') return daysAgoIso(7);
+  if (w === '30d') return daysAgoIso(30);
+  if (w === 'custom' && customFrom) return new Date(customFrom).toISOString();
+  return undefined;
+}
+
 function statusFilterFor(v: TriageView): Pick<LeadQuery, 'status' | 'excludeStatus'> {
   if (v === 'trash') return { status: 'dismissed' };
   if (v === 'all') return { excludeStatus: 'dismissed' };
@@ -304,6 +323,17 @@ export default function GLIPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [triageBusy, setTriageBusy] = useState(false);
   const [backlog, setBacklog] = useState(0);
+  // ---- Geography + delta. All three geography levels are stored, indexed
+  // columns; selecting one is a database filter, never a text match.
+  const [geo, setGeo] = useState<{ country?: string; region_state?: string; market?: string }>({});
+  const [countryCounts, setCountryCounts] = useState<FacetCount[]>([]);
+  const [regionCounts, setRegionCounts] = useState<FacetCount[]>([]);
+  const [marketCounts, setMarketCounts] = useState<FacetCount[]>([]);
+  const [geoUnresolved, setGeoUnresolved] = useState(0);
+  const [geoViaRpc, setGeoViaRpc] = useState(false);
+  const [dateWindow, setDateWindow] = useState<DateWindow>('all');
+  const [customFrom, setCustomFrom] = useState('');
+
   const [statusCounts, setStatusCounts] = useState<Record<TriageView, number>>({
     all: 0,
     new: 0,
@@ -325,8 +355,24 @@ export default function GLIPage() {
       development_category: categoryFilter === 'all' ? undefined : categoryFilter,
       venue_type: venueFilter === 'all' ? undefined : venueFilter,
       search: locationQuery.trim() || undefined,
+      country: geo.country,
+      region_state: geo.region_state,
+      market: geo.market,
+      firstSeenFrom: firstSeenFloor(dateWindow, customFrom),
     }),
-    [activeStream, view, categoryFilter, venueFilter, locationQuery, triageView]
+    [
+      activeStream,
+      view,
+      categoryFilter,
+      venueFilter,
+      locationQuery,
+      triageView,
+      geo.country,
+      geo.region_state,
+      geo.market,
+      dateWindow,
+      customFrom,
+    ]
   );
 
   // Applying a focus preset sets the saved filter combination in one click.
@@ -433,7 +479,32 @@ export default function GLIPage() {
     // The untriaged pile, across every stream and both lifecycle views, so the
     // badge always reports the whole backlog rather than the current tab.
     setBacklog(await countLeads({ module: 'gli', status: 'new' }));
-  }, [baseQuery, categoryFilter, venueFilter]);
+
+    // Geography levels. Each level's counts exclude its own selection, so a
+    // level's count equals the rows shown when it is picked. Only the levels
+    // that are actually visible are queried.
+    const geoBase: LeadQuery = { ...baseQuery, country: undefined, region_state: undefined, market: undefined };
+    const countryFacet = await facetCounts(geoBase, 'country');
+    setCountryCounts(countryFacet.counts);
+    setGeoViaRpc(countryFacet.viaRpc);
+    setGeoUnresolved(await countUnresolvedGeography(geoBase));
+    if (geo.country) {
+      const r = await facetCounts({ ...geoBase, country: geo.country }, 'region_state');
+      setRegionCounts(r.counts);
+      if (geo.region_state) {
+        const m = await facetCounts(
+          { ...geoBase, country: geo.country, region_state: geo.region_state },
+          'market'
+        );
+        setMarketCounts(m.counts);
+      } else {
+        setMarketCounts([]);
+      }
+    } else {
+      setRegionCounts([]);
+      setMarketCounts([]);
+    }
+  }, [baseQuery, categoryFilter, venueFilter, geo.country, geo.region_state]);
 
   useEffect(() => {
     let alive = true;
@@ -657,6 +728,47 @@ export default function GLIPage() {
             >
               {reporting ? 'Generating...' : 'Generate Report'}
             </button>
+          </div>
+          <GeoNav
+            countries={countryCounts}
+            regions={regionCounts}
+            markets={marketCounts}
+            country={geo.country}
+            regionState={geo.region_state}
+            market={geo.market}
+            unresolved={geoUnresolved}
+            viaRpc={geoViaRpc}
+            onSelect={(next) => {
+              setGeo(next);
+              setPage(1);
+              setSelectedIds(new Set());
+            }}
+          />
+          <div className={styles.deltaBar}>
+            <span className={styles.deltaLabel}>Captured</span>
+            {DATE_WINDOWS.map((w) => (
+              <button
+                key={w.key}
+                className={`${styles.deltaBtn} ${dateWindow === w.key ? styles.deltaBtnActive : ''}`}
+                onClick={() => {
+                  setDateWindow(w.key);
+                  setPage(1);
+                }}
+              >
+                {w.label}
+              </button>
+            ))}
+            {dateWindow === 'custom' && (
+              <input
+                className={styles.deltaDate}
+                type="date"
+                value={customFrom}
+                onChange={(e) => {
+                  setCustomFrom(e.target.value);
+                  setPage(1);
+                }}
+              />
+            )}
           </div>
           <div className={styles.triageBar}>
             <div className={styles.triageViews} role="tablist" aria-label="Triage view">

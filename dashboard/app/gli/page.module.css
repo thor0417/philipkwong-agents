@@ -291,3 +291,43 @@
   opacity: 0.5;
   cursor: default;
 }
+
+/* Delta window controls. */
+.deltaBar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+.deltaLabel {
+  font-family: var(--font-emphasis);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  min-width: 96px;
+}
+.deltaBtn {
+  font-family: var(--font-emphasis);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  background: none;
+  border: 0.5px solid var(--hairline);
+  padding: 5px 10px;
+  cursor: pointer;
+}
+.deltaBtn:hover,
+.deltaBtnActive {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.deltaDate {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--fg);
+  background: none;
+  border: 0.5px solid var(--hairline);
+  padding: 4px 7px;
+}
