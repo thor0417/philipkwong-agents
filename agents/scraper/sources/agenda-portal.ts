@@ -20,43 +20,11 @@ const FETCH_TIMEOUT_MS = 45000;
 const ITEM_EXCERPT_CHARS = 2600;
 const MAX_ITEMS_PER_MEETING = 40;
 
-export async function fetchText(url: string): Promise<string | null> {
-  try {
-    const res = await fetch(url, {
-      headers: { 'User-Agent': UA, Accept: 'text/html,application/json,*/*' },
-      redirect: 'follow',
-      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-    });
-    if (!res.ok) {
-      console.warn(`Agenda portal: ${url} -> HTTP ${res.status}, skipped.`);
-      return null;
-    }
-    return await res.text();
-  } catch (error) {
-    console.warn(`Agenda portal: fetch failed for ${url} (${String(error).slice(0, 70)}).`);
-    return null;
-  }
-}
-
-export function htmlToText(html: string): string {
-  return html
-    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
-    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&#8217;|&#8216;|&rsquo;|&lsquo;/g, "'")
-    .replace(/&#8220;|&#8221;|&ldquo;|&rdquo;/g, '"')
-    .replace(/&#9654;/g, ' ')
-    .replace(/&#8212;|&#8211;|&mdash;|&ndash;/g, '-')
-    .replace(/&#\d+;/g, ' ')
-    // Drop control / replacement characters (Word-export smart punctuation that
-    // decoded as U+FFFD) and collapse dot-leaders so titles read cleanly.
-    .replace(/[\u0000-\u001F\u007F-\u009F\uFFFD]/g, ' ')
-    .replace(/\.{2,}/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
+// fetch and HTML-to-text now live in ./http, one implementation for every
+// adapter. Re-exported here so the existing imports across the agenda lanes keep
+// working and nothing had to be touched to move them.
+export { fetchText, htmlToText } from './http';
+import { fetchText, htmlToText } from './http';
 
 export interface AgendaItem {
   seq: number; // running 1-based index across the whole agenda (unique)

@@ -33,3 +33,6 @@ dashboard/next-env.d.ts
 
 # database backups: client research, never committed
 backups/
+
+# working scripts for a session: never part of the repo
+scratch/
