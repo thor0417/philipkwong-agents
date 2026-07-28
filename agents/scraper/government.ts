@@ -15,12 +15,12 @@
 import { pathToFileURL } from 'node:url';
 import Anthropic from '@anthropic-ai/sdk';
 import type { NormalizedLead } from './sources/types';
-import { supabaseAdmin } from '../../lib/supabase-admin';
 import { classifyGli } from './gli';
 import { opportunityVenueHint } from './classify';
 import { regionFor, regionOf } from './regions';
 import { classifyVenueType, categoryForVenue } from '../../lib/taxonomy';
 import { geographyFields } from '../../lib/geography';
+import { guardedUpsert, emptyWriteReport, printWriteReport, type WriteReport } from './write-guard';
 import { deriveLeadDates, objectFields, shouldDelete } from './lead-date';
 import { scrapeLegistar, lastLegistarStats, type LegistarJurisdictionStats } from './sources/legistar';
 import { lastAttachmentStats } from './sources/legistar-attachments';
@@ -211,7 +211,10 @@ export function buildGovernmentRow(
       raw_content: lead.raw_content,
       score: null,
       score_reason: `GLI Tier 2 government record captured on legitimacy (pre-tender signal: ${tag.signal_type}, ${tag.venue_type}); not fit-scored.`,
-      status: 'new',
+      // status is Philip's column and is never written by a scrape path; the
+      // database default covers a new row. lifecycle is the scraper's axis: a
+      // government record is a project event, so it is always active.
+      lifecycle: 'active',
       module: GOVERNMENT_MODULE,
       industry: GOVERNMENT_MODULE,
       stream: 'government',
@@ -262,6 +265,8 @@ export interface GovernmentReport {
   // Records whose people came from the matter's own documents (attachment depth),
   // as opposed to the model's reading of the record text.
   documentContacts: number;
+  // Tombstone / override telemetry for the run.
+  write?: WriteReport;
   samples: Array<{
     title: string;
     jurisdiction: string;
@@ -300,6 +305,7 @@ export async function runGovernmentLane(leads: NormalizedLead[]): Promise<Govern
     samples: [],
   };
 
+  const pending: Record<string, unknown>[] = [];
   const tags = deduped.length > 0 ? await tagGovernmentBatch(deduped) : [];
   const players = deduped.length > 0 ? await extractPlayersBatch(deduped) : [];
   const noWrite = process.env.GOVERNMENT_NO_WRITE === '1';
@@ -337,16 +343,18 @@ export async function runGovernmentLane(leads: NormalizedLead[]): Promise<Govern
       });
     }
     if (noWrite) continue;
-    const { error } = await supabaseAdmin.from('leads').upsert(row, { onConflict: 'url' });
-    if (error) {
-      console.error(`Government write failed for ${lead.url}: ${error.message}`);
-      report.writeFailed++;
-      continue;
-    }
-    report.written++;
+    // Every write goes through the tombstone / override guard.
+    pending.push(row);
   }
   if (rejectedPreCutoff > 0) {
     console.log(`Government: rejected ${rejectedPreCutoff} records (dead pre-2026 opportunities only).`);
+  }
+  if (pending.length > 0) {
+    const wr = await guardedUpsert(pending, emptyWriteReport());
+    report.written = wr.written;
+    report.writeFailed = wr.failed;
+    report.write = wr;
+    printWriteReport('Government writes', wr);
   }
   return report;
 }

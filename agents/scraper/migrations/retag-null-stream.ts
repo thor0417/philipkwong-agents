@@ -80,7 +80,7 @@ async function main(): Promise<void> {
   console.log(`\n===== LEGACY NULL-STREAM RETAG =====${dry ? '  (DRY_RUN)' : ''}`);
   console.log(`null-stream gli rows: ${rows.length}`);
   console.log(`\nDeletions (exact duplicates of an already-streamed row), listed before deletion: ${dups.length}`);
-  for (const d of dups) console.log(`  DELETE id=${d.id} | ${String(d.title ?? '').replace(/\s+/g, ' ').slice(0, 60)} | ${canon(d.url)}`);
+  for (const d of dups) console.log(`  DISMISS id=${d.id} | ${String(d.title ?? '').replace(/\s+/g, ' ').slice(0, 60)} | ${canon(d.url)}`);
   console.log(`\nRetag -> intelligence: ${retag.length}`);
   console.log(`Unresolvable: ${unresolved.length}`);
   for (const u of unresolved) console.log(`  UNRESOLVED id=${u.id} src=${u.source} deadline=${u.deadline} | ${String(u.title ?? '').slice(0, 55)}`);
@@ -91,9 +91,15 @@ async function main(): Promise<void> {
   }
 
   if (dups.length > 0) {
-    const { error } = await supabaseAdmin.from('leads').delete().in('id', dups.map((d) => d.id));
+    // Dismissed, not deleted: an exact duplicate of an already-streamed row is
+    // still a row, and nothing in this system hard-deletes. It leaves the
+    // working set and stays visible in Trash.
+    const { error } = await supabaseAdmin
+      .from('leads')
+      .update({ status: 'dismissed', status_changed_at: new Date().toISOString() })
+      .in('id', dups.map((d) => d.id));
     if (error) {
-      console.error('Delete failed:', error.message);
+      console.error('Dismissal failed:', error.message);
       process.exit(1);
     }
   }

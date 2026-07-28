@@ -1,6 +1,10 @@
 // Two-object-model purge (Phase 1), superseding the flat pre-2026 purge.
 //
-// DELETES only DEAD OLD OPPORTUNITIES: a lead with a real source submission
+// NOTHING IS HARD DELETED. As of the curation phase this DISMISSES rather than
+// deletes: the row keeps its place in the table, appears in Trash, and can be
+// restored. The selection rule is unchanged.
+//
+// DISMISSES only DEAD OLD OPPORTUNITIES: a lead with a real source submission
 // deadline whose deadline is before 2026-01-01 AND that has no future milestone
 // (shouldDelete). PROJECT EVENTS ARE NEVER DELETED -- they archive/go dormant by
 // verdict, and anything with a future milestone is always kept. This is a strict
@@ -126,7 +130,10 @@ async function main(): Promise<void> {
   let deleted = 0;
   for (let i = 0; i < ids.length; i += 100) {
     const batch = ids.slice(i, i + 100);
-    const { error: delErr } = await supabaseAdmin.from('leads').delete().in('id', batch);
+    const { error: delErr } = await supabaseAdmin
+      .from('leads')
+      .update({ status: 'dismissed', status_changed_at: new Date().toISOString() })
+      .in('id', batch);
     if (delErr) {
       console.error(`Delete batch ${i / 100} failed: ${delErr.message}`);
       continue;

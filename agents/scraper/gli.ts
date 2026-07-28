@@ -30,6 +30,7 @@ import { configuredPrimaryDocument } from './sources/govdocs';
 import { deriveLeadDates, objectFields, shouldDelete } from './lead-date';
 import { geographyFields } from '../../lib/geography';
 import { hostOf, isJunkDomain } from './junk-domains';
+import { guardedUpsert, emptyWriteReport, printWriteReport } from './write-guard';
 
 const MODEL = 'claude-haiku-4-5-20251001';
 const GLI_MODULE = 'gli';
@@ -511,6 +512,9 @@ export interface GliReport {
   projectDuplicates: number;
   written: number;
   writeFailed: number;
+  // Tombstone / override telemetry.
+  skippedDismissed: number;
+  protectedByOverride: number;
   // Source-chaining (Pass 4): kept leads that referenced a primary source, those
   // for which a primary_document_url resolved, and those where a real file was
   // fetched (has_primary_document).
@@ -539,31 +543,49 @@ const inc = (m: Record<string, number>, k: string): void => {
   m[k] = (m[k] ?? 0) + 1;
 };
 
-// Self-healing cleanup: delete any already-stored GLI leads whose source domain
-// is now hard-excluded junk. The write-time filter gates new leads, but rows
-// written before the filter existed (or before a domain was added to
-// JUNK_DOMAINS) would otherwise linger in Supabase forever. Returns the count
-// deleted.
+// Self-healing sweep: already-stored GLI leads whose source domain is now
+// hard-excluded junk are DISMISSED, not deleted. The write-time filter gates new
+// leads, but rows written before the filter existed (or before a domain was
+// added to JUNK_DOMAINS) would otherwise linger.
+//
+// This used to delete. It stopped deleting because it once removed two stored
+// rows as a silent side effect of adding domains to the junk list, with no list
+// of what went and no way to get them back. Nothing in this system hard-deletes
+// a row any more: dismissal is a status, the row stays in the table, Trash shows
+// it, and Restore brings it back. Every affected row is logged by URL before it
+// is touched.
+//
+// A row Philip has already judged is left alone entirely: dismissing an already
+// dismissed row is a no-op, and any other status he set is his decision, not a
+// domain rule's.
 async function purgeStoredJunk(): Promise<number> {
   const { data, error } = await supabaseAdmin
     .from('leads')
-    .select('id, url')
+    .select('id, url, status')
     .eq('module', GLI_MODULE);
   if (error || !data) {
-    if (error) console.error(`GLI junk purge: query failed: ${error.message}`);
+    if (error) console.error(`GLI junk sweep: query failed: ${error.message}`);
     return 0;
   }
-  const junkIds = data
-    .filter((r) => isJunkDomain(hostOf(r.url as string | null)))
-    .map((r) => r.id);
-  if (junkIds.length === 0) return 0;
-  const { error: delErr } = await supabaseAdmin.from('leads').delete().in('id', junkIds);
-  if (delErr) {
-    console.error(`GLI junk purge: delete failed: ${delErr.message}`);
+  const junk = (data as { id: string; url: string | null; status: string | null }[]).filter(
+    (r) => isJunkDomain(hostOf(r.url)) && r.status !== 'dismissed'
+  );
+  if (junk.length === 0) return 0;
+  console.log(`GLI junk sweep: dismissing ${junk.length} stored rows on hard-excluded domains:`);
+  for (const r of junk) console.log(`    ${r.id}  ${r.url}`);
+  const { error: upErr } = await supabaseAdmin
+    .from('leads')
+    .update({ status: 'dismissed', status_changed_at: new Date().toISOString() })
+    .in(
+      'id',
+      junk.map((r) => r.id)
+    );
+  if (upErr) {
+    console.error(`GLI junk sweep: dismissal failed: ${upErr.message}`);
     return 0;
   }
-  console.log(`GLI: purged ${junkIds.length} stored junk-domain leads.`);
-  return junkIds.length;
+  console.log(`GLI: dismissed ${junk.length} stored junk-domain leads (not deleted; visible in Trash).`);
+  return junk.length;
 }
 
 // Run the GLI lane over already-fetched Serper leads: gate, tag, dedup by
@@ -664,6 +686,8 @@ export async function runGliLane(rawLeads: NormalizedLead[]): Promise<GliReport>
     projectDuplicates,
     written: 0,
     writeFailed: 0,
+    skippedDismissed: 0,
+    protectedByOverride: 0,
     chainReferenced: 0,
     chainResolved: 0,
     chainWithFile: 0,
@@ -696,6 +720,7 @@ export async function runGliLane(rawLeads: NormalizedLead[]): Promise<GliReport>
   }
 
   const noWrite = process.env.GLI_NO_WRITE === '1';
+  const pendingWrites: Record<string, unknown>[] = [];
 
   let rejectedPreCutoff = 0;
   for (const { lead, c } of kept) {
@@ -736,7 +761,7 @@ export async function runGliLane(rawLeads: NormalizedLead[]): Promise<GliReport>
     // classifier's location is the best string available for an article.
     const geo = geographyFields(c.location ?? lead.location, lead.country);
 
-    const { error } = await supabaseAdmin.from('leads').upsert(
+    pendingWrites.push(
       {
         ...geo,
         source: lead.source,
@@ -745,7 +770,9 @@ export async function runGliLane(rawLeads: NormalizedLead[]): Promise<GliReport>
         raw_content: lead.raw_content,
         score: null,
         score_reason: `GLI lane: ${c.signal_type} (${venue}). ${c.reason}`,
-        status: 'new',
+        // status is Philip's; lifecycle is the scraper's. Intelligence coverage
+        // is a project event and is always active.
+        lifecycle: 'active',
         module: GLI_MODULE,
         industry: GLI_MODULE,
         stream: 'intelligence',
@@ -767,15 +794,16 @@ export async function runGliLane(rawLeads: NormalizedLead[]): Promise<GliReport>
         contact_name: c.contact_name,
         contact_email: c.contact_email,
         contact_phone: c.contact_phone,
-      },
-      { onConflict: 'url' }
+      }
     );
-    if (error) {
-      console.error(`GLI write failed for ${lead.url}: ${error.message}`);
-      report.writeFailed++;
-      continue;
-    }
-    report.written++;
+  }
+  if (pendingWrites.length > 0) {
+    const wr = await guardedUpsert(pendingWrites, emptyWriteReport());
+    report.written = wr.written;
+    report.writeFailed = wr.failed;
+    report.skippedDismissed = wr.skippedDismissed;
+    report.protectedByOverride = wr.rowsWithProtectedFields;
+    printWriteReport('GLI writes', wr);
   }
   if (rejectedPreCutoff > 0) {
     console.log(`GLI: rejected ${rejectedPreCutoff} intelligence leads (dead pre-2026 opportunities only).`);

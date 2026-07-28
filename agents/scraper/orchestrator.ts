@@ -718,7 +718,8 @@ export async function orchestrate(): Promise<ScrapeReport> {
         raw_content: lead.raw_content,
         score,
         score_reason,
-        status: dead ? 'dead' : 'new',
+        // status is Philip's column; the scraper writes lifecycle only.
+        lifecycle: dead ? 'dead' : 'active',
         module: profile.module,
         industry: profile.name,
         company: lead.company,
@@ -773,7 +774,8 @@ export async function orchestrate(): Promise<ScrapeReport> {
         score: FUEL_CAPTURE_SCORE,
         score_reason:
           'Buy-side fuel tender captured on legitimacy (broker-filtered, CPV/UNSPSC-routed); not fit-scored.',
-        status: dead ? 'dead' : 'new',
+        // status is Philip's column; the scraper writes lifecycle only.
+        lifecycle: dead ? 'dead' : 'active',
         module: FUEL_MODULE,
         industry: fuelIndustry,
         company: lead.company,
@@ -831,7 +833,8 @@ export async function orchestrate(): Promise<ScrapeReport> {
         raw_content: lead.raw_content,
         score: null,
         score_reason: 'Feasibility study captured on legitimacy (feasibility lane); not fit-scored.',
-        status: dead ? 'dead' : 'new',
+        // status is Philip's column; the scraper writes lifecycle only.
+        lifecycle: dead ? 'dead' : 'active',
         module: 'feasibility',
         industry: 'feasibility',
         company: lead.company,
@@ -890,7 +893,8 @@ export async function orchestrate(): Promise<ScrapeReport> {
         raw_content: lead.raw_content,
         score: null,
         score_reason: `Consultancy tender captured on CPV legitimacy (TED CPV ${codes.join(', ')}); not fit-scored.`,
-        status: dead ? 'dead' : 'new',
+        // status is Philip's column; the scraper writes lifecycle only.
+        lifecycle: dead ? 'dead' : 'active',
         module: 'general_consulting',
         industry: 'general_consulting',
         company: lead.company,

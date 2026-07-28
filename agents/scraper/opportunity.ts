@@ -14,7 +14,6 @@
 // writing to Supabase (a zero-cost-to-Supabase dry validation).
 
 import { pathToFileURL } from 'node:url';
-import { supabaseAdmin } from '../../lib/supabase-admin';
 import type { NormalizedLead } from './sources/types';
 import { LEISURE_CPV_CODES } from './profiles';
 import { isLeisureOpportunity, isDeadNotice } from './classify';
@@ -22,6 +21,7 @@ import { tagOpportunities, sourceTier, type OpportunityTag } from './gli';
 import { regionFor, regionOf } from './regions';
 import { classifyVenueType, categoryForVenue } from '../../lib/taxonomy';
 import { geographyFields } from '../../lib/geography';
+import { guardedUpsertOne } from './write-guard';
 import { deriveLeadDates, objectFields, shouldDelete } from './lead-date';
 
 import { scrapeTedEu } from './sources/tedeu';
@@ -79,10 +79,11 @@ export function buildOpportunityRow(
       raw_content: lead.raw_content,
       score: null,
       score_reason: `GLI Tier 1 opportunity captured on legitimacy (leisure/tourism advisory solicitation): ${tag.signal_type} (${tag.venue_type}). Not fit-scored.`,
-      // Freshness flag keyed to the record's own deadline (open vs closed), not to
-      // scrape time. Closed leads are kept as market intelligence; the dashboard
-      // hides them from the default biddable view (with a show-closed toggle).
-      status: closed ? 'closed' : 'open',
+      // Freshness keyed to the record's own deadline, not to scrape time, and
+      // written to lifecycle (the scraper's axis). status belongs to Philip and
+      // is never written here. Closed solicitations are kept as market
+      // intelligence and fall into the Archive view.
+      lifecycle: closed ? 'expired' : 'active',
       module: OPPORTUNITY_MODULE,
       industry: OPPORTUNITY_MODULE,
       stream: 'opportunity',
@@ -243,9 +244,8 @@ export async function runOpportunityLane(all: NormalizedLead[]): Promise<Opportu
       });
     }
     if (noWrite) continue;
-    const { error } = await supabaseAdmin.from('leads').upsert(row, { onConflict: 'url' });
-    if (error) {
-      console.error(`Opportunity write failed for ${lead.url}: ${error.message}`);
+    const ok = await guardedUpsertOne(row);
+    if (!ok) {
       report.writeFailed++;
       continue;
     }
