@@ -193,12 +193,23 @@ function itemsFromPacket(doc: GovDoc, pages: string[]): NormalizedLead[] {
   const leads: NormalizedLead[] = [];
   for (const it of items.slice(0, MAX_ITEMS_PER_PACKET)) {
     const { pageRef, body } = locateBody(pages, bodyStart, it.title);
-    const gateText = `${it.title}\n${body}`;
+    // THE GATE JUDGES THE ITEM'S OWN TITLE, which for a CFTOD packet is the
+    // outline entry: the item's subject as the district itself states it. The
+    // located body is two full pages of the packet and routinely contains a
+    // neighbouring item's text, so judging on it admitted items whose own
+    // subject had nothing to do with the term that let them in. The body is
+    // still kept in raw_content for player extraction and the page reference.
+    const gateText = it.title;
     const verdict = governmentGate(gateText);
+    // The bypass keeps reading title + body, for the reason above: inside a
+    // CFTOD packet a Disney term names the target this district exists for, and
+    // the roadway and land-dedication agreements that carry it are real Disney
+    // items even when the outline entry does not say so.
     // Bypass on STRONG target terms only: inside CFTOD's own packets the geographic
     // Disney terms (Lake Buena Vista, Bay Lake, Reedy Creek) are letterhead, so they
     // do not rescue an off-topic item (e.g. annual financial statements).
-    const bypass = strongBypassesGate(gateText);
+    const bypass = strongBypassesGate(`${it.title}
+${body}`);
     if (!verdict.matched && !bypass) continue;
 
     const title = it.title.replace(/\s+/g, ' ').trim().slice(0, 200);

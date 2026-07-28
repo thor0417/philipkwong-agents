@@ -29,7 +29,8 @@ import { fetchText, htmlToText } from './http';
 export interface AgendaItem {
   seq: number; // running 1-based index across the whole agenda (unique)
   num: string; // the printed item number (may restart per section)
-  text: string; // the item's text, bounded
+  text: string; // the item's full text, bounded (kept for raw_content)
+  subject: string; // the item's own subject line, which is what the gate judges
 }
 
 // Split agenda text into numbered items. Markers are `N. ` where N is a small
@@ -43,6 +44,33 @@ export interface AgendaItem {
 // carries stray `N.` sequences in its boilerplate that would fragment it.
 const ITEM_NO_RE = /\bITEM\s+NO\.?\s*(\d{1,3})[.:]?\s+(?=[A-Z(])/g;
 
+// The bare `N.` marker. The lookahead accepts a DIGIT as well as a capital,
+// which is the boundary bug this replaced: Las Vegas numbers its items
+// "31. 24-0653 - APPLICANT/OWNER: ...", where the case number after the item
+// number starts with a digit. The old lookahead required [A-Z(], so every such
+// marker was invisible and the preceding item swallowed its neighbours until it
+// hit the 2,600-character cap. Measured on the stored corpus: 28 of 95 Las Vegas
+// items and 19 of 82 Anaheim items were sitting at that cap.
+//
+// `\.\s+` still requires whitespace after the dot, so "1.34 acres" and
+// "APN 125-21-101" cannot be read as markers.
+const NUMBERED_RE = /(?:^|[\s;:.)])(\d{1,3})\.\s+(?=[A-Z0-9(])/g;
+
+// Agenda item numbers ascend. Keeping only a monotonically increasing run from
+// the first marker rejects the stray "2." that appears inside a body ("1) expand
+// the district; 2. the parking garage") without needing to understand the prose.
+function monotonic(marks: { num: string; start: number }[]): { num: string; start: number }[] {
+  const kept: { num: string; start: number }[] = [];
+  let last = -Infinity;
+  for (const mark of marks) {
+    const n = parseInt(mark.num, 10);
+    if (n <= last) continue;
+    kept.push(mark);
+    last = n;
+  }
+  return kept;
+}
+
 export function splitNumberedAgenda(text: string): AgendaItem[] {
   const marks: { num: string; start: number }[] = [];
   let m: RegExpExecArray | null;
@@ -51,22 +79,73 @@ export function splitNumberedAgenda(text: string): AgendaItem[] {
     marks.push({ num: m[1], start: m.index });
   }
   if (marks.length === 0) {
-    const re = /(?:^|[\s;:.)])(\d{1,3})\.\s+(?=[A-Z(])/g;
-    while ((m = re.exec(text)) !== null) {
+    NUMBERED_RE.lastIndex = 0;
+    while ((m = NUMBERED_RE.exec(text)) !== null) {
       const num = parseInt(m[1], 10);
       if (num < 1 || num > 80) continue;
       marks.push({ num: m[1], start: m.index + m[0].indexOf(m[1]) });
     }
   }
+  const bounded = monotonic(marks);
   const items: AgendaItem[] = [];
-  for (let i = 0; i < marks.length; i++) {
-    const start = marks[i].start;
-    const end = i + 1 < marks.length ? marks[i + 1].start : text.length;
+  for (let i = 0; i < bounded.length; i++) {
+    const start = bounded[i].start;
+    const end = i + 1 < bounded.length ? bounded[i + 1].start : text.length;
     const body = text.slice(start, end).replace(/\s+/g, ' ').trim();
     if (body.length < 25) continue;
-    items.push({ seq: items.length + 1, num: marks[i].num, text: body.slice(0, ITEM_EXCERPT_CHARS) });
+    items.push({
+      seq: items.length + 1,
+      num: bounded[i].num,
+      text: body.slice(0, ITEM_EXCERPT_CHARS),
+      subject: itemSubject(body),
+    });
   }
   return items;
+}
+
+// ---- SUBJECT vs BODY --------------------------------------------------------
+// The gate judges an item on its own SUBJECT. The body stays in raw_content, so
+// player extraction, contacts, and the report detail lose nothing.
+//
+// The subject ends where the item stops describing itself and starts carrying
+// process: the attachment list, the staff recommendation, the standing
+// departmental boilerplate. Those phrases are the same on every item in a
+// packet, which is exactly why a leisure term inside them is not evidence about
+// THIS item.
+const BODY_STARTS = [
+  'Agenda Summary Page',
+  'Location and Aerial Maps',
+  'Conditions and Staff Report',
+  'Supporting Documentation',
+  'Staff recommends',
+  'Staff Recommendation',
+  'Recommendation:',
+  'RECOMMENDATION',
+  'BACKGROUND',
+  'Background:',
+  'Fiscal Impact',
+  'FISCAL IMPACT',
+  'Environmental Determination',
+  'Resolution No.',
+  'Attachment 1',
+  'Project Planner',
+  'COMMUNITY DEVELOPMENT',
+  'The items listed below',
+  'All items listed on the Consent Agenda',
+];
+
+// A subject is capped so a document with no boilerplate marker still cannot hand
+// the gate a whole page. 600 characters comfortably holds the longest real
+// subject seen in the corpus (Clark County's multi-clause use permits).
+const SUBJECT_MAX_CHARS = 600;
+
+export function itemSubject(itemText: string): string {
+  let end = itemText.length;
+  for (const marker of BODY_STARTS) {
+    const i = itemText.indexOf(marker);
+    if (i > 0 && i < end) end = i;
+  }
+  return itemText.slice(0, Math.min(end, SUBJECT_MAX_CHARS)).trim();
 }
 
 export interface MeetingRef {
@@ -108,12 +187,20 @@ export function leadsFromAgendaText(meeting: MeetingRef, text: string): Normaliz
   let kept = 0;
   for (const it of items) {
     if (kept >= MAX_ITEMS_PER_MEETING) break;
-    const verdict = governmentGate(it.text);
+    // THE GATE JUDGES THE SUBJECT. Its own subject, not its neighbours' text and
+    // not the standing boilerplate every item in the packet carries.
+    //
+    // The WATCH-TERM BYPASS still reads the whole item. The two are different
+    // decisions: the gate is a relevance judgement, where borrowed context is a
+    // false positive, while a bypass term is a named target we have decided to
+    // capture wherever it appears. A watch term in an item's body is still that
+    // target showing up in this meeting.
+    const verdict = governmentGate(it.subject);
     const bypass = bypassesGate(it.text);
     if (!verdict.matched && !bypass) continue;
     kept++;
-    const title = it.text.replace(/\s+/g, ' ').trim().slice(0, 200);
-    const hitLine = targetHitLine(it.text);
+    const title = it.subject.replace(/\s+/g, ' ').trim().slice(0, 200);
+    const hitLine = targetHitLine(it.subject);
     leads.push({
       ...base,
       title,

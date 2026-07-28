@@ -285,7 +285,42 @@ export const GOV_GATE_EXCLUSIONS = [
   'conference with labor', 'council member recognition',
 ] as const;
 
-export type GateReason = 'strong' | 'weak+action' | 'excluded' | 'weak-without-action' | 'no-match';
+// ---- RESIDENTIAL MIXED-USE REFINEMENT ---------------------------------------
+// A housing project is not a leisure project because its ground floor has shops.
+//
+// 'mixed use' is WEAK, and paired with an entitlement ACTION it admitted a long
+// run of Las Vegas site development plan reviews for apartment buildings: "A
+// PROPOSED SEVEN-STORY, 71-UNIT MIXED-USE DEVELOPMENT WITH 1,800 SQUARE FEET OF
+// COMMERCIAL SPACE". Those were 7 of the 13 remaining false positives after the
+// agenda items were scoped to their own subjects, which is why this is a
+// measured refinement rather than a guess.
+//
+// It fires ONLY when all three hold, and each condition is load-bearing:
+//   1. the text states a residential unit count or says multifamily
+//   2. there is NO STRONG term (a resort, arena or museum is never dropped)
+//   3. MIXED-USE IS THE ONLY WEAK SIGNAL
+// Condition 3 was added after testing: without it the rule also killed a golf
+// and recreation disposition and development agreement that happened to include
+// housing. Verified against the corpus: it excludes 12 rows and touches none of
+// the known-good records (OCVibe, Disneyland Resort, Heart Hotel, Hilton,
+// Tropicana Land, Mirage Propco, GD Carden, Fire N Ice, Children's Museum).
+const RESIDENTIAL_SCALE = /\b\d{1,4}[-\s]?(?:unit|units|dwelling units|apartments|condominium units|residential units)\b|\bmultifamily\b|\bmulti-family\b/i;
+const MIXED_USE_ONLY = new Set<string>(['mixed use', 'mixed-use']);
+
+function isResidentialMixedUse(text: string, strongHits: string[], weakHits: string[]): boolean {
+  if (strongHits.length > 0) return false;
+  if (weakHits.length === 0) return false;
+  if (!weakHits.every((w) => MIXED_USE_ONLY.has(w))) return false;
+  return RESIDENTIAL_SCALE.test(text);
+}
+
+export type GateReason =
+  | 'strong'
+  | 'weak+action'
+  | 'excluded'
+  | 'weak-without-action'
+  | 'residential-mixed-use'
+  | 'no-match';
 export interface GateVerdict {
   matched: boolean;
   reason: GateReason;
@@ -309,6 +344,9 @@ export function governmentGate(text: string): GateVerdict {
   }
   if (strongHits.length > 0) {
     return { matched: true, reason: 'strong', strongHits, weakHits, actionHits, exclusionHits };
+  }
+  if (isResidentialMixedUse(text, [...strongHits], [...weakHits])) {
+    return { matched: false, reason: 'residential-mixed-use', strongHits, weakHits, actionHits, exclusionHits };
   }
   if (weakHits.length > 0 && actionHits.length > 0) {
     return { matched: true, reason: 'weak+action', strongHits, weakHits, actionHits, exclusionHits };
