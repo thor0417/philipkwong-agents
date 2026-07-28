@@ -14,16 +14,16 @@ import GLISourceLink from '@/components/GLISourceLink';
 import { buildGliWorkbook, gliXlsxFilename } from '@/lib/gli-xlsx';
 import { buildReportPayload, gliReportFilename, type ReportScope } from '@/lib/gli-report';
 import { GLI_PRESETS } from '@/lib/gli-presets';
+import { fetchLeadPage, DEFAULT_PAGE_SIZE, daysAgoIso, type LeadQuery } from '@/lib/query';
+import { STATUS_LABELS, type LeadStatus } from '@/lib/mutations';
 import {
-  fetchLeadPage,
-  countLeads,
-  facetCounts,
-  DEFAULT_PAGE_SIZE,
-  type LeadQuery,
-  type LeadPage,
-} from '@/lib/query';
-import { setStatus, STATUS_LABELS, type LeadStatus } from '@/lib/mutations';
-import { countUnresolvedGeography, daysAgoIso, type FacetCount } from '@/lib/query';
+  useLeadPage,
+  useLeadCount,
+  useFacet,
+  useUnresolvedGeoCount,
+  useBacklog,
+  useLeadMutations,
+} from '@/lib/use-leads';
 import GeoNav from '@/components/GeoNav';
 import styles from './page.module.css';
 
@@ -306,41 +306,23 @@ export default function GLIPage() {
   const [focusLabel, setFocusLabel] = useState<string | undefined>(undefined);
   const [selectedLead, setSelectedLead] = useState<GLILead | null>(null);
 
-  // ---- Server-side query state. Every one of these is a database filter, not a
-  // client-side predicate: changing any of them re-queries a single page.
+  // ---- Filter state. Every one of these is a database filter; TanStack Query
+  // keys carry the whole set, so returning to a filter already visited is a
+  // cache read rather than another round trip.
   const [page, setPage] = useState(1);
   const pageSize = DEFAULT_PAGE_SIZE;
-  const [pageData, setPageData] = useState<LeadPage<GLILead> | null>(null);
-  const [tabCounts, setTabCounts] = useState<Record<string, number>>({});
-  const [viewCounts, setViewCounts] = useState<Record<GLIView, number>>({ active: 0, archive: 0 });
-  const [categoryChips, setCategoryChips] = useState<GLIChip[]>([]);
-  const [venueChips, setVenueChips] = useState<GLIChip[]>([]);
-  const [facetVia, setFacetVia] = useState<'rpc' | 'fallback'>('fallback');
+  const [mutationError, setMutationError] = useState<string | null>(null);
 
   // ---- Triage. `triageView` is a status filter, not a client-side predicate.
   // Trash is status = 'dismissed'; every other view excludes it.
   const [triageView, setTriageView] = useState<TriageView>('all');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [triageBusy, setTriageBusy] = useState(false);
-  const [backlog, setBacklog] = useState(0);
+
   // ---- Geography + delta. All three geography levels are stored, indexed
   // columns; selecting one is a database filter, never a text match.
   const [geo, setGeo] = useState<{ country?: string; region_state?: string; market?: string }>({});
-  const [countryCounts, setCountryCounts] = useState<FacetCount[]>([]);
-  const [regionCounts, setRegionCounts] = useState<FacetCount[]>([]);
-  const [marketCounts, setMarketCounts] = useState<FacetCount[]>([]);
-  const [geoUnresolved, setGeoUnresolved] = useState(0);
-  const [geoViaRpc, setGeoViaRpc] = useState(false);
   const [dateWindow, setDateWindow] = useState<DateWindow>('all');
   const [customFrom, setCustomFrom] = useState('');
-
-  const [statusCounts, setStatusCounts] = useState<Record<TriageView, number>>({
-    all: 0,
-    new: 0,
-    watchlist: 0,
-    client_ready: 0,
-    trash: 0,
-  });
 
   // The one query object every read on this page derives from. `view` maps onto
   // lifecycle, which is the scraper's axis (active / expired / dead). Status is
@@ -414,97 +396,79 @@ export default function GLIPage() {
   const sortField = activeStream === 'opportunity' ? 'deadline' : 'published_date';
   const sortDir: 'asc' | 'desc' = activeStream === 'opportunity' ? 'asc' : 'desc';
 
-  // One page of rows, plus its exact total. Nothing else is fetched.
-  const loadPage = useCallback(async () => {
-    const data = await fetchLeadPage<GLILead>({
-      ...baseQuery,
-      sortField,
-      sortDir,
-      page,
-      pageSize,
-    });
-    setPageData(data);
-  }, [baseQuery, sortField, sortDir, page, pageSize]);
+  // ---- Reads. Each is a keyed query; a filter change is a key change.
+  const pageQuery = useLeadPage({ ...baseQuery, sortField, sortDir, page, pageSize });
+  const pageData = pageQuery.data ?? null;
 
-  // Every count on the page comes from its own indexed count query, or from the
-  // grouped facet query. None of them counts loaded rows.
-  const loadCounts = useCallback(async () => {
-    const streamCounts = await Promise.all(
-      STREAMS.map(async (s) => [s.key, await countLeads({ ...baseQuery, stream: s.key })] as const)
-    );
-    setTabCounts(Object.fromEntries(streamCounts));
+  const streamCountQueries = {
+    opportunity: useLeadCount({ ...baseQuery, stream: 'opportunity' }),
+    intelligence: useLeadCount({ ...baseQuery, stream: 'intelligence' }),
+    government: useLeadCount({ ...baseQuery, stream: 'government' }),
+  };
+  const tabCounts: Record<string, number> = {
+    opportunity: streamCountQueries.opportunity.data ?? 0,
+    intelligence: streamCountQueries.intelligence.data ?? 0,
+    government: streamCountQueries.government.data ?? 0,
+  };
 
-    const [activeCount, archiveCount] = await Promise.all([
-      countLeads({ ...baseQuery, lifecycle: 'active' }),
-      countLeads({ ...baseQuery, lifecycle: ['expired', 'dead'] }),
-    ]);
-    setViewCounts({ active: activeCount, archive: archiveCount });
+  const activeViewCount = useLeadCount({ ...baseQuery, lifecycle: 'active' });
+  const archiveViewCount = useLeadCount({ ...baseQuery, lifecycle: ['expired', 'dead'] });
+  const viewCounts: Record<GLIView, number> = {
+    active: activeViewCount.data ?? 0,
+    archive: archiveViewCount.data ?? 0,
+  };
 
-    // Faceted: each dimension's counts exclude that dimension's own filter, so a
-    // chip's count equals the rows shown when it is clicked.
-    const [cat, ven] = await Promise.all([
-      facetCounts({ ...baseQuery, development_category: undefined }, 'development_category'),
-      facetCounts({ ...baseQuery, venue_type: undefined }, 'venue_type'),
-    ]);
-    setFacetVia(cat.viaRpc ? 'rpc' : 'fallback');
-    const toChips = (
-      counts: { value: string; count: number }[],
-      order: readonly string[],
-      selected: string
-    ): GLIChip[] => {
-      const m = new Map(counts.map((c) => [c.value, c.count]));
-      const totalCount = counts.reduce((a, c) => a + c.count, 0);
-      const known = order.filter((v) => (m.get(v) ?? 0) > 0 || v === selected);
-      const extra = counts.map((c) => c.value).filter((v) => !order.includes(v));
-      return [
-        { value: 'all', label: 'All', count: totalCount },
-        ...[...known, ...extra].map((v) => ({ value: v, label: v, count: m.get(v) ?? 0 })),
-      ];
-    };
-    setCategoryChips(toChips(cat.counts, DEVELOPMENT_CATEGORIES, categoryFilter));
-    setVenueChips(toChips(ven.counts, VENUE_TYPES, venueFilter));
+  // Triage view counts share the filters minus the status axis, so a view's
+  // count equals the rows it renders.
+  const withoutStatus: LeadQuery = { ...baseQuery, status: undefined, excludeStatus: undefined };
+  const statusCounts: Record<TriageView, number> = {
+    all: useLeadCount({ ...withoutStatus, excludeStatus: 'dismissed' }).data ?? 0,
+    new: useLeadCount({ ...withoutStatus, status: 'new' }).data ?? 0,
+    watchlist: useLeadCount({ ...withoutStatus, status: 'watchlist' }).data ?? 0,
+    client_ready: useLeadCount({ ...withoutStatus, status: 'client_ready' }).data ?? 0,
+    trash: useLeadCount({ ...withoutStatus, status: 'dismissed' }).data ?? 0,
+  };
+  const backlog = useBacklog().data ?? 0;
 
-    // Triage counts. Each is its own indexed count query over the same filters
-    // minus the status axis, so a view's count equals the rows it renders.
-    const withoutStatus: LeadQuery = { ...baseQuery, status: undefined, excludeStatus: undefined };
-    const [all, isNew, watch, ready, trash] = await Promise.all([
-      countLeads({ ...withoutStatus, excludeStatus: 'dismissed' }),
-      countLeads({ ...withoutStatus, status: 'new' }),
-      countLeads({ ...withoutStatus, status: 'watchlist' }),
-      countLeads({ ...withoutStatus, status: 'client_ready' }),
-      countLeads({ ...withoutStatus, status: 'dismissed' }),
-    ]);
-    setStatusCounts({ all, new: isNew, watchlist: watch, client_ready: ready, trash });
+  // Faceted: each dimension's counts exclude its own filter, so a chip's count
+  // equals the rows shown when it is clicked.
+  const categoryFacet = useFacet({ ...baseQuery, development_category: undefined }, 'development_category');
+  const venueFacet = useFacet({ ...baseQuery, venue_type: undefined }, 'venue_type');
+  const facetVia: 'rpc' | 'fallback' = categoryFacet.data?.viaRpc ? 'rpc' : 'fallback';
 
-    // The untriaged pile, across every stream and both lifecycle views, so the
-    // badge always reports the whole backlog rather than the current tab.
-    setBacklog(await countLeads({ module: 'gli', status: 'new' }));
+  const geoBase: LeadQuery = { ...baseQuery, country: undefined, region_state: undefined, market: undefined };
+  const countryFacet = useFacet(geoBase, 'country');
+  const regionFacet = useFacet({ ...geoBase, country: geo.country }, 'region_state', !!geo.country);
+  const marketFacet = useFacet(
+    { ...geoBase, country: geo.country, region_state: geo.region_state },
+    'market',
+    !!geo.country && !!geo.region_state
+  );
+  const geoUnresolved = useUnresolvedGeoCount(geoBase).data ?? 0;
 
-    // Geography levels. Each level's counts exclude its own selection, so a
-    // level's count equals the rows shown when it is picked. Only the levels
-    // that are actually visible are queried.
-    const geoBase: LeadQuery = { ...baseQuery, country: undefined, region_state: undefined, market: undefined };
-    const countryFacet = await facetCounts(geoBase, 'country');
-    setCountryCounts(countryFacet.counts);
-    setGeoViaRpc(countryFacet.viaRpc);
-    setGeoUnresolved(await countUnresolvedGeography(geoBase));
-    if (geo.country) {
-      const r = await facetCounts({ ...geoBase, country: geo.country }, 'region_state');
-      setRegionCounts(r.counts);
-      if (geo.region_state) {
-        const m = await facetCounts(
-          { ...geoBase, country: geo.country, region_state: geo.region_state },
-          'market'
-        );
-        setMarketCounts(m.counts);
-      } else {
-        setMarketCounts([]);
-      }
-    } else {
-      setRegionCounts([]);
-      setMarketCounts([]);
-    }
-  }, [baseQuery, categoryFilter, venueFilter, geo.country, geo.region_state]);
+  const toChips = (
+    counts: { value: string; count: number }[] | undefined,
+    order: readonly string[],
+    selected: string
+  ): GLIChip[] => {
+    const list = counts ?? [];
+    const m = new Map(list.map((c) => [c.value, c.count]));
+    const totalCount = list.reduce((a, c) => a + c.count, 0);
+    const known = order.filter((v) => (m.get(v) ?? 0) > 0 || v === selected);
+    const extra = list.map((c) => c.value).filter((v) => !order.includes(v));
+    return [
+      { value: 'all', label: 'All', count: totalCount },
+      ...[...known, ...extra].map((v) => ({ value: v, label: v, count: m.get(v) ?? 0 })),
+    ];
+  };
+  const categoryChips = toChips(categoryFacet.data?.counts, DEVELOPMENT_CATEGORIES, categoryFilter);
+  const venueChips = toChips(venueFacet.data?.counts, VENUE_TYPES, venueFilter);
+
+  // ---- Writes. Optimistic: the row moves on the click, the request follows,
+  // and a failure rolls the row back and surfaces the reason.
+  const { applyStatus: mutateStatus, busy: triageBusy } = useLeadMutations({
+    onError: (message) => setMutationError(message),
+  });
 
   useEffect(() => {
     let alive = true;
@@ -514,38 +478,29 @@ export default function GLIPage() {
         router.replace('/login');
         return;
       }
-      await Promise.all([loadPage(), loadCounts()]);
       if (alive) setLoading(false);
     }
     init();
     return () => {
       alive = false;
     };
-  }, [router, loadPage, loadCounts]);
+  }, [router]);
 
   async function signOut() {
     await supabase.auth.signOut();
     router.replace('/login');
   }
 
-  // Applying a status re-queries, so a row that leaves the current view
-  // disappears from it immediately and every count updates with it.
+  // Selection is cleared on the click, not after the request, because the
+  // optimistic update has already moved the rows out of the view.
   const applyStatus = useCallback(
-    async (ids: string[], status: LeadStatus) => {
-      if (ids.length === 0 || triageBusy) return;
-      setTriageBusy(true);
-      try {
-        await setStatus(ids, status);
-        setSelectedIds(new Set());
-        await Promise.all([loadPage(), loadCounts()]);
-      } catch (err) {
-        console.error(err);
-        alert('Status update failed. Please try again.');
-      } finally {
-        setTriageBusy(false);
-      }
+    (ids: string[], status: LeadStatus) => {
+      if (ids.length === 0) return;
+      setMutationError(null);
+      mutateStatus(ids, status);
+      setSelectedIds(new Set());
     },
-    [triageBusy, loadPage, loadCounts]
+    [mutateStatus]
   );
 
   const toggleSelect = useCallback((id: string) => {
@@ -730,14 +685,14 @@ export default function GLIPage() {
             </button>
           </div>
           <GeoNav
-            countries={countryCounts}
-            regions={regionCounts}
-            markets={marketCounts}
+            countries={countryFacet.data?.counts ?? []}
+            regions={regionFacet.data?.counts ?? []}
+            markets={marketFacet.data?.counts ?? []}
             country={geo.country}
             regionState={geo.region_state}
             market={geo.market}
             unresolved={geoUnresolved}
-            viaRpc={geoViaRpc}
+            viaRpc={countryFacet.data?.viaRpc ?? false}
             onSelect={(next) => {
               setGeo(next);
               setPage(1);
@@ -770,6 +725,14 @@ export default function GLIPage() {
               />
             )}
           </div>
+          {mutationError && (
+            <div className={styles.mutationError} role="alert">
+              {mutationError} The change was rolled back.
+              <button className={styles.mutationErrorClose} onClick={() => setMutationError(null)}>
+                Dismiss
+              </button>
+            </div>
+          )}
           <div className={styles.triageBar}>
             <div className={styles.triageViews} role="tablist" aria-label="Triage view">
               {TRIAGE_VIEWS.map((v) => (
@@ -874,8 +837,10 @@ export default function GLIPage() {
           <GLIDetail
             lead={selectedLead}
             onClose={() => setSelectedLead(null)}
-            onChanged={async () => {
-              await Promise.all([loadPage(), loadCounts()]);
+            onChanged={() => {
+              // Mutations invalidate the affected queries themselves; this only
+              // clears any error banner left from a previous failure.
+              setMutationError(null);
             }}
           />
         </>

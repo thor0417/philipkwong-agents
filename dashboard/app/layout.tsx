@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { DM_Mono } from 'next/font/google';
 import './globals.css';
+import Providers from './providers';
 
 const dmMono = DM_Mono({
   weight: ['400', '500'],
@@ -20,7 +21,9 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className={dmMono.variable}>
-      <body>{children}</body>
+      <body>
+        <Providers>{children}</Providers>
+      </body>
     </html>
   );
 }
