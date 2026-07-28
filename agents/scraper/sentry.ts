@@ -61,10 +61,16 @@ function scrubDeep(input: unknown, depth = 0): unknown {
   return input;
 }
 
-export function initSentry(): void {
-  if (!DSN) return;
-  Sentry.init({
+// The exact options initSentry uses. Exported so a verification run can build a
+// client with the SAME beforeSend and a logging transport, and therefore show
+// what genuinely leaves this machine rather than what a separate copy of the
+// scrubber would have produced.
+export function sentryOptions(): Sentry.NodeOptions {
+  return {
     dsn: DSN,
+    // SENTRY_DEBUG=1 makes the SDK log the envelope it sends and the ingest
+    // response, which is how delivery is verified without opening the web UI.
+    debug: process.env.SENTRY_DEBUG === '1',
     environment: process.env.NODE_ENV ?? 'development',
     // No performance traces: this is error tracking, and traces would carry
     // request URLs with keys in them.
@@ -79,7 +85,12 @@ export function initSentry(): void {
       delete event.contexts?.runtime;
       return event;
     },
-  });
+  };
+}
+
+export function initSentry(): void {
+  if (!DSN) return;
+  Sentry.init(sentryOptions());
 }
 
 // ---- explicit captures -------------------------------------------------------

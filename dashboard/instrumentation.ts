@@ -29,9 +29,11 @@ function scrub(input: unknown, depth = 0): unknown {
   return input;
 }
 
-export function register(): void {
-  if (!DSN) return;
-  Sentry.init({
+// The exact options register() uses. Exported so a verification run can build a
+// client with the SAME beforeSend and a logging transport, and therefore show
+// what genuinely leaves the browser and the server.
+export function sentryOptions(): Sentry.NodeOptions {
+  return {
     dsn: DSN,
     environment: process.env.NODE_ENV ?? 'development',
     tracesSampleRate: 0,
@@ -43,7 +45,12 @@ export function register(): void {
       if (event.request?.cookies) delete event.request.cookies;
       return event;
     },
-  });
+  };
+}
+
+export function register(): void {
+  if (!DSN) return;
+  Sentry.init(sentryOptions());
 }
 
 export const onRequestError = Sentry.captureRequestError;
