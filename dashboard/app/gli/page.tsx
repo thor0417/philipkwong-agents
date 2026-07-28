@@ -469,6 +469,21 @@ export default function GLIPage() {
   };
   const backlog = useBacklog().data ?? 0;
 
+  // Counts for each date window, so a window that legitimately returns
+  // everything is visibly doing its job. The whole corpus was captured inside
+  // one week, so All time, New this week and Last 30 days genuinely hold the
+  // same rows; without a count on each button that is indistinguishable from a
+  // dead control, which is exactly how this was reported as broken.
+  const dateWindowCounts: Record<DateWindow, number | undefined> = {
+    all: useLeadCount({ ...baseQuery, firstSeenFrom: undefined }).data,
+    '7d': useLeadCount({ ...baseQuery, firstSeenFrom: daysAgoIso(7) }).data,
+    '30d': useLeadCount({ ...baseQuery, firstSeenFrom: daysAgoIso(30) }).data,
+    custom: useLeadCount(
+      { ...baseQuery, firstSeenFrom: firstSeenFloor('custom', customFrom) },
+      dateWindow === 'custom' && !!customFrom
+    ).data,
+  };
+
   // Faceted: each dimension's counts exclude its own filter, so a chip's count
   // equals the rows shown when it is clicked.
   const categoryFacet = useFacet({ ...baseQuery, development_category: undefined }, 'development_category');
@@ -750,8 +765,14 @@ export default function GLIPage() {
                 }}
               >
                 {w.label}
+                {dateWindowCounts[w.key] !== undefined && (
+                  <span className={styles.deltaCount}>{dateWindowCounts[w.key]}</span>
+                )}
               </button>
             ))}
+            {dateWindow === 'custom' && !customFrom && (
+              <span className={styles.deltaHint}>pick a date to filter from</span>
+            )}
             {dateWindow === 'custom' && (
               <input
                 className={styles.deltaDate}

@@ -356,3 +356,16 @@
   padding: 4px 9px;
   cursor: pointer;
 }
+
+/* Count on each date window, matching the tab and chip treatment. */
+.deltaCount {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  margin-left: 7px;
+  opacity: 0.75;
+}
+.deltaHint {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--muted);
+}
