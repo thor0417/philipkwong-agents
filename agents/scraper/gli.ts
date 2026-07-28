@@ -32,6 +32,7 @@ import { geographyFields } from '../../lib/geography';
 import { hostOf, isJunkDomain } from './junk-domains';
 import { guardedUpsert, emptyWriteReport, printWriteReport } from './write-guard';
 import { resetParseReports, printParseReports } from './sources/schemas';
+import { subDays } from 'date-fns';
 
 const MODEL = 'claude-haiku-4-5-20251001';
 const GLI_MODULE = 'gli';
@@ -617,7 +618,9 @@ export async function runGliLane(rawLeads: NormalizedLead[]): Promise<GliReport>
   // than the window; keep undated leads but count them separately so good sources
   // that omit dates are not silently dropped. Runs before classification to save
   // LLM cost on stale items.
-  const cutoff = Date.now() - RECENCY_WINDOW_DAYS * 24 * 60 * 60 * 1000;
+  // Absolute-instant arithmetic, so local vs UTC does not arise: date-fns
+  // subDays on a millisecond instant is exactly the hand-rolled subtraction.
+  const cutoff = subDays(new Date(), RECENCY_WINDOW_DAYS).getTime();
   let droppedStale = 0;
   let undatedKept = 0;
   const fresh: NormalizedLead[] = [];

@@ -29,6 +29,7 @@ import type { NormalizedLead } from './types';
 import { TARGETS, bypassHits } from '../targets';
 import { JUNK_DOMAINS } from '../junk-domains';
 import { SerperOrganicSchema, parseRecords } from './schemas';
+import { subDays, format } from 'date-fns';
 
 const API_KEY = process.env.SERPER_API_KEY;
 
@@ -213,8 +214,11 @@ function batchDomains(size: number): string[][] {
 // day-level gate is applied on published_date downstream.
 function tbsRecency(days: number): string {
   const now = new Date();
-  const from = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
-  const fmt = (d: Date): string => `${d.getMonth() + 1}/${d.getDate()}/${d.getFullYear()}`;
+  const from = subDays(now, days);
+  // Google reads this range in the SEARCHER's locale, so local-time formatting
+  // is correct here and date-fns format is used as-is. M/d/yyyy, unpadded, is
+  // what Google's tbs parameter expects.
+  const fmt = (d: Date): string => format(d, 'M/d/yyyy');
   return `cdr:1,cd_min:${fmt(from)},cd_max:${fmt(now)}`;
 }
 

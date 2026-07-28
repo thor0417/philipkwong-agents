@@ -88,9 +88,22 @@ function startOfUtcDay(t: number): number {
   return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
 }
 // `now` minus n calendar months (UTC), for the 12/24-month project windows.
+//
+// The day is CLAMPED to the last day of the target month. Without the clamp,
+// Date.UTC overflows: 2028-02-29 minus 12 months produced 2027-03-01 rather
+// than 2027-02-28, so on a leap day the 12-month window silently moved a day
+// and a project on the boundary changed verdict. Measured, not theorised.
+//
+// date-fns subMonths does clamp correctly, and is deliberately NOT used here:
+// it operates in LOCAL time, and every window in this file is UTC on purpose.
+// Swapping it in would introduce exactly the class of timezone bug this audit
+// went looking for. date-fns is used below where the semantics are unambiguous.
 function monthsBefore(now: number, n: number): number {
   const d = new Date(now);
-  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth() - n, d.getUTCDate());
+  const year = d.getUTCFullYear();
+  const month = d.getUTCMonth() - n;
+  const lastDayOfTarget = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+  return Date.UTC(year, month, Math.min(d.getUTCDate(), lastDayOfTarget));
 }
 // True when the ISO date is strictly after today's UTC day.
 function isFutureDate(iso: string | null, now: number): boolean {

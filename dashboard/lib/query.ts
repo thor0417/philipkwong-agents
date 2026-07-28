@@ -11,6 +11,7 @@
 // the page was already silently truncating, and every count was computed over
 // the truncated set.
 
+import { subDays } from 'date-fns';
 import { supabase } from './supabase';
 
 export const DEFAULT_PAGE_SIZE = 50;
@@ -287,7 +288,8 @@ export async function countUnresolvedGeography(base: LeadQuery): Promise<number>
   return count ?? 0;
 }
 
-// ISO date for N days ago, for the delta views.
+// ISO instant for N days ago, for the delta views. An absolute instant compared
+// against a timestamptz column, so this is timezone-neutral by construction.
 export function daysAgoIso(days: number): string {
-  return new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+  return subDays(new Date(), days).toISOString();
 }
