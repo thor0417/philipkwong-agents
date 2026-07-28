@@ -26,6 +26,34 @@ import { captureWriteFailure } from './sentry';
 // Columns only Philip writes. Stripped from every scrape payload.
 export const OWNED_BY_USER = ['status', 'notes', 'manual_overrides', 'status_changed_at'] as const;
 
+// ENRICHMENT COLUMNS: absence of information must never erase information.
+//
+// These are filled by a step that can legitimately not run: attachment depth is
+// skipped when LEGISTAR_ATTACHMENTS=0, a PDF fetch times out, a document has no
+// contact block. When that happens the row builder still produces the key, with
+// null, and an upsert writes that null straight over a value an earlier run had
+// found.
+//
+// It is not hypothetical. Verifying an unrelated change with
+// LEGISTAR_ATTACHMENTS=0 erased the document-sourced contacts on 12 Legistar
+// rows: representative fell from 30 rows to 18 and primary_document_url from 38
+// to 22, including Nancy Amundsen on the Heart Hotel tentative map. Nothing
+// complained, because writing null is a successful write.
+//
+// So a null for one of these is treated as "this run learned nothing", and the
+// key is dropped from the payload. Supabase upserts only the columns present, so
+// the stored value survives untouched.
+export const ENRICHMENT_FIELDS = [
+  'presented_by',
+  'applicant',
+  'representative',
+  'action_sought',
+  'primary_document_url',
+  'contact_name',
+  'contact_email',
+  'contact_phone',
+] as const;
+
 export interface WriteReport {
   attempted: number;
   written: number;
@@ -36,6 +64,9 @@ export interface WriteReport {
   // Per-field tally of values held back by an override.
   protectedFields: Record<string, number>;
   failed: number;
+  // Enrichment values a run did not have, which were held back rather than
+  // written as null over a value an earlier run found.
+  erasuresPrevented: number;
   // URLs skipped, for row-by-row logging.
   skippedUrls: string[];
 }
@@ -48,6 +79,7 @@ export function emptyWriteReport(): WriteReport {
     rowsWithProtectedFields: 0,
     protectedFields: {},
     failed: 0,
+    erasuresPrevented: 0,
     skippedUrls: [],
   };
 }
@@ -125,6 +157,21 @@ export async function guardedUpsert(
     const payload: Record<string, unknown> = { ...row };
     for (const c of OWNED_BY_USER) delete payload[c];
 
+    // 4. A null enrichment value means this run learned nothing, not that the
+    // previous run was wrong. Drop the key so the stored value survives.
+    let erasuresPrevented = 0;
+    for (const c of ENRICHMENT_FIELDS) {
+      if (c in payload && (payload[c] === null || payload[c] === undefined)) {
+        delete payload[c];
+        erasuresPrevented++;
+      }
+    }
+    // has_primary_document only means anything alongside a URL.
+    if (!('primary_document_url' in payload) && payload.has_primary_document === false) {
+      delete payload.has_primary_document;
+    }
+    if (erasuresPrevented > 0) report.erasuresPrevented += erasuresPrevented;
+
     // 2. Overridden fields are held back.
     const overridden = overriddenFields(prior?.manual_overrides);
     let held = 0;
@@ -163,6 +210,7 @@ export function printWriteReport(label: string, r: WriteReport): void {
     `${label}: ${r.written} written of ${r.attempted} attempted | ` +
       `${r.skippedDismissed} skipped as dismissed (tombstone) | ` +
       `${r.rowsWithProtectedFields} rows had a field held back by a manual override` +
+      (r.erasuresPrevented ? ` | ${r.erasuresPrevented} enrichment values held back rather than nulled` : '') +
       (r.failed ? ` | ${r.failed} write failures` : '')
   );
   const fields = Object.entries(r.protectedFields);
