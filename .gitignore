@@ -30,3 +30,6 @@ scratch-leads.json
 
 # next.js generated types: regenerated on every build, never hand-edited
 dashboard/next-env.d.ts
+
+# database backups: client research, never committed
+backups/
