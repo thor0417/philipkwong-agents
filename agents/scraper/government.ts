@@ -20,6 +20,7 @@ import { classifyGli } from './gli';
 import { opportunityVenueHint } from './classify';
 import { regionFor, regionOf } from './regions';
 import { classifyVenueType, categoryForVenue } from '../../lib/taxonomy';
+import { geographyFields } from '../../lib/geography';
 import { deriveLeadDates, objectFields, shouldDelete } from './lead-date';
 import { scrapeLegistar, lastLegistarStats, type LegistarJurisdictionStats } from './sources/legistar';
 import { lastAttachmentStats } from './sources/legistar-attachments';
@@ -198,9 +199,12 @@ export function buildGovernmentRow(
   const dates = deriveLeadDates(lead, 'government');
   // A government record has no submission deadline -> always a project_event.
   const om = objectFields(dates, lead.title, lead.raw_content);
+  // Geography resolved once, at write time, into indexed columns.
+  const geo = geographyFields(lead.location, lead.country);
   return {
     region,
     row: {
+      ...geo,
       source: lead.source,
       url: lead.url,
       title: lead.title,

@@ -21,6 +21,7 @@ import { isLeisureOpportunity, isDeadNotice } from './classify';
 import { tagOpportunities, sourceTier, type OpportunityTag } from './gli';
 import { regionFor, regionOf } from './regions';
 import { classifyVenueType, categoryForVenue } from '../../lib/taxonomy';
+import { geographyFields } from '../../lib/geography';
 import { deriveLeadDates, objectFields, shouldDelete } from './lead-date';
 
 import { scrapeTedEu } from './sources/tedeu';
@@ -66,9 +67,12 @@ export function buildOpportunityRow(
   // Canonical venue is deterministic (lib/taxonomy), so it never drifts or
   // collapses; the LLM's venue is folded in as a hint. Category derives from it.
   const venue = classifyVenueType(`${lead.title ?? ''} ${lead.raw_content ?? ''} ${tag.venue_type}`);
+  // Geography resolved once, at write time, into indexed columns.
+  const geo = geographyFields(lead.location, lead.country);
   return {
     region,
     row: {
+      ...geo,
       source: lead.source,
       url: lead.url,
       title: lead.title,

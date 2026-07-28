@@ -28,6 +28,7 @@ import { opportunityVenueHint, opportunitySignalHint } from './classify';
 import { classifyVenueType, categoryForVenue } from '../../lib/taxonomy';
 import { configuredPrimaryDocument } from './sources/govdocs';
 import { deriveLeadDates, objectFields, shouldDelete } from './lead-date';
+import { geographyFields } from '../../lib/geography';
 import { hostOf, isJunkDomain } from './junk-domains';
 
 const MODEL = 'claude-haiku-4-5-20251001';
@@ -731,8 +732,13 @@ export async function runGliLane(rawLeads: NormalizedLead[]): Promise<GliReport>
     // Intelligence coverage has no submission deadline -> always a project_event.
     const om = objectFields(dates, lead.title, lead.raw_content);
 
+    // Geography resolved once, at write time, into indexed columns. The GLI
+    // classifier's location is the best string available for an article.
+    const geo = geographyFields(c.location ?? lead.location, lead.country);
+
     const { error } = await supabaseAdmin.from('leads').upsert(
       {
+        ...geo,
         source: lead.source,
         url: lead.url,
         title: lead.title,

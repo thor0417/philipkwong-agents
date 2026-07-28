@@ -10,6 +10,7 @@
 // crashes. Run it: npm run scrape:all
 
 import { supabaseAdmin } from '../../lib/supabase-admin';
+import { geographyFields } from '../../lib/geography';
 import type { NormalizedLead } from './sources/types';
 import {
   activeProfiles,
@@ -709,6 +710,8 @@ export async function orchestrate(): Promise<ScrapeReport> {
 
     const { error } = await supabaseAdmin.from('leads').upsert(
       {
+        // Geography resolved once, at write time, into indexed columns.
+        ...geographyFields(lead.location, lead.country),
         source: lead.source,
         url: lead.url,
         title: lead.title,
@@ -761,6 +764,8 @@ export async function orchestrate(): Promise<ScrapeReport> {
     const dates = deriveLeadDates(lead);
     const { error } = await supabaseAdmin.from('leads').upsert(
       {
+        // Geography resolved once, at write time, into indexed columns.
+        ...geographyFields(lead.location, lead.country),
         source: lead.source,
         url: lead.url,
         title: lead.title,
@@ -818,6 +823,8 @@ export async function orchestrate(): Promise<ScrapeReport> {
     const dates = deriveLeadDates(lead);
     const { error } = await supabaseAdmin.from('leads').upsert(
       {
+        // Geography resolved once, at write time, into indexed columns.
+        ...geographyFields(lead.location, lead.country),
         source: lead.source,
         url: lead.url,
         title: lead.title,
@@ -875,6 +882,8 @@ export async function orchestrate(): Promise<ScrapeReport> {
     const dates = deriveLeadDates(lead);
     const { error } = await supabaseAdmin.from('leads').upsert(
       {
+        // Geography resolved once, at write time, into indexed columns.
+        ...geographyFields(lead.location, lead.country),
         source: lead.source,
         url: lead.url,
         title: lead.title,
@@ -1068,6 +1077,8 @@ export async function orchestrate(): Promise<ScrapeReport> {
     const dates = deriveLeadDates({ ...lead, published_date: lead.signal_date ?? null });
     const { error } = await supabaseAdmin.from('leads').upsert(
       {
+        // Geography resolved once, at write time, into indexed columns.
+        ...geographyFields(lead.location, lead.country),
         source: lead.source,
         url: lead.url,
         title: lead.title,
