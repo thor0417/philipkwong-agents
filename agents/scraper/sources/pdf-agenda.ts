@@ -189,6 +189,33 @@ function targetHitLine(text: string): string {
 }
 
 // Split one agenda-packet PDF into individual agenda-item leads.
+// Items a single-purpose district still should not capture: its own internal
+// administration, which tells us nothing about development in the district.
+// Deliberately narrow - anything about a contract, a budget for works, a
+// roadway, or a utility IS district development and stays.
+const INTERNAL_ADMIN = [
+  /\bmeeting minutes\b/i,
+  /\bcollective bargaining\b/i,
+  /\bannual financial statements?\b/i,
+  /\badministrator['’]s report\b/i,
+  /\binformational report\b/i,
+  /\bappeals: all persons\b/i,
+  /^\s*(call to order|opening invocation|pledge of allegiance|public comment period|reports|consent agenda|general business|other business|for information|adjourn)\b/i,
+];
+
+// Structural headers, matched with ALL whitespace removed. The PDF text layer
+// breaks words at arbitrary points - the February packet renders "CONSENT
+// AGENDA" as "CO NSENT AGENDA" - so a normal word match lets the header through
+// as though it were an agenda item. Verified: that exact string was captured as
+// a lead before this check existed.
+const STRUCTURAL_HEADERS =
+  /^(calltoorder|openinginvocation|pledgeofallegiance|publiccommentperiod|reports?|consentagenda|generalbusiness|otherbusiness|forinformation|adjourn)/i;
+
+function isInternalAdmin(title: string): boolean {
+  if (STRUCTURAL_HEADERS.test(title.replace(/\s+/g, ''))) return true;
+  return INTERNAL_ADMIN.some((re) => re.test(title));
+}
+
 function itemsFromPacket(doc: GovDoc, pages: string[]): NormalizedLead[] {
   const { items, bodyStart } = parseOutline(pages);
   const leads: NormalizedLead[] = [];
@@ -211,7 +238,29 @@ function itemsFromPacket(doc: GovDoc, pages: string[]): NormalizedLead[] {
     // do not rescue an off-topic item (e.g. annual financial statements).
     const bypass = strongBypassesGate(`${it.title}
 ${body}`);
-    if (!verdict.matched && !bypass) continue;
+    // CFTOD IS A SINGLE-PURPOSE DISTRICT, so the jurisdiction itself is the
+    // signal. This is the same rule legistar.ts already applies through
+    // `bypassGate`, and it is what the keyword gate cannot express.
+    //
+    // Diagnosed 2026-07-29: the February and March packets parsed 341 and 533
+    // pages, produced 16 and 17 outline items, and kept ZERO. Extraction was
+    // never broken. Every item was dropped by governmentGate with 'no-match',
+    // including the three the July report cites:
+    //   Feb 6.2  Change Order #1, World Drive North Phase III post design
+    //   Feb 7.4  Change Order #3, World Drive North Phase III construction
+    //   Mar 7.1  RCES design and support service fees
+    // They carry no leisure-venue vocabulary because they are roadway and
+    // utility items, and the one Disney term they do carry - "Reedy Creek", as
+    // in Reedy Creek Energy Services - is deliberately excluded inside CFTOD's
+    // own documents as letterhead. That exclusion is right for its own purpose
+    // and it is what silently closed this source.
+    //
+    // A district that exists solely to govern the Walt Disney World resort area
+    // does not need to prove relevance item by item. What it does need is the
+    // procedural and internal-administration items filtered out, which is what
+    // PROCEDURAL and INTERNAL_ADMIN below do.
+    const singlePurpose = !isInternalAdmin(it.title);
+    if (!verdict.matched && !bypass && !singlePurpose) continue;
 
     const title = it.title.replace(/\s+/g, ' ').trim().slice(0, 200);
     const pageLabel = pageRef ? `p.${pageRef}` : 'agenda listing';
