@@ -348,7 +348,21 @@ function caseRuleFor(r: ClusterRecord): CaseRule | null {
 export function caseRoots(r: ClusterRecord): { rule: string | null; roots: string[] } {
   const rule = caseRuleFor(r);
   if (!rule) return { rule: null, roots: [] };
-  const text = recordText(r);
+  // THE TITLE NAMES THE SUBJECT; THE BODY NAMES THE SCOPE. For a citywide record
+  // that distinction is the whole difference between a signal and a bridge: an
+  // omnibus zoning update lists every specific plan it touches, and none of them
+  // is what the item is about - but the application number in its own title is.
+  //
+  // So a citywide record keeps exactly ONE case root, the first one in its
+  // title. Without this, "DEVELOPMENT APPLICATION NO. 2026-00022" heard at
+  // Planning Commission and again at Council became two separate one-record
+  // projects, because suppressing citywide case signals wholesale left nothing
+  // holding the two halves of one application together. Taking only the FIRST
+  // title root (not all of them) matters: the Council item's title itself goes
+  // on to list Specific Plan No. 90-1 and three others, which is precisely the
+  // bridge into Anaheim Hills Festival / OTR that must stay closed.
+  const scanText = isCitywideRecord(r) ? (r.title ?? '') : recordText(r);
+  const text = scanText;
   const found = new Set<string>();
   for (const p of rule.patterns) {
     const re = new RegExp(p.source, p.flags.includes('g') ? p.flags : `${p.flags}g`);
@@ -359,7 +373,13 @@ export function caseRoots(r: ClusterRecord): { rule: string | null; roots: strin
       if (m.index === re.lastIndex) re.lastIndex++;
     }
   }
-  return { rule: rule.label, roots: [...found] };
+  const roots = [...found];
+  if (isCitywideRecord(r) && roots.length > 1) {
+    // Order the title's roots by where they actually appear, and keep the first.
+    roots.sort((a, b) => text.toLowerCase().indexOf(a) - text.toLowerCase().indexOf(b));
+    return { rule: rule.label, roots: [roots[0]] };
+  }
+  return { rule: rule.label, roots };
 }
 
 // ---- 4. SITE: address, APN, or a source-published project name ---------------
@@ -479,7 +499,8 @@ export interface ClusterResult {
   // Whole-agenda / calendar / portal records, which carry no signals and land in
   // the Inbox rather than bridging every matter printed on the page.
   containerRecords: number;
-  // Citywide / city-initiated legislation whose case signals were suppressed.
+  // Citywide / city-initiated legislation narrowed to the single case root named
+  // in its own title (its subject), discarding the ones its body merely scopes.
   citywideRecordsDropped: number;
   omnibusRecordsDropped: number;
   officeAddressesDropped: { key: string; records: number; market: string }[];
@@ -728,11 +749,8 @@ export function clusterRecords(
     // for any record that names more matters than a single filing can be about.
     const { rule, roots } = caseRoots(r);
     if (rule) result.casePatternsFound[rule] = (result.casePatternsFound[rule] ?? 0) + roots.length;
-    const citywide = roots.length > 0 && isCitywideRecord(r);
-    if (citywide) result.citywideRecordsDropped++;
-    if (citywide) {
-      // no case signals
-    } else if (roots.length > MAX_CASE_ROOTS_PER_RECORD) {
+    if (roots.length > 0 && isCitywideRecord(r)) result.citywideRecordsDropped++;
+    if (roots.length > MAX_CASE_ROOTS_PER_RECORD) {
       result.omnibusRecordsDropped++;
     } else {
       for (const root of roots) sigs.push({ key: `case:${mk}:${root}`, reason: 'case-family' });

@@ -118,6 +118,17 @@ export const TARGETS: TargetDef[] = [
     // stalled A-Town project directly, and neither is ambiguous.
     name: 'Platinum Triangle / PT Metro',
     bypass: ['platinum triangle', 'pt metro', 'a-town'],
+    // 'platinum triangle' gets the same treatment as 'russell road': it keeps
+    // bypassing the gate, but it can no longer claim a record for the project.
+    //
+    // A DISTRICT NAME IS AN ADDRESS, NOT AN IDENTITY. Measured on the corpus: on
+    // the term alone the project swallowed the FY2025/26 and FY2026/27 budget
+    // hearings (English and Spanish), Ordinance 6601's annual citywide zoning
+    // update, and the Tourism Mobility Tax ballot measure - four items that
+    // merely say where they apply, and which the July report filed as context or
+    // as entries of their own. 'pt metro' and 'a-town' name the project itself
+    // and still claim records, which is what keeps the cluster alive.
+    weakForClustering: ['platinum triangle'],
     searchOnly: ['ptmu', 'stadium lofts', 'angel stadium'],
   },
   {

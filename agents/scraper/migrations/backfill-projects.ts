@@ -328,7 +328,7 @@ export function printBackfillReport(
 
   console.log('\nSuppressions (reported, never silent):');
   console.log(`  container records (agenda/calendar/portal pages, no signals): ${cluster.containerRecords}`);
-  console.log(`  citywide records whose case signals were suppressed:          ${cluster.citywideRecordsDropped}`);
+  console.log(`  citywide records narrowed to their own title case root:      ${cluster.citywideRecordsDropped}`);
   console.log(`  records naming more than 3 case roots (an index, not a filing): ${cluster.omnibusRecordsDropped}`);
   console.log('  office addresses dropped (an address on many unrelated filings):');
   if (!cluster.officeAddressesDropped.length) console.log('    (none)');
