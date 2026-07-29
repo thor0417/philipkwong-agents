@@ -10,6 +10,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { spawn } from 'node:child_process';
 import path from 'node:path';
+import { requireUser } from '@/lib/api-auth';
 
 export const runtime = 'nodejs';
 
@@ -38,6 +39,12 @@ async function setStatus(name: string, status: string, error?: string | null) {
 }
 
 export async function POST(request: Request) {
+  // This route spawns processes and writes with the service-role key. It is
+  // checked here as well as in middleware, so a handler reached without
+  // middleware still refuses an anonymous caller.
+  const unauthorised = await requireUser(request);
+  if (unauthorised) return unauthorised;
+
   let name: string | undefined;
   try {
     ({ name } = (await request.json()) as { name?: string });

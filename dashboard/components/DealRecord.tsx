@@ -22,6 +22,7 @@ import {
 } from '@/lib/category';
 import SourceLink from './SourceLink';
 import styles from './DealRecord.module.css';
+import { authedFetch } from '@/lib/authed-fetch';
 
 export default function DealRecord({
   lead,
@@ -369,7 +370,7 @@ function DraftCard({
     }
     setBusy(true);
     try {
-      const res = await fetch('/api/send-email', {
+      const res = await authedFetch('/api/send-email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ outreach_id: draft.id, to, subject, body }),

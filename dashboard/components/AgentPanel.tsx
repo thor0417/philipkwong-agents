@@ -4,6 +4,7 @@ import { useState } from 'react';
 import type { Agent } from '@/lib/types';
 import { formatDate } from '@/lib/crm';
 import styles from './AgentPanel.module.css';
+import { authedFetch } from '@/lib/authed-fetch';
 
 // Agents that map to a runnable npm script on the server. The rest are seeded
 // but deferred (see CLAUDE.md), so their Run Now is disabled.
@@ -32,7 +33,7 @@ export default function AgentPanel({
     setBusy(name);
     setMessage(null);
     try {
-      const res = await fetch('/api/run-agent', {
+      const res = await authedFetch('/api/run-agent', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name }),

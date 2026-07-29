@@ -26,6 +26,7 @@ import {
 } from '@/lib/use-leads';
 import GeoNav from '@/components/GeoNav';
 import styles from './page.module.css';
+import { authedFetch } from '@/lib/authed-fetch';
 
 const GLI_COLUMNS_BASE =
   'id, title, venue_type, signal_type, location, company, contact_name, contact_email, contact_phone, url, raw_content, date_found, score, source_tier, stream, deadline, published_date, source';
@@ -653,7 +654,7 @@ export default function GLIPage() {
         generatedDate: date,
         focusLabel,
       };
-      const res = await fetch('/api/gli-report', {
+      const res = await authedFetch('/api/gli-report', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(buildReportPayload(await fetchFilteredForExport(), scope)),

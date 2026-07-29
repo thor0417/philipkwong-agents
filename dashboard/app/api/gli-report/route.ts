@@ -5,11 +5,17 @@
 import { NextResponse } from 'next/server';
 import { renderReportPdf } from './pdf';
 import type { ReportPayload } from '@/lib/gli-report';
+import { requireUser } from '@/lib/api-auth';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: Request) {
+  // Client research renders through here. Checked alongside middleware, so a
+  // direct invocation cannot produce a report for an anonymous caller.
+  const unauthorised = await requireUser(req);
+  if (unauthorised) return unauthorised;
+
   let payload: ReportPayload;
   try {
     payload = (await req.json()) as ReportPayload;

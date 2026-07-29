@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase';
 import type { Lead, Outreach } from '@/lib/types';
 import { formatDate } from '@/lib/leads';
 import styles from './OutreachQueue.module.css';
+import { authedFetch } from '@/lib/authed-fetch';
 
 export default function OutreachQueue({
   leads,
@@ -37,7 +38,7 @@ export default function OutreachQueue({
     if (!to) return;
     setBusy(row.id);
     try {
-      const res = await fetch('/api/send-email', {
+      const res = await authedFetch('/api/send-email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

@@ -13,6 +13,7 @@
 import { createClient } from '@supabase/supabase-js';
 import fs from 'node:fs';
 import path from 'node:path';
+import { requireUser } from '@/lib/api-auth';
 
 export const runtime = 'nodejs';
 
@@ -109,6 +110,12 @@ function adminClient() {
 }
 
 export async function POST(request: Request) {
+  // THIS ROUTE SENDS MAIL AS PHILIP. Unauthenticated it was an open relay on his
+  // own address, accepting an arbitrary recipient, subject and body. Checked
+  // here as well as in middleware.
+  const unauthorised = await requireUser(request);
+  if (unauthorised) return unauthorised;
+
   let payload: SendBody;
   try {
     payload = (await request.json()) as SendBody;
