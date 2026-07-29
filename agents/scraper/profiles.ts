@@ -104,7 +104,12 @@ export const PROFILES: IndustryProfile[] = [
     sources: TENDER_AND_JOB,
     minScore: 60,
     module: 'healthcare_pharma',
-    active: true,
+    // RETIRED 2026-07-29 (Brief A, Part 3). Fuel is permanently closed and the
+    // consulting modules are not part of this product, but every orchestrator
+    // run was still fetching, classifying and writing them: 487 stored rows,
+    // newest captured 2026-07-23, excluded from every GLI view and every count.
+    // The code stays so the profile can be revived; only the flag changes.
+    active: false,
     minKeywordMatches: 1,
   },
   {
@@ -123,7 +128,12 @@ export const PROFILES: IndustryProfile[] = [
     sources: ['canadabuys', 'adzuna', 'jooble', 'careerjet', 'arbeitnow', 'ungm'],
     minScore: 60,
     module: 'cannabis',
-    active: true,
+    // RETIRED 2026-07-29 (Brief A, Part 3). Fuel is permanently closed and the
+    // consulting modules are not part of this product, but every orchestrator
+    // run was still fetching, classifying and writing them: 487 stored rows,
+    // newest captured 2026-07-23, excluded from every GLI view and every count.
+    // The code stays so the profile can be revived; only the flag changes.
+    active: false,
     minKeywordMatches: 1,
   },
   {
@@ -146,7 +156,12 @@ export const PROFILES: IndustryProfile[] = [
     sources: TENDER_AND_JOB,
     minScore: 60,
     module: 'technology_ai',
-    active: true,
+    // RETIRED 2026-07-29 (Brief A, Part 3). Fuel is permanently closed and the
+    // consulting modules are not part of this product, but every orchestrator
+    // run was still fetching, classifying and writing them: 487 stored rows,
+    // newest captured 2026-07-23, excluded from every GLI view and every count.
+    // The code stays so the profile can be revived; only the flag changes.
+    active: false,
     minKeywordMatches: 1,
   },
   {
@@ -166,7 +181,12 @@ export const PROFILES: IndustryProfile[] = [
     sources: TENDER_SOURCES,
     minScore: 60,
     module: 'construction_infrastructure',
-    active: true,
+    // RETIRED 2026-07-29 (Brief A, Part 3). Fuel is permanently closed and the
+    // consulting modules are not part of this product, but every orchestrator
+    // run was still fetching, classifying and writing them: 487 stored rows,
+    // newest captured 2026-07-23, excluded from every GLI view and every count.
+    // The code stays so the profile can be revived; only the flag changes.
+    active: false,
     // Generic catch-all: require two hits to cut job-board noise (no real
     // writers; "infrastructure"/"engineering"/"standards" alone are too broad).
     minKeywordMatches: 2,
@@ -190,7 +210,12 @@ export const PROFILES: IndustryProfile[] = [
     sources: TENDER_AND_JOB,
     minScore: 60,
     module: 'financial_services',
-    active: true,
+    // RETIRED 2026-07-29 (Brief A, Part 3). Fuel is permanently closed and the
+    // consulting modules are not part of this product, but every orchestrator
+    // run was still fetching, classifying and writing them: 487 stored rows,
+    // newest captured 2026-07-23, excluded from every GLI view and every count.
+    // The code stays so the profile can be revived; only the flag changes.
+    active: false,
     minKeywordMatches: 1,
   },
   {
@@ -215,7 +240,12 @@ export const PROFILES: IndustryProfile[] = [
     sources: TENDER_AND_JOB,
     minScore: 60,
     module: 'food_beverage_hospitality',
-    active: true,
+    // RETIRED 2026-07-29 (Brief A, Part 3). Fuel is permanently closed and the
+    // consulting modules are not part of this product, but every orchestrator
+    // run was still fetching, classifying and writing them: 487 stored rows,
+    // newest captured 2026-07-23, excluded from every GLI view and every count.
+    // The code stays so the profile can be revived; only the flag changes.
+    active: false,
     // Generic catch-all: require two hits ("food"/"tourism"/"restaurant" alone
     // match unrelated postings).
     minKeywordMatches: 2,
@@ -240,7 +270,12 @@ export const PROFILES: IndustryProfile[] = [
     sources: JOB_SOURCES,
     minScore: 60,
     module: 'web_digital',
-    active: true,
+    // RETIRED 2026-07-29 (Brief A, Part 3). Fuel is permanently closed and the
+    // consulting modules are not part of this product, but every orchestrator
+    // run was still fetching, classifying and writing them: 487 stored rows,
+    // newest captured 2026-07-23, excluded from every GLI view and every count.
+    // The code stays so the profile can be revived; only the flag changes.
+    active: false,
     // Generic catch-all: require two hits ("web"/"digital"/"marketing" alone
     // are pervasive on job boards).
     minKeywordMatches: 2,
@@ -288,7 +323,12 @@ export const PROFILES: IndustryProfile[] = [
     sources: [...TENDER_AND_JOB, 'worldbank', 'adb', 'afdb', 'undp', 'iadb', 'cdb'],
     minScore: 60,
     module: 'general_consulting',
-    active: true,
+    // RETIRED 2026-07-29 (Brief A, Part 3). Fuel is permanently closed and the
+    // consulting modules are not part of this product, but every orchestrator
+    // run was still fetching, classifying and writing them: 487 stored rows,
+    // newest captured 2026-07-23, excluded from every GLI view and every count.
+    // The code stays so the profile can be revived; only the flag changes.
+    active: false,
     // Broadest catch-all and the single largest noise source: require two hits
     // ("strategy"/"consulting"/"advisory"/"transformation" alone match almost
     // any white-collar posting). No real writers depend on it.
@@ -352,7 +392,12 @@ export const PROFILES: IndustryProfile[] = [
     // already removed upstream by the broker-filter.
     minScore: 40,
     module: 'fuel',
-    active: true,
+    // RETIRED 2026-07-29 (Brief A, Part 3). Fuel is permanently closed and the
+    // consulting modules are not part of this product, but every orchestrator
+    // run was still fetching, classifying and writing them: 487 stored rows,
+    // newest captured 2026-07-23, excluded from every GLI view and every count.
+    // The code stays so the profile can be revived; only the flag changes.
+    active: false,
     minKeywordMatches: 1,
     regions: ['NL', 'SG'],
     tscodes: {
@@ -414,7 +459,12 @@ export const PROFILES: IndustryProfile[] = [
     // is never consulted for this profile. Kept at the fuel floor for parity.
     minScore: 40,
     module: 'fuel',
-    active: true,
+    // RETIRED 2026-07-29 (Brief A, Part 3). Fuel is permanently closed and the
+    // consulting modules are not part of this product, but every orchestrator
+    // run was still fetching, classifying and writing them: 487 stored rows,
+    // newest captured 2026-07-23, excluded from every GLI view and every count.
+    // The code stays so the profile can be revived; only the flag changes.
+    active: false,
     minKeywordMatches: 1,
     regions: ['US-TX', 'US-LA', 'US-MS', 'US-AL', 'US-GULF'],
     tscodes: {

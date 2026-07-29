@@ -23,7 +23,7 @@ import {
 import { runGliLane, tagOpportunities, type GliReport } from './gli';
 import { attachOnWrite, printAttachReport } from './project-attach';
 import { recordSourceRun, reportRunHealth, resetSourceRuns } from './health';
-import { buildOpportunityRow, opportunityClosed } from './opportunity';
+import { buildOpportunityRow, opportunityClosed, OPPORTUNITY_SOURCES } from './opportunity';
 import { deriveLeadDates, shouldDelete } from './lead-date';
 import { bestProfileFor, passesPrefilter, keywordMatches } from './prefilter';
 import { isBrokerNoise } from './broker-filter';
@@ -86,7 +86,14 @@ const AGENT_NAME = 'lead-scraper';
 // Caribbean origination push. Fetched alongside the profile sources but routed
 // entirely through the signals lane (bilingual sector gate, delta detection,
 // legitimacy capture) — never through the prefilter / Haiku / feasibility paths.
-const SIGNAL_SOURCES = ['fonatur', 'bahamas_hoa', 'confotur', 'semarnat', 'nepa_jm', 'cayman_cpa'];
+// RETIRED 2026-07-29 (Brief A, Part 3). The signals lane belongs to the fuel /
+// LATAM product line, not to GLI: it produced 2 stored rows in total, and two of
+// its six sources (confotur, semarnat) have never returned anything from this
+// runtime at all. Emptying the list disables the lane without deleting it - put
+// the source names back to revive it.
+const SIGNAL_SOURCES: string[] = [];
+const RETIRED_SIGNAL_SOURCES = ['fonatur', 'bahamas_hoa', 'confotur', 'semarnat', 'nepa_jm', 'cayman_cpa'];
+void RETIRED_SIGNAL_SOURCES;
 const SIGNAL_SOURCE_SET = new Set(SIGNAL_SOURCES);
 
 // GLI lane (Grant Leisure International). Serper results carry source
@@ -336,8 +343,17 @@ const inc = (m: Record<string, number>, k: string): void => {
 
 export async function orchestrate(): Promise<ScrapeReport> {
   const profiles = activeProfiles();
-  // Profile sources plus the signal sources (Part B), which no profile owns.
-  const sources = [...new Set([...activeSources(), ...SIGNAL_SOURCES])];
+  // Profile sources, plus the signal sources (now empty, retired), plus the GLI
+  // Tier 1 opportunity portals.
+  //
+  // OPPORTUNITY_SOURCES IS LISTED EXPLICITLY because the tender portals used to
+  // be owned by the fuel and consulting profiles, and retiring those profiles
+  // would otherwise have taken the GLI opportunity lane down with them. That
+  // lane writes module 'gli', stream 'opportunity' - it is the product, not the
+  // legacy. Naming the sources here decouples them from the retired profiles.
+  const sources = [
+    ...new Set([...activeSources(), ...SIGNAL_SOURCES, ...OPPORTUNITY_SOURCES]),
+  ];
   console.log(`Active profiles: ${profiles.map((p) => p.name).join(', ')}`);
   console.log(`Active sources: ${sources.join(', ')}`);
 
