@@ -4,76 +4,34 @@
 // withdrawn/superseded/award or intent notice) and lifecycle='expired' for leads
 // whose deadline has passed. Dead takes precedence.
 //
-// This writes LIFECYCLE, never status. status is Philip's triage column
+// THE LOGIC MOVED. It now lives in agents/scraper/lifecycle-sweep.ts and runs on
+// EVERY orchestrator pass, which is the whole point: this was a one-off script
+// someone had to remember to run, for a condition that arrives on its own
+// schedule. It was never wired to anything, so three tenders closed and nothing
+// noticed - the dashboard's Archive view sat empty while all 808 GLI rows read
+// 'active'.
+//
+// This entry point is kept because running it by hand is still useful and the
+// run books reference it. It delegates, so the manual path and the automatic
+// path cannot drift apart.
+//
+// It writes LIFECYCLE, never status. status is Philip's triage column
 // (new / watchlist / client_ready / dismissed) and no scrape or migration path
 // may touch it; lifecycle is the scraper's factual axis (active/expired/dead).
 // Only rewrites rows still at lifecycle 'active' (or null), so a row already
 // classified is not churned.
 //
-// Run: node --env-file=.env.local --import tsx agents/scraper/migrations/retag-dead-expired.ts
+// Run:      node --env-file=.env.local --import tsx agents/scraper/migrations/retag-dead-expired.ts
+// DRY_RUN=1 reports what would move without writing.
 
-import { supabaseAdmin } from '../../../lib/supabase-admin';
-import { isDeadNotice } from '../classify';
-import type { NormalizedLead } from '../sources/types';
-
-interface Row {
-  id: string;
-  lifecycle: string | null;
-  deadline: string | null;
-  title: string | null;
-  raw_content: string | null;
-  source: string | null;
-}
+import { sweepLifecycle, printLifecycleSweep } from '../lifecycle-sweep';
 
 async function main(): Promise<void> {
-  const { data, error } = await supabaseAdmin
-    .from('leads')
-    .select('id, lifecycle, deadline, title, raw_content, source');
-  if (error) {
-    console.error('Fetch failed:', error.message);
-    process.exit(1);
-  }
-  const rows = (data ?? []) as Row[];
-  const now = Date.now();
-
-  let dead = 0;
-  let expired = 0;
-  let skippedNonNew = 0;
-  let failed = 0;
-
-  for (const r of rows) {
-    // Never churn a row already classified on the lifecycle axis.
-    if (r.lifecycle && r.lifecycle !== 'active') {
-      continue;
-    }
-    const isDead = isDeadNotice({
-      title: r.title ?? '',
-      raw_content: r.raw_content ?? '',
-      source: r.source ?? '',
-    } as NormalizedLead);
-    const isExpired = !!r.deadline && new Date(r.deadline).getTime() < now;
-    const next = isDead ? 'dead' : isExpired ? 'expired' : null;
-    if (!next) continue;
-    if (r.lifecycle === next) {
-      continue;
-    }
-
-    const { error: upErr } = await supabaseAdmin.from('leads').update({ lifecycle: next }).eq('id', r.id);
-    if (upErr) {
-      console.error(`Update failed for ${r.id}: ${upErr.message}`);
-      failed++;
-      continue;
-    }
-    if (next === 'dead') dead++;
-    else expired++;
-  }
-
-  // Count of leads that were left alone because a user had already moved them.
-  skippedNonNew = rows.filter((r) => r.lifecycle && r.lifecycle !== 'active').length;
-
-  console.log(
-    `Re-tag done. dead=${dead} expired=${expired} failed=${failed} (skipped ${skippedNonNew} with a non-new status).`
-  );
+  const dry = process.env.DRY_RUN === '1';
+  if (dry) console.log('(DRY_RUN=1: nothing will be written)');
+  const result = await sweepLifecycle(Date.now(), { dry });
+  printLifecycleSweep(result);
+  if (!result.complete) process.exitCode = 1;
 }
 
 main().catch((e) => {

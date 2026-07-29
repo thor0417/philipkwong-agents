@@ -23,6 +23,7 @@ import {
 import { runGliLane, tagOpportunities, type GliReport } from './gli';
 import { attachOnWrite, printAttachReport } from './project-attach';
 import { recordSourceRun, reportRunHealth, resetSourceRuns } from './health';
+import { sweepLifecycle, printLifecycleSweep } from './lifecycle-sweep';
 import { selectAllPaged } from './page-select';
 import { buildOpportunityRow, opportunityClosed, OPPORTUNITY_SOURCES } from './opportunity';
 import { deriveLeadDates, shouldDelete } from './lead-date';
@@ -1206,6 +1207,17 @@ export async function orchestrate(): Promise<ScrapeReport> {
   // module-scoped.
   if (process.env.DRY_RUN !== '1') {
     printAttachReport('Orchestrator', await attachOnWrite(gliReport.writtenUrls));
+  }
+
+  // 7d. Lifecycle sweep. Everything above reacts to what a source published
+  // TODAY; nothing reacted to the passage of time over what is already stored.
+  // lifecycle was written once at capture, so a tender scraped while open stayed
+  // 'active' after it closed, and the dashboard's Archive view - which is driven
+  // entirely by that column - stayed empty. Three closed tenders were sitting in
+  // the Active view. The re-evaluation existed in migrations/retag-dead-expired
+  // and had simply never been wired to anything; it now runs every pass.
+  if (process.env.DRY_RUN !== '1') {
+    printLifecycleSweep(await sweepLifecycle());
   }
 
   return {
