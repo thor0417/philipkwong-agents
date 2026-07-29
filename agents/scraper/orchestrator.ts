@@ -21,6 +21,7 @@ import {
   type IndustryProfile,
 } from './profiles';
 import { runGliLane, tagOpportunities, type GliReport } from './gli';
+import { attachOnWrite, printAttachReport } from './project-attach';
 import { buildOpportunityRow, opportunityClosed } from './opportunity';
 import { deriveLeadDates, shouldDelete } from './lead-date';
 import { bestProfileFor, passesPrefilter, keywordMatches } from './prefilter';
@@ -1170,6 +1171,14 @@ export async function orchestrate(): Promise<ScrapeReport> {
   // double-counted). Proponent is the match key; region scopes it to the
   // origination territory.
   const crossLane = process.env.DRY_RUN === '1' ? { flagged: 0 } : await crossLaneLatamFlag();
+
+  // 7c. Project clustering. Every GLI record this run wrote joins its project,
+  // creates one, or lands in the Inbox. Only the GLI lane feeds the register:
+  // the fuel, consulting and signal lanes write other modules, and projects are
+  // module-scoped.
+  if (process.env.DRY_RUN !== '1') {
+    printAttachReport('Orchestrator', await attachOnWrite(gliReport.writtenUrls));
+  }
 
   return {
     fetchedPerSource,

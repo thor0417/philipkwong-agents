@@ -518,6 +518,8 @@ export interface GliReport {
   // Tombstone / override telemetry.
   skippedDismissed: number;
   protectedByOverride: number;
+  // URLs this run actually wrote, for the project attach pass.
+  writtenUrls: string[];
   // Source-chaining (Pass 4): kept leads that referenced a primary source, those
   // for which a primary_document_url resolved, and those where a real file was
   // fetched (has_primary_document).
@@ -693,6 +695,7 @@ export async function runGliLane(rawLeads: NormalizedLead[]): Promise<GliReport>
     writeFailed: 0,
     skippedDismissed: 0,
     protectedByOverride: 0,
+    writtenUrls: [],
     chainReferenced: 0,
     chainResolved: 0,
     chainWithFile: 0,
@@ -808,6 +811,7 @@ export async function runGliLane(rawLeads: NormalizedLead[]): Promise<GliReport>
     report.writeFailed = wr.failed;
     report.skippedDismissed = wr.skippedDismissed;
     report.protectedByOverride = wr.rowsWithProtectedFields;
+    report.writtenUrls = wr.writtenUrls;
     printWriteReport('GLI writes', wr);
   }
   if (rejectedPreCutoff > 0) {

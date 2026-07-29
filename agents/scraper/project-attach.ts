@@ -1,0 +1,148 @@
+// ATTACH ON WRITE. New captures join their project automatically.
+//
+// Without this, clustering rots the moment the next run happens: the backfill
+// clusters what is stored today, the next scrape writes fifty records that
+// belong to it, and the register silently goes stale while looking healthy.
+//
+// ONE CLUSTERING IMPLEMENTATION, NOT TWO. The obvious design is an incremental
+// matcher that compares each new record against stored projects. It is also the
+// wrong one: it is a SECOND implementation of the rules, and the moment it
+// disagrees with the backfill by one guardrail, the register and the acceptance
+// test stop describing the same world. So the write path re-runs the SAME
+// engine over the corpus and reconciles. The clusterer is deterministic and the
+// backfill is idempotent, so this converges rather than churning.
+//
+// It also has to be corpus-wide rather than market-wide, because a target-term
+// project is deliberately not market-scoped: 'ocvibe' names the same
+// development in an Anaheim agenda item and in a trade-press story filed under
+// Orange County, and a market slice would split it.
+//
+// COST. Today: 794 leads, one pass, a few seconds. The reconcile is linear in
+// records except the fuzzy entity pass, which is quadratic in DISTINCT
+// applicant names within a market. At the 20,000-record scale this system is
+// being built for that pass wants an index (blocking on the first token, which
+// is already the fuzzy guard) rather than the full cross-product. Stated here
+// so the ceiling is known rather than discovered.
+
+import { supabaseAdmin } from '../../lib/supabase-admin';
+import { runBackfill } from './migrations/backfill-projects';
+
+export interface AttachReport {
+  // Records this run wrote that were considered.
+  recordsConsidered: number;
+  // Of those, how many ended up on a project that already existed.
+  attachedToExisting: number;
+  // Of those, how many caused a project to be created.
+  attachedToNew: number;
+  // Of those, how many carried no signal and stayed in the Inbox.
+  leftUnclustered: number;
+  // Corpus-wide effects of the reconcile.
+  projectsCreated: number;
+  projectsUpdated: number;
+  projectsTotal: number;
+  manualAttachmentsPreserved: number;
+  projectFieldsHeldBack: Record<string, number>;
+  writeFailures: number;
+  skipped: string | null;
+}
+
+function emptyReport(skipped: string | null = null): AttachReport {
+  return {
+    recordsConsidered: 0,
+    attachedToExisting: 0,
+    attachedToNew: 0,
+    leftUnclustered: 0,
+    projectsCreated: 0,
+    projectsUpdated: 0,
+    projectsTotal: 0,
+    manualAttachmentsPreserved: 0,
+    projectFieldsHeldBack: {},
+    writeFailures: 0,
+    skipped,
+  };
+}
+
+// The project ids that existed BEFORE the reconcile, so "attached to an existing
+// project" and "caused a new project" can be told apart honestly.
+async function existingProjectIds(): Promise<Set<string>> {
+  const out = new Set<string>();
+  let from = 0;
+  const PAGE = 1000;
+  for (;;) {
+    const { data, error } = await supabaseAdmin.from('projects').select('id').range(from, from + PAGE - 1);
+    if (error) throw new Error(`existingProjectIds: ${error.message}`);
+    if (!data || data.length === 0) break;
+    for (const p of data as { id: string }[]) out.add(p.id);
+    if (data.length < PAGE) break;
+    from += PAGE;
+  }
+  return out;
+}
+
+// Where a set of URLs ended up after the reconcile.
+async function outcomeFor(urls: string[]): Promise<{ id: string; url: string; project_id: string | null }[]> {
+  const out: { id: string; url: string; project_id: string | null }[] = [];
+  const CHUNK = 100;
+  for (let i = 0; i < urls.length; i += CHUNK) {
+    const { data, error } = await supabaseAdmin
+      .from('leads')
+      .select('id,url,project_id')
+      .in('url', urls.slice(i, i + CHUNK));
+    if (error) throw new Error(`outcomeFor: ${error.message}`);
+    out.push(...((data ?? []) as { id: string; url: string; project_id: string | null }[]));
+  }
+  return out;
+}
+
+// Reconcile projects after a lane has written, and report where THIS run's
+// records landed.
+//
+// PROJECTS_NO_ATTACH=1 skips it entirely, for a lane run that should not touch
+// the register.
+export async function attachOnWrite(writtenUrls: string[]): Promise<AttachReport> {
+  if (process.env.PROJECTS_NO_ATTACH === '1') return emptyReport('PROJECTS_NO_ATTACH=1');
+  if (process.env.PROJECTS_NO_WRITE === '1') return emptyReport('PROJECTS_NO_WRITE=1');
+  const urls = [...new Set(writtenUrls.filter(Boolean))];
+  if (urls.length === 0) return emptyReport('no records written');
+
+  const before = await existingProjectIds();
+  const { report } = await runBackfill();
+  const after = await outcomeFor(urls);
+
+  const out = emptyReport();
+  out.recordsConsidered = urls.length;
+  for (const r of after) {
+    if (!r.project_id) out.leftUnclustered++;
+    else if (before.has(r.project_id)) out.attachedToExisting++;
+    else out.attachedToNew++;
+  }
+  out.projectsCreated = report.projectsCreated;
+  out.projectsUpdated = report.projectsUpdated;
+  out.projectsTotal = report.projectsCreated + report.projectsUpdated;
+  out.manualAttachmentsPreserved = report.manualAttachmentsPreserved;
+  out.projectFieldsHeldBack = report.projectFieldsHeldBack;
+  out.writeFailures = report.writeFailures;
+  return out;
+}
+
+export function printAttachReport(label: string, r: AttachReport): void {
+  if (r.skipped) {
+    console.log(`${label} project attachment: skipped (${r.skipped}).`);
+    return;
+  }
+  console.log(
+    `${label} project attachment: ${r.recordsConsidered} records written | ` +
+      `${r.attachedToExisting} joined an existing project | ` +
+      `${r.attachedToNew} created a new project | ` +
+      `${r.leftUnclustered} left unclustered (Inbox)`
+  );
+  console.log(
+    `  register now: ${r.projectsTotal} projects (${r.projectsCreated} created this run, ${r.projectsUpdated} updated)` +
+      (r.manualAttachmentsPreserved ? ` | ${r.manualAttachmentsPreserved} manual attachments preserved` : '') +
+      (r.writeFailures ? ` | ${r.writeFailures} write failures` : '')
+  );
+  const held = Object.entries(r.projectFieldsHeldBack);
+  if (held.length) {
+    console.log(`  project fields held back by a manual override: ${held.map(([f, n]) => `${f} x${n}`).join(', ')}`);
+  }
+}

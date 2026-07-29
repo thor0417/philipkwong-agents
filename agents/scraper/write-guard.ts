@@ -69,6 +69,10 @@ export interface WriteReport {
   erasuresPrevented: number;
   // URLs skipped, for row-by-row logging.
   skippedUrls: string[];
+  // URLs actually written. The project attach pass needs to know which records
+  // THIS run landed, to report where they ended up; counting `written` cannot
+  // answer that.
+  writtenUrls: string[];
 }
 
 export function emptyWriteReport(): WriteReport {
@@ -81,6 +85,7 @@ export function emptyWriteReport(): WriteReport {
     failed: 0,
     erasuresPrevented: 0,
     skippedUrls: [],
+    writtenUrls: [],
   };
 }
 
@@ -192,6 +197,7 @@ export async function guardedUpsert(
       continue;
     }
     report.written++;
+    report.writtenUrls.push(url);
   }
   return report;
 }

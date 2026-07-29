@@ -21,7 +21,8 @@ import { tagOpportunities, sourceTier, type OpportunityTag } from './gli';
 import { regionFor, regionOf } from './regions';
 import { classifyVenueType, categoryForVenue } from '../../lib/taxonomy';
 import { geographyFields } from '../../lib/geography';
-import { guardedUpsertOne } from './write-guard';
+import { guardedUpsertOne, emptyWriteReport } from './write-guard';
+import { attachOnWrite, printAttachReport } from './project-attach';
 import { deriveLeadDates, objectFields, shouldDelete } from './lead-date';
 
 import { scrapeTedEu } from './sources/tedeu';
@@ -131,6 +132,8 @@ export interface OpportunityReport {
   writeFailed: number;
   // Populated deadlines over the captured (matched, live) set: the health metric.
   withDeadline: number;
+  // URLs this run actually wrote, for the project attach pass.
+  writtenUrls: string[];
   perSource: Record<string, number>;
   perVenueType: Record<string, number>;
   perSignalType: Record<string, number>;
@@ -197,6 +200,7 @@ export async function runOpportunityLane(all: NormalizedLead[]): Promise<Opportu
     written: 0,
     writeFailed: 0,
     withDeadline: 0,
+    writtenUrls: [],
     perSource: {},
     perVenueType: {},
     perSignalType: {},
@@ -244,12 +248,14 @@ export async function runOpportunityLane(all: NormalizedLead[]): Promise<Opportu
       });
     }
     if (noWrite) continue;
-    const ok = await guardedUpsertOne(row);
+    const wr = emptyWriteReport();
+    const ok = await guardedUpsertOne(row, wr);
     if (!ok) {
       report.writeFailed++;
       continue;
     }
     report.written++;
+    report.writtenUrls.push(...wr.writtenUrls);
   }
   if (rejectedPreCutoff > 0) {
     console.log(`Opportunity: rejected ${rejectedPreCutoff} dead pre-2026 opportunities (no future milestone).`);
@@ -302,6 +308,7 @@ async function main(): Promise<void> {
   const all = await fetchOpportunitySources();
   const report = await runOpportunityLane(all);
   printOpportunityReport(report);
+  printAttachReport('Opportunity', await attachOnWrite(report.writtenUrls));
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

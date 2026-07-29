@@ -21,6 +21,7 @@ import { regionFor, regionOf } from './regions';
 import { classifyVenueType, categoryForVenue } from '../../lib/taxonomy';
 import { geographyFields } from '../../lib/geography';
 import { guardedUpsert, emptyWriteReport, printWriteReport, type WriteReport } from './write-guard';
+import { attachOnWrite, printAttachReport } from './project-attach';
 import { deriveLeadDates, objectFields, shouldDelete } from './lead-date';
 import { scrapeLegistar, lastLegistarStats, type LegistarJurisdictionStats } from './sources/legistar';
 import { lastAttachmentStats } from './sources/legistar-attachments';
@@ -473,6 +474,10 @@ async function main(): Promise<void> {
   ]);
   printGovernmentReport(report, lastLegistarStats());
   printParseReports('Boundary schemas');
+
+  // Every new record joins its project, or creates one, or lands in the Inbox.
+  // Without this the register goes stale the moment the next run happens.
+  printAttachReport('Government', await attachOnWrite(report.write?.writtenUrls ?? []));
 
   // A lane that wrote nothing when it normally writes something is the Granicus
   // failure stated as a rule. GOVERNMENT_NO_WRITE runs are excluded: writing
