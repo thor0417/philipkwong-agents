@@ -17,12 +17,41 @@ export interface TargetDef {
   bypass: string[];
   // Broader terms used only for the Part E hunt report, never for bypass.
   searchOnly: string[];
+  // CLUSTERING ONLY (no effect on the gate). A target is normally ONE named
+  // project wherever it appears: 'ocvibe' means the same development in Anaheim
+  // and in a trade-press story filed under Orange County, so splitting it by
+  // market would split the project in half. Set perMarket when the target names
+  // a PORTFOLIO rather than a project - 'walt disney' matches the Disneyland
+  // Resort in Anaheim, the CFTOD district in Florida, and SFWMD permits in South
+  // Florida, which are three different projects that must never merge.
+  perMarket?: boolean;
+  // Display name per market for a perMarket target. Falls back to
+  // "<name> (<market>)" for a market not listed here.
+  marketNames?: Record<string, string>;
+  // CLUSTERING ONLY. Bypass terms that are good enough to FLAG a record for
+  // review but too generic to assert project identity. They keep bypassing the
+  // gate exactly as before; they simply cannot claim a record for the project.
+  //
+  // 'russell road' is the case that proved this necessary: it is a Las Vegas
+  // arterial, and clustering on it swept five unrelated Clark County filings
+  // (a refrigeration warehouse, a Hilton monorail, an interlocal transit
+  // contract) into the Top Gun project. A street is where a project is, not
+  // which project it is.
+  weakForClustering?: string[];
 }
 
+// ORDER IS PRECEDENCE for clustering (targets.ts is the first clustering rule).
+// A record that matches two targets joins the one with more distinct matching
+// terms, and ties break by the order below, so A SPECIFIC PROJECT MUST PRECEDE
+// THE DISTRICT THAT CONTAINS IT. This is not cosmetic: every OCVibe entitlement
+// record in the corpus also says "in an area of the City of Anaheim known as the
+// Platinum Triangle", so with the order reversed the whole OCVibe cluster would
+// be swallowed by the district.
 export const TARGETS: TargetDef[] = [
   {
     name: 'Top Gun Las Vegas',
     bypass: ['top gun', 'advent allen', '4815 s las vegas', '4815 las vegas', 'russell road', 'simtec'],
+    weakForClustering: ['russell road'],
     searchOnly: ['advent', 'paramount', 'the strat', 'stratosphere', '4815', 'paradise, nv', 'paradise nv'],
   },
   {
@@ -71,11 +100,39 @@ export const TARGETS: TargetDef[] = [
   },
   {
     name: 'OCVibe',
-    bypass: ['ocvibe', 'oc vibe', 'ocv!be', 'honda center', 'anaheim real properties', 'platinum triangle'],
+    bypass: ['ocvibe', 'oc vibe', 'ocv!be', 'honda center', 'anaheim real properties'],
     searchOnly: ['douglas park'],
   },
   {
+    // SPLIT OUT OF THE OCVibe TARGET (clustering brief, Part C). 'platinum
+    // triangle' was an OCVibe bypass term, but the Platinum Triangle is the
+    // Anaheim mixed-use overlay district that CONTAINS OCVibe, not OCVibe
+    // itself: the July report treats "Platinum Triangle / PT Metro" (the PTMU
+    // overlay, the CFD special taxes, and PT Metro's stalled A-Town project) as
+    // a separate entry, and the acceptance test requires the same.
+    //
+    // MOVING A TERM BETWEEN TARGETS DOES NOT CHANGE GATE BEHAVIOUR. bypassHits
+    // scans every target's terms, so 'platinum triangle' still bypasses exactly
+    // as before; only the target it is attributed to changes. 'pt metro' and
+    // 'a-town' are new and DO widen capture slightly, by design: they name the
+    // stalled A-Town project directly, and neither is ambiguous.
+    name: 'Platinum Triangle / PT Metro',
+    bypass: ['platinum triangle', 'pt metro', 'a-town'],
+    searchOnly: ['ptmu', 'stadium lofts', 'angel stadium'],
+  },
+  {
+    // A PORTFOLIO, NOT A PROJECT: these terms reach the Disneyland Resort in
+    // Anaheim, the Central Florida Tourism Oversight District in Florida, and
+    // Walt Disney World-area SFWMD permits in South Florida. Those are three
+    // different projects sharing one corporate parent, so this target clusters
+    // per market and each market carries its own name.
     name: 'Disney / CFTOD',
+    perMarket: true,
+    marketNames: {
+      Anaheim: 'Disneyland Resort',
+      'Central Florida Tourism Oversight District': 'CFTOD / Walt Disney World',
+      'South Florida': 'Walt Disney World area permits (SFWMD)',
+    },
     bypass: [
       'walt disney',
       'disney parks',
@@ -89,6 +146,43 @@ export const TARGETS: TargetDef[] = [
     searchOnly: ['disney'],
   },
 ];
+
+// The single best target for a text, for CLUSTERING (never for the gate).
+//
+// Scored by the number of DISTINCT matching terms, ties broken by TARGETS order
+// so a specific project outranks the district containing it. Uses
+// strongBypassHits, so the CFTOD-letterhead geographic terms ("Bay Lake",
+// "Reedy Creek", "Lake Buena Vista") cannot claim a record: inside SFWMD's
+// permit corpus those name creeks and lakes, and letting them cluster would
+// merge a 1987 swamp-logging permit into Walt Disney World.
+export function bestTargetForClustering(text: string): TargetDef | null {
+  const hits = strongBypassHits(text);
+  if (hits.length === 0) return null;
+  const weakByTarget = new Map(TARGETS.map((t) => [t.name, new Set(t.weakForClustering ?? [])]));
+  const counts = new Map<string, Set<string>>();
+  for (const h of hits) {
+    if (weakByTarget.get(h.target)?.has(h.term)) continue;
+    if (!counts.has(h.target)) counts.set(h.target, new Set());
+    counts.get(h.target)!.add(h.term);
+  }
+  let best: TargetDef | null = null;
+  let bestCount = 0;
+  for (const t of TARGETS) {
+    const n = counts.get(t.name)?.size ?? 0;
+    if (n > bestCount) {
+      best = t;
+      bestCount = n;
+    }
+  }
+  return best;
+}
+
+// The project name a target gives a record in a given market.
+export function targetProjectName(target: TargetDef, market: string | null): string {
+  if (!target.perMarket) return target.name;
+  const m = market ?? '(unknown market)';
+  return target.marketNames?.[m] ?? `${target.name} (${m})`;
+}
 
 // Disney terms that are ALSO the Central Florida Tourism Oversight District's own
 // address / former name / member cities: "Lake Buena Vista" (CFTOD's mailing
