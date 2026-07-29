@@ -458,6 +458,7 @@ export interface ClusteredProject {
   first_seen: string | null;
   record_count: number;
   live: boolean;
+  liveness_reason: ProjectLiveness['reason'];
   // The member records, each with the reason it joined.
   members: { record: ClusterRecord; reason: ClusterReason }[];
 }
@@ -478,6 +479,8 @@ export interface ClusterResult {
   omnibusRecordsDropped: number;
   officeAddressesDropped: { key: string; records: number; market: string }[];
   skippedDismissed: number;
+  // Why each project is live or dormant (Part F).
+  livenessReasons: Record<string, number>;
 }
 
 class UnionFind {
@@ -586,7 +589,72 @@ function monthsBefore(now: number, n: number): number {
   return Date.UTC(year, month, Math.min(d.getUTCDate(), lastDay));
 }
 
+// ---- PROJECT LIVENESS (Part F) ----------------------------------------------
+// A PROJECT is live if ANY of its records heartbeats inside the window, or the
+// project carries a future milestone. Otherwise it is dormant.
+//
+// THIS IS PROJECT-LEVEL AND INDEPENDENT OF PER-RECORD LIFECYCLE. A project with
+// one recent record is live even if its other records have aged out and been
+// archived individually: the project is the thing that is alive, and it is alive
+// because something happened to it. Reading liveness off the records one at a
+// time is how a live project with a long history reads as dead.
+//
+// The window matches the project-event model in lead-date.ts, which already
+// treats 12 months of silence as the boundary, so a project and its records do
+// not disagree about what recent means.
 export const PROJECT_LIVENESS_MONTHS = 12;
+
+export interface ProjectLiveness {
+  live: boolean;
+  // The most recent heartbeat across every attached record.
+  lastActivity: string | null;
+  // The NEAREST future milestone across every attached record. Nearest, not
+  // furthest: it is the next thing that happens, which is what a register is
+  // read for.
+  nextMilestone: string | null;
+  // Why the project is live, for the report.
+  reason: 'future milestone' | 'recent activity' | 'undated' | 'dormant';
+}
+
+export function projectLiveness(
+  records: ClusterRecord[],
+  now: number = Date.now(),
+  months: number = PROJECT_LIVENESS_MONTHS
+): ProjectLiveness {
+  const liveFloor = monthsBefore(now, months);
+
+  // A future milestone is any future-dated milestone across the records: a
+  // parsed milestone_date ("opening 2028", a scheduled hearing) OR a real
+  // submission deadline still to come. A deadline next month is as much a
+  // future milestone as a groundbreaking, and omitting it would let a project
+  // with a live tender attached read as dormant.
+  const future = [
+    ...records.map((r) => r.milestone_date),
+    ...records.map((r) => r.deadline),
+  ]
+    .filter((d): d is string => {
+      if (!d) return false;
+      const t = new Date(d).getTime();
+      return !Number.isNaN(t) && t > now;
+    })
+    .sort();
+
+  const dates = records
+    .map((r) => bestDate(r))
+    .filter((d): d is string => Boolean(d) && !Number.isNaN(new Date(d as string).getTime()))
+    .sort();
+  const lastActivity = dates.length ? dates[dates.length - 1] : null;
+  const nextMilestone = future[0] ?? null;
+
+  if (nextMilestone) return { live: true, lastActivity, nextMilestone, reason: 'future milestone' };
+  // Undated is never assumed old: the dashboard badges these DATE UNKNOWN
+  // rather than burying them.
+  if (!lastActivity) return { live: true, lastActivity, nextMilestone, reason: 'undated' };
+  if (new Date(lastActivity).getTime() >= liveFloor) {
+    return { live: true, lastActivity, nextMilestone, reason: 'recent activity' };
+  }
+  return { live: false, lastActivity, nextMilestone, reason: 'dormant' };
+}
 
 // Cluster a corpus of records into projects.
 //
@@ -598,7 +666,6 @@ export function clusterRecords(
 ): ClusterResult {
   const now = opts.now ?? Date.now();
   const livenessMonths = opts.livenessMonths ?? PROJECT_LIVENESS_MONTHS;
-  const liveFloor = monthsBefore(now, livenessMonths);
 
   const skippedDismissed = input.filter((r) => r.status === 'dismissed').length;
   const records = input.filter((r) => r.status !== 'dismissed');
@@ -614,6 +681,7 @@ export function clusterRecords(
     omnibusRecordsDropped: 0,
     officeAddressesDropped: [],
     skippedDismissed,
+    livenessReasons: {},
   };
 
   // ---- Pass 1: signals per record -------------------------------------------
@@ -753,18 +821,12 @@ export function clusterRecords(
     const recordStages: LadderStage[] = recs.map((r) => recordStage(recordText(r), r.source_type));
     const dated = [...recs].sort((a, b) => (bestDate(b) ?? '').localeCompare(bestDate(a) ?? ''));
     const latest = dated[0];
-    const lastActivity = bestDate(latest);
-    const milestones = recs
-      .map((r) => r.milestone_date)
-      .filter((d): d is string => Boolean(d) && new Date(d as string).getTime() > now)
-      .sort();
-    const heartbeat = lastActivity ? new Date(lastActivity).getTime() : NaN;
-    const live =
-      milestones.length > 0 || Number.isNaN(heartbeat) || heartbeat >= liveFloor;
+    const liveness = projectLiveness(recs, now, livenessMonths);
+    result.livenessReasons[liveness.reason] = (result.livenessReasons[liveness.reason] ?? 0) + 1;
     const stage = deriveProjectStage({
       recordStages,
       latestRecordStalled: hasStallMarker(recordText(latest)),
-      live,
+      live: liveness.live,
     });
 
     // project_key: the strongest signal class present, and within it the
@@ -791,11 +853,12 @@ export function clusterRecords(
       venue_type: modeOf(recs.map((r) => r.venue_type)),
       primary_applicant: modeOf(recs.map((r) => r.applicant)),
       primary_representative: modeOf(recs.map((r) => r.representative)),
-      last_activity: lastActivity,
-      next_milestone: milestones[0] ?? null,
+      last_activity: liveness.lastActivity,
+      next_milestone: liveness.nextMilestone,
       first_seen: recs.map((r) => r.first_seen).filter(Boolean).sort()[0] ?? null,
       record_count: recs.length,
-      live,
+      live: liveness.live,
+      liveness_reason: liveness.reason,
       members,
     });
   }

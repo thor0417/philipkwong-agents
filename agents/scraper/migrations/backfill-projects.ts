@@ -324,7 +324,16 @@ export function printBackfillReport(
   for (const [k, v] of Object.entries(stages).sort((a, b) => b[1] - a[1])) {
     console.log(`  ${String(v).padStart(4)}  ${k}`);
   }
-  console.log(`\nLive: ${projects.filter((p) => p.live).length}   Dormant: ${projects.filter((p) => !p.live).length}`);
+  console.log('\n----- PROJECT LIVENESS (12-month window) -----');
+  const live = projects.filter((p) => p.live).length;
+  console.log(`  Live:    ${live}`);
+  console.log(`  Dormant: ${projects.length - live}`);
+  console.log('  Why:');
+  for (const [k, v] of Object.entries(cluster.livenessReasons).sort((a, b) => b[1] - a[1])) {
+    console.log(`    ${String(v).padStart(4)}  ${k}`);
+  }
+  const withMilestone = projects.filter((p) => p.next_milestone).length;
+  console.log(`  Projects carrying a future milestone (next_milestone set): ${withMilestone}`);
   console.log('=======================================\n');
   return allPass;
 }
