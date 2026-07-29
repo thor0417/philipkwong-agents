@@ -23,6 +23,7 @@ import { classifyVenueType, categoryForVenue } from '../../lib/taxonomy';
 import { geographyFields } from '../../lib/geography';
 import { guardedUpsertOne, emptyWriteReport } from './write-guard';
 import { attachOnWrite, printAttachReport } from './project-attach';
+import { recordSourceRun, reportRunHealth, resetSourceRuns } from './health';
 import { deriveLeadDates, objectFields, shouldDelete } from './lead-date';
 
 import { scrapeTedEu } from './sources/tedeu';
@@ -170,8 +171,17 @@ export async function fetchOpportunitySources(): Promise<NormalizedLead[]> {
   ]);
   const all: NormalizedLead[] = [];
   settled.forEach((r, i) => {
-    if (r.status === 'fulfilled') all.push(...r.value);
-    else console.error(`Opportunity source "${OPPORTUNITY_SOURCES[i]}" failed:`, r.reason);
+    const unit = `adapter:${OPPORTUNITY_SOURCES[i]}`;
+    if (r.status === 'fulfilled') {
+      all.push(...r.value);
+      // A source that resolved with zero rows is recorded too. That is the whole
+      // point: a silent empty result is indistinguishable from success unless it
+      // is written down.
+      recordSourceRun({ lane: 'opportunity', unit, fetched: r.value.length, kept: r.value.length });
+    } else {
+      console.error(`Opportunity source "${OPPORTUNITY_SOURCES[i]}" failed:`, r.reason);
+      recordSourceRun({ lane: 'opportunity', unit, fetched: 0, kept: 0 });
+    }
   });
   return all;
 }
@@ -308,6 +318,13 @@ async function main(): Promise<void> {
   const all = await fetchOpportunitySources();
   const report = await runOpportunityLane(all);
   printOpportunityReport(report);
+  // The opportunity lane had NO zero-write alarm at all before this. It could
+  // have gone dead indefinitely without a word.
+  if (process.env.OPPORTUNITY_NO_WRITE !== '1') {
+    await reportRunHealth('opportunity', { fetched: report.fetched, written: report.written });
+  } else {
+    resetSourceRuns();
+  }
   printAttachReport('Opportunity', await attachOnWrite(report.writtenUrls));
 }
 

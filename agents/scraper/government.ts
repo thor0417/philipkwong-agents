@@ -27,7 +27,8 @@ import { scrapeLegistar, lastLegistarStats, type LegistarJurisdictionStats } fro
 import { lastAttachmentStats } from './sources/legistar-attachments';
 import { resetParseReports, printParseReports, allParseReports } from './sources/schemas';
 import { RunTimer } from './logger';
-import { initSentry, captureEmptyLane, captureError, flushSentry } from './sentry';
+import { initSentry, captureError, flushSentry } from './sentry';
+import { recordSourceRun, reportRunHealth, resetSourceRuns } from './health';
 import { scrapeGovDocs } from './sources/govdocs';
 import { scrapeCftodPdfItems } from './sources/pdf-agenda';
 import { scrapeAnaheimAgendas } from './sources/agenda-portal';
@@ -309,6 +310,13 @@ export async function runGovernmentLane(leads: NormalizedLead[]): Promise<Govern
     samples: [],
   };
 
+  // Per-source counts, so a source that dies inside a healthy lane is named.
+  // Built from the lead arrays rather than from each adapter's own stats object,
+  // so every source is covered including ones that expose no stats.
+  const fetchedBySource = new Map<string, number>();
+  for (const l of leads) fetchedBySource.set(l.source, (fetchedBySource.get(l.source) ?? 0) + 1);
+  const keptBySource = new Map<string, number>();
+
   const pending: Record<string, unknown>[] = [];
   const tags = deduped.length > 0 ? await tagGovernmentBatch(deduped) : [];
   const players = deduped.length > 0 ? await extractPlayersBatch(deduped) : [];
@@ -346,9 +354,16 @@ export async function runGovernmentLane(leads: NormalizedLead[]): Promise<Govern
         url: lead.url,
       });
     }
+    keptBySource.set(lead.source, (keptBySource.get(lead.source) ?? 0) + 1);
     if (noWrite) continue;
     // Every write goes through the tombstone / override guard.
     pending.push(row);
+  }
+
+  // Source-level: catches "fetched records, kept none" (the shape changed and
+  // the filter now rejects everything).
+  for (const [unit, fetched] of fetchedBySource) {
+    recordSourceRun({ lane: 'government', unit: `source:${unit}`, fetched, kept: keptBySource.get(unit) ?? 0 });
   }
   if (rejectedPreCutoff > 0) {
     console.log(`Government: rejected ${rejectedPreCutoff} records (dead pre-2026 opportunities only).`);
@@ -462,6 +477,27 @@ async function main(): Promise<void> {
     scrapeCeqanet(),
     scrapeSfwmd(),
   ]);
+  // ADAPTER-LEVEL HEALTH, recorded before the lane runs.
+  //
+  // This is the level that catches total death, and it cannot be derived from
+  // the lead rows: Anaheim and Las Vegas both write source 'agenda-portal', so
+  // Las Vegas returning zero is completely masked at source level by Anaheim
+  // returning thirteen. Only the caller knows which array came from which
+  // adapter, so only the caller can name it.
+  const adapters: [string, NormalizedLead[]][] = [
+    ['legistar', legistar],
+    ['govdocs', govdocs],
+    ['cftod-pdf', cftodItems],
+    ['anaheim-agendas', anaheim],
+    ['lasvegas-agendas', lasVegas],
+    ['clark-tab', clarkTab],
+    ['ceqanet', ceqa],
+    ['sfwmd', sfwmd],
+  ];
+  for (const [unit, arr] of adapters) {
+    recordSourceRun({ lane: 'government', unit: `adapter:${unit}`, fetched: arr.length, kept: arr.length });
+  }
+
   const report = await runGovernmentLane([
     ...legistar,
     ...govdocs,
@@ -479,11 +515,12 @@ async function main(): Promise<void> {
   // Without this the register goes stale the moment the next run happens.
   printAttachReport('Government', await attachOnWrite(report.write?.writtenUrls ?? []));
 
-  // A lane that wrote nothing when it normally writes something is the Granicus
-  // failure stated as a rule. GOVERNMENT_NO_WRITE runs are excluded: writing
-  // nothing is the point of them.
+  // Per-source health, then the lane total. GOVERNMENT_NO_WRITE runs are
+  // excluded: writing nothing is the point of them, so alerting would be noise.
   if (process.env.GOVERNMENT_NO_WRITE !== '1') {
-    captureEmptyLane('government', report.written, report.deduped);
+    await reportRunHealth('government', { fetched: report.input, written: report.written });
+  } else {
+    resetSourceRuns();
   }
 
   const schemas = allParseReports();

@@ -15,6 +15,7 @@ import type { NormalizedLead } from './types';
 import { CFTOD_PDF_SOURCES, type GovDoc } from './govdocs';
 import { governmentGate } from '../../../lib/taxonomy';
 import { strongBypassHits, strongBypassesGate } from '../targets';
+import { recordSourceRun } from '../health';
 
 const UA = 'philipkwong-agents/1.0 (+scraper)';
 const FETCH_TIMEOUT_MS = 120000;
@@ -311,6 +312,17 @@ async function extractOne(doc: GovDoc): Promise<NormalizedLead[]> {
   console.log(
     `CFTOD PDF interior "${doc.title.slice(0, 48)}": ${pages.length} pages -> ${leads.length} ${isPlan ? 'sections' : 'items'} kept.`
   );
+  // ONE HEALTH UNIT PER PACKET, not per source. This is the granularity the
+  // failure actually happened at: the February and March packets parsed 341 and
+  // 533 pages and kept zero, while cftod-pdf as a source still returned ten
+  // leads from the other documents and looked perfectly healthy. A source-level
+  // check would have missed it exactly as the lane-level check did.
+  recordSourceRun({
+    lane: 'government',
+    unit: `cftod-pdf:${doc.title.slice(0, 60)}`,
+    fetched: pages.length,
+    kept: leads.length,
+  });
   return leads;
 }
 

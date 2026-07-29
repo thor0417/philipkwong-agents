@@ -22,6 +22,7 @@ import {
 } from './profiles';
 import { runGliLane, tagOpportunities, type GliReport } from './gli';
 import { attachOnWrite, printAttachReport } from './project-attach';
+import { recordSourceRun, reportRunHealth, resetSourceRuns } from './health';
 import { buildOpportunityRow, opportunityClosed } from './opportunity';
 import { deriveLeadDates, shouldDelete } from './lead-date';
 import { bestProfileFor, passesPrefilter, keywordMatches } from './prefilter';
@@ -1143,7 +1144,16 @@ export async function orchestrate(): Promise<ScrapeReport> {
   // results, gated + venue/signal tagged + project-deduped in gli.ts, written
   // with module 'gli'. Isolated from every other lane. Its writes are folded
   // into the shared per-module / per-lead_type / per-source tallies.
+  // The orchestrator had no zero-write alarm of any kind. It runs the GLI lane
+  // in production, so a dead intelligence source here was as silent as it was in
+  // the standalone lane.
+  recordSourceRun({ lane: 'intelligence', unit: 'adapter:serper', fetched: gliRaw.length, kept: gliRaw.length });
   const gliReport = await runGliLane(gliRaw);
+  if (process.env.DRY_RUN !== '1') {
+    await reportRunHealth('intelligence', { fetched: gliRaw.length, written: gliReport.written });
+  } else {
+    resetSourceRuns();
+  }
   if (gliReport.written > 0) {
     written += gliReport.written;
     writtenPerModule['gli'] = (writtenPerModule['gli'] ?? 0) + gliReport.written;

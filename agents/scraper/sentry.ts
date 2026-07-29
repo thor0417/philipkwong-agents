@@ -97,16 +97,72 @@ export function initSentry(): void {
 // The failures that matter are the quiet ones, so they are reported explicitly
 // rather than waiting for a throw.
 
-// A lane wrote nothing when it normally writes something. This is the Granicus
-// failure, stated as a rule.
-export function captureEmptyLane(lane: string, written: number, trailingAverage: number): void {
+// A lane or a source produced nothing.
+//
+// THE GUARD USED TO BE INVERTED. It read `if (written > 0 || trailingAverage <=
+// 0) return;` with the current run's own dedupe count passed as the trailing
+// average, so a lane that died completely had trailingAverage = 0 and the alarm
+// returned early. It could only fire when a lane matched records and failed to
+// write them. A total death - the one case it was built for - was silent, which
+// is why Las Vegas went dead unnoticed.
+//
+// The rule now:
+//   fetched 0                       -> TOTAL DEATH. Loudest. The source is
+//                                      unreachable, blocked, or serving an empty
+//                                      document, and no history is needed to
+//                                      know that is wrong.
+//   fetched > 0, kept 0, has history -> zero-kept. Something upstream changed
+//                                      shape and the filter now rejects
+//                                      everything.
+//   fetched > 0, kept 0, no history  -> reported at warning. It may be a new
+//                                      source or a quiet week; still surfaced,
+//                                      never swallowed.
+//
+// Absence of a baseline NEVER suppresses an alert. That was the original defect.
+export function captureDeadSource(f: {
+  unit: string;
+  lane: string;
+  fetched: number;
+  kept: number;
+  baseline: number | null;
+  verdict: 'no-fetch' | 'zero-kept' | 'zero-no-baseline';
+}): void {
   if (!sentryEnabled) return;
-  if (written > 0 || trailingAverage <= 0) return;
-  Sentry.captureMessage(`Lane "${lane}" wrote 0 rows (trailing average ${trailingAverage})`, {
-    level: 'error',
-    tags: { lane, kind: 'empty-lane' },
-    extra: { written, trailingAverage },
+
+  const level: Sentry.SeverityLevel =
+    f.verdict === 'no-fetch' ? 'fatal' : f.verdict === 'zero-kept' ? 'error' : 'warning';
+
+  const summary =
+    f.verdict === 'no-fetch'
+      ? `Source "${f.unit}" fetched nothing (total death)`
+      : f.verdict === 'zero-kept'
+        ? `Source "${f.unit}" fetched ${f.fetched} and kept 0 (usually keeps ${f.baseline?.toFixed(1)})`
+        : `Source "${f.unit}" kept 0 with no baseline yet`;
+
+  Sentry.captureMessage(summary, {
+    level,
+    tags: { lane: f.lane, unit: f.unit, kind: 'dead-source', verdict: f.verdict },
+    extra: { fetched: f.fetched, kept: f.kept, baseline: f.baseline },
   });
+}
+
+// Whole-lane version, for the case where a lane writes nothing at all. Kept
+// separate from the per-source check because a lane can be healthy in aggregate
+// while one source inside it is dead, and the reverse.
+export function captureEmptyLane(lane: string, fetched: number, written: number): void {
+  if (!sentryEnabled) return;
+  if (written > 0) return;
+  const totalDeath = fetched === 0;
+  Sentry.captureMessage(
+    totalDeath
+      ? `Lane "${lane}" fetched nothing and wrote nothing (total death)`
+      : `Lane "${lane}" fetched ${fetched} and wrote 0`,
+    {
+      level: totalDeath ? 'fatal' : 'error',
+      tags: { lane, kind: 'empty-lane', verdict: totalDeath ? 'no-fetch' : 'zero-write' },
+      extra: { fetched, written },
+    }
+  );
 }
 
 // A source is drifting: enough records failed their schema that the shape has

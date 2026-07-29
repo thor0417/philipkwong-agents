@@ -33,6 +33,7 @@ import { hostOf, isJunkDomain } from './junk-domains';
 import { guardedUpsert, emptyWriteReport, printWriteReport } from './write-guard';
 import { resetParseReports, printParseReports, allParseReports } from './sources/schemas';
 import { RunTimer } from './logger';
+import { recordSourceRun, reportRunHealth, resetSourceRuns } from './health';
 import { subDays } from 'date-fns';
 
 const MODEL = 'claude-haiku-4-5-20251001';
@@ -898,9 +899,18 @@ async function main(): Promise<void> {
     return;
   }
   const raw = await scrapeSerper(queries);
+  // The intelligence lane had NO zero-write alarm either. Serper returning
+  // nothing - a bad key, a quota, a changed response shape - looked exactly like
+  // a quiet week.
+  recordSourceRun({ lane: 'intelligence', unit: 'adapter:serper', fetched: raw.length, kept: raw.length });
   const report = await runGliLane(raw);
   report.searches = lastSerperSearchCount();
   printGliReport(report);
+  if (process.env.GLI_NO_WRITE !== '1') {
+    await reportRunHealth('intelligence', { fetched: report.fetched, written: report.written });
+  } else {
+    resetSourceRuns();
+  }
   printParseReports('Boundary schemas');
 
   const schemas = allParseReports();
