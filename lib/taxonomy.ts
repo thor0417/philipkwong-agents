@@ -117,6 +117,200 @@ export const PLAYER_FIELDS = ['presented_by', 'applicant', 'representative', 'ac
 // Primary-document fields, reserved for Pass 4.
 export const PRIMARY_DOCUMENT_FIELDS = ['primary_document_url', 'has_primary_document'] as const;
 
+// ---- PROJECT STAGE (Brief: project clustering, Part B) ----------------------
+// STAGE IS A PROJECT ATTRIBUTE, NOT A RECORD ATTRIBUTE. A record is evidence; the
+// project's stage is derived from the MOST ADVANCED evidence across all of its
+// records, and is MANUALLY OVERRIDABLE. Once Philip sets a stage by hand it is
+// recorded in the project's manual_overrides and never recomputed.
+//
+// Rule 1 (most advanced, not most recent). An approval followed by a routine
+// administrative filing is still approved. Deriving stage from the newest record
+// would walk a project backwards every time a clerk files a compliance note.
+export const PROJECT_STAGES = [
+  'filed',
+  'hearing scheduled',
+  'approved',
+  'permitted',
+  'under construction',
+  'operating',
+  'stalled',
+  'dormant',
+] as const;
+
+export type ProjectStage = (typeof PROJECT_STAGES)[number];
+
+// The ADVANCEMENT LADDER: the six document-derived stages, least to most
+// advanced. 'stalled' and 'dormant' are deliberately NOT on it (Rule 3): they are
+// states a project falls into, not rungs it climbs, so they are applied over the
+// ladder result rather than competing with it.
+export const STAGE_LADDER = [
+  'filed',
+  'hearing scheduled',
+  'approved',
+  'permitted',
+  'under construction',
+  'operating',
+] as const;
+
+export type LadderStage = (typeof STAGE_LADDER)[number];
+
+export function stageRank(stage: LadderStage): number {
+  return STAGE_LADDER.indexOf(stage);
+}
+
+// Rule 2a: SOURCE TYPE -> stage. This is the WEAK default, used only when no
+// action vocabulary matched, because a document type says what kind of paper a
+// record is, not how far the project got. The one exception is a comprehensive
+// plan, which is an adopted instrument by the time it is published.
+export const SOURCE_TYPE_STAGE: Record<SourceType, LadderStage> = {
+  'Council Agenda': 'filed',
+  'Planning/Zoning Minutes': 'filed',
+  'Staff Report': 'filed',
+  'Comprehensive Plan': 'approved',
+  'Plan Amendment': 'filed',
+  'Special District Document': 'filed',
+  'Budget Document': 'filed',
+  Other: 'filed',
+};
+
+// Rule 2b: ACTION VOCABULARY -> stage. Ordered MOST ADVANCED FIRST, first match
+// wins, so a record that says both "approved" and "construction permit" reads as
+// permitted. Every term is whole-word matched (hasWord), so 'plat' does not fire
+// inside 'platinum' and 'ave' does not fire inside 'avenue'.
+//
+// TERMS ARE DELIBERATELY COMPOUND WHERE THE BARE WORD IS AMBIGUOUS. 'operating'
+// alone is not an operating venue: this corpus is full of "Lease and Operating
+// Agreement", "Real Property Operating Agreement", and a company literally named
+// "Flamingo LV Operating Co., LLC". Only phrases that can mean nothing else are
+// listed. The same reasoning keeps a bare 'permit' out of the permitted tier: a
+// use permit APPLICATION is a filing, and 'permit' alone would promote every
+// entitlement request in Clark County to permitted.
+export const STAGE_ACTION_TERMS: { stage: LadderStage; keywords: string[] }[] = [
+  {
+    stage: 'operating',
+    keywords: [
+      'grand opening', 'now open', 'opened to the public', 'ribbon cutting',
+      'commenced operations', 'began operations', 'officially opened',
+      'certificate of occupancy',
+    ],
+  },
+  {
+    stage: 'under construction',
+    keywords: [
+      'under construction', 'construction commenced', 'commenced construction',
+      'notice to proceed', 'groundbreaking', 'broke ground', 'topping out',
+      'construction engineering inspection', 'change order', 'substantial completion',
+      'construction management at risk', 'guaranteed maximum price',
+    ],
+  },
+  {
+    stage: 'permitted',
+    keywords: [
+      'building permit', 'construction permit', 'grading permit', 'permit issued',
+      'permit has been issued', 'status issued', 'notice of exemption',
+    ],
+  },
+  {
+    // Rule 2: "an approval, ordinance adoption, or good-faith compliance finding
+    // is approved". The good-faith compliance finding is the annual development
+    // agreement review that Anaheim runs on OCVibe and the Disneyland Resort: it
+    // is an affirmative finding on an approved entitlement, not a new filing.
+    stage: 'approved',
+    keywords: [
+      'approved', 'approval', 'adopted', 'ordinance adopted', 'resolution adopted',
+      'recommended approval', 'recommended for approval', 'certified',
+      'certification of final', 'good faith', 'good-faith', 'complied in good faith',
+      'notice of determination', 'authorize execution', 'authorizing execution',
+      'award recommended', 'granted', 'entered into',
+    ],
+  },
+  {
+    // Rule 2: "a scheduled public hearing is hearing scheduled".
+    stage: 'hearing scheduled',
+    keywords: [
+      'public hearing', 'hearing scheduled', 'set for hearing', 'notice of hearing',
+      'set a public hearing', 'first reading', 'second reading', 'third reading',
+      'introduction of an ordinance', 'renotification',
+    ],
+  },
+  {
+    // Rule 2: "an application or use permit request is filed".
+    stage: 'filed',
+    keywords: [
+      'application', 'use permit', 'special use permit', 'conditional use',
+      'zone change', 'rezoning', 'zoning application', 'plan amendment',
+      'tentative map', 'site plan', 'site development plan review', 'design review',
+      'variance', 'waiver of development standards', 'waivers of development standards',
+      'request', 'proposed', 'submitted', 'notice of preparation', 'initial study',
+    ],
+  },
+];
+
+// Rule 3: STALL MARKERS. An explicit abeyance, withdrawal, expiry, denial, or
+// non-compliance finding in the record. These are read off the project's MOST
+// RECENT record only: a stall is a statement about where the project is NOW, so
+// an abeyance in 2024 that was resolved in 2026 must not still read as stalled.
+export const STAGE_STALL_TERMS = [
+  'abeyance', 'held in abeyance', 'withdrawn', 'withdrawal', 'expired', 'expiry',
+  'lapsed', 'denied', 'denial', 'terminated', 'rescinded', 'not in compliance',
+  'non-compliance', 'noncompliance', 'continued indefinitely', 'tabled indefinitely',
+  'staff recommending denial', 'abandoned',
+] as const;
+
+export function hasStallMarker(text: string): boolean {
+  return STAGE_STALL_TERMS.some((t) => hasWord(text, t));
+}
+
+// The ladder stage a single record supports: action vocabulary first, and only
+// then the source type's weak default. Returns 'filed' when nothing matches,
+// because a captured government record is at minimum a filing.
+export function recordStage(text: string, sourceType: string | null | undefined): LadderStage {
+  for (const rule of STAGE_ACTION_TERMS) {
+    if (rule.keywords.some((k) => hasWord(text, k))) return rule.stage;
+  }
+  if (!sourceType) return 'filed';
+  return (SOURCE_TYPE_STAGE as Record<string, LadderStage>)[sourceType] ?? 'filed';
+}
+
+export function mostAdvancedStage(stages: LadderStage[]): LadderStage {
+  if (stages.length === 0) return 'filed';
+  return stages.reduce((best, s) => (stageRank(s) > stageRank(best) ? s : best), 'filed' as LadderStage);
+}
+
+export interface StageInput {
+  // The ladder stage of every record attached to the project.
+  recordStages: LadderStage[];
+  // Does the project's MOST RECENT record carry an explicit stall marker?
+  latestRecordStalled: boolean;
+  // Project liveness (Part F): a heartbeat inside the window or a future
+  // milestone. Computed from dates, never from documents.
+  live: boolean;
+}
+
+// The project's derived stage. PRECEDENCE: stalled, then dormant, then the
+// ladder.
+//
+// stalled outranks dormant because an explicit withdrawal is a stronger fact
+// than inferred silence: a project we KNOW was abandoned should not be filed
+// under "we have not heard anything lately". A project that is both is reported
+// as stalled, which is the more useful of the two truths.
+export function deriveProjectStage(input: StageInput): ProjectStage {
+  if (input.latestRecordStalled) return 'stalled';
+  if (!input.live) return 'dormant';
+  return mostAdvancedStage(input.recordStages);
+}
+
+// A manually set stage is law: it is recorded in the project's manual_overrides
+// and never recomputed (Rule 4). This is the single place that decision is read,
+// so no write path can forget it.
+export function stageIsOverridden(overrides: unknown): boolean {
+  if (!overrides || typeof overrides !== 'object') return false;
+  if (Array.isArray(overrides)) {
+    return overrides.some((e) => (e as { field?: unknown })?.field === 'stage');
+  }
+  return Object.prototype.hasOwnProperty.call(overrides, 'stage');
+}
+
 // ---- Deterministic venue classifier (no LLM, so it cannot drift). Ordered rules,
 // first match wins: the most specific venues lead, fallbacks last. Matched against
 // the lead's title + content (and any existing venue hint). ----
