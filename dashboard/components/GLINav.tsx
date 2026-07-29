@@ -11,6 +11,9 @@ export default function GLINav({ onSignOut }: { onSignOut: () => void }) {
     <nav className={styles.nav}>
       <div className={styles.wordmark}>PHILIP KWONG / GLI</div>
       <div className={styles.right}>
+        <Link href="/projects" className={styles.link}>
+          Projects
+        </Link>
         <Link href="/pipeline" className={styles.link}>
           Pipeline
         </Link>

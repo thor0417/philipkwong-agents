@@ -112,3 +112,30 @@ export type SourceType = (typeof SOURCE_TYPES)[number];
 // Player fields are DATA fields, not categories: null when absent, never fabricated.
 export const PLAYER_FIELDS = ['presented_by', 'applicant', 'representative', 'action_sought'] as const;
 export const PRIMARY_DOCUMENT_FIELDS = ['primary_document_url', 'has_primary_document'] as const;
+
+// ---- PROJECT STAGE (mirrors lib/taxonomy.ts in the agent runtime) ------------
+// Stage is a PROJECT attribute derived from its most advanced record, and it is
+// manually overridable. The derivation itself lives in the agent runtime; the
+// dashboard needs only the vocabulary and the display order.
+//
+// The first six are the advancement LADDER, in order. 'stalled' and 'dormant'
+// are states a project falls into rather than rungs it climbs, so they sort last
+// and read as conditions in the register.
+export const PROJECT_STAGES = [
+  'filed',
+  'hearing scheduled',
+  'approved',
+  'permitted',
+  'under construction',
+  'operating',
+  'stalled',
+  'dormant',
+] as const;
+
+export type ProjectStage = (typeof PROJECT_STAGES)[number];
+
+export const STAGE_LADDER = PROJECT_STAGES.slice(0, 6) as readonly ProjectStage[];
+
+export function isLadderStage(stage: string | null | undefined): boolean {
+  return Boolean(stage && (STAGE_LADDER as readonly string[]).includes(stage));
+}

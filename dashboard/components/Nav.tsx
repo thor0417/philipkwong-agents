@@ -45,6 +45,12 @@ export default function Nav({
 
       <div className={styles.right}>
         <Link
+          href="/projects"
+          className={`${styles.link} ${pathname === '/projects' ? styles.active : ''}`}
+        >
+          Projects
+        </Link>
+        <Link
           href="/gli"
           className={`${styles.link} ${pathname === '/gli' ? styles.active : ''}`}
         >
