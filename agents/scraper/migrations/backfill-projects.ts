@@ -158,8 +158,11 @@ export async function runBackfill(): Promise<{
       const leadId = m.record.id;
       if (!leadId) continue;
       shouldBeAttached.add(leadId);
-      // A manual attachment is Philip's decision and is never recomputed.
-      if (byId.get(leadId)?.cluster_reason === 'manual') {
+      // Philip's decisions are never recomputed. 'manual' is a hand attachment;
+      // 'detached' is a hand DETACHMENT, and it has to be honoured here or the
+      // next run silently re-attaches the record by the very rule he overruled.
+      const priorReason = byId.get(leadId)?.cluster_reason;
+      if (priorReason === 'manual' || priorReason === 'detached') {
         report.manualAttachmentsPreserved++;
         continue;
       }
@@ -179,7 +182,13 @@ export async function runBackfill(): Promise<{
   // A record that stopped clustering returns to the Inbox. It is never deleted
   // and never hidden. Manual attachments are left alone.
   const toDetach = leads
-    .filter((l) => l.project_id && !shouldBeAttached.has(l.id) && l.cluster_reason !== 'manual')
+    .filter(
+      (l) =>
+        l.project_id &&
+        !shouldBeAttached.has(l.id) &&
+        l.cluster_reason !== 'manual' &&
+        l.cluster_reason !== 'detached'
+    )
     .map((l) => l.id);
   if (toDetach.length > 0) {
     report.writeFailures += await updateLeads(toDetach, { project_id: null, cluster_reason: null });
@@ -240,6 +249,7 @@ export function printBackfillReport(
   if (process.env.PROJECTS_NO_WRITE === '1') console.log('(PROJECTS_NO_WRITE=1: nothing was written)');
   console.log(`Leads read (module gli):        ${report.leadsRead}`);
   console.log(`Dismissed, never clustered:     ${report.dismissedSkipped}`);
+  console.log(`Detached by hand, never re-clustered: ${cluster.skippedDetached}`);
   console.log(`Projects created:               ${report.projectsCreated}`);
   console.log(`Projects updated:               ${report.projectsUpdated}`);
   console.log(`Leads attached:                 ${report.leadsAttached}`);

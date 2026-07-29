@@ -69,6 +69,11 @@ export interface ClusterRecord {
   source?: string | null;
   source_type?: string | null;
   status?: string | null;
+  // 'detached' means Philip pulled this record off a project by hand. The engine
+  // treats it like a dismissal: it never re-clusters, so the next run cannot
+  // undo his decision by the very rule he overruled. He can still attach it to
+  // a project by hand from the Inbox, which sets 'manual'.
+  cluster_reason?: string | null;
   published_date?: string | null;
   deadline?: string | null;
   first_seen?: string | null;
@@ -479,6 +484,8 @@ export interface ClusterResult {
   omnibusRecordsDropped: number;
   officeAddressesDropped: { key: string; records: number; market: string }[];
   skippedDismissed: number;
+  // Records Philip detached by hand, which never re-cluster.
+  skippedDetached: number;
   // Why each project is live or dormant (Part F).
   livenessReasons: Record<string, number>;
 }
@@ -668,7 +675,10 @@ export function clusterRecords(
   const livenessMonths = opts.livenessMonths ?? PROJECT_LIVENESS_MONTHS;
 
   const skippedDismissed = input.filter((r) => r.status === 'dismissed').length;
-  const records = input.filter((r) => r.status !== 'dismissed');
+  const skippedDetached = input.filter(
+    (r) => r.status !== 'dismissed' && r.cluster_reason === 'detached'
+  ).length;
+  const records = input.filter((r) => r.status !== 'dismissed' && r.cluster_reason !== 'detached');
 
   const result: ClusterResult = {
     projects: [],
@@ -681,6 +691,7 @@ export function clusterRecords(
     omnibusRecordsDropped: 0,
     officeAddressesDropped: [],
     skippedDismissed,
+    skippedDetached,
     livenessReasons: {},
   };
 

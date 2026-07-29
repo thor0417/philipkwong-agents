@@ -118,7 +118,11 @@ export async function attachOnWrite(writtenUrls: string[]): Promise<AttachReport
   }
   out.projectsCreated = report.projectsCreated;
   out.projectsUpdated = report.projectsUpdated;
-  out.projectsTotal = report.projectsCreated + report.projectsUpdated;
+  // The register's true size, read back rather than inferred. created + updated
+  // counts the clusters this reconcile produced, which is NOT the table total
+  // once a hand-detached record leaves a cluster behind.
+  const { count } = await supabaseAdmin.from('projects').select('id', { count: 'exact', head: true });
+  out.projectsTotal = count ?? report.projectsCreated + report.projectsUpdated;
   out.manualAttachmentsPreserved = report.manualAttachmentsPreserved;
   out.projectFieldsHeldBack = report.projectFieldsHeldBack;
   out.writeFailures = report.writeFailures;
@@ -137,7 +141,8 @@ export function printAttachReport(label: string, r: AttachReport): void {
       `${r.leftUnclustered} left unclustered (Inbox)`
   );
   console.log(
-    `  register now: ${r.projectsTotal} projects (${r.projectsCreated} created this run, ${r.projectsUpdated} updated)` +
+    `  register now: ${r.projectsTotal} projects in total ` +
+      `(${r.projectsCreated} created this run, ${r.projectsUpdated} updated)` +
       (r.manualAttachmentsPreserved ? ` | ${r.manualAttachmentsPreserved} manual attachments preserved` : '') +
       (r.writeFailures ? ` | ${r.writeFailures} write failures` : '')
   );
