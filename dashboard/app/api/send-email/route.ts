@@ -1,10 +1,10 @@
 // Gmail send route — approves an outreach draft and sends it.
 //
-// POST { outreach_id, deal_id, contact_id, to, subject, body }
+// POST { outreach_id, to, subject, body }
 //   1. Refreshes a Gmail access token from credentials.json + token.json
 //      (the same OAuth client the intake agent uses, in the repo root).
 //   2. Sends the email via the Gmail REST API from hello@philipkwong.com.
-//   3. Marks the outreach row sent and logs an email_sent activity.
+//   3. Marks the outreach row sent.
 //
 // Runs server-side only (Node runtime) — the service role key never reaches the
 // browser. credentials.json / token.json are gitignored; on Vercel point
@@ -26,8 +26,6 @@ const TOKEN_PATH = process.env.GMAIL_TOKEN_PATH ?? path.join('..', 'token.json')
 
 interface SendBody {
   outreach_id?: string;
-  deal_id?: string | null;
-  contact_id?: string | null;
   to?: string;
   subject?: string;
   body?: string;
@@ -123,7 +121,7 @@ export async function POST(request: Request) {
     return Response.json({ error: 'Invalid JSON body.' }, { status: 400 });
   }
 
-  const { outreach_id, deal_id, contact_id, to, subject, body } = payload;
+  const { outreach_id, to, subject, body } = payload;
   if (!outreach_id || !to || !subject || !body) {
     return Response.json(
       { error: 'outreach_id, to, subject and body are required.' },
@@ -159,23 +157,35 @@ export async function POST(request: Request) {
 
   // 2. Record the send. A Gmail failure already returned above, so a Supabase
   //    error here is reported but the email did go out.
+  //
+  //    THE ERROR HAS TO BE READ, NOT CAUGHT. A supabase-js query resolves with
+  //    an { error } field; it does not throw. The try/catch around this block
+  //    therefore never fired, and a failed write here was completely silent -
+  //    the email went out, the caller got { ok: true }, and nothing was
+  //    recorded. That was live: the activities insert below wrote to a table
+  //    that does not exist in the database (declared in schema.sql, never
+  //    deployed), so it failed on every single send and said nothing.
+  //
+  //    The activities write is GONE rather than fixed. Nothing reads that
+  //    table, no code path creates a contact or a deal, and outreach already
+  //    carries the send: status 'sent' plus sent_at is what the dashboard
+  //    reads. Writing a second, unread record of the same fact to a table that
+  //    would have to be created first is not a feature, it is the residue of a
+  //    CRM that was specified and never built. See supabase/schema.sql.
   try {
     const supabase = adminClient();
     const now = new Date().toISOString();
 
-    await supabase
+    const { error } = await supabase
       .from('outreach')
       .update({ status: 'sent', sent_at: now })
       .eq('id', outreach_id);
-
-    await supabase.from('activities').insert({
-      deal_id: deal_id ?? null,
-      contact_id: contact_id ?? null,
-      type: 'email_sent',
-      direction: 'outbound',
-      subject,
-      content: body,
-    });
+    if (error) {
+      return Response.json(
+        { ok: true, warning: `Sent, but failed to record: ${error.message}` },
+        { status: 200 }
+      );
+    }
   } catch (err) {
     const message =
       err instanceof Error ? err.message : 'Sent, but failed to record.';

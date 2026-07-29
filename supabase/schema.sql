@@ -50,6 +50,27 @@ alter table leads add column if not exists next_action text;
 alter table leads add column if not exists next_action_date timestamp with time zone;
 
 -- ── CRM tables (contacts / deals / activities) ────────────
+--
+-- NOT DEPLOYED. These three tables are declared here and DO NOT EXIST in the
+-- database. Verified 2026-07-29: contacts, deals and activities each return
+-- PGRST205 "Could not find the table in the schema cache". This file has
+-- therefore been describing a database that is not the database.
+--
+-- Nothing needs them. The pipeline is driven by `leads`, not by `deals` - the
+-- claim below is from spec v1.0 and was never true of what was built. No code
+-- path creates a contact or a deal. The one live reference, an activities
+-- insert in dashboard/app/api/send-email/route.ts, was writing to a table that
+-- does not exist and failing silently on every send, because a supabase-js
+-- query resolves with an { error } field rather than throwing and the error was
+-- never read. That insert is gone; `outreach` already records the send.
+--
+-- They are LEFT IN THE FILE, not deleted, because this is the spec's data model
+-- and the CRM may still be built. Running this script creates them - the
+-- statements are correct and idempotent - which is the intended way to adopt
+-- them. Until something reads them, creating them would add three empty tables
+-- and three RLS policies to maintain for no reader.
+--
+-- ORIGINAL INTENT (spec v1.0, not the current system):
 -- The pipeline is driven by `deals`. A deal optionally links to a `lead`
 -- (for the original score/source) and to a `contact` (the person).
 
