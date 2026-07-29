@@ -49,9 +49,39 @@ Then, to write:
 node --env-file=.env.local --import tsx agents/scraper/migrations/restore-leads.ts backups/leads-<stamp>.jsonl
 ```
 
-The restore upserts on `url`. That makes it safe against a live table: it repairs
-missing or damaged rows and leaves everything else alone. It never deletes and
-never truncates, so running it cannot make things worse than they already are.
+The restore upserts. That makes it safe against a live table: it repairs missing
+or damaged rows and leaves everything else alone. It never deletes and never
+truncates, so running it cannot make things worse than they already are.
+
+### Restoring `projects`
+
+The backup exports `projects` too. Restoring it works the same way; the target
+table is taken from the filename, so nothing extra is needed:
+
+```bash
+DRY_RUN=1 node --env-file=.env.local --import tsx agents/scraper/migrations/restore-leads.ts backups/projects-<stamp>.jsonl
+node --env-file=.env.local --import tsx agents/scraper/migrations/restore-leads.ts backups/projects-<stamp>.jsonl
+```
+
+Pass `--table leads` or `--table projects` when the filename does not name the
+table. A table with no defined conflict key is refused rather than restored on a
+guessed one.
+
+The conflict key differs by table, and the difference matters:
+
+| table | upserts on | why |
+|---|---|---|
+| `leads` | `url` | Unique, and the key every write path already upserts on, so a restore lands exactly where a scrape would. |
+| `projects` | `id` | **Not** the `(module, project_key)` unique index. Restoring on that key would update a surviving row's primary key to the one in the file, and `leads.project_id` references `projects(id)` — it would either fail or orphan every record attached to that project. |
+
+If a project's id is gone but its `(module, project_key)` has come back on a new
+id, the restore reports the collision instead of swallowing it: the clusterer
+rebuilt the project after the backup, and which one is right is a judgement for
+you, not the script.
+
+Verified end to end on 2026-07-29: exported 174 projects, deleted a row,
+restored, re-exported. The re-export is byte-for-byte identical to the backup
+taken before the damage (sha256 `c1ad3bca…9343`, 121,913 bytes both times).
 
 To restore into an empty table (a new Supabase project, or after a disaster),
 apply `supabase/schema.sql` and the migrations in `agents/scraper/migrations/`
