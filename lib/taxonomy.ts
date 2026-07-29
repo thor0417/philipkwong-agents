@@ -472,12 +472,47 @@ export const GOV_GATE_ACTION = [
 // resolution, and two assessment-district hearings all died on boilerplate that
 // had nothing to do with their subject. Precision bought there costs recall
 // somewhere worse.
+// An exclusion is a HARD VETO: it beats a strong term. That is why this list is
+// short and why it grows slowly. A term earns a place here only if it can never
+// be anything but the whole subject of a non-project item.
+//
+// The additions below are the procedural and fiscal classes measured across the
+// 332 live government records. Each is listed with the rows it removes in the
+// commit that added it; there are six, not the larger number the audit
+// estimated, and the gap is deliberate - see below.
 export const GOV_GATE_EXCLUSIONS = [
   'adult entertainment', 'proclamation', 'appointment', 'reappointment',
   'employment agreement', 'personnel', 'retirement', 'condolence', 'commendation',
   'labor negotiator', 'labour negotiator', 'conference with legal counsel',
   'conference with labor', 'council member recognition',
+  // Procedure. A closed session and the standing "any other items" slot are the
+  // meeting talking about itself; neither can describe a project.
+  'closed session', 'closed meeting', 'items from the planning commission',
+  // Municipal finance and elections. The appropriations limit is the Gann limit;
+  // a ballot measure is election administration. Both were already barred from
+  // CLAIMING a project by the clusterer's fiscal-and-ballot guard, so excluding
+  // them at capture makes the two layers agree instead of disagree.
+  'budget appropriations', 'appropriations limits', 'ballot measure',
+  'general municipal election',
 ] as const;
+
+// NOT ADDED, ON PURPOSE. Three larger classes look like noise and are not, and a
+// hard veto on any of them would suppress real signal:
+//
+//   ABEYANCE / RENOTIFICATION (17 rows). A continuance is a genuine project
+//   event - it is the record that a hearing slipped, which is exactly the kind
+//   of pace signal the register exists to show. Several are Strip-corridor
+//   cases (24-0495-SUP1, a special use permit).
+//
+//   MULTIFAMILY / HOUSING (12 rows). Two carry STRONG leisure terms and would be
+//   destroyed: the Coliseum Complex sale agreement, and UC-26-0373 HILTON
+//   RESORTS CORPORATION, a use permit for a MONORAIL. The pure-housing class is
+//   already handled precisely by isResidentialMixedUse below, which requires no
+//   strong term AND mixed-use as the only weak signal. A blunt 'multifamily'
+//   veto would also take both Southern Highlands Golf Club records.
+//
+//   ZONING CODE AMENDMENTS (7 rows). A change to a development standards manual
+//   is often the enabling step for a resort, not a distraction from one.
 
 // ---- RESIDENTIAL MIXED-USE REFINEMENT ---------------------------------------
 // A housing project is not a leisure project because its ground floor has shops.

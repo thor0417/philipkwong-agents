@@ -30,6 +30,7 @@ import { pathToFileURL } from 'node:url';
 import { supabaseAdmin } from '../../../lib/supabase-admin';
 import { stableItemKey } from '../sources/agenda-portal';
 import { selectAllPaged } from '../page-select';
+import { recountProjects, printRecount } from '../project-recount';
 
 const SOURCES = ['clark-tab', 'agenda-portal'];
 
@@ -207,55 +208,9 @@ async function main(): Promise<void> {
   );
   console.log(`Distinct item identities: ${byKey.size} (was ${new Set(items.map((r) => String(r.url))).size} distinct URLs).`);
 
-  await recountProjects(apply);
+  printRecount(await recountProjects(apply));
 
   if (!apply) console.log('\nNothing was written. Re-run with REKEY_APPLY=1 to apply this plan.');
-}
-
-// projects.record_count is a CACHED number. Only a full clustering run rewrites
-// it, so it goes stale the moment a row is dismissed or detached by anything
-// else - this script, the CEQAnet dedupe, or Philip dismissing a record in the
-// dashboard. It was already wrong on the Heart Hotel project before this commit,
-// by one, because a Legistar row for the same Clark County case (UC-26-0219) had
-// been dismissed as a cross-source duplicate and nothing recomputed the count.
-//
-// Dismissing rows here would have added four more. Rather than leave a number on
-// the register that quietly disagrees with the rows behind it, the count is
-// recomputed for every project from the live rows.
-async function recountProjects(apply: boolean): Promise<void> {
-  const { rows: attached, complete } = await selectAllPaged<{ project_id: string | null; status: string | null }>(
-    'leads',
-    'project_id,status',
-    (q: unknown) => (q as { not: (a: string, b: string, c: null) => unknown }).not('project_id', 'is', null),
-    'recount'
-  );
-  if (!complete) {
-    console.log('\nRECOUNT SKIPPED: the read was partial, so a recomputed count could only be wrong.');
-    return;
-  }
-  const live = new Map<string, number>();
-  for (const l of attached) {
-    if (String(l.status) === 'dismissed') continue;
-    live.set(l.project_id!, (live.get(l.project_id!) ?? 0) + 1);
-  }
-
-  const { data, error } = await supabaseAdmin.from('projects').select('id,name,record_count');
-  if (error) {
-    console.log(`\nRECOUNT SKIPPED: ${error.message}`);
-    return;
-  }
-  const projects = (data ?? []) as { id: string; name: string; record_count: number | null }[];
-  const drift = projects.filter((p) => (p.record_count ?? 0) !== (live.get(p.id) ?? 0));
-
-  console.log(`\nPROJECT RECORD COUNTS: ${drift.length} of ${projects.length} projects disagree with their live rows.`);
-  for (const p of drift) {
-    const n = live.get(p.id) ?? 0;
-    console.log(`  ${p.id.slice(0, 8)}  ${String(p.record_count ?? 0).padStart(3)} -> ${String(n).padStart(3)}   "${p.name.slice(0, 58)}"`);
-    if (apply) {
-      const { error: e } = await supabaseAdmin.from('projects').update({ record_count: n }).eq('id', p.id);
-      if (e) console.error(`     recount failed: ${e.message}`);
-    }
-  }
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1]).href) {
