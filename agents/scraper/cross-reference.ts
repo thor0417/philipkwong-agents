@@ -8,6 +8,7 @@
 // Runs after all source writes complete (orchestrator final pass).
 
 import { supabaseAdmin } from '../../lib/supabase-admin';
+import { selectAllPaged } from './page-select';
 
 const SCORE_BOOST = 20;
 const SCORE_CAP = 100;
@@ -39,22 +40,21 @@ export interface CrossRefResult {
 }
 
 export async function crossReference(): Promise<CrossRefResult> {
-  const { data: registry, error: rErr } = await supabaseAdmin
-    .from('leads')
-    .select('id, company, score')
-    .eq('lead_type', 'registry');
-  const { data: tenders, error: tErr } = await supabaseAdmin
-    .from('leads')
-    .select('id, company, score')
-    .eq('lead_type', 'tender');
-
-  if (rErr || tErr) {
-    console.error('Cross-reference query failed:', rErr?.message ?? tErr?.message);
+  // PAGED, both sides. Either lead_type can exceed 1000 rows, and an unbounded
+  // select would then cross-reference an arbitrary first slice against another.
+  const reg = await selectAllPaged<LeadRow>(
+    'leads', 'id, company, score', (q) => (q as any).eq('lead_type', 'registry'), 'Cross-reference registry'
+  );
+  const ten = await selectAllPaged<LeadRow>(
+    'leads', 'id, company, score', (q) => (q as any).eq('lead_type', 'tender'), 'Cross-reference tenders'
+  );
+  if (!reg.complete || !ten.complete) {
+    console.error('Cross-reference: read incomplete; skipping rather than matching a partial set.');
     return { registryCount: 0, tenderCount: 0, matched: 0 };
   }
 
-  const registryRows = (registry ?? []) as LeadRow[];
-  const tenderRows = (tenders ?? []) as LeadRow[];
+  const registryRows = reg.rows;
+  const tenderRows = ten.rows;
 
   // Map normalized registry name -> registry row ids.
   const registryByNorm = new Map<string, string[]>();

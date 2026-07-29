@@ -31,6 +31,7 @@ import { deriveLeadDates, objectFields, shouldDelete } from './lead-date';
 import { geographyFields } from '../../lib/geography';
 import { hostOf, isJunkDomain } from './junk-domains';
 import { guardedUpsert, emptyWriteReport, printWriteReport } from './write-guard';
+import { selectAllPaged } from './page-select';
 import { resetParseReports, printParseReports, allParseReports } from './sources/schemas';
 import { RunTimer } from './logger';
 import { recordSourceRun, reportRunHealth, resetSourceRuns } from './health';
@@ -565,15 +566,20 @@ const inc = (m: Record<string, number>, k: string): void => {
 // dismissed row is a no-op, and any other status he set is his decision, not a
 // domain rule's.
 async function purgeStoredJunk(): Promise<number> {
-  const { data, error } = await supabaseAdmin
-    .from('leads')
-    .select('id, url, status')
-    .eq('module', GLI_MODULE);
-  if (error || !data) {
-    if (error) console.error(`GLI junk sweep: query failed: ${error.message}`);
+  // PAGED. This selected every GLI row unbounded, and PostgREST caps at 1000.
+  // With 808 GLI rows it was three government runs from silently sweeping only
+  // the first thousand and reporting success.
+  const { rows: data, pages, complete } = await selectAllPaged<{
+    id: string;
+    url: string | null;
+    status: string | null;
+  }>('leads', 'id, url, status', (q) => (q as any).eq('module', GLI_MODULE), 'GLI junk sweep');
+  if (!complete) {
+    console.error('GLI junk sweep: read incomplete; skipping to avoid a partial sweep.');
     return 0;
   }
-  const junk = (data as { id: string; url: string | null; status: string | null }[]).filter(
+  console.log(`GLI junk sweep: read ${data.length} GLI rows across ${pages} page(s).`);
+  const junk = data.filter(
     (r) => isJunkDomain(hostOf(r.url)) && r.status !== 'dismissed'
   );
   if (junk.length === 0) return 0;

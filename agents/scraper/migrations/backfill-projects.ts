@@ -23,6 +23,7 @@ import { pathToFileURL } from 'node:url';
 import { supabaseAdmin } from '../../../lib/supabase-admin';
 import { clusterRecords, type ClusterRecord, type ClusteredProject } from '../cluster';
 import { loadProjects, projectRow, dropEmptyEnrichment } from '../project-write';
+import { selectAllPaged } from '../page-select';
 
 const MODULE = 'gli';
 
@@ -223,16 +224,10 @@ export async function runBackfill(): Promise<{
   // never discarded. An orphan with notes, a status, a watch flag, or a manual
   // override is KEPT, its record_count corrected to zero, and reported so he can
   // decide. Only untouched shells are removed.
-  const { data: allProjects } = await supabaseAdmin
-    .from('projects')
-    .select('id,name,project_key,record_count,status,watch,notes,manual_overrides')
-    .eq('module', MODULE);
-  const attachedCounts = new Map<string, number>();
-  for (const p of cluster.projects) {
-    const pid = stored.get(p.project_key)?.id;
-    if (pid) attachedCounts.set(pid, p.record_count);
-  }
-  for (const p of (allProjects ?? []) as {
+  // PAGED. This runs on every scrape through attachOnWrite, and projects are
+  // projected to reach ~1500 at 25 markets. Unbounded, the orphan sweep would
+  // silently stop seeing anything past the first thousand.
+  const { rows: allProjects, complete: projectsComplete } = await selectAllPaged<{
     id: string;
     name: string;
     project_key: string;
@@ -241,7 +236,22 @@ export async function runBackfill(): Promise<{
     watch: boolean | null;
     notes: string | null;
     manual_overrides: unknown;
-  }[]) {
+  }>(
+    'projects',
+    'id,name,project_key,record_count,status,watch,notes,manual_overrides',
+    (q) => (q as { eq: (c: string, v: unknown) => unknown }).eq('module', MODULE),
+    'Orphan sweep'
+  );
+  if (!projectsComplete) {
+    console.error('Orphan sweep: read incomplete; skipping rather than deleting from a partial view.');
+    return { report, projects: cluster.projects, unclustered: cluster.unclustered, cluster };
+  }
+  const attachedCounts = new Map<string, number>();
+  for (const p of cluster.projects) {
+    const pid = stored.get(p.project_key)?.id;
+    if (pid) attachedCounts.set(pid, p.record_count);
+  }
+  for (const p of allProjects) {
     if ((attachedCounts.get(p.id) ?? 0) > 0) continue;
     const curated =
       Boolean(p.notes) ||

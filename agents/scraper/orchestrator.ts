@@ -23,6 +23,7 @@ import {
 import { runGliLane, tagOpportunities, type GliReport } from './gli';
 import { attachOnWrite, printAttachReport } from './project-attach';
 import { recordSourceRun, reportRunHealth, resetSourceRuns } from './health';
+import { selectAllPaged } from './page-select';
 import { buildOpportunityRow, opportunityClosed, OPPORTUNITY_SOURCES } from './opportunity';
 import { deriveLeadDates, shouldDelete } from './lead-date';
 import { bestProfileFor, passesPrefilter, keywordMatches } from './prefilter';
@@ -1055,12 +1056,13 @@ export async function orchestrate(): Promise<ScrapeReport> {
   // filings.
   const seenSignalUrls = new Set<string>();
   {
-    const { data: existing, error } = await supabaseAdmin
-      .from('leads')
-      .select('url')
-      .eq('lead_type', 'signal');
-    if (error) console.error(`Signals: could not load existing URLs for delta detection: ${error.message}`);
-    for (const row of existing ?? []) if (row.url) seenSignalUrls.add(row.url as string);
+    // PAGED: delta detection that only sees the first 1000 stored URLs would
+    // re-write everything past them on every run.
+    const { rows: existing, complete } = await selectAllPaged<{ url: string | null }>(
+      'leads', 'url', (q) => (q as any).eq('lead_type', 'signal'), 'Signals delta'
+    );
+    if (!complete) console.error('Signals: delta read incomplete; some records may be rewritten.');
+    for (const row of existing) if (row.url) seenSignalUrls.add(row.url);
   }
 
   for (const lead of signalRaw) {
@@ -1276,12 +1278,16 @@ export async function orchestrate(): Promise<ScrapeReport> {
 // LATAM_CARIB, both rows are flagged in `notes` (idempotently) rather than being
 // written as blind duplicates. Returns the number of rows flagged.
 async function crossLaneLatamFlag(): Promise<{ flagged: number }> {
-  const { data, error } = await supabaseAdmin
-    .from('leads')
-    .select('id, company, lead_type, notes')
-    .eq('region', LATAM_CARIB);
-  if (error || !data) {
-    if (error) console.error(`Cross-lane dedupe: query failed: ${error.message}`);
+  // PAGED: grouping by company over an arbitrary first 1000 rows would miss
+  // exactly the cross-lane pairs this exists to find.
+  const { rows: data, complete } = await selectAllPaged<{
+    id: string;
+    company: string | null;
+    lead_type: string | null;
+    notes: string | null;
+  }>('leads', 'id, company, lead_type, notes', (q) => (q as any).eq('region', LATAM_CARIB), 'Cross-lane dedupe');
+  if (!complete) {
+    console.error('Cross-lane dedupe: read incomplete; skipping rather than flagging a partial set.');
     return { flagged: 0 };
   }
 
