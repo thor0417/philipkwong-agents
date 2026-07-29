@@ -71,6 +71,10 @@ export interface BackfillReport {
   manualAttachmentsPreserved: number;
   reasonCounts: Record<string, number>;
   writeFailures: number;
+  // Empty project rows left behind by a project_key change.
+  orphansRemoved: number;
+  // Orphans that carried curation and were kept, with record_count corrected.
+  orphansKept: string[];
 }
 
 // Update a set of lead ids in chunks, so the query string cannot overflow.
@@ -113,6 +117,8 @@ export async function runBackfill(): Promise<{
     manualAttachmentsPreserved: 0,
     reasonCounts: cluster.reasonCounts,
     writeFailures: 0,
+    orphansRemoved: 0,
+    orphansKept: [],
   };
 
   const existing = noWrite ? new Map() : await loadProjects(MODULE);
@@ -204,6 +210,53 @@ export async function runBackfill(): Promise<{
     report.dismissedDetached = dismissedAttached.length;
   }
 
+  // ---- 6. Sweep orphaned project rows ---------------------------------------
+  // A project_key is derived from its members' strongest shared signal, so when
+  // a cluster GAINS a record whose key sorts earlier, the key changes: the leads
+  // move to the new row and the old one is left behind, empty, still reporting
+  // the record count it had. Measured, not theorised - one government lane run
+  // produced four of them, including a "305 CCD" shell still claiming 3 records
+  // after its cluster moved to the AR-26-400041 key.
+  //
+  // An empty project shell is not a record, so removing it does not violate
+  // "nothing is hard deleted" - but it may carry Philip's curation, and that is
+  // never discarded. An orphan with notes, a status, a watch flag, or a manual
+  // override is KEPT, its record_count corrected to zero, and reported so he can
+  // decide. Only untouched shells are removed.
+  const { data: allProjects } = await supabaseAdmin
+    .from('projects')
+    .select('id,name,project_key,record_count,status,watch,notes,manual_overrides')
+    .eq('module', MODULE);
+  const attachedCounts = new Map<string, number>();
+  for (const p of cluster.projects) {
+    const pid = stored.get(p.project_key)?.id;
+    if (pid) attachedCounts.set(pid, p.record_count);
+  }
+  for (const p of (allProjects ?? []) as {
+    id: string;
+    name: string;
+    project_key: string;
+    record_count: number | null;
+    status: string | null;
+    watch: boolean | null;
+    notes: string | null;
+    manual_overrides: unknown;
+  }[]) {
+    if ((attachedCounts.get(p.id) ?? 0) > 0) continue;
+    const curated =
+      Boolean(p.notes) ||
+      Boolean(p.watch) ||
+      Boolean(p.manual_overrides) ||
+      (p.status !== null && p.status !== 'new');
+    if (curated) {
+      await supabaseAdmin.from('projects').update({ record_count: 0 }).eq('id', p.id);
+      report.orphansKept.push(p.name);
+    } else {
+      await supabaseAdmin.from('projects').delete().eq('id', p.id);
+      report.orphansRemoved++;
+    }
+  }
+
   return { report, projects: cluster.projects, unclustered: cluster.unclustered, cluster };
 }
 
@@ -257,6 +310,11 @@ export function printBackfillReport(
   console.log(`Leads detached (back to Inbox): ${report.leadsDetached}`);
   console.log(`Dismissed leads detached:       ${report.dismissedDetached}`);
   console.log(`Manual attachments preserved:   ${report.manualAttachmentsPreserved}`);
+  console.log(`Orphaned empty project rows removed: ${report.orphansRemoved}`);
+  if (report.orphansKept.length) {
+    console.log(`Orphans KEPT because they carry curation (record_count zeroed, decide by hand):`);
+    for (const n of report.orphansKept) console.log(`    ${n.slice(0, 80)}`);
+  }
   if (report.writeFailures) console.log(`WRITE FAILURES:                 ${report.writeFailures}`);
 
   console.log('\ncluster_reason distribution:');
