@@ -8,6 +8,7 @@
 //
 // On any single-meeting failure this logs and continues, never crashing the run.
 
+import { createHash } from 'node:crypto';
 import type { NormalizedLead } from './types';
 import type { SourceType } from '../../../lib/taxonomy';
 import { governmentGate } from '../../../lib/taxonomy';
@@ -148,6 +149,47 @@ export function itemSubject(itemText: string): string {
   return itemText.slice(0, Math.min(end, SUBJECT_MAX_CHARS)).trim();
 }
 
+// ---- STABLE ITEM IDENTITY ---------------------------------------------------
+// An item's URL is its primary key (leads.url is unique, and every write path
+// upserts on it). Keying it on the parse ordinal made the identity a property of
+// the PARSER rather than of the item: re-split the same document a little
+// differently and item 4 becomes item 2, the upsert misses, and the same hearing
+// lands twice. Measured on the stored corpus, that produced 5 redundant
+// clark-tab rows across 5 Winchester agendas.
+//
+// The key is now derived from the item's own content:
+//   1. Its case identifiers, when it prints any. A Clark County waiver is
+//      WS-25-0901 in the agenda, in the minutes, and in every later filing; that
+//      is the closest thing to a real identifier these documents carry.
+//   2. Otherwise a hash of the normalised subject.
+// Both survive a boundary shift. Neither survives a genuinely different item,
+// which is the point.
+
+// Deliberately narrow: two-to-four letters, a two-digit year, then a serial.
+// Month abbreviations are excluded because "MAR-25-2026" is a date, not a case.
+const CASE_ID_RE = /\b([A-Z]{2,4})-(\d{2})-(\d{3,7})\b/g;
+const MONTH_ABBR = new Set(['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'SEPT', 'OCT', 'NOV', 'DEC']);
+
+export function itemCaseIds(title: string): string[] {
+  const out = new Set<string>();
+  for (const m of title.toUpperCase().matchAll(CASE_ID_RE)) {
+    if (MONTH_ABBR.has(m[1])) continue;
+    out.add(`${m[1]}-${m[2]}-${m[3]}`);
+  }
+  return [...out].sort();
+}
+
+// The key MUST be computable from the stored row alone, so that a migration can
+// reproduce exactly what the scraper will next write. It therefore reads the
+// title (which is the subject, whitespace-collapsed and capped at 200) and
+// nothing else.
+export function stableItemKey(title: string): string {
+  const ids = itemCaseIds(title);
+  if (ids.length) return ids.join('+').toLowerCase();
+  const norm = title.toLowerCase().replace(/[^a-z0-9]+/g, '');
+  return `h${createHash('sha1').update(norm).digest('hex').slice(0, 12)}`;
+}
+
 export interface MeetingRef {
   jurisdictionLabel: string;
   body: string; // 'City Council' | 'Planning Commission' | a named advisory board
@@ -185,6 +227,10 @@ export function leadsFromAgendaText(meeting: MeetingRef, text: string): Normaliz
   };
 
   let kept = 0;
+  // Two segments of one document can reduce to the same item identity when the
+  // splitter cuts a long item twice. They are one item, so the longer text wins
+  // rather than whichever happened to be upserted last.
+  const byKey = new Map<string, number>();
   for (const it of items) {
     if (kept >= MAX_ITEMS_PER_MEETING) break;
     // THE GATE JUDGES THE SUBJECT. Its own subject, not its neighbours' text and
@@ -198,25 +244,33 @@ export function leadsFromAgendaText(meeting: MeetingRef, text: string): Normaliz
     const verdict = governmentGate(it.subject);
     const bypass = bypassesGate(it.text);
     if (!verdict.matched && !bypass) continue;
-    kept++;
     const title = it.subject.replace(/\s+/g, ' ').trim().slice(0, 200);
+    const key = stableItemKey(title);
     const hitLine = targetHitLine(it.subject);
-    leads.push({
+    const lead: NormalizedLead = {
       ...base,
       title,
-      url: `${meeting.agendaUrl}#item-${it.seq}`,
+      url: `${meeting.agendaUrl}#item-${key}`,
       raw_content: [
         `${meeting.body} agenda item ${it.num} - ${meeting.jurisdictionLabel}`,
         `Meeting date: ${meeting.dateIso ?? '(unknown)'}`,
         `Source type: ${meeting.sourceType}`,
-        `Agenda: ${meeting.agendaUrl} (item ${it.seq})`,
+        `Agenda: ${meeting.agendaUrl} (item ${it.num})`,
         `Gate: ${bypass ? 'bypass' : verdict.reason}`,
         hitLine,
         `\n--- item text ---\n${it.text}`,
       ]
         .filter(Boolean)
         .join('\n'),
-    });
+    };
+    const at = byKey.get(key);
+    if (at !== undefined) {
+      if ((lead.raw_content ?? '').length > (leads[at].raw_content ?? '').length) leads[at] = lead;
+      continue;
+    }
+    kept++;
+    byKey.set(key, leads.length);
+    leads.push(lead);
   }
 
   // Fallback: agenda did not split into gated items but the meeting as a whole is
