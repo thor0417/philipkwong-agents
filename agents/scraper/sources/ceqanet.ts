@@ -15,11 +15,36 @@ import { bypassHits, bypassesGate } from '../targets';
 import { CeqanetRowSchema, parseRecords } from './schemas';
 
 const UA = 'Mozilla/5.0 (compatible; philipkwong-agents/1.0 +scraper)';
+
 // CEQAnet moved from ceqanet.opr.ca.gov to ceqanet.lci.ca.gov (the Land Use and
-// Climate Innovation host). The old host still 302s to the new one, so URLs
-// already stored on captured leads keep resolving and are deliberately left
-// alone; only new captures are written against the current host.
-const BASE = 'https://ceqanet.lci.ca.gov';
+// Climate Innovation host).
+//
+// THE URL IS THE UPSERT KEY, so a rehost is not a cosmetic change: leaving the
+// old-host rows alone did not "keep them resolving", it stored every CEQA filing
+// TWICE, once per host. Measured on the live corpus: 6 rows for 3 real filings,
+// which is what made the OCVibe project read 20 records instead of 18.
+//
+// So the host is CANONICALISED before the URL becomes the key. The first entry
+// is canonical and every other known host folds onto it, which means the next
+// rehost costs one line here instead of silently doubling the corpus again.
+export const CEQANET_HOSTS = ['ceqanet.lci.ca.gov', 'ceqanet.opr.ca.gov'] as const;
+export const CEQANET_CANONICAL_HOST = CEQANET_HOSTS[0];
+const BASE = `https://${CEQANET_CANONICAL_HOST}`;
+
+// Fold any known CEQAnet host onto the canonical one. A URL on an unknown host
+// is returned untouched: guessing is how a real distinct record gets merged away.
+export function canonicalCeqanetUrl(raw: string): string {
+  try {
+    const u = new URL(raw);
+    if ((CEQANET_HOSTS as readonly string[]).includes(u.hostname)) {
+      u.hostname = CEQANET_CANONICAL_HOST;
+      u.protocol = 'https:';
+    }
+    return u.toString();
+  } catch {
+    return raw;
+  }
+}
 
 // Advanced Search filters that actually narrow server-side (verified live):
 // County and DocumentType. Free text is Google-CSE only, so we scope by the target
@@ -108,7 +133,7 @@ export async function scrapeCeqanet(): Promise<NormalizedLead[]> {
       const verdict = governmentGate(gateText);
       const bypass = bypassesGate(gateText);
       if (!verdict.matched && !bypass) continue;
-      const url = `${BASE}/Project/${r.sch}`;
+      const url = canonicalCeqanetUrl(`${BASE}/Project/${r.sch}`);
       if (seen.has(url)) continue;
       seen.add(url);
       if (bypass) ceqaStats.bypassHits++;
