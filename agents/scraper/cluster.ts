@@ -327,6 +327,43 @@ export function isCitywideRecord(r: ClusterRecord): boolean {
   return CITYWIDE_RE.test(recordText(r));
 }
 
+// A FISCAL OR ELECTORAL RECORD names every district in the city and is about
+// none of them. The annual budget adoption enumerates the Community Facilities
+// Districts it appropriates for; a ballot measure names the areas a tax would
+// apply to. Both mention "Platinum Triangle" without being about the Platinum
+// Triangle in any sense a reader would recognise.
+//
+// THE LINE IS DRAWN AT BUDGETS AND BALLOTS, NOT AT TAXES. That distinction is
+// the whole difficulty: "RESOLUTION ... levying Special Taxes within Community
+// Facilities District No. 08-1 (Platinum Triangle)" IS a tax measure by the
+// letter, and it IS a Platinum Triangle record - district-specific financing of
+// that district's own infrastructure, which is why the July report files it
+// there. A rule that keyed on "tax" would throw it out with the budget hearings.
+// So the terms below name city-wide fiscal PROCESS (appropriations limits, the
+// annual budget) and electoral process (ballot measures), never taxation itself.
+//
+// Spanish is included because Anaheim publishes its agendas in both languages
+// and the translated budget hearing is a separate captured record.
+const FISCAL_BALLOT_TERMS: RegExp[] = [
+  /\bappropriations?\s+limits?\b/i,
+  /\bbudget\s+appropriations?\b/i,
+  /\bpublic hearing (?:on|to consider) the fiscal year\b/i,
+  /\badopting the fiscal year[^.]{0,40}budget\b/i,
+  /\bapproving the fiscal year[^.]{0,40}budget\b/i,
+  /\bannual budget\b/i,
+  /\bballot measure\b/i,
+  /\bordering the submission\b/i,
+  /\bgeneral municipal election\b/i,
+  // Spanish equivalents of the same two classes.
+  /\basignaciones presupuestarias\b/i,
+  /\bpresupuesto del a[ñn]o fiscal\b/i,
+];
+
+export function isFiscalOrBallotRecord(r: ClusterRecord): boolean {
+  const text = recordText(r);
+  return FISCAL_BALLOT_TERMS.some((re) => re.test(text));
+}
+
 // A record naming MANY case roots is an index, not a filing. Anaheim's annual
 // omnibus zoning update names five specific plans in one item, including SP 90-1
 // (the Anaheim Hills Festival case root): treating those as one matter would
@@ -736,7 +773,7 @@ export function clusterRecords(
 
     // 1. Target term. A non-perMarket target is one project wherever it appears;
     // a portfolio target clusters per market.
-    const target = bestTargetForClustering(text);
+    const target = bestTargetForClustering(text, { fiscalOrBallot: isFiscalOrBallotRecord(r) });
     targets.push(target);
     if (target) {
       const key = target.perMarket

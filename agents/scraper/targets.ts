@@ -38,6 +38,20 @@ export interface TargetDef {
   // contract) into the Top Gun project. A street is where a project is, not
   // which project it is.
   weakForClustering?: string[];
+  // CLUSTERING ONLY. Terms that name a DISTRICT rather than a project. A
+  // district term claims a record normally - development in the district is
+  // development of the district - but it is refused on a record whose subject is
+  // city-wide fiscal or electoral process, because the annual budget and a
+  // ballot measure enumerate every district in the city and are about none of
+  // them.
+  //
+  // This is the sharp version of weakForClustering. 'russell road' is weak
+  // outright: a street can never establish identity. 'platinum triangle' is not
+  // weak - it is the correct signal on a PTMU overlay amendment and on a CFD
+  // special-tax levy for that district - it is simply wrong on the budget.
+  // Blanketing it as weak cost six records the July report places in the
+  // project, which is why the distinction is drawn here instead.
+  districtTerms?: string[];
 }
 
 // ORDER IS PRECEDENCE for clustering (targets.ts is the first clustering rule).
@@ -118,17 +132,13 @@ export const TARGETS: TargetDef[] = [
     // stalled A-Town project directly, and neither is ambiguous.
     name: 'Platinum Triangle / PT Metro',
     bypass: ['platinum triangle', 'pt metro', 'a-town'],
-    // 'platinum triangle' gets the same treatment as 'russell road': it keeps
-    // bypassing the gate, but it can no longer claim a record for the project.
-    //
-    // A DISTRICT NAME IS AN ADDRESS, NOT AN IDENTITY. Measured on the corpus: on
-    // the term alone the project swallowed the FY2025/26 and FY2026/27 budget
-    // hearings (English and Spanish), Ordinance 6601's annual citywide zoning
-    // update, and the Tourism Mobility Tax ballot measure - four items that
-    // merely say where they apply, and which the July report filed as context or
-    // as entries of their own. 'pt metro' and 'a-town' name the project itself
-    // and still claim records, which is what keeps the cluster alive.
-    weakForClustering: ['platinum triangle'],
+    // 'platinum triangle' is a DISTRICT term, not a weak one. It claims records
+    // normally - the PTMU overlay amendments, the Housing Element rezone, and
+    // the CFD 08-1 special-tax levy are all genuinely Platinum Triangle records,
+    // and the July report files them there - but it is refused on the city's
+    // annual budget hearings and on the Tourism Mobility Tax ballot measure,
+    // which name the district only to say where they apply.
+    districtTerms: ['platinum triangle'],
     searchOnly: ['ptmu', 'stadium lofts', 'angel stadium'],
   },
   {
@@ -166,13 +176,24 @@ export const TARGETS: TargetDef[] = [
 // "Reedy Creek", "Lake Buena Vista") cannot claim a record: inside SFWMD's
 // permit corpus those name creeks and lakes, and letting them cluster would
 // merge a 1987 swamp-logging permit into Walt Disney World.
-export function bestTargetForClustering(text: string): TargetDef | null {
+export interface ClusteringTargetOptions {
+  // The record's subject is city-wide fiscal or electoral process, so district
+  // terms in it name where a rule applies, not what the record is about.
+  fiscalOrBallot?: boolean;
+}
+
+export function bestTargetForClustering(
+  text: string,
+  opts: ClusteringTargetOptions = {}
+): TargetDef | null {
   const hits = strongBypassHits(text);
   if (hits.length === 0) return null;
   const weakByTarget = new Map(TARGETS.map((t) => [t.name, new Set(t.weakForClustering ?? [])]));
+  const districtByTarget = new Map(TARGETS.map((t) => [t.name, new Set(t.districtTerms ?? [])]));
   const counts = new Map<string, Set<string>>();
   for (const h of hits) {
     if (weakByTarget.get(h.target)?.has(h.term)) continue;
+    if (opts.fiscalOrBallot && districtByTarget.get(h.target)?.has(h.term)) continue;
     if (!counts.has(h.target)) counts.set(h.target, new Set());
     counts.get(h.target)!.add(h.term);
   }
