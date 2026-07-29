@@ -180,19 +180,25 @@ export async function projectFacetCounts(
   field: ProjectFacetField
 ): Promise<{ counts: FacetCount[]; viaRpc: boolean; ms: number }> {
   const t0 = Date.now();
+  // A FACET NEVER FILTERS ITSELF. Stripping it here rather than at the call site
+  // is what makes the two paths below provably equivalent: the fallback already
+  // dropped it, the RPC did not, so a caller that passed `stage` while asking for
+  // the stage facet would get every chip but one reading zero -- and only once
+  // migration 017 was applied, which is the worst possible time to find out.
+  const scoped: ProjectQuery = { ...base, [field]: undefined };
   const { data, error } = await supabase.rpc('project_facet_counts', {
     p_field: field,
-    p_module: base.module ?? 'gli',
-    p_stage: base.stage ?? null,
-    p_country: base.country ?? null,
-    p_region_state: base.region_state ?? null,
-    p_market: base.market ?? null,
-    p_development_category: base.development_category ?? null,
-    p_status: base.status ?? null,
-    p_exclude_status: base.excludeStatus ?? null,
-    p_watch: base.watch ?? null,
-    p_active_from: base.activeFrom ?? null,
-    p_search: base.search ?? null,
+    p_module: scoped.module ?? 'gli',
+    p_stage: scoped.stage ?? null,
+    p_country: scoped.country ?? null,
+    p_region_state: scoped.region_state ?? null,
+    p_market: scoped.market ?? null,
+    p_development_category: scoped.development_category ?? null,
+    p_status: scoped.status ?? null,
+    p_exclude_status: scoped.excludeStatus ?? null,
+    p_watch: scoped.watch ?? null,
+    p_active_from: scoped.activeFrom ?? null,
+    p_search: scoped.search ?? null,
   });
   if (!error && Array.isArray(data)) {
     return {
@@ -206,9 +212,7 @@ export async function projectFacetCounts(
 
   const { data: rows, error: err2 } = await applyProjectFilters(
     supabase.from('projects').select(field),
-    // The facet's own column must not filter itself, or every chip reports the
-    // count of the chip already selected.
-    { ...base, [field]: undefined }
+    scoped
   );
   if (err2) throw new Error(`project facet fallback failed: ${err2.message}`);
   const m = new Map<string, number>();
