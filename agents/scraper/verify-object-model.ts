@@ -80,5 +80,15 @@ check('milestone parse: opening 2028', parseMaxFutureDate('opening 2028', NOW), 
 check('milestone parse: past-only 2011 -> null', parseMaxFutureDate('2011 RFP', NOW), null);
 check('age parse unchanged: 2011 RFP', parseDateFromText('2011 RFP'), '2011-01-01');
 
+// A parsed date is an AGE, so it can never be in the future. The plan-horizon
+// year belongs to milestone_date, and the pair together must still read 'live'
+// so excluding future candidates cannot archive anything it did not archive
+// before. These are the exact titles that were sitting in the future.
+check('age parse: plan horizon excluded, past year kept', parseDateFromText('Kakadu Tourism Master Plan 2020-2030', NOW), '2020-01-01');
+check('age parse: future-only text yields no age', parseDateFromText('Saudi Vision 2030 - THE RIG', NOW), null);
+check('age parse: horizon still reachable as a milestone', parseMaxFutureDate('Kakadu Tourism Master Plan 2020-2030', NOW), '2030-01-01');
+check('plan-horizon project stays live on its milestone', projectEventVerdict('2020-01-01', '2030-01-01', NOW), 'live');
+check('future-only project stays live (undated + milestone)', projectEventVerdict(null, '2030-01-01', NOW), 'live');
+
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail > 0) process.exitCode = 1;

@@ -36,7 +36,14 @@ function usable(iso: string | null | undefined): string | null {
   return Number.isNaN(new Date(iso).getTime()) ? null : iso;
 }
 
-export function deriveLeadDates(lead: NormalizedLead, _stream: LeadStream = 'opportunity'): DerivedDates {
+// `now` is threaded through so a caller that pins a clock (classifyLead, the
+// object-model checks) gets the same answer from the age parser as from the
+// milestone parser. Without it the two disagreed about what "future" meant.
+export function deriveLeadDates(
+  lead: NormalizedLead,
+  _stream: LeadStream = 'opportunity',
+  now: number = Date.now()
+): DerivedDates {
   const deadline = usable(lead.deadline);
   const published = usable(lead.published_date);
 
@@ -48,7 +55,7 @@ export function deriveLeadDates(lead: NormalizedLead, _stream: LeadStream = 'opp
   // 2. No source date: derive one from the lead's own text (this is what catches
   // the 2011-RFP class -- an undated feed row whose title says "2011"). A parsed
   // date is an age signal, so it always lands in published_date.
-  const parsed = parseDateFromText(`${lead.title ?? ''}\n${lead.raw_content ?? ''}`);
+  const parsed = parseDateFromText(`${lead.title ?? ''}\n${lead.raw_content ?? ''}`, now);
   if (parsed) {
     return { deadline: null, published_date: parsed, date_source: 'parsed' };
   }
@@ -156,7 +163,7 @@ export interface LeadModel {
 // The full object-model classification of a lead: object_type (by the deadline
 // rule), its future milestone_date, and its lifecycle verdict.
 export function classifyLead(lead: NormalizedLead, now: number = Date.now()): LeadModel {
-  const dates = deriveLeadDates(lead);
+  const dates = deriveLeadDates(lead, 'opportunity', now);
   const milestone_date = parseMaxFutureDate(`${lead.title ?? ''}\n${lead.raw_content ?? ''}`, now);
   const object_type: ObjectType = dates.deadline ? 'opportunity' : 'project_event';
   const verdict =

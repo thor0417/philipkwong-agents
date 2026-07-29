@@ -61,8 +61,32 @@ const ADDRESS_BEFORE = /(?:suite|ste|unit|apt|apartment|room|rm|floor|fl|no|numb
 
 // Extract the freshest obvious date from free text as an ISO date-only string, or
 // null when there is no clear evidence. Never throws.
-export function parseDateFromText(text: string | null | undefined): string | null {
-  const candidates = extractDateCandidates(text);
+//
+// FUTURE CANDIDATES ARE EXCLUDED. This is an AGE parser and its result lands in
+// published_date, which means "when this was published" - a thing cannot have
+// been published next year. Taking the lexical max over all candidates put six
+// rows in the corpus into the future, the worst at 2030-01-01:
+//
+//   Saudi Leisure Tourism Development Analysis | Vision 2030   -> 2030-01-01
+//   Kakadu Tourism Master Plan 2020-2030                       -> 2030-01-01
+//   Saudi Vision 2030 - THE RIG                                -> 2030-01-01
+//   [PDF] TOURISM MASTER PLAN 2024-2029 - Olympic Peninsula    -> 2029-01-01
+//   Los Angeles Zoo Vision Plan                                -> 2028-01-01
+//   Wynn Al Marjan Island                                      -> 2027-01-01
+//
+// Every one of those years is a PLAN HORIZON, not a publication date, and each
+// sorted above genuinely recent records in any date-ordered view.
+//
+// The freshest-wins rationale is preserved, not discarded. It exists so a
+// document referencing a future year is not wrongly archived as stale - and that
+// protection now comes from the object model instead, which is where it belongs:
+// parseMaxFutureDate already reads the same candidates into milestone_date, and
+// projectEventVerdict returns 'live' for anything carrying a future milestone.
+// So "Master Plan 2020-2030" now dates to 2020 and stays live on its 2030
+// milestone, rather than claiming to have been published in 2030.
+export function parseDateFromText(text: string | null | undefined, now: number = Date.now()): string | null {
+  const today = utcDay(now);
+  const candidates = extractDateCandidates(text).filter((iso) => iso <= today);
   // Freshest wins; ISO date strings sort chronologically as plain strings.
   return candidates.length ? candidates[candidates.length - 1] : null;
 }
