@@ -17,7 +17,8 @@
     "lead:add": "node --env-file=.env.local --import tsx agents/scraper/lead-add.ts",
     "gate:harvest": "node --env-file=.env.local --import tsx agents/scraper/gate-harvest.ts",
     "gate:measure": "node --env-file=.env.local --import tsx agents/scraper/gate-measure.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "gate:terms": "node --env-file=.env.local --import tsx agents/scraper/gate-term-test.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.20.0",

@@ -371,7 +371,10 @@ function wholeWord(text: string, keyword: string): boolean {
   return new RegExp(`\\b${escaped}\\b`, 'i').test(text);
 }
 
-function hasWord(text: string, keyword: string): boolean {
+// Exported so the vocabulary tester (agents/scraper/gate-term-test) can measure a
+// candidate term against the corpus with EXACTLY the matcher the gate uses. A
+// tester with its own matching rule would measure a term the gate never applies.
+export function hasWord(text: string, keyword: string): boolean {
   if (wholeWord(text, keyword)) return true;
   const foldedKeyword = foldPunctuation(keyword);
   if (!foldedKeyword) return false;
@@ -456,6 +459,94 @@ export const GOV_GATE_ACTION = [
   'environmental resource permit', 'permit application', 'permit modification',
   'water use permit', 'construction permit', 'dredge and fill', 'mitigation bank',
 ] as const;
+
+// ---- DEAL TIER (Part 2: the largest miss class) ------------------------------
+//
+// A development agreement is a project signal whether or not a venue noun appears
+// in its title. The two-tier gate could not express that: every deal term lived
+// in ACTION, ACTION never fires alone, and so the whole class of city-transacts-
+// with-developer records fell through. Three of the projects in the July report
+// already delivered to a client were rejected on exactly this.
+//
+// A DEAL term matches ALONE, like STRONG, because these instruments only exist to
+// transact development. What they lack is a venue noun, not legitimacy.
+//
+// THE DESIGN THAT WAS MEASURED AND REJECTED. The first design required a
+// corroborating NAMED PRIVATE PARTY (an LLC/Inc/LP suffix) before a deal term
+// could fire, on the theory that "development agreement" is too generic alone.
+// Measured per term over the corpus, that requirement was worse on BOTH axES: for
+// 'development agreement' it cut hits from 16 to 10 and its own precision from
+// 56.3% to 50.0%, because the records it removed included real deals that name no
+// counterparty yet. The clearest case is the July-report record itself -
+// "Authorization to Issue Disposition and Redevelopment Solicitation" is a city
+// inviting proposals, so there IS no named party, and a party requirement would
+// have kept the exact record this tier exists to admit. Requirement dropped.
+//
+// EVERY TERM BELOW WAS MEASURED INDIVIDUALLY (npm run gate:terms) and is listed
+// with its hit count over the rejected corpus and its own precision:
+//   development agreement                        16 hits, 56.3% - the volume term
+//   reinvestment zone                             7 hits,  100% - discovered, see below
+//   economic incentive agreement                  3 hits,  100%
+//   disposition and redevelopment solicitation    2 hits,  100% - the July-report miss
+//   disposition and development agreement         1 hit,   100%
+//   exclusive negotiation agreement               1 hit,   100%
+//
+// 'reinvestment zone' was NOT in the briefed candidate list. It came out of the
+// baseline's own missed-record sample: "Tax Increment Reinvestment Zone 31 --
+// Midtown" was being rejected while carrying the ACTION term 'tax increment',
+// which is the same structural failure. It is the best term in the set.
+//
+// SIX CANDIDATES WERE TESTED AND DROPPED, each for a measured reason:
+//   cooperative agreement       8 hits, 0% relevant, -3.0 precision. Fires on
+//                               inter-city service contracts, pest control, and
+//                               fleet telematics. The one real cooperative
+//                               agreement in the corpus (Disney / Katella Avenue
+//                               widening) already passes on 'resort'.
+//   ground lease                5 hits, no headline records. This corpus's ground
+//                               leases are Phoenix Sky Harbor cargo tenants (UPS,
+//                               Custom Pipe & Fabrication).
+//   funding agreement           4 hits, 25% relevant. Fires on opioid-settlement
+//                               service agreements and $50k arts-programming
+//                               grants. The one real hit (Historic Market Square
+//                               capital improvements) is better caught by a venue
+//                               noun - see Part 4.
+//   participation agreement     1 hit, 0% relevant.
+//   tax increment financing agreement  0 hits. Dead weight: the instrument is
+//                               phrased 'reinvestment zone' in this corpus.
+//   redevelopment agreement     0 hits, for the same reason.
+// 'master economic incentive agreement' was dropped as REDUNDANT, not as bad: it
+// matches the same 3 records as 'economic incentive agreement', which is broader.
+export const GOV_GATE_DEAL = [
+  'development agreement',
+  'disposition and development agreement',
+  'disposition and redevelopment solicitation',
+  'economic incentive agreement',
+  'exclusive negotiation agreement',
+  'reinvestment zone',
+] as const;
+
+// DETACHED RESIDENTIAL: the guard on the deal tier.
+//
+// "A development agreement for a single-family subdivision is not a hospitality
+// project." The residential mixed-use refinement below does not cover this - it
+// requires mixed-use to be the only weak signal, and a bare development agreement
+// carries no weak signal at all.
+//
+// SCOPED TO THE DEAL TIER, never a global veto, for the same reason
+// isResidentialMixedUse is scoped: a resort parcel's filing routinely mentions
+// lots and single-family zoning ("ZC-26-0265-NEVADA PALACE, LLC: ZONE CHANGE to
+// reclassify 29.46 acres from a CR (Commercial Resort) Zone"), and those records
+// pass on their STRONG term and must keep doing so. This only decides whether a
+// record with NOTHING but a deal term is admitted on it.
+//
+// Verified: it removes the Toll South LV single-family development agreement (a
+// calibration probe that must stay rejected) and touches no other deal-tier hit.
+const DETACHED_RESIDENTIAL =
+  /\bsingle[-\s]?family\b|\bdetached (?:residential|dwelling|single-family)\b|\bresidential subdivision\b/i;
+
+export function isDetachedResidential(text: string): boolean {
+  return DETACHED_RESIDENTIAL.test(text);
+}
 
 // GOVERNANCE NOISE. These override any match, so every term here must name an
 // item's SUBJECT and must not appear as agenda boilerplate inside a real item.
@@ -546,8 +637,10 @@ function isResidentialMixedUse(text: string, strongHits: string[], weakHits: str
 export type GateReason =
   | 'strong'
   | 'weak+action'
+  | 'deal'
   | 'excluded'
   | 'weak-without-action'
+  | 'deal-detached-residential'
   | 'residential-mixed-use'
   | 'no-match';
 export interface GateVerdict {
@@ -556,6 +649,7 @@ export interface GateVerdict {
   strongHits: string[];
   weakHits: string[];
   actionHits: string[];
+  dealHits: string[];
   exclusionHits: string[];
 }
 
@@ -566,22 +660,36 @@ export function governmentGate(text: string): GateVerdict {
   const strongHits = GOV_GATE_STRONG.filter((t) => hasWord(text, t));
   const weakHits = GOV_GATE_WEAK.filter((t) => hasWord(text, t));
   const actionHits = GOV_GATE_ACTION.filter((t) => hasWord(text, t));
+  const dealHits = GOV_GATE_DEAL.filter((t) => hasWord(text, t));
   const exclusionHits = GOV_GATE_EXCLUSIONS.filter((t) => hasWord(text, t));
+  const hits = { strongHits, weakHits, actionHits, dealHits, exclusionHits };
 
   if (exclusionHits.length > 0) {
-    return { matched: false, reason: 'excluded', strongHits, weakHits, actionHits, exclusionHits };
+    return { matched: false, reason: 'excluded', ...hits };
   }
   if (strongHits.length > 0) {
-    return { matched: true, reason: 'strong', strongHits, weakHits, actionHits, exclusionHits };
+    return { matched: true, reason: 'strong', ...hits };
   }
   if (isResidentialMixedUse(text, [...strongHits], [...weakHits])) {
-    return { matched: false, reason: 'residential-mixed-use', strongHits, weakHits, actionHits, exclusionHits };
+    return { matched: false, reason: 'residential-mixed-use', ...hits };
   }
   if (weakHits.length > 0 && actionHits.length > 0) {
-    return { matched: true, reason: 'weak+action', strongHits, weakHits, actionHits, exclusionHits };
+    return { matched: true, reason: 'weak+action', ...hits };
+  }
+  // THE DEAL TIER, placed here deliberately. It sits BELOW exclusions and below
+  // the residential-mixed-use refinement, so it can never resurrect a record
+  // those two rejected, and ABOVE weak-without-action, so a deal term rescues a
+  // record that has a weak signal but no entitlement vocabulary to corroborate
+  // it - which is precisely the Weston Urban case ('redevelopment' weak, no
+  // action term, a master economic incentive agreement as its whole subject).
+  if (dealHits.length > 0) {
+    if (isDetachedResidential(text)) {
+      return { matched: false, reason: 'deal-detached-residential', ...hits };
+    }
+    return { matched: true, reason: 'deal', ...hits };
   }
   if (weakHits.length > 0) {
-    return { matched: false, reason: 'weak-without-action', strongHits, weakHits, actionHits, exclusionHits };
+    return { matched: false, reason: 'weak-without-action', ...hits };
   }
-  return { matched: false, reason: 'no-match', strongHits, weakHits, actionHits, exclusionHits };
+  return { matched: false, reason: 'no-match', ...hits };
 }

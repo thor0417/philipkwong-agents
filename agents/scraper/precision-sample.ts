@@ -82,6 +82,7 @@ export async function precisionSample(size: number = 25): Promise<void> {
     const hits = bypassHits(`${r.title ?? ''}\n${r.raw_content ?? ''}`);
     const evidence =
       v.strongHits.length ? `STRONG: ${v.strongHits.join(', ')}`
+      : v.dealHits.length && v.reason === 'deal' ? `DEAL: ${v.dealHits.join(', ')}`
       : v.weakHits.length ? `weak: ${v.weakHits.join(', ')} + action: ${v.actionHits.join(', ') || 'none'}`
       : hits.length ? `target: ${[...new Set(hits.map((h) => h.term))].join(', ')}`
       : 'no gate evidence on the subject';

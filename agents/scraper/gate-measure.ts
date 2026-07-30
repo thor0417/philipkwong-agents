@@ -390,6 +390,46 @@ export async function measureGate(stageLabel: string = 'current'): Promise<Stage
       console.log(`      ${seen}`);
     }
   }
+  // ---- EXACT BENCHMARK, for attributing a change to the gate ----------------
+  //
+  // The sampled numbers above are the headline, but they cannot cleanly attribute
+  // a STAGE-TO-STAGE delta. When the gate changes, the rejected set changes, so
+  // the stratified reject sample draws different records and needs new labels -
+  // and then part of the movement is better label coverage rather than the gate.
+  //
+  // This section removes that confound by measuring over every record that has a
+  // label, whichever stage paid for it. The set only grows, and the gate is the
+  // only thing that moves records between the two columns, so the delta between
+  // stages is the gate's.
+  //
+  // It is NOT the headline, and it is biased upward on the reject side: the
+  // labelled pool includes records deliberately chosen because a candidate term
+  // fired on them (gate:terms). Read it for deltas, not for absolute level.
+  const labelled = scored.filter((r) => labels.has(r.hash));
+  const relevantLabelled = labelled.filter((r) => labels.get(r.hash)!.relevant);
+  const admittedRelevant = relevantLabelled.filter((r) => r.d.admitted).length;
+  const admittedLabelled = labelled.filter((r) => r.d.admitted).length;
+  console.log(
+    `\nEXACT BENCHMARK over all ${labelled.length} labelled records ` +
+      `(${relevantLabelled.length} relevant). Use for stage-to-stage deltas, not absolute level:`
+  );
+  console.log(
+    `  recall    ${pct(relevantLabelled.length ? admittedRelevant / relevantLabelled.length : null)} ` +
+      `(${admittedRelevant}/${relevantLabelled.length} relevant records are admitted)`
+  );
+  console.log(
+    `  precision ${pct(admittedLabelled ? admittedRelevant / admittedLabelled : null)} ` +
+      `(${admittedRelevant}/${admittedLabelled} admitted records are relevant)`
+  );
+  const bySourceBench = [...new Set(labelled.map((r) => r.c.source))].sort();
+  for (const s of bySourceBench) {
+    const rel = relevantLabelled.filter((r) => r.c.source === s);
+    const got = rel.filter((r) => r.d.admitted).length;
+    console.log(
+      `    ${s.padEnd(15)} recall ${pct(rel.length ? got / rel.length : null)} (${got}/${rel.length})`
+    );
+  }
+
   // ---- TIER BREAKDOWN -------------------------------------------------------
   //
   // What the binary cannot say. Tiered over everything the gate admits (the two
