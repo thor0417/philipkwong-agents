@@ -36,3 +36,9 @@ backups/
 
 # working scripts for a session: never part of the repo
 scratch/
+
+# frozen gate-candidate corpus (npm run gate:harvest): a re-fetchable snapshot of
+# what the portals served, tens of megabytes, regenerated on demand. The LABELS
+# derived from it are committed (agents/scraper/fixtures/), because those are the
+# judgements the precision and recall numbers rest on.
+gate-corpus/

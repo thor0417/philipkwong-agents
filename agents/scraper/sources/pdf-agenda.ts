@@ -13,8 +13,8 @@
 import pdfParse from 'pdf-parse/lib/pdf-parse.js';
 import type { NormalizedLead } from './types';
 import { CFTOD_PDF_SOURCES, type GovDoc } from './govdocs';
-import { governmentGate } from '../../../lib/taxonomy';
 import { strongBypassHits, strongBypassesGate } from '../targets';
+import { gateDecide } from '../gate-decide';
 import { recordSourceRun } from '../health';
 
 const UA = 'philipkwong-agents/1.0 (+scraper)';
@@ -228,7 +228,6 @@ function itemsFromPacket(doc: GovDoc, pages: string[]): NormalizedLead[] {
     // subject had nothing to do with the term that let them in. The body is
     // still kept in raw_content for player extraction and the page reference.
     const gateText = it.title;
-    const verdict = governmentGate(gateText);
     // The bypass keeps reading title + body, for the reason above: inside a
     // CFTOD packet a Disney term names the target this district exists for, and
     // the roadway and land-dedication agreements that carry it are real Disney
@@ -236,8 +235,22 @@ function itemsFromPacket(doc: GovDoc, pages: string[]): NormalizedLead[] {
     // Bypass on STRONG target terms only: inside CFTOD's own packets the geographic
     // Disney terms (Lake Buena Vista, Bay Lake, Reedy Creek) are letterhead, so they
     // do not rescue an off-topic item (e.g. annual financial statements).
-    const bypass = strongBypassesGate(`${it.title}
-${body}`);
+    //
+    // Routed through gateDecide, so this lane and the measurement harness apply
+    // one rule and every candidate is recorded during a gate audit. The
+    // single-purpose rule below is part of that decision, not a step after it.
+    const decision = gateDecide({
+      source: 'cftod-pdf',
+      market: doc.jurisdictionLabel,
+      key: `${doc.url}#item-${it.num}`,
+      title: it.title.replace(/\s+/g, ' ').trim().slice(0, 200),
+      gate_text: gateText,
+      bypass_text: `${it.title}\n${body}`,
+      bypass_mode: 'strong',
+      single_purpose: !isInternalAdmin(it.title),
+    });
+    const verdict = decision.verdict;
+    const bypass = decision.bypass;
     // CFTOD IS A SINGLE-PURPOSE DISTRICT, so the jurisdiction itself is the
     // signal. This is the same rule legistar.ts already applies through
     // `bypassGate`, and it is what the keyword gate cannot express.
@@ -259,8 +272,7 @@ ${body}`);
     // does not need to prove relevance item by item. What it does need is the
     // procedural and internal-administration items filtered out, which is what
     // PROCEDURAL and INTERNAL_ADMIN below do.
-    const singlePurpose = !isInternalAdmin(it.title);
-    if (!verdict.matched && !bypass && !singlePurpose) continue;
+    if (!decision.admitted) continue;
 
     const title = it.title.replace(/\s+/g, ' ').trim().slice(0, 200);
     const pageLabel = pageRef ? `p.${pageRef}` : 'agenda listing';

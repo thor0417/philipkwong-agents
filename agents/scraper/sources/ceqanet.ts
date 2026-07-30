@@ -10,8 +10,8 @@
 // On any failure this logs and continues.
 
 import type { NormalizedLead } from './types';
-import { governmentGate } from '../../../lib/taxonomy';
-import { bypassHits, bypassesGate } from '../targets';
+import { bypassHits } from '../targets';
+import { gateDecide } from '../gate-decide';
 import { CeqanetRowSchema, parseRecords } from './schemas';
 
 const UA = 'Mozilla/5.0 (compatible; philipkwong-agents/1.0 +scraper)';
@@ -130,10 +130,20 @@ export async function scrapeCeqanet(): Promise<NormalizedLead[]> {
     ceqaStats.fetched += rows.length;
     for (const r of rows) {
       const gateText = `${r.title} ${r.agency} ${r.docType}`;
-      const verdict = governmentGate(gateText);
-      const bypass = bypassesGate(gateText);
-      if (!verdict.matched && !bypass) continue;
       const url = canonicalCeqanetUrl(`${BASE}/Project/${r.sch}`);
+      // Routed through gateDecide so this lane and the measurement harness apply
+      // one rule, and every candidate is recorded during a gate audit.
+      const decision = gateDecide({
+        source: 'ceqanet',
+        market: r.agency || 'California',
+        key: url,
+        title: r.title.slice(0, 200),
+        gate_text: gateText,
+        bypass_mode: 'all',
+      });
+      const verdict = decision.verdict;
+      const bypass = decision.bypass;
+      if (!decision.admitted) continue;
       if (seen.has(url)) continue;
       seen.add(url);
       if (bypass) ceqaStats.bypassHits++;

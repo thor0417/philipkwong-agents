@@ -11,8 +11,8 @@
 import { createHash } from 'node:crypto';
 import type { NormalizedLead } from './types';
 import type { SourceType } from '../../../lib/taxonomy';
-import { governmentGate } from '../../../lib/taxonomy';
 import { bypassHits, bypassesGate } from '../targets';
+import { gateDecide } from '../gate-decide';
 import { fetchPdfPages } from './pdf-agenda';
 import { GranicusMeetingSchema, parseRecords } from './schemas';
 
@@ -241,11 +241,23 @@ export function leadsFromAgendaText(meeting: MeetingRef, text: string): Normaliz
     // false positive, while a bypass term is a named target we have decided to
     // capture wherever it appears. A watch term in an item's body is still that
     // target showing up in this meeting.
-    const verdict = governmentGate(it.subject);
-    const bypass = bypassesGate(it.text);
-    if (!verdict.matched && !bypass) continue;
+    //
+    // Both decisions route through gateDecide, so this lane and the measurement
+    // harness apply one rule and every candidate is recorded during a gate audit.
     const title = it.subject.replace(/\s+/g, ' ').trim().slice(0, 200);
     const key = stableItemKey(title);
+    const decision = gateDecide({
+      source: base.source,
+      market: meeting.jurisdictionLabel,
+      key: `${meeting.agendaUrl}#item-${key}`,
+      title,
+      gate_text: it.subject,
+      bypass_text: it.text,
+      bypass_mode: 'all',
+    });
+    const verdict = decision.verdict;
+    const bypass = decision.bypass;
+    if (!decision.admitted) continue;
     const hitLine = targetHitLine(it.subject);
     const lead: NormalizedLead = {
       ...base,
@@ -277,7 +289,15 @@ export function leadsFromAgendaText(meeting: MeetingRef, text: string): Normaliz
   // relevant (gate or target). Capture the meeting agenda itself as one lead.
   if (leads.length === 0) {
     const whole = text.slice(0, 6000);
-    if (governmentGate(whole).matched || bypassesGate(whole)) {
+    const meetingDecision = gateDecide({
+      source: base.source,
+      market: meeting.jurisdictionLabel,
+      key: meeting.agendaUrl,
+      title: `${meeting.body} Agenda - ${meeting.dateIso ?? 'undated'} (${meeting.jurisdictionLabel})`.slice(0, 200),
+      gate_text: whole,
+      bypass_mode: 'all',
+    });
+    if (meetingDecision.admitted) {
       const hitLine = targetHitLine(whole);
       leads.push({
         ...base,

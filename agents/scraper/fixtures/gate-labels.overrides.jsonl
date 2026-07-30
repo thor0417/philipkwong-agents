@@ -1,0 +1,13 @@
+// HAND OVERRIDES. One JSON object per line, and every line here beats the
+// judged label in gate-labels.jsonl for the same hash, whatever rubric version
+// it carries. This is how a person overrules the model without editing the
+// judged fixture, and it is the reason a precision or recall number from this
+// harness is arguable rather than asserted.
+//
+// To overrule a judgement: find its line in agents/scraper/fixtures/gate-labels.jsonl,
+// copy the "hash" and "title", and add a line here with the correct verdict.
+//
+// {"hash":"0123456789abcdef","source":"legistar","market":"Phoenix, AZ","title":"...","relevant":true,"reason":"why the judge was wrong"}
+//
+// Overrides are honoured across rubric versions on purpose: a person judging a
+// record outranks the rubric's version number.

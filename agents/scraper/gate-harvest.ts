@@ -1,0 +1,70 @@
+// HARVEST: freeze one candidate corpus for the government gate.
+//
+// Runs every gate-bearing government source with the audit recorder on and
+// writes each candidate - the exact text the gate judged, admitted or rejected -
+// to a JSONL corpus. Nothing is written to Supabase and no model is called: this
+// fetches and gates, nothing else.
+//
+// WHY FREEZE. The measurement harness re-gates this corpus offline. If each
+// stage of a remediation re-fetched instead, the corpus would change under the
+// measurement and a recall gain from a vocabulary change would be
+// indistinguishable from a quiet morning at the portals. One corpus, re-gated
+// per stage, makes every delta attributable to the gate.
+//
+// Attachment fetching is off by default (LEGISTAR_ATTACHMENTS): a matter's
+// attachments are read AFTER the gate, so they cannot change a gate decision,
+// and fetching them here would add multi-megabyte PDF downloads to a harvest
+// that does not use them.
+//
+// Run: npm run gate:harvest        (or automatically from npm run gate:measure)
+
+import { pathToFileURL } from 'node:url';
+import { startGateAudit, stopGateAudit, corpusPath, readGateCorpus } from './gate-decide';
+import { scrapeLegistar } from './sources/legistar';
+import { scrapeCftodPdfItems } from './sources/pdf-agenda';
+import { scrapeAnaheimAgendas } from './sources/agenda-portal';
+import { scrapeLasVegasAgendas } from './sources/lasvegas';
+import { scrapeClarkTabAgendas } from './sources/clark-tab';
+import { scrapeCeqanet } from './sources/ceqanet';
+
+export async function harvestGateCorpus(): Promise<number> {
+  if (!process.env.LEGISTAR_ATTACHMENTS) process.env.LEGISTAR_ATTACHMENTS = '0';
+  startGateAudit();
+  console.log(`Gate harvest: recording every candidate to ${corpusPath()}.`);
+  // Each source is independent; one that dies contributes zero rather than
+  // killing the harvest. A dead source shows up as zero candidates in the
+  // per-source table, which is exactly the reading the amendment asks for.
+  const settled = await Promise.allSettled([
+    scrapeLegistar(),
+    scrapeAnaheimAgendas(),
+    scrapeLasVegasAgendas(),
+    scrapeClarkTabAgendas(),
+    scrapeCeqanet(),
+    scrapeCftodPdfItems(),
+  ]);
+  for (const r of settled) if (r.status === 'rejected') console.error('Gate harvest: source failed:', r.reason);
+  const n = stopGateAudit();
+
+  const corpus = readGateCorpus();
+  const bySource: Record<string, number> = {};
+  for (const c of corpus) bySource[c.source] = (bySource[c.source] ?? 0) + 1;
+  console.log(`\nGate harvest: ${n} candidates recorded (${corpus.length} readable).`);
+  for (const [s, k] of Object.entries(bySource).sort((a, b) => b[1] - a[1])) {
+    console.log(`    ${String(k).padStart(5)}  ${s}`);
+  }
+  // SFWMD and the govdoc sources are absent BY DESIGN, and it is worth saying so
+  // rather than leaving a reader to wonder. Neither consults the gate: SFWMD
+  // filters server-side on Disney applicant names in its ArcGIS query, and a
+  // govdoc is a hand-listed document. There is no gate decision to record, so
+  // there is no gate recall to measure - their recall is a question about their
+  // QUERY, which is reported separately in the measurement output.
+  console.log('    (sfwmd and govdocs take no gate decision: nothing to record. See the harness note.)');
+  return corpus.length;
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  harvestGateCorpus().catch((e) => {
+    console.error(e);
+    process.exit(1);
+  });
+}

@@ -18,7 +18,7 @@ import type { NormalizedLead } from './types';
 import { toIso } from './types';
 import { keywordMatches } from '../prefilter';
 import type { SourceType } from '../../../lib/taxonomy';
-import { governmentGate } from '../../../lib/taxonomy';
+import { gateDecide } from '../gate-decide';
 import { matterContacts, contactProvenance, resetAttachmentStats } from './legistar-attachments';
 import { LegistarMatterSchema, LegistarEventSchema, parseRecords } from './schemas';
 
@@ -297,12 +297,25 @@ async function scrapeJurisdiction(
   // Apply the two-tier gate, or bypass it entirely for a single-purpose district
   // (where the jurisdiction itself is the signal). Returns true to KEEP; otherwise
   // tallies the drop reason for gate telemetry.
-  const passesGate = (text: string): boolean => {
-    if (j.bypassGate) return true;
-    const g = governmentGate(text);
-    if (g.matched) return true;
-    if (g.reason === 'excluded') droppedExcluded++;
-    else if (g.reason === 'weak-without-action') droppedWeakNoAction++;
+  //
+  // Routed through gateDecide (agents/scraper/gate-decide) so this lane and the
+  // measurement harness apply one rule, and so every candidate - including the
+  // rejected ones this used to drop where nothing could see them - is recorded
+  // during a gate audit. bypass_mode 'none' preserves the behaviour this lane
+  // has always had: Legistar does not consult the target list.
+  const passesGate = (key: string, title: string, text: string): boolean => {
+    const d = gateDecide({
+      source: 'legistar',
+      market: j.jurisdictionLabel,
+      key,
+      title,
+      gate_text: text,
+      bypass_mode: 'none',
+      single_purpose: !!j.bypassGate,
+    });
+    if (d.admitted) return true;
+    if (d.reason === 'excluded') droppedExcluded++;
+    else if (d.reason === 'weak-without-action') droppedWeakNoAction++;
     else droppedNoMatch++;
     return false;
   };
@@ -314,7 +327,9 @@ async function scrapeJurisdiction(
     const title = m.MatterTitle || m.MatterName || m.MatterFile || '';
     if (!title) continue;
     const text = `${title}\n${m.MatterName ?? ''}\n${m.MatterFile ?? ''}\n${m.MatterTypeName ?? ''}`;
-    if (!passesGate(text)) continue;
+    // Keyed on the matter id, not the public URL: a rejected matter never has a
+    // URL resolved (publicMatterUrl is a fetch, and it happens after the gate).
+    if (!passesGate(`matter:${j.client}:${m.MatterId}`, title, text)) continue;
     matched++;
     const url = await publicMatterUrl(j.client, m.MatterId);
     if (byUrl.has(url) || gated.some((g) => g.url === url)) continue;
@@ -368,7 +383,7 @@ async function scrapeJurisdiction(
     // board that meets at a performing-arts hall), which would false-match STRONG
     // terms; the body name is the event's own identity. The comment/location are
     // still kept in raw_content for context and player extraction.
-    if (!passesGate(e.EventBodyName ?? '')) continue;
+    if (!passesGate(`event:${j.client}:${e.EventId}`, e.EventBodyName ?? '', e.EventBodyName ?? '')) continue;
     matched++;
     const url = await publicEventUrl(j.client, e.EventId);
     if (byUrl.has(url)) continue;
