@@ -18,7 +18,8 @@
     "gate:harvest": "node --env-file=.env.local --import tsx agents/scraper/gate-harvest.ts",
     "gate:measure": "node --env-file=.env.local --import tsx agents/scraper/gate-measure.ts",
     "typecheck": "tsc --noEmit",
-    "gate:terms": "node --env-file=.env.local --import tsx agents/scraper/gate-term-test.ts"
+    "gate:terms": "node --env-file=.env.local --import tsx agents/scraper/gate-term-test.ts",
+    "gate:regate": "node --env-file=.env.local --import tsx agents/scraper/regate-stored.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.20.0",
