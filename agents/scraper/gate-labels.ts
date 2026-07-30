@@ -29,6 +29,7 @@ import { candidateHash, type GateCandidate } from './gate-decide';
 
 export const LABEL_FILE = 'agents/scraper/fixtures/gate-labels.jsonl';
 export const OVERRIDE_FILE = 'agents/scraper/fixtures/gate-labels.overrides.jsonl';
+export const TIER_FILE = 'agents/scraper/fixtures/gate-tiers.jsonl';
 
 // THE JUDGE MODEL. Haiku 4.5 was tried first and could not hold the two-limb
 // rubric: it agreed with ground truth on 11 of 13 calibration probes, and both
@@ -207,6 +208,171 @@ function parseVerdict(text: string): { relevant: boolean; reason: string; limb?:
   } catch {
     return null;
   }
+}
+
+// ---- TIER: how strong a record is, which is a different question -------------
+//
+// Relevant / not relevant is one bit, and one bit is not enough to run the gate
+// by. The July report deliberately carried two kinds of record: the lead itself,
+// and the surrounding evidence that a tracked project is moving. A binary
+// collapses those, so an escalator maintenance contract at a convention centre
+// scores identically to a resort entitlement, and "precision is 60 percent"
+// cannot distinguish a gate that is admitting junk from a gate that is admitting
+// real context it has no way to label as context.
+//
+// So tier is asked SEPARATELY, over the records that matter (everything admitted,
+// plus the rejects the rubric called relevant), and cached in its own fixture.
+// Keeping it separate is deliberate: the relevance rubric is at v5 and validated
+// against 13 ground-truth probes, and folding a new field into it would have
+// invalidated every one of those labels and required re-judging 950 records to
+// answer an orthogonal question.
+export const TIER_VERSION = 't1';
+
+export type RecordTier = 'headline' | 'context' | 'noise';
+
+export interface GateTierLabel {
+  hash: string;
+  source: string;
+  title: string;
+  tier: RecordTier;
+  reason: string;
+  judge: string;
+  tier_version?: string;
+}
+
+const TIER_RUBRIC = `You are triaging a US local-government record for a leisure and hospitality development register kept by a regulatory-compliance and corporate-strategy consultant. The register carries two kinds of record: the leads themselves, and the surrounding evidence that a tracked project or venue is moving.
+
+Classify this record into exactly one tier.
+
+"headline" - the record IS a lead. Its subject is a specific development project or a deal for one, at a stage where a consultant could act on it: an entitlement or rezoning application, a use permit, a site plan, a plat or tentative map, a comprehensive plan amendment, an environmental permit for construction, a development agreement, a disposition and development agreement, a redevelopment or disposition solicitation, a ground lease of public land for development, an economic incentive or funding agreement for a capital project, a TIF or reinvestment-zone reimbursement, an exclusive negotiation agreement, or the announcement or approval of a named project.
+
+"context" - the record is genuinely about a leisure or hospitality venue, district, project or operator, but is not itself a lead. This includes: the physical capital programme of an existing venue (renovation, expansion, replacing building systems); infrastructure, roadway or utility work serving a resort, park or tourism district; the finance or governance of a tourism, resort or entertainment district (assessments, special taxes, district budgets, annual reports); a plan, study, feasibility report or code amendment covering such uses; a procedural step on a project already filed (a continuance, an abeyance, a withdrawal, a renotification, a street-name change, a waiver of conditions); and a lease, contract or property matter involving a tracked venue or operator that does not itself advance a project.
+
+"noise" - neither. Municipal governance with no leisure or development subject (personnel, appointments, proclamations, elections, city-wide budgets, procedural meeting mechanics, minutes); development that is not leisure and carries no public-private deal (single-family subdivisions, apartment entitlements, industrial, warehouse, office, medical, school, retail); general public infrastructure with no leisure or tourism beneficiary; procurement of goods or routine services (supplies, furniture, upholstery, locks, landscaping, event staffing, insurance, maintenance service contracts); routine licensing or fee schedules for an existing business; and records that carry a leisure term only as agenda boilerplate or as the place a meeting was held.
+
+The distinction that matters most: "context" means a real record about a venue, district or tracked project that is not a lead. "noise" means the record should not be in the register at all. Capital work ON a leisure venue is context; buying supplies FOR one is noise.
+
+Return STRICT JSON only: {"tier": "headline"|"context"|"noise", "reason": "<12 words or fewer>"}`;
+
+function parseTier(text: string): { tier: RecordTier; reason: string } | null {
+  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  let body = (fenced ? fenced[1] : text).trim();
+  const first = body.indexOf('{');
+  const last = body.lastIndexOf('}');
+  if (first !== -1 && last > first) body = body.slice(first, last + 1);
+  try {
+    const p = JSON.parse(body) as { tier?: unknown; reason?: unknown };
+    if (p.tier !== 'headline' && p.tier !== 'context' && p.tier !== 'noise') return null;
+    return { tier: p.tier, reason: typeof p.reason === 'string' ? p.reason.slice(0, 120) : '' };
+  } catch {
+    return null;
+  }
+}
+
+async function tierOne(c: GateCandidate): Promise<GateTierLabel | null> {
+  const prompt =
+    `${TIER_RUBRIC}\n\nSource: ${c.source}\nJurisdiction: ${c.market}\nRecord title: ${c.title}\n\n` +
+    `Record text as the gate reads it:\n${c.gate_text.slice(0, 1500)}`;
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const res = await client.messages.create({
+        model: MODEL,
+        max_tokens: 2000,
+        messages: [{ role: 'user', content: prompt }],
+      });
+      const raw = res.content.filter((b) => b.type === 'text').map((b) => (b as { text: string }).text).join('\n');
+      const v = parseTier(raw);
+      if (!v) {
+        if (attempt < RETRIES) continue;
+        console.error(
+          `Tiers: unparseable reply after ${RETRIES + 1} attempts for "${c.title.slice(0, 60)}"` +
+            ` [${c.source}] stop_reason=${res.stop_reason ?? '?'} reply=${JSON.stringify(raw.slice(0, 200))}`
+        );
+        return null;
+      }
+      return {
+        hash: candidateHash(c),
+        source: c.source,
+        title: c.title.replace(/\s+/g, ' ').slice(0, 160),
+        tier: v.tier,
+        reason: v.reason,
+        judge: MODEL,
+        tier_version: TIER_VERSION,
+      };
+    } catch (err) {
+      const status = (err as { status?: number })?.status;
+      if ((status === 429 || status === 529 || status === 500) && attempt < RETRIES) {
+        await sleep(1500 * 2 ** attempt);
+        continue;
+      }
+      console.error(`Tiers: judge failed for "${c.title.slice(0, 48)}": ${String(err).slice(0, 90)}`);
+      return null;
+    }
+  }
+}
+
+export function loadTiers(): Map<string, GateTierLabel> {
+  const m = new Map<string, GateTierLabel>();
+  if (!existsSync(TIER_FILE)) return m;
+  let stale = 0;
+  for (const line of readFileSync(TIER_FILE, 'utf8').split('\n')) {
+    const t = line.trim();
+    if (!t || t.startsWith('//')) continue;
+    try {
+      const l = JSON.parse(t) as GateTierLabel;
+      if ((l.tier_version ?? 't0') !== TIER_VERSION) {
+        stale++;
+        continue;
+      }
+      m.set(l.hash, l);
+    } catch {
+      console.warn(`Tiers: skipped an unparseable line in ${TIER_FILE}.`);
+    }
+  }
+  if (stale > 0) console.log(`Tiers: ignored ${stale} labels from a superseded tier rubric (current: ${TIER_VERSION}).`);
+  return m;
+}
+
+// Tier every candidate that has no tier yet. Same cache-and-append discipline as
+// the relevance labels: judged once, committed, re-read thereafter.
+export async function tierCandidates(candidates: GateCandidate[]): Promise<Map<string, GateTierLabel>> {
+  const tiers = loadTiers();
+  const seen = new Set<string>();
+  const todo = candidates.filter((c) => {
+    const h = candidateHash(c);
+    if (tiers.has(h) || seen.has(h)) return false;
+    seen.add(h);
+    return true;
+  });
+  if (todo.length === 0) {
+    console.log(`Tiers: all ${candidates.length} records already tiered (${TIER_FILE}).`);
+    return tiers;
+  }
+  if (process.env.GATE_LABELS_READONLY === '1') {
+    console.warn(`Tiers: ${todo.length} records untiered and GATE_LABELS_READONLY=1; excluded from the breakdown.`);
+    return tiers;
+  }
+  console.log(`Tiers: judging ${todo.length} new records (${candidates.length - todo.length} cached).`);
+  mkdirSync(dirname(TIER_FILE), { recursive: true });
+  let next = 0;
+  let done = 0;
+  let failed = 0;
+  async function worker(): Promise<void> {
+    while (next < todo.length) {
+      const c = todo[next++];
+      const l = await tierOne(c);
+      if (!l) {
+        failed++;
+        continue;
+      }
+      tiers.set(l.hash, l);
+      appendFileSync(TIER_FILE, `${JSON.stringify(l)}\n`, 'utf8');
+      if (++done % 25 === 0) console.log(`    ...${done}/${todo.length} tiered`);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(CONCURRENCY, todo.length) }, worker));
+  console.log(`Tiers: ${done} tiered, ${failed} failed.`);
+  return tiers;
 }
 
 async function judgeOne(c: GateCandidate): Promise<GateLabel | null> {

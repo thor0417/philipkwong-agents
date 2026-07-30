@@ -43,7 +43,13 @@ import {
   type GateCandidate,
   type GateDecision,
 } from './gate-decide';
-import { labelCandidates, RUBRIC_VERSION, type GateLabel } from './gate-labels';
+import {
+  labelCandidates,
+  tierCandidates,
+  RUBRIC_VERSION,
+  type GateLabel,
+  type RecordTier,
+} from './gate-labels';
 import { harvestGateCorpus } from './gate-harvest';
 import { loadProbes, runProbes } from './gate-probes';
 import { selectAllPaged } from './page-select';
@@ -384,6 +390,56 @@ export async function measureGate(stageLabel: string = 'current'): Promise<Stage
       console.log(`      ${seen}`);
     }
   }
+  // ---- TIER BREAKDOWN -------------------------------------------------------
+  //
+  // What the binary cannot say. Tiered over everything the gate admits (the two
+  // precision samples together are a census of it) plus the rejects the rubric
+  // called relevant, so both halves of the decision are readable at tier level.
+  //
+  // The number to read first is the last line: among admitted records the binary
+  // calls NOT relevant, how many are context rather than noise. If that split
+  // leans context, the gate is admitting real evidence it has no way to label,
+  // and the fix is a tier rather than a tightening.
+  const tierPool = [...pa, ...pb, ...[...ra, ...rb].filter((r) => labels.get(r.hash)?.relevant)];
+  const tiers = await tierCandidates(tierPool.map((r) => r.c));
+  const tierOf = (r: Scored): RecordTier | null => tiers.get(r.hash)?.tier ?? null;
+  const tally = (rows: Scored[]): Record<string, number> => {
+    const t: Record<string, number> = { headline: 0, context: 0, noise: 0, untiered: 0 };
+    for (const r of rows) t[tierOf(r) ?? 'untiered']++;
+    return t;
+  };
+  const admittedTiers = tally([...pa, ...pb]);
+  const admittedTiered = admittedTiers.headline + admittedTiers.context + admittedTiers.noise;
+  const share = (n: number): string =>
+    admittedTiered ? `${((n / admittedTiered) * 100).toFixed(1)}%`.padStart(6) : '   n/a';
+  console.log(`\nTIER BREAKDOWN of the ${admittedTiered} tiered admitted records (headline = a lead, context = real but not a lead, noise = should not be here):`);
+  console.log(`  headline ${String(admittedTiers.headline).padStart(4)}  ${share(admittedTiers.headline)}`);
+  console.log(`  context  ${String(admittedTiers.context).padStart(4)}  ${share(admittedTiers.context)}`);
+  console.log(`  noise    ${String(admittedTiers.noise).padStart(4)}  ${share(admittedTiers.noise)}`);
+  if (admittedTiers.untiered) console.log(`  (untiered ${admittedTiers.untiered})`);
+
+  const notRelevantAdmitted = [...pa, ...pb].filter((r) => labels.get(r.hash) && !labels.get(r.hash)!.relevant);
+  const nr = tally(notRelevantAdmitted);
+  const nrTiered = nr.headline + nr.context + nr.noise;
+  console.log(
+    `\n  Of the ${notRelevantAdmitted.length} admitted records the binary calls NOT relevant: ` +
+      `${nr.context} are context, ${nr.noise} are noise, ${nr.headline} headline` +
+      (nrTiered ? ` (context is ${((nr.context / nrTiered) * 100).toFixed(0)}% of them)` : '')
+  );
+  console.log(
+    '  Context-heavy means the gate is admitting real evidence it cannot label as evidence,'
+  );
+  console.log(
+    '  so the answer is a tier on the record, not a tighter gate.'
+  );
+
+  const missTiers = tally([...ra, ...rb].filter((r) => labels.get(r.hash)?.relevant));
+  console.log(
+    `\n  The ${missTiers.headline + missTiers.context + missTiers.noise} sampled relevant rejects by tier: ` +
+      `${missTiers.headline} headline, ${missTiers.context} context, ${missTiers.noise} noise. ` +
+      'A missed headline is a lost lead; a missed context record is lost evidence.'
+  );
+
   if (process.env.GATE_SKIP_STORED !== '1') await storedPrecision(labels, size);
   await runProbes(labels);
   console.log('======================================================================\n');
