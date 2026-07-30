@@ -53,6 +53,7 @@ import {
 import { harvestGateCorpus } from './gate-harvest';
 import { loadProbes, runProbes } from './gate-probes';
 import { selectAllPaged } from './page-select';
+import { loadKnownEntities } from './known-entities';
 
 interface Scored {
   c: GateCandidate;
@@ -268,6 +269,14 @@ export async function measureGate(stageLabel: string = 'current'): Promise<Stage
   if (corpus.length === 0) {
     throw new Error(`Gate corpus at ${file} is empty. Run npm run gate:harvest.`);
   }
+  // The known-entity bypass is part of the gate, so re-gating the frozen corpus
+  // has to load the register the live lane would have consulted. The index date
+  // is reported with the numbers: unlike the corpus, the register is live, so a
+  // recall figure is against the register as it stood when the measurement ran.
+  const entities = await loadKnownEntities();
+  console.log(
+    `Known entities: ${entities.entities} parties across ${entities.anchors} anchor projects of ${entities.projects}.`
+  );
   const harvested = statSync(file).mtime.toISOString().slice(0, 16).replace('T', ' ');
 
   const scored: Scored[] = corpus.map((c) => ({ c, d: decide(c), hash: candidateHash(c) }));

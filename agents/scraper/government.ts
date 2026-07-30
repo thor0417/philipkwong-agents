@@ -36,6 +36,7 @@ import { scrapeLasVegasAgendas } from './sources/lasvegas';
 import { scrapeClarkTabAgendas } from './sources/clark-tab';
 import { scrapeCeqanet } from './sources/ceqanet';
 import { scrapeSfwmd } from './sources/sfwmd';
+import { loadKnownEntities } from './known-entities';
 
 const GOVERNMENT_MODULE = 'gli';
 
@@ -467,6 +468,16 @@ async function main(): Promise<void> {
   initSentry();
   const run = new RunTimer('government');
   resetParseReports();
+  // KNOWN-ENTITY BYPASS: the index is built from the project register BEFORE the
+  // adapters run, because the gate decision is synchronous and consults it in
+  // memory. This is the feedback loop stated plainly - capturing a project makes
+  // the next run better at capturing that project's other filings - and it is why
+  // the loading happens here, once, rather than per record.
+  const entities = await loadKnownEntities();
+  console.log(
+    `Known entities: ${entities.entities} parties trusted across ${entities.anchors} anchor projects ` +
+      `(of ${entities.projects} projects; ${entities.nonAnchorProjects.length} lack independent leisure evidence).`
+  );
   const [legistar, govdocs, cftodItems, anaheim, lasVegas, clarkTab, ceqa, sfwmd] = await Promise.all([
     scrapeLegistar(),
     scrapeGovDocs(),

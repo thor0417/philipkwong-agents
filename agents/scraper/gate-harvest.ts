@@ -20,6 +20,7 @@
 
 import { pathToFileURL } from 'node:url';
 import { startGateAudit, stopGateAudit, corpusPath, readGateCorpus } from './gate-decide';
+import { loadKnownEntities } from './known-entities';
 import { scrapeLegistar } from './sources/legistar';
 import { scrapeCftodPdfItems } from './sources/pdf-agenda';
 import { scrapeAnaheimAgendas } from './sources/agenda-portal';
@@ -29,6 +30,14 @@ import { scrapeCeqanet } from './sources/ceqanet';
 
 export async function harvestGateCorpus(): Promise<number> {
   if (!process.env.LEGISTAR_ATTACHMENTS) process.env.LEGISTAR_ATTACHMENTS = '0';
+  // The known-entity bypass consults the project register, so the index is built
+  // before any adapter gates anything. Without this the bypass is inert and the
+  // harvest would record decisions the live lane would not have taken.
+  const entities = await loadKnownEntities();
+  console.log(
+    `Known entities: ${entities.entities} parties trusted across ${entities.anchors} anchor projects ` +
+      `(of ${entities.projects}).`
+  );
   startGateAudit();
   console.log(`Gate harvest: recording every candidate to ${corpusPath()}.`);
   // Each source is independent; one that dies contributes zero rather than

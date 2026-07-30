@@ -28,8 +28,9 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { dirname } from 'node:path';
-import { governmentGate, type GateReason, type GateVerdict } from '../../lib/taxonomy';
+import { governmentGate, isDetachedResidential, type GateReason, type GateVerdict } from '../../lib/taxonomy';
 import { bypassesGate, strongBypassesGate } from './targets';
+import { knownEntityHit, type KnownEntity } from './known-entities';
 
 // How a source treats named-target terms.
 //   'all'    - any bypass term admits the record (agenda portals, CEQAnet)
@@ -59,18 +60,25 @@ export interface GateCandidate {
   single_purpose?: boolean;
 }
 
-export type GateDecisionReason = GateReason | 'bypass' | 'single-purpose';
+export type GateDecisionReason = GateReason | 'bypass' | 'known-entity' | 'single-purpose';
 
 export interface GateDecision {
   admitted: boolean;
   reason: GateDecisionReason;
   verdict: GateVerdict;
   bypass: boolean;
+  // The tracked-project party that admitted this record, when that is why.
+  entity?: KnownEntity | null;
 }
 
-// The gate decision for one candidate. PURE: no I/O, no audit, no clock, so the
-// measurement harness can re-run it over a frozen corpus and get exactly what
-// the live adapter got.
+// The gate decision for one candidate. No I/O, no clock, so the measurement
+// harness can re-run it over a frozen corpus and get exactly what the live
+// adapter got.
+//
+// ONE PIECE OF STATE: the known-entity index (agents/scraper/known-entities),
+// loaded once per run before the adapters. An unloaded index makes the entity
+// bypass inert rather than wrong, which is the safe default for any caller that
+// does not want to consult the register.
 export function decide(c: GateCandidate): GateDecision {
   const verdict = governmentGate(c.gate_text);
   const bypassText = c.bypass_text ?? c.gate_text;
@@ -83,6 +91,29 @@ export function decide(c: GateCandidate): GateDecision {
 
   if (verdict.matched) return { admitted: true, reason: verdict.reason, verdict, bypass };
   if (bypass) return { admitted: true, reason: 'bypass', verdict, bypass };
+
+  // THE KNOWN-ENTITY BYPASS. A record whose party is already attached to a
+  // tracked project in the same market is admitted on that identity, the way a
+  // named target is. Three things about where it sits:
+  //
+  // It is matched on the record's OWN SUBJECT (gate_text), never the wider body.
+  // Measured: matching the body admitted two Clark County waivers whose own
+  // subject is a different applicant entirely ("3984 BHLV, LLC"), because a
+  // tracked party's name appeared in a neighbouring agenda item. Own-subject
+  // matching took the rule from 50 to 62.5 percent precision.
+  //
+  // It does NOT override an exclusion. A tracked developer named in a
+  // proclamation or a closed-session item is not a project event. (The named-
+  // target bypass above DOES override exclusions - an asymmetry that predates
+  // this and is left alone here rather than changed unmeasured.)
+  //
+  // It respects the detached-residential veto, so a tracked project's
+  // single-family subdivision filings stay out exactly as Part 2 decided.
+  if (verdict.reason !== 'excluded' && !isDetachedResidential(c.gate_text)) {
+    const entity = knownEntityHit(c.gate_text, c.market);
+    if (entity) return { admitted: true, reason: 'known-entity', verdict, bypass, entity };
+  }
+
   if (c.single_purpose) return { admitted: true, reason: 'single-purpose', verdict, bypass };
   return { admitted: false, reason: verdict.reason, verdict, bypass };
 }
