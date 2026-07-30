@@ -417,7 +417,42 @@ export const GOV_GATE_STRONG = [
   'downtown redevelopment', 'urban regeneration',
   'transit-oriented development', 'transit oriented development',
   'entertainment district overlay',
+  // PART 4, the only venue noun of fourteen candidates that earned its place.
+  // 1 hit over the corpus, 100% relevant, +0.2 precision: the Historic Market
+  // Square capital-improvements funding agreement, a calibration probe that was
+  // being rejected. See the tested-and-dropped list below.
+  'market square',
 ] as const;
+
+// PART 4, TESTED AND DROPPED. Recorded so the same fourteen candidates are not
+// re-proposed from intuition, and so a future run can re-test them in one command
+// (GATE_TERMS="..." npm run gate:terms) against a corpus that may have moved.
+//
+// FIRED ON NOTHING in 2818 candidates - eleven of the fourteen:
+//   playhouse, civic center, event center, banquet hall, nightclub,
+//   brewery taproom, winery, sports complex, recreation complex, fairground,
+//   exhibition hall
+// These are unambiguous leisure nouns and would very likely be harmless, but the
+// brief's rule is that a term firing on nothing is dead weight, and absence is
+// the only evidence available. Worth revisiting WITH evidence rather than adding
+// on faith: the moment one of these appears in a corpus, it earns its place.
+//
+// FIRED, BUT BELOW THE GATE'S OWN PRECISION:
+//   theatre  1 hit, 0% relevant. Its only hit is "Valley Youth Theatre 26-1448
+//            Payment Ordinance" - a payment ordinance, not a project. This is the
+//            term the audit specifically cited as missing; it is missing because
+//            it has nothing to catch here.
+//   theater  3 hits, 33% relevant. Admits a Planning Commission agenda header and
+//            an Alameda Theater OPERATIONS funding extension alongside one real
+//            record (a $7.4m TIF-funded Alameda Theater redevelopment).
+//   tirz     27 hits, 5% relevant, -7.4 precision. Tested because the Alameda
+//            record above is TIRZ-funded and 'reinvestment zone' misses the
+//            abbreviation. It fires on "TIF_Houston St. TIRZ Board Meeting_8-27-21",
+//            which is boilerplate carried in the raw content of every San Antonio
+//            TIF record. A textbook borrowed-context term.
+//   chapter 380  1 hit, 0% relevant.
+// CONSEQUENCE, stated rather than hidden: the Alameda Theater redevelopment stays
+// missed. No term tested catches it without costing more precision than it buys.
 
 // TIER REFINEMENT (proven by the Part B 30-record precision test): 'master plan',
 // 'masterplan', 'mixed use', 'mixed-use' were demoted from STRONG to WEAK. They are

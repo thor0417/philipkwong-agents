@@ -158,6 +158,14 @@ export const TARGETS: TargetDef[] = [
       'walt disney',
       'disney parks',
       'wdpr',
+      // DisneylandForward is the Disneyland Resort expansion programme, and it was
+      // being missed with NO vocabulary at all: the CEQAnet record's entire subject
+      // is the two words "DisneylandForward Project", which contains no leisure
+      // noun, no deal instrument and no known party. It is a named project, so it
+      // belongs here rather than in any vocabulary tier - the same reasoning that
+      // puts 'ocvibe' here. Measured: 1 hit over the corpus, relevant, +0.2
+      // precision. It is one token and unambiguous, so it cannot borrow context.
+      'disneylandforward',
       'reedy creek',
       'bay lake',
       'lake buena vista',

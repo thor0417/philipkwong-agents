@@ -24,7 +24,7 @@
 import { pathToFileURL } from 'node:url';
 // isDetachedResidential comes from the taxonomy, not from a copy here: a tester
 // with its own version of the guard would measure a rule the gate never applies.
-import { hasWord, isDetachedResidential } from '../../lib/taxonomy';
+import { hasWord, isDetachedResidential, governmentGate } from '../../lib/taxonomy';
 import { readGateCorpus, decide, candidateHash, type GateCandidate } from './gate-decide';
 import { labelCandidates, tierCandidates, type GateLabel, type GateTierLabel } from './gate-labels';
 
@@ -150,6 +150,15 @@ export async function testTerms(): Promise<void> {
         // whatever the aggregate numbers say.
         label: 'alone, minus detached residential',
         matches: (c) => hasWord(c.gate_text, term) && !isDetachedResidential(c.gate_text),
+      },
+      {
+        // The variant that matters for a VENUE noun: is the term safe alone
+        // (STRONG), or does it only behave when an entitlement action corroborates
+        // it (WEAK)? 'theater' is the case - a meeting held AT a theater is not a
+        // theater project.
+        label: 'with an entitlement action',
+        matches: (c) =>
+          hasWord(c.gate_text, term) && governmentGate(c.gate_text).actionHits.length > 0,
       },
       {
         label: 'with named private party',
