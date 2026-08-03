@@ -75,6 +75,7 @@ async function main(): Promise<void> {
   let dismissed = 0;
   let merged = 0;
   let fieldsCopied = 0;
+  let alreadySettled = 0;
 
   for (const [sch, group] of [...bySch].sort()) {
     if (group.length < 2) {
@@ -113,6 +114,20 @@ async function main(): Promise<void> {
     const rk = richness(keep);
 
     for (const loser of [...canonical.filter((r) => r !== keep), ...legacy]) {
+      // ALREADY SETTLED. A loser that is dismissed AND detached is in its final
+      // state, so re-running must not touch it. Without this the repair is not
+      // idempotent: a second run rewrites status_changed_at, which is a curation
+      // column, and a status this repair did not set is not this repair's to
+      // re-stamp. On the live corpus all three duplicates were already dismissed
+      // by the orphan sweep before this script was ever run, so this guard is
+      // the difference between a no-op and three silent curation writes.
+      if (loser.status === 'dismissed' && !loser.project_id) {
+        console.log(
+          `      -> ${new URL(String(loser.url)).hostname} already dismissed and detached; leaving it alone`
+        );
+        alreadySettled++;
+        continue;
+      }
       const rl = richness(loser);
       const verdict =
         rl > rk
@@ -164,7 +179,10 @@ async function main(): Promise<void> {
     }
   }
 
-  console.log(`\nPlanned: ${dismissed} duplicate rows dismissed, ${merged} survivors patched (${fieldsCopied} fields copied).`);
+  console.log(
+    `\nPlanned: ${dismissed} duplicate rows dismissed, ${merged} survivors patched ` +
+      `(${fieldsCopied} fields copied), ${alreadySettled} already settled and left alone.`
+  );
 
   if (!dry) {
     const { data: after } = await supabaseAdmin.from('leads').select('url,status').or(hostFilter);
