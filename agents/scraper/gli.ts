@@ -18,6 +18,7 @@
 
 import Anthropic from '@anthropic-ai/sdk';
 import { pathToFileURL } from 'node:url';
+import { parseRunScope, describeScope, scopeIncludesSource } from './run-scope';
 import { supabaseAdmin } from '../../lib/supabase-admin';
 import type { NormalizedLead } from './sources/types';
 import { scrapeSerper, lastSerperSearchCount, RECENCY_WINDOW_DAYS } from './sources/serper';
@@ -899,6 +900,21 @@ export function printGliReport(r: GliReport): void {
 async function main(): Promise<void> {
   const run = new RunTimer('intelligence');
   resetParseReports();
+  // The intelligence lane has ONE source (Serper) and no per-market fetch: its
+  // queries are watch terms, not jurisdictions. So --source is meaningful here
+  // and --market is not, and saying so is better than silently ignoring a
+  // market filter and returning a full run's worth of records.
+  const scope = parseRunScope();
+  console.log(`SCOPE: ${describeScope(scope)}`);
+  if (!scopeIncludesSource(scope, 'serper')) {
+    console.log('Intelligence lane skipped: source scope excludes serper.');
+    return;
+  }
+  if (scope.markets) {
+    console.log(
+      '  note: --market does not narrow this lane (its queries are watch terms, not jurisdictions).'
+    );
+  }
   const queries = gliQueries();
   if (queries.length === 0) {
     console.error('GLI lane: no queries configured (gli profile inactive or missing).');

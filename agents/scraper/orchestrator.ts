@@ -23,6 +23,7 @@ import {
 import { runGliLane, tagOpportunities, type GliReport } from './gli';
 import { attachOnWrite, printAttachReport } from './project-attach';
 import { recordSourceRun, reportRunHealth, resetSourceRuns } from './health';
+import { parseRunScope, describeScope } from './run-scope';
 import { sweepLifecycle, printLifecycleSweep } from './lifecycle-sweep';
 import { selectAllPaged } from './page-select';
 import { buildOpportunityRow, opportunityClosed, OPPORTUNITY_SOURCES } from './opportunity';
@@ -344,6 +345,12 @@ const inc = (m: Record<string, number>, k: string): void => {
 };
 
 export async function orchestrate(): Promise<ScrapeReport> {
+  // THE SCOPE IS STATED BEFORE ANYTHING RUNS, and again in the final report.
+  // A partial run that writes fewer records looks exactly like a lane that half
+  // died, so the run says which it is in as many words rather than leaving it to
+  // be inferred from a count.
+  const scope = parseRunScope();
+  console.log(`\nSCOPE: ${describeScope(scope)}`);
   const profiles = activeProfiles();
   // Profile sources, plus the signal sources (now empty, retired), plus the GLI
   // Tier 1 opportunity portals.
@@ -1402,6 +1409,10 @@ function printReport(r: ScrapeReport): void {
       : '    (none)';
 
   console.log('\n========== SCRAPE REPORT ==========');
+  // Restated at the END as well as the start. The top of a long run scrolls off;
+  // the number a reader acts on is at the bottom, and that is where a partial
+  // run is most likely to be mistaken for a full one.
+  console.log(`SCOPE: ${describeScope(parseRunScope())}`);
   console.log('Fetched per source:');
   console.log(table(r.fetchedPerSource));
   console.log(`Total fetched: ${r.totalFetched}  ->  deduped: ${r.deduped}`);

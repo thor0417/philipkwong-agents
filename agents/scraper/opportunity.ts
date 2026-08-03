@@ -14,6 +14,13 @@
 // writing to Supabase (a zero-cost-to-Supabase dry validation).
 
 import { pathToFileURL } from 'node:url';
+import {
+  parseRunScope,
+  describeScope,
+  scopeIncludesSource,
+  FULL_SCOPE,
+  type RunScope,
+} from './run-scope';
 import type { NormalizedLead } from './sources/types';
 import { LEISURE_CPV_CODES } from './profiles';
 import { isLeisureOpportunity, isDeadNotice } from './classify';
@@ -154,24 +161,43 @@ const inc = (m: Record<string, number>, k: string): void => {
 };
 
 // Fetch only the opportunity-lane sources, tolerating individual failures.
-export async function fetchOpportunitySources(): Promise<NormalizedLead[]> {
-  const settled = await Promise.allSettled([
-    scrapeTedEu([], [], [...LEISURE_CPV_CODES]),
-    scrapeCanadaBuys(),
-    scrapeUkTenders(),
-    scrapeAusTender(),
-    scrapeUngm(),
-    scrapeGeBiz(),
-    scrapeWorldBank(),
-    scrapeIadb(),
-    scrapeAdb(),
-    scrapeCdb(),
-    scrapeAfdb(),
-    scrapeUndp(),
-  ]);
+// ONE DECLARATION PER SOURCE, replacing a positional array of promises that had
+// to stay index-aligned with OPPORTUNITY_SOURCES to report the right name. Run
+// scoping needs the name and the thunk together anyway, and two lists that must
+// agree by position are a latent mislabelling bug.
+//
+// These are global tender portals with no single market, so MARKET scoping does
+// not apply to them - only --source does. Said plainly here rather than
+// pretending a market filter would work.
+const OPPORTUNITY_ADAPTERS: { source: string; run: () => Promise<NormalizedLead[]> }[] = [
+  { source: 'tedeu', run: () => scrapeTedEu([], [], [...LEISURE_CPV_CODES]) },
+  { source: 'canadabuys', run: () => scrapeCanadaBuys() },
+  { source: 'uktenders', run: () => scrapeUkTenders() },
+  { source: 'austender', run: () => scrapeAusTender() },
+  { source: 'ungm', run: () => scrapeUngm() },
+  { source: 'gebiz', run: () => scrapeGeBiz() },
+  { source: 'worldbank', run: () => scrapeWorldBank() },
+  { source: 'iadb', run: () => scrapeIadb() },
+  { source: 'adb', run: () => scrapeAdb() },
+  { source: 'cdb', run: () => scrapeCdb() },
+  { source: 'afdb', run: () => scrapeAfdb() },
+  { source: 'undp', run: () => scrapeUndp() },
+];
+
+export async function fetchOpportunitySources(
+  scope: RunScope = FULL_SCOPE
+): Promise<NormalizedLead[]> {
+  const selected = OPPORTUNITY_ADAPTERS.filter((a) => scopeIncludesSource(scope, a.source));
+  if (selected.length < OPPORTUNITY_ADAPTERS.length) {
+    console.log(
+      `Opportunity: scoped to ${selected.length} of ${OPPORTUNITY_ADAPTERS.length} sources ` +
+        `(${selected.map((a) => a.source).join(', ') || 'none'}).`
+    );
+  }
+  const settled = await Promise.allSettled(selected.map((a) => a.run()));
   const all: NormalizedLead[] = [];
   settled.forEach((r, i) => {
-    const unit = `adapter:${OPPORTUNITY_SOURCES[i]}`;
+    const unit = `adapter:${selected[i].source}`;
     if (r.status === 'fulfilled') {
       all.push(...r.value);
       // A source that resolved with zero rows is recorded too. That is the whole
@@ -315,7 +341,9 @@ function printOpportunityReport(r: OpportunityReport): void {
 
 async function main(): Promise<void> {
   console.log('GLI Tier 1 opportunity lane starting (scrape:opportunity)...');
-  const all = await fetchOpportunitySources();
+  const scope = parseRunScope();
+  console.log(`SCOPE: ${describeScope(scope)}`);
+  const all = await fetchOpportunitySources(scope);
   const report = await runOpportunityLane(all);
   printOpportunityReport(report);
   // The opportunity lane had NO zero-write alarm at all before this. It could

@@ -19,6 +19,7 @@ import { toIso } from './types';
 import { keywordMatches } from '../prefilter';
 import type { SourceType } from '../../../lib/taxonomy';
 import { bypassModeFor, gateDecide } from '../gate-decide';
+import { FULL_SCOPE, scopeIncludesMarket, type RunScope } from '../run-scope';
 import { matterContacts, contactProvenance, resetAttachmentStats } from './legistar-attachments';
 import { LegistarMatterSchema, LegistarEventSchema, parseRecords } from './schemas';
 
@@ -422,15 +423,35 @@ async function scrapeJurisdiction(
   );
 }
 
-export async function scrapeLegistar(): Promise<NormalizedLead[]> {
+// The markets this adapter covers, for run scoping. Exported so government.ts
+// can decide whether a scoped run needs Legistar at all without duplicating the
+// jurisdiction list.
+export function legistarMarkets(): string[] {
+  return JURISDICTIONS.map((j) => j.jurisdictionLabel);
+}
+
+// SCOPED INTERNALLY, not skipped wholesale. Legistar covers six jurisdictions,
+// so a run asking for Clark County still needs this adapter - it just needs one
+// sixth of it. Skipping the adapter would drop five markets that were never
+// excluded; skipping the other five jurisdictions is the correct narrowing.
+export async function scrapeLegistar(scope: RunScope = FULL_SCOPE): Promise<NormalizedLead[]> {
   lastStats = {};
   resetAttachmentStats();
   const byUrl = new Map<string, NormalizedLead>();
+  const inScope = JURISDICTIONS.filter((j) => scopeIncludesMarket(scope, j.jurisdictionLabel));
+  if (inScope.length < JURISDICTIONS.length) {
+    const skipped = JURISDICTIONS.filter((j) => !inScope.includes(j)).map((j) => j.jurisdictionLabel);
+    console.log(
+      `Legistar: scoped to ${inScope.length} of ${JURISDICTIONS.length} jurisdictions ` +
+        `(${inScope.map((j) => j.jurisdictionLabel).join(', ') || 'none'}); ` +
+        `skipped ${skipped.join(', ')}.`
+    );
+  }
   // Each jurisdiction runs independently; one broken client cannot kill the run.
-  await Promise.allSettled(JURISDICTIONS.map((j) => scrapeJurisdiction(j, byUrl)));
+  await Promise.allSettled(inScope.map((j) => scrapeJurisdiction(j, byUrl)));
   const leads = [...byUrl.values()];
   console.log(
-    `Legistar: ${leads.length} keyword-matched records across ${JURISDICTIONS.length} jurisdictions.`
+    `Legistar: ${leads.length} keyword-matched records across ${inScope.length} jurisdictions.`
   );
   return leads;
 }

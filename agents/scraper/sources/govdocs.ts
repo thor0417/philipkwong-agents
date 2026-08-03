@@ -14,6 +14,7 @@
 
 import type { NormalizedLead } from './types';
 import type { SourceType } from '../../../lib/taxonomy';
+import { FULL_SCOPE, scopeIncludesMarket, type RunScope } from '../run-scope';
 
 const UA = 'philipkwong-agents/1.0 (+scraper)';
 
@@ -226,8 +227,22 @@ async function fetchDoc(d: GovDoc): Promise<NormalizedLead | null> {
   };
 }
 
-export async function scrapeGovDocs(): Promise<NormalizedLead[]> {
-  const settled = await Promise.allSettled(GOV_DOCUMENTS.map(fetchDoc));
+// The markets this adapter covers, for run scoping.
+export function govDocMarkets(): string[] {
+  return [...new Set(GOV_DOCUMENTS.map((d) => d.jurisdictionLabel))];
+}
+
+// Scoped internally, for the same reason Legistar is: this adapter serves
+// several jurisdictions from one config list, so narrowing the run narrows the
+// list rather than dropping the adapter.
+export async function scrapeGovDocs(scope: RunScope = FULL_SCOPE): Promise<NormalizedLead[]> {
+  const inScope = GOV_DOCUMENTS.filter((d) => scopeIncludesMarket(scope, d.jurisdictionLabel));
+  if (inScope.length < GOV_DOCUMENTS.length) {
+    console.log(
+      `Gov documents: scoped to ${inScope.length} of ${GOV_DOCUMENTS.length} configured documents.`
+    );
+  }
+  const settled = await Promise.allSettled(inScope.map(fetchDoc));
   const leads: NormalizedLead[] = [];
   for (const r of settled) {
     if (r.status === 'fulfilled') {
@@ -238,7 +253,7 @@ export async function scrapeGovDocs(): Promise<NormalizedLead[]> {
   }
   const withFile = leads.filter((l) => l.has_primary_document).length;
   console.log(
-    `Gov documents: ${leads.length} of ${GOV_DOCUMENTS.length} configured captured (verified reachable; ${withFile} with a fetched primary file).`
+    `Gov documents: ${leads.length} of ${inScope.length} configured captured (verified reachable; ${withFile} with a fetched primary file).`
   );
   return leads;
 }

@@ -23,13 +23,24 @@ import { geographyFields } from '../../lib/geography';
 import { guardedUpsert, emptyWriteReport, printWriteReport, type WriteReport } from './write-guard';
 import { attachOnWrite, printAttachReport } from './project-attach';
 import { deriveLeadDates, objectFields, shouldDelete } from './lead-date';
-import { scrapeLegistar, lastLegistarStats, type LegistarJurisdictionStats } from './sources/legistar';
+import {
+  scrapeLegistar,
+  lastLegistarStats,
+  legistarMarkets,
+  type LegistarJurisdictionStats,
+} from './sources/legistar';
 import { lastAttachmentStats } from './sources/legistar-attachments';
 import { resetParseReports, printParseReports, allParseReports } from './sources/schemas';
 import { RunTimer } from './logger';
 import { initSentry, captureError, flushSentry } from './sentry';
 import { recordSourceRun, reportRunHealth, resetSourceRuns } from './health';
-import { scrapeGovDocs } from './sources/govdocs';
+import { scrapeGovDocs, govDocMarkets } from './sources/govdocs';
+import {
+  parseRunScope,
+  describeScope,
+  scopeIncludesSource,
+  scopeIncludesAnyMarket,
+} from './run-scope';
 import { scrapeCftodPdfItems } from './sources/pdf-agenda';
 import { scrapeAnaheimAgendas } from './sources/agenda-portal';
 import { scrapeLasVegasAgendas } from './sources/lasvegas';
@@ -478,16 +489,71 @@ async function main(): Promise<void> {
     `Known entities: ${entities.entities} parties trusted across ${entities.anchors} anchor projects ` +
       `(of ${entities.projects} projects; ${entities.nonAnchorProjects.length} lack independent leisure evidence).`
   );
-  const [legistar, govdocs, cftodItems, anaheim, lasVegas, clarkTab, ceqa, sfwmd] = await Promise.all([
-    scrapeLegistar(),
-    scrapeGovDocs(),
-    scrapeCftodPdfItems(),
-    scrapeAnaheimAgendas(),
-    scrapeLasVegasAgendas(),
-    scrapeClarkTabAgendas(),
-    scrapeCeqanet(),
-    scrapeSfwmd(),
-  ]);
+  // THE ADAPTER TABLE, and why it is a table now.
+  //
+  // These used to be eight positional calls in a Promise.all with a second,
+  // separate array naming them for the health surface. Two lists that had to
+  // stay in the same order to stay correct. Declaring the adapter once - its
+  // source name, the markets it covers, and how to run it - means run scoping,
+  // health reporting and the run report all read the SAME declaration, and a
+  // ninth adapter is one entry rather than three edits in three places.
+  //
+  // `markets` is what the adapter covers, used to decide whether a scoped run
+  // needs it at all. A single-market adapter is skipped wholesale when its
+  // market is out of scope. A MULTI-MARKET adapter (legistar, govdocs) is
+  // handed the scope and filters internally, because skipping it wholesale
+  // would drop the five jurisdictions that were asked for along with the one
+  // that was not.
+  const scope = parseRunScope();
+  console.log(`\nSCOPE: ${describeScope(scope)}`);
+
+  const ADAPTERS: {
+    source: string;
+    markets: readonly string[];
+    multiMarket?: boolean;
+    run: () => Promise<NormalizedLead[]>;
+  }[] = [
+    {
+      source: 'legistar',
+      markets: legistarMarkets(),
+      multiMarket: true,
+      run: () => scrapeLegistar(scope),
+    },
+    {
+      source: 'govdocs',
+      markets: govDocMarkets(),
+      multiMarket: true,
+      run: () => scrapeGovDocs(scope),
+    },
+    {
+      source: 'cftod-pdf',
+      markets: ['Central Florida Tourism Oversight District'],
+      run: () => scrapeCftodPdfItems(),
+    },
+    { source: 'anaheim-agendas', markets: ['Anaheim, CA'], run: () => scrapeAnaheimAgendas() },
+    { source: 'lasvegas-agendas', markets: ['Las Vegas, NV'], run: () => scrapeLasVegasAgendas() },
+    { source: 'clark-tab', markets: ['Clark County, NV'], run: () => scrapeClarkTabAgendas() },
+    {
+      source: 'ceqanet',
+      markets: ['Anaheim, CA', 'Orange County, CA', 'California'],
+      run: () => scrapeCeqanet(),
+    },
+    { source: 'sfwmd', markets: ['South Florida'], run: () => scrapeSfwmd() },
+  ];
+
+  const selected = ADAPTERS.filter(
+    (a) => scopeIncludesSource(scope, a.source) && scopeIncludesAnyMarket(scope, a.markets)
+  );
+  const skipped = ADAPTERS.filter((a) => !selected.includes(a));
+  if (skipped.length > 0) {
+    console.log(
+      `  adapters in scope: ${selected.map((a) => a.source).join(', ') || '(none)'}\n` +
+        `  adapters skipped:  ${skipped.map((a) => a.source).join(', ')}`
+    );
+  }
+
+  const results = await Promise.all(selected.map((a) => a.run()));
+
   // ADAPTER-LEVEL HEALTH, recorded before the lane runs.
   //
   // This is the level that catches total death, and it cannot be derived from
@@ -495,30 +561,20 @@ async function main(): Promise<void> {
   // Las Vegas returning zero is completely masked at source level by Anaheim
   // returning thirteen. Only the caller knows which array came from which
   // adapter, so only the caller can name it.
-  const adapters: [string, NormalizedLead[]][] = [
-    ['legistar', legistar],
-    ['govdocs', govdocs],
-    ['cftod-pdf', cftodItems],
-    ['anaheim-agendas', anaheim],
-    ['lasvegas-agendas', lasVegas],
-    ['clark-tab', clarkTab],
-    ['ceqanet', ceqa],
-    ['sfwmd', sfwmd],
-  ];
-  for (const [unit, arr] of adapters) {
-    recordSourceRun({ lane: 'government', unit: `adapter:${unit}`, fetched: arr.length, kept: arr.length });
+  //
+  // ONLY THE ADAPTERS THAT RAN ARE RECORDED. A skipped adapter has no counts,
+  // and recording it as zero would be a lie that fires the dead-source alarm on
+  // every scoped run.
+  for (let i = 0; i < selected.length; i++) {
+    recordSourceRun({
+      lane: 'government',
+      unit: `adapter:${selected[i].source}`,
+      fetched: results[i].length,
+      kept: results[i].length,
+    });
   }
 
-  const report = await runGovernmentLane([
-    ...legistar,
-    ...govdocs,
-    ...cftodItems,
-    ...anaheim,
-    ...lasVegas,
-    ...clarkTab,
-    ...ceqa,
-    ...sfwmd,
-  ]);
+  const report = await runGovernmentLane(results.flat());
   printGovernmentReport(report, lastLegistarStats());
   printParseReports('Boundary schemas');
 
