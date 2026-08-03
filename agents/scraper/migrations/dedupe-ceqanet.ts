@@ -22,7 +22,7 @@
 
 import { pathToFileURL } from 'node:url';
 import { supabaseAdmin } from '../../../lib/supabase-admin';
-import { CEQANET_HOSTS, CEQANET_CANONICAL_HOST, canonicalCeqanetUrl } from '../sources/ceqanet';
+import { CEQANET_CANONICAL_HOST, canonicalCeqanetUrl, ceqanetSchOf } from '../sources/ceqanet';
 
 // Fields that carry information, for the richness comparison.
 const RICH_FIELDS = [
@@ -43,13 +43,26 @@ function richness(r: Row): number {
   return RICH_FIELDS.filter((f) => r[f] !== null && r[f] !== undefined && r[f] !== '').length;
 }
 
+// THE SAME FUNCTION THE ADAPTER KEYS ON. This used to be its own string split
+// on '/Project/', which is why the repair and the adapter could disagree about
+// what a filing IS: the repair grouped by SCH while the adapter keyed by URL,
+// so any change in how the URL rendered produced a fresh row that the repair
+// would later call a duplicate. Both layers now go through ceqanetSchOf.
+//
+// A URL that is not a recognisable CEQAnet project page falls back to the URL
+// itself, which puts it in a group of one and leaves it alone.
 function schOf(url: string): string {
-  return url.split('/Project/')[1] ?? url;
+  return ceqanetSchOf(url) ?? url;
 }
 
 async function main(): Promise<void> {
   const dry = process.env.CEQA_DEDUPE_DRY === '1';
-  const hostFilter = CEQANET_HOSTS.map((h) => `url.ilike.%${h}%`).join(',');
+  // HOST-AGNOSTIC LOAD. Filtering on the two known hosts meant a THIRD host's
+  // rows would not even be read by the repair - the duplicate would exist and
+  // the tool built to find it would be looking in the wrong place. Matching
+  // 'ceqanet.' catches any present or future CEQAnet host; ceqanetSchOf then
+  // decides which of the loaded rows is really a project page.
+  const hostFilter = 'url.ilike.%ceqanet.%';
   const { data, error } = await supabaseAdmin.from('leads').select('*').or(hostFilter);
   if (error) throw new Error(`load failed: ${error.message}`);
   const rows = (data ?? []) as Row[];

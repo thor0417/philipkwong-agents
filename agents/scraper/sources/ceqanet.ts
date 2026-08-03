@@ -24,26 +24,74 @@ const UA = 'Mozilla/5.0 (compatible; philipkwong-agents/1.0 +scraper)';
 // TWICE, once per host. Measured on the live corpus: 6 rows for 3 real filings,
 // which is what made the OCVibe project read 20 records instead of 18.
 //
-// So the host is CANONICALISED before the URL becomes the key. The first entry
-// is canonical and every other known host folds onto it, which means the next
-// rehost costs one line here instead of silently doubling the corpus again.
+// So the host is CANONICALISED before the URL becomes the key.
+//
+// THE FIRST VERSION OF THIS FIX LEFT THE BUG ABLE TO RECUR, and said so: it
+// folded only the hosts listed below, so "the next rehost costs one line here".
+// One line that nobody knows to write until the corpus has already doubled. The
+// repair script keyed on the SCH NUMBER while the adapter keyed on the URL, so
+// the two layers disagreed about what a CEQA filing IS, and the duplication was
+// guaranteed to come back the next time the rendering changed.
+//
+// THE IDENTITY OF A CEQA FILING IS ITS SCH NUMBER. The URL is a rendering of
+// that identity, and renderings change: a rehost, a protocol, a trailing slash,
+// a stray query parameter. So the SCH is extracted first and the URL is REBUILT
+// from it, by one constructor, everywhere. Both layers now key on the same
+// thing because there is only one thing to key on.
+//
+// Recognition is host-agnostic and shape-strict: any host beginning `ceqanet.`
+// (or any host already listed) serving the path `/Project/{sch}`. That is loose
+// enough that the NEXT rehost folds with no code change at all, and tight enough
+// that it cannot claim an unrelated record - it demands both the CEQAnet host
+// prefix and CEQAnet's own path shape before it will touch a URL.
 export const CEQANET_HOSTS = ['ceqanet.lci.ca.gov', 'ceqanet.opr.ca.gov'] as const;
 export const CEQANET_CANONICAL_HOST = CEQANET_HOSTS[0];
 const BASE = `https://${CEQANET_CANONICAL_HOST}`;
 
-// Fold any known CEQAnet host onto the canonical one. A URL on an unknown host
-// is returned untouched: guessing is how a real distinct record gets merged away.
-export function canonicalCeqanetUrl(raw: string): string {
+// An SCH number as CEQAnet prints it: digits, sometimes with a letter suffix.
+// Anything else is not an SCH and must not be treated as one.
+const SCH_SHAPE = /^[A-Z0-9][A-Z0-9-]{3,30}$/;
+
+// Normalised SCH: trimmed, inner whitespace removed, upper case. So the same
+// filing cannot render two ways because a source printed a space.
+export function normalizeSch(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const s = String(raw).replace(/\s+/g, '').toUpperCase();
+  return SCH_SHAPE.test(s) ? s : null;
+}
+
+function isCeqanetHost(hostname: string): boolean {
+  const h = hostname.toLowerCase();
+  return h.startsWith('ceqanet.') || (CEQANET_HOSTS as readonly string[]).includes(h);
+}
+
+// The SCH a CEQAnet URL identifies, or null when the URL is not a CEQAnet
+// project page. Null is the safe answer: guessing is how a genuinely distinct
+// record gets merged away.
+export function ceqanetSchOf(raw: string): string | null {
   try {
     const u = new URL(raw);
-    if ((CEQANET_HOSTS as readonly string[]).includes(u.hostname)) {
-      u.hostname = CEQANET_CANONICAL_HOST;
-      u.protocol = 'https:';
-    }
-    return u.toString();
+    if (!isCeqanetHost(u.hostname)) return null;
+    const m = u.pathname.match(/^\/Project\/([^/?#]+)\/?$/i);
+    return m ? normalizeSch(decodeURIComponent(m[1])) : null;
   } catch {
-    return raw;
+    return null;
   }
+}
+
+// THE ONE PLACE A CEQAnet URL IS BUILT. Both the adapter and the repair go
+// through it, so the key the adapter writes and the key the repair groups on are
+// the same string by construction rather than by coincidence.
+export function ceqanetUrlForSch(sch: string): string | null {
+  const n = normalizeSch(sch);
+  return n ? `${BASE}/Project/${n}` : null;
+}
+
+// Fold any CEQAnet project URL onto its canonical rendering. A URL this does not
+// recognise is returned untouched.
+export function canonicalCeqanetUrl(raw: string): string {
+  const sch = ceqanetSchOf(raw);
+  return sch ? (ceqanetUrlForSch(sch) as string) : raw;
 }
 
 // Advanced Search filters that actually narrow server-side (verified live):
@@ -119,8 +167,11 @@ export interface CeqaStats {
   fetched: number;
   kept: number;
   bypassHits: number;
+  // Rows whose SCH number did not parse, so no key could be built for them.
+  // Counted and reported rather than written under a guessed URL.
+  unparsableSch: number;
 }
-export const ceqaStats: CeqaStats = { fetched: 0, kept: 0, bypassHits: 0 };
+export const ceqaStats: CeqaStats = { fetched: 0, kept: 0, bypassHits: 0, unparsableSch: 0 };
 
 export async function scrapeCeqanet(): Promise<NormalizedLead[]> {
   const leads: NormalizedLead[] = [];
@@ -130,7 +181,15 @@ export async function scrapeCeqanet(): Promise<NormalizedLead[]> {
     ceqaStats.fetched += rows.length;
     for (const r of rows) {
       const gateText = `${r.title} ${r.agency} ${r.docType}`;
-      const url = canonicalCeqanetUrl(`${BASE}/Project/${r.sch}`);
+      // Built from the SCH by the single constructor, never string-concatenated
+      // here. A row whose SCH does not parse is SKIPPED rather than written
+      // under a guessed key: a bad key is a permanent duplicate, and this lane
+      // has already paid that price once.
+      const url = ceqanetUrlForSch(r.sch);
+      if (!url) {
+        ceqaStats.unparsableSch++;
+        continue;
+      }
       // Routed through gateDecide so this lane and the measurement harness apply
       // one rule, and every candidate is recorded during a gate audit.
       const decision = gateDecide({
