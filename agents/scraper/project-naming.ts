@@ -76,7 +76,12 @@ const KEEP_UPPER = /^(?:[IVX]+|\d+[A-Z]?|[A-Z]&[A-Z])$/;
 function looksLikeAbbreviation(bare: string): boolean {
   if (!/^[A-Za-z]+$/.test(bare)) return false;
   if (bare !== bare.toUpperCase()) return false;
-  if (bare.length <= 3) return true;
+  // Two letters or fewer is an abbreviation ("MD", "LV", "NV").
+  if (bare.length <= 2) return true;
+  // Longer than that, only a vowel-less run is. The first version of this rule
+  // treated ANY token of three letters or fewer as an abbreviation, which
+  // shouted at real words: "SUNSET BAY RESORTS, LLC" came back as "Sunset BAY
+  // Resorts". A word has a vowel; LCLV, MGM and SFWMD do not.
   return bare.length <= 6 && !/[AEIOUY]/.test(bare);
 }
 
@@ -89,7 +94,10 @@ function looksLikeAbbreviation(bare: string): boolean {
 // substring of the original, so the token was returned still shouting. Casing
 // each run in place removes the substitution step and the bug with it.
 export function titleCaseToken(tok: string): string {
-  return tok.replace(/[A-Za-z0-9&]+/g, (run) => {
+  return tok.replace(/[A-Za-z0-9&]+/g, (run, at: number) => {
+    // A single letter after an apostrophe is a possessive or a contraction, not
+    // an abbreviation: "BALLY'S" must become "Bally's", not "Bally'S".
+    if (run.length === 1 && at > 0 && /['’]/.test(tok[at - 1])) return run.toLowerCase();
     if (ACRONYMS.has(run.toUpperCase()) || KEEP_UPPER.test(run) || looksLikeAbbreviation(run)) {
       return run.toUpperCase();
     }
