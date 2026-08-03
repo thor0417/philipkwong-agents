@@ -139,7 +139,36 @@ export function decide(c: GateCandidate): GateDecision {
         : false;
 
   if (verdict.matched) return { admitted: true, reason: verdict.reason, verdict, bypass };
-  if (bypass) return { admitted: true, reason: 'bypass', verdict, bypass };
+
+  // AN EXCLUSION BEATS THE TARGET BYPASS.
+  //
+  // It did not, and that made the two layers disagree about the same records.
+  // The clusterer already refuses a district term on a city-wide fiscal or
+  // electoral record (targets.districtTerms: the budget and a ballot measure
+  // enumerate every district in the city and are about none of them), but the
+  // GATE went on admitting those same records because 'platinum triangle'
+  // appeared somewhere in the agenda text. So the record was captured and then
+  // refused a project - noise with nowhere to go.
+  //
+  // lib/taxonomy has said "EXCLUSIONS override everything" since it was
+  // written. This makes the gate agree with its own documentation.
+  //
+  // Measured over the frozen corpus, 4 records are admitted this way and the
+  // labels call all 4 irrelevant, with none of them a real project:
+  //   - two Anaheim FY budget / appropriations-limit hearings ('platinum
+  //     triangle', excluded by 'budget appropriations')
+  //   - the Tourism Mobility Tax submission to the voters ('platinum
+  //     triangle', excluded by 'general municipal election')
+  //   - a CONFERENCE WITH LABOR NEGOTIATORS closed session, which matched
+  //     'ocvibe' and 'platinum triangle' only because the wider agenda text
+  //     names them elsewhere on the page
+  //
+  // This aligns the named-target bypass with the known-entity bypass below,
+  // which has never overridden an exclusion. The asymmetry noted there is now
+  // closed rather than merely observed.
+  if (bypass && verdict.reason !== 'excluded') {
+    return { admitted: true, reason: 'bypass', verdict, bypass };
+  }
 
   // THE KNOWN-ENTITY BYPASS. A record whose party is already attached to a
   // tracked project in the same market is admitted on that identity, the way a
@@ -152,9 +181,9 @@ export function decide(c: GateCandidate): GateDecision {
   // matching took the rule from 50 to 62.5 percent precision.
   //
   // It does NOT override an exclusion. A tracked developer named in a
-  // proclamation or a closed-session item is not a project event. (The named-
-  // target bypass above DOES override exclusions - an asymmetry that predates
-  // this and is left alone here rather than changed unmeasured.)
+  // proclamation or a closed-session item is not a project event. The named-
+  // target bypass above no longer overrides them either: the asymmetry noted
+  // here was measured and closed, and both bypasses now yield to an exclusion.
   //
   // It respects the detached-residential veto, so a tracked project's
   // single-family subdivision filings stay out exactly as Part 2 decided.
