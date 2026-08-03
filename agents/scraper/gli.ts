@@ -18,7 +18,12 @@
 
 import Anthropic from '@anthropic-ai/sdk';
 import { pathToFileURL } from 'node:url';
-import { LIVE_PIPELINE_STORAGE_KEY } from './pipelines';
+import {
+  LIVE_PIPELINE_STORAGE_KEY,
+  HOSPITALITY_ID,
+  assertKnownPipeline,
+  laneInPipelineScope,
+} from './pipelines';
 import { parseRunScope, describeScope, scopeIncludesSource } from './run-scope';
 import { supabaseAdmin } from '../../lib/supabase-admin';
 import type { NormalizedLead } from './sources/types';
@@ -909,6 +914,15 @@ async function main(): Promise<void> {
   // market filter and returning a full run's worth of records.
   const scope = parseRunScope();
   console.log(`SCOPE: ${describeScope(scope)}`);
+  // Validated against the registry: a typo'd pipeline is a hard error, never a
+  // silent full run.
+  await assertKnownPipeline(scope);
+  if (!laneInPipelineScope(scope)) {
+    console.log(
+      `Lane skipped: scope selects pipeline "${scope.pipeline}", this lane serves ${HOSPITALITY_ID}.`
+    );
+    return;
+  }
   if (!scopeIncludesSource(scope, 'serper')) {
     console.log('Intelligence lane skipped: source scope excludes serper.');
     return;

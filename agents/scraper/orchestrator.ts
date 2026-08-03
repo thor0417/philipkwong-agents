@@ -9,7 +9,7 @@
 // One source failing only drops that source (Promise.allSettled); the run never
 // crashes. Run it: npm run scrape:all
 
-import { LIVE_PIPELINE_STORAGE_KEY } from './pipelines';
+import { LIVE_PIPELINE_STORAGE_KEY, assertKnownPipeline } from './pipelines';
 import { supabaseAdmin } from '../../lib/supabase-admin';
 import { geographyFields } from '../../lib/geography';
 import type { NormalizedLead } from './sources/types';
@@ -353,6 +353,11 @@ export async function orchestrate(): Promise<ScrapeReport> {
   // be inferred from a count.
   const scope = parseRunScope();
   console.log(`\nSCOPE: ${describeScope(scope)}`);
+  // THE PIPELINE AXIS, validated against the registry before any source is
+  // touched. A typo'd id is a hard error rather than a silent full run: a scope
+  // filter that fails open is worse than no filter, because the operator
+  // believes the run was narrow and it was not.
+  await assertKnownPipeline(scope);
   const profiles = activeProfiles();
   // Profile sources, plus the signal sources (now empty, retired), plus the GLI
   // Tier 1 opportunity portals.

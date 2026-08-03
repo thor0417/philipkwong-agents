@@ -13,7 +13,12 @@
 // hand-pulled finding becomes a first-class row in the same pipeline.
 
 import { pathToFileURL } from 'node:url';
-import { LIVE_PIPELINE_STORAGE_KEY } from './pipelines';
+import {
+  LIVE_PIPELINE_STORAGE_KEY,
+  HOSPITALITY_ID,
+  assertKnownPipeline,
+  laneInPipelineScope,
+} from './pipelines';
 import Anthropic from '@anthropic-ai/sdk';
 import type { NormalizedLead } from './sources/types';
 import { classifyGli } from './gli';
@@ -508,6 +513,16 @@ async function main(): Promise<void> {
   // that was not.
   const scope = parseRunScope();
   console.log(`\nSCOPE: ${describeScope(scope)}`);
+  // THE PIPELINE AXIS. Validated against the registry, so a typo'd id is a hard
+  // error rather than a silent full run, and a lane that does not serve the
+  // requested pipeline says so and stops.
+  await assertKnownPipeline(scope);
+  if (!laneInPipelineScope(scope)) {
+    console.log(
+      `Lane skipped: scope selects pipeline "${scope.pipeline}", this lane serves ${HOSPITALITY_ID}.`
+    );
+    return;
+  }
 
   const ADAPTERS: {
     source: string;

@@ -14,7 +14,12 @@
 // writing to Supabase (a zero-cost-to-Supabase dry validation).
 
 import { pathToFileURL } from 'node:url';
-import { LIVE_PIPELINE_STORAGE_KEY } from './pipelines';
+import {
+  LIVE_PIPELINE_STORAGE_KEY,
+  HOSPITALITY_ID,
+  assertKnownPipeline,
+  laneInPipelineScope,
+} from './pipelines';
 import {
   parseRunScope,
   describeScope,
@@ -345,6 +350,15 @@ async function main(): Promise<void> {
   console.log('GLI Tier 1 opportunity lane starting (scrape:opportunity)...');
   const scope = parseRunScope();
   console.log(`SCOPE: ${describeScope(scope)}`);
+  // Validated against the registry: a typo'd pipeline is a hard error, never a
+  // silent full run.
+  await assertKnownPipeline(scope);
+  if (!laneInPipelineScope(scope)) {
+    console.log(
+      `Lane skipped: scope selects pipeline "${scope.pipeline}", this lane serves ${HOSPITALITY_ID}.`
+    );
+    return;
+  }
   const all = await fetchOpportunitySources(scope);
   const report = await runOpportunityLane(all);
   printOpportunityReport(report);

@@ -151,6 +151,41 @@ export async function activePipelines(): Promise<Pipeline[]> {
 // pipeline explicitly, and that is the isolation test's first casualty.
 export const LIVE_PIPELINE_STORAGE_KEY = storageKeyFor(HOSPITALITY_ID);
 
+// ---- Run scoping by pipeline ------------------------------------------------
+//
+// THE TYPO IS THE DANGEROUS CASE. `--pipeline=hospitaliy` must not quietly run
+// everything: a scope filter that silently fails open is worse than no filter,
+// because the operator believes the run was narrow and it was not. So an
+// unregistered id is a hard error listing what IS registered, and it is checked
+// against the registry rather than against a hardcoded list - which is the whole
+// point of having a registry.
+export async function assertKnownPipeline(scope: { pipeline: string | null }): Promise<void> {
+  if (!scope.pipeline) return;
+  const all = await loadPipelines();
+  const p = all.get(scope.pipeline);
+  if (!p) {
+    throw new Error(
+      `Unknown pipeline "${scope.pipeline}". Registered: ${[...all.keys()].sort().join(', ')}.`
+    );
+  }
+  if (!p.active) {
+    console.warn(
+      `  NOTE: pipeline "${p.id}" is RETIRED (${p.retired_reason ?? 'no reason recorded'}). ` +
+        'No lane writes to it, so this run will produce nothing.'
+    );
+  }
+}
+
+// Should a lane serving `servesPipeline` run under this scope? Skipping is
+// reported by the caller, never silent.
+export function laneInPipelineScope(
+  scope: { pipeline: string | null },
+  servesPipeline: string = HOSPITALITY_ID
+): boolean {
+  if (!scope.pipeline) return true;
+  return scope.pipeline === servesPipeline;
+}
+
 export function printPipelines(all: Map<string, Pipeline>): void {
   console.log(`\nPipelines (${all.size} registered):`);
   for (const p of [...all.values()].sort((a, b) => a.sort_order - b.sort_order)) {
