@@ -590,14 +590,32 @@ export function isDetachedResidential(text: string): boolean {
 // passing on STRONG terms printed elsewhere on the page, never in the item's own
 // subject.
 //
-// 'closed session', 'closed meeting', 'public comment period', 'ceremonial' and
-// 'minutes of the meeting' were tried here and REMOVED. Because exclusions
-// override, and because the agenda lanes gate on an item excerpt that carries
-// the meeting's standing boilerplate, those five killed real records: a
+// FIVE TERMS WERE TRIED HERE AND REMOVED; TWO OF THEM HAVE SINCE COME BACK.
+// This note used to say all five were still out, which the list below has
+// contradicted since 'closed session' and 'closed meeting' were re-added. The
+// code was right and the comment was stale, so read this one carefully.
+//
+// Originally removed: 'closed session', 'closed meeting', 'public comment
+// period', 'ceremonial', 'minutes of the meeting'. Because exclusions override,
+// and because the agenda lanes AT THAT TIME gated on an item excerpt that
+// carried the meeting's standing boilerplate, those five killed real records: a
 // development-application withdrawal notice, an Anaheim resort-district
 // resolution, and two assessment-district hearings all died on boilerplate that
-// had nothing to do with their subject. Precision bought there costs recall
+// had nothing to do with their subject. Precision bought there cost recall
 // somewhere worse.
+//
+// WHAT CHANGED: the agenda lanes now gate on an item's OWN SUBJECT rather than
+// on an excerpt of the surrounding page (gate_text is the item subject, while
+// the wider text is passed separately as bypass_text - see the GateCandidate
+// contract in agents/scraper/gate-decide). Once an item is scoped to its own
+// subject, the meeting's boilerplate can no longer reach it, and the reason
+// those two terms were dangerous is gone: an item whose SUBJECT is "closed
+// session" really is the meeting talking about itself.
+//
+// So 'closed session' and 'closed meeting' are live again, and safely. The
+// other three remain removed and should stay removed: 'public comment period',
+// 'ceremonial' and 'minutes of the meeting' can each appear as a sub-heading
+// inside a real item's own subject line, which scoping does not fix.
 // An exclusion is a HARD VETO: it beats a strong term. That is why this list is
 // short and why it grows slowly. A term earns a place here only if it can never
 // be anything but the whole subject of a non-project item.
