@@ -18,7 +18,7 @@ import type { NormalizedLead } from './types';
 import { toIso } from './types';
 import { keywordMatches } from '../prefilter';
 import type { SourceType } from '../../../lib/taxonomy';
-import { gateDecide } from '../gate-decide';
+import { bypassModeFor, gateDecide } from '../gate-decide';
 import { matterContacts, contactProvenance, resetAttachmentStats } from './legistar-attachments';
 import { LegistarMatterSchema, LegistarEventSchema, parseRecords } from './schemas';
 
@@ -301,8 +301,12 @@ async function scrapeJurisdiction(
   // Routed through gateDecide (agents/scraper/gate-decide) so this lane and the
   // measurement harness apply one rule, and so every candidate - including the
   // rejected ones this used to drop where nothing could see them - is recorded
-  // during a gate audit. bypass_mode 'none' preserves the behaviour this lane
-  // has always had: Legistar does not consult the target list.
+  // during a gate audit.
+  //
+  // The mode is resolved from SOURCE_BYPASS_MODE, which now puts Legistar on
+  // 'all': this lane consults the target list like every other government
+  // source. It was the sole holdout, and the largest source, so a named target
+  // arriving here with no venue noun in its title was being dropped.
   const passesGate = (key: string, title: string, text: string): boolean => {
     const d = gateDecide({
       source: 'legistar',
@@ -310,7 +314,7 @@ async function scrapeJurisdiction(
       key,
       title,
       gate_text: text,
-      bypass_mode: 'none',
+      bypass_mode: bypassModeFor('legistar'),
       single_purpose: !!j.bypassGate,
     });
     if (d.admitted) return true;

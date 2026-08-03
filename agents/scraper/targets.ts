@@ -290,6 +290,45 @@ export function strongBypassesGate(text: string): boolean {
   return strongBypassHits(text).length > 0;
 }
 
+// ---- ADMISSION, as distinct from flagging -----------------------------------
+
+// A term that is too weak to say WHICH project a record belongs to is also too
+// weak to be the ONLY reason the record is admitted. Same set, same lesson,
+// applied one layer earlier.
+//
+// 'russell road' is the whole set today, and it is the case that proved the
+// point twice. It is a Las Vegas arterial, so clustering on it swept five
+// unrelated Clark County filings into Top Gun (see weakForClustering above).
+// The clustering fix stopped it claiming those records, but the gate went on
+// ADMITTING them, so they simply became unclustered noise instead of a false
+// merge. Measured over the frozen corpus: exactly 4 records are admitted on a
+// weak term and nothing else - the RTC Durango Drive interlocal, two
+// Refrigeration Supplies Distributor filings and a 4725 Holdings waiver - and
+// the labels call all 4 irrelevant, with zero relevant records lost. The same
+// three records the clustering brief named, arriving through the gate.
+//
+// The distinction that matters: these terms still FLAG. bypassesGate and the
+// per-source bypassHits counters are unchanged, so a record mentioning Russell
+// Road is still reported as a corridor mention. It just cannot walk past the
+// gate on that alone.
+export const WEAK_ALONE: ReadonlySet<string> = new Set(
+  TARGETS.flatMap((t) => t.weakForClustering ?? [])
+);
+
+function carries(hits: TargetHit[]): boolean {
+  return hits.some((h) => !WEAK_ALONE.has(h.term));
+}
+
+// Does the text carry a bypass strong enough to ADMIT it? Used by the gate.
+export function bypassAdmits(text: string): boolean {
+  return carries(bypassHits(text));
+}
+
+// The same, excluding the CFTOD-letterhead geographic Disney terms.
+export function strongBypassAdmits(text: string): boolean {
+  return carries(strongBypassHits(text));
+}
+
 // All hits across bypass AND search-only terms, for the Part E hunt (reporting).
 export function searchHits(text: string): TargetHit[] {
   const hits: TargetHit[] = [];

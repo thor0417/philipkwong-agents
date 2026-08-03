@@ -29,7 +29,7 @@ import { appendFileSync, existsSync, mkdirSync, readFileSync, rmSync } from 'nod
 import { createHash } from 'node:crypto';
 import { dirname } from 'node:path';
 import { governmentGate, isDetachedResidential, type GateReason, type GateVerdict } from '../../lib/taxonomy';
-import { bypassesGate, strongBypassesGate } from './targets';
+import { bypassAdmits, strongBypassAdmits } from './targets';
 import { knownEntityHit, type KnownEntity } from './known-entities';
 
 // How a source treats named-target terms.
@@ -38,6 +38,47 @@ import { knownEntityHit, type KnownEntity } from './known-entities';
 //              (inside CFTOD's own packets they are the district's address)
 //   'none'   - the source does not consult the target list at all
 export type BypassMode = 'none' | 'all' | 'strong';
+
+// BYPASS MODE IS A SOURCE POLICY, NOT A PROPERTY OF ONE CANDIDATE.
+//
+// It used to be neither: each adapter passed a literal at its own call site, and
+// gate-decide took whatever it was handed. That had two consequences, and the
+// second is the one that mattered.
+//
+// The obvious one: the policy was four literals in four files, so "which sources
+// read the target list?" could only be answered by grepping.
+//
+// The one that actually cost us: the harvested corpus RECORDS the mode it was
+// given, and the measurement harness re-gates that corpus. So the stored literal
+// froze the old policy into every candidate. Changing an adapter's mode would
+// change live capture while gate:measure went on reporting the old number - the
+// exact failure the frozen corpus exists to prevent, since the whole point is
+// that a change in the numbers is attributable to a change in the GATE.
+//
+// Resolving the mode from this table at decide time fixes both. A corpus
+// harvested last week re-gates under today's policy, so the before/after is a
+// real measurement of the change rather than a replay of the harvest.
+export const SOURCE_BYPASS_MODE: Record<string, BypassMode> = {
+  // LEGISTAR NOW CONSULTS THE TARGET LIST.
+  //
+  // It was the only government source that did not, and it is 1914 of the 2818
+  // candidates in the corpus - 68 percent. A Heart Hotel, OCVibe or Disney
+  // matter arriving through Legistar with no venue noun in its title was
+  // dropped even though the target was named in it, so the watch terms were
+  // half-functional on the source that carries most of the traffic.
+  legistar: 'all',
+  'agenda-portal': 'all',
+  'clark-tab': 'all',
+  ceqanet: 'all',
+  // Inside CFTOD's own packets the geographic Disney terms are letterhead.
+  'cftod-pdf': 'strong',
+};
+
+// The mode for a source. An unregistered source falls back to what the caller
+// declared, so a new adapter behaves as written until it is listed here.
+export function bypassModeFor(source: string, declared: BypassMode = 'none'): BypassMode {
+  return SOURCE_BYPASS_MODE[source] ?? declared;
+}
 
 export interface GateCandidate {
   // Adapter tag, matching the lead's source column ('legistar', 'agenda-portal',
@@ -54,6 +95,9 @@ export interface GateCandidate {
   // The exact text the target bypass reads. Often wider than gate_text: the gate
   // judges an item's own subject, the bypass reads the whole item.
   bypass_text?: string;
+  // The mode the ADAPTER declares. Advisory only for a source listed in
+  // SOURCE_BYPASS_MODE, which is where the live policy lives; it is still
+  // recorded in the corpus so an old harvest documents the rule it ran under.
   bypass_mode: BypassMode;
   // The jurisdiction itself is the signal (CFTOD, a Legistar bypassGate client),
   // so the record is kept whatever the vocabulary says.
@@ -82,11 +126,16 @@ export interface GateDecision {
 export function decide(c: GateCandidate): GateDecision {
   const verdict = governmentGate(c.gate_text);
   const bypassText = c.bypass_text ?? c.gate_text;
+  // Resolved from the source policy, not from the candidate's stored literal, so
+  // a frozen corpus re-gates under today's rule. See SOURCE_BYPASS_MODE.
+  const mode = bypassModeFor(c.source, c.bypass_mode);
+  // ADMISSION, not flagging: a term marked weakForClustering cannot carry a
+  // bypass on its own. See WEAK_ALONE in targets.
   const bypass =
-    c.bypass_mode === 'all'
-      ? bypassesGate(bypassText)
-      : c.bypass_mode === 'strong'
-        ? strongBypassesGate(bypassText)
+    mode === 'all'
+      ? bypassAdmits(bypassText)
+      : mode === 'strong'
+        ? strongBypassAdmits(bypassText)
         : false;
 
   if (verdict.matched) return { admitted: true, reason: verdict.reason, verdict, bypass };
