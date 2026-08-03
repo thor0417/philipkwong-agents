@@ -25,6 +25,7 @@
 // because losing one audit row is much better than a rename that appears to have
 // failed and gets retried into a second rename.
 
+import { LIVE_PIPELINE_STORAGE_KEY } from './pipelines';
 import { supabase } from './supabase';
 
 // Mirrors PROJECT_EVENT_TYPES in lib/taxonomy.ts. Keep the two in sync; the root
@@ -56,7 +57,7 @@ export interface ManualEvent {
 export async function recordManualEvent(e: ManualEvent): Promise<void> {
   const { error } = await supabase.from('project_events').insert({
     project_id: e.project_id,
-    module: 'gli',
+    module: LIVE_PIPELINE_STORAGE_KEY,
     event_type: e.event_type,
     occurred_at: new Date().toISOString(),
     actor: 'philip',

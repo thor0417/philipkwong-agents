@@ -18,6 +18,7 @@
 
 import Anthropic from '@anthropic-ai/sdk';
 import { pathToFileURL } from 'node:url';
+import { LIVE_PIPELINE_STORAGE_KEY } from './pipelines';
 import { parseRunScope, describeScope, scopeIncludesSource } from './run-scope';
 import { supabaseAdmin } from '../../lib/supabase-admin';
 import type { NormalizedLead } from './sources/types';
@@ -39,7 +40,9 @@ import { recordSourceRun, reportRunHealth, resetSourceRuns } from './health';
 import { subDays } from 'date-fns';
 
 const MODEL = 'claude-haiku-4-5-20251001';
-const GLI_MODULE = 'gli';
+// The pipeline this lane writes to, resolved from the registry rather than
+// typed as a literal. See agents/scraper/pipelines.
+const GLI_MODULE = LIVE_PIPELINE_STORAGE_KEY;
 
 // ---- Source-chaining (Pass 4): trade press -> primary document ----------------
 // A curated-press article is the breadcrumb; the primary government document it

@@ -44,6 +44,7 @@
 // insert is treated as SUCCESS rather than as an error, because it means the row
 // this run wanted is already there.
 
+import { LIVE_PIPELINE_STORAGE_KEY } from './pipelines';
 import { supabaseAdmin } from '../../lib/supabase-admin';
 import type { ProjectEventType, EventActor } from '../../lib/taxonomy';
 
@@ -202,7 +203,7 @@ export async function emitProjectEvents(
 
   const rows = fresh.map((e) => ({
     project_id: e.project_id,
-    module: e.module ?? opts.module ?? 'gli',
+    module: e.module ?? opts.module ?? LIVE_PIPELINE_STORAGE_KEY,
     event_type: e.event_type,
     occurred_at: new Date(e.occurred_at).toISOString(),
     actor: e.actor ?? 'system',

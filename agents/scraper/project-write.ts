@@ -17,6 +17,7 @@
 //   stage. This is what makes the register safe to curate.
 
 import { supabaseAdmin } from '../../lib/supabase-admin';
+import { LIVE_PIPELINE_STORAGE_KEY } from './pipelines';
 import { overriddenFields } from './write-guard';
 import type { ClusteredProject } from './cluster';
 
@@ -54,7 +55,9 @@ export interface ExistingProject {
 }
 
 // Every stored project for a module, keyed by project_key.
-export async function loadProjects(module = 'gli'): Promise<Map<string, ExistingProject>> {
+export async function loadProjects(
+  module = LIVE_PIPELINE_STORAGE_KEY
+): Promise<Map<string, ExistingProject>> {
   const out = new Map<string, ExistingProject>();
   let from = 0;
   const PAGE = 500;
@@ -81,7 +84,7 @@ export async function loadProjects(module = 'gli'): Promise<Map<string, Existing
 export function projectRow(
   c: ClusteredProject,
   existing: ExistingProject | undefined,
-  module = 'gli'
+  module = LIVE_PIPELINE_STORAGE_KEY
 ): { row: Record<string, unknown>; heldBack: string[] } {
   const row: Record<string, unknown> = {
     module,

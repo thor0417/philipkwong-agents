@@ -1,4 +1,5 @@
 'use client';
+import { LIVE_PIPELINE_STORAGE_KEY } from './pipelines';
 
 // THE DASHBOARD'S DATA LAYER. Every read is a keyed query, every write is an
 // optimistic mutation.
@@ -112,7 +113,7 @@ export function useUnresolvedGeoCount(q: LeadQuery, enabled = true) {
 export function useBacklog() {
   return useQuery({
     queryKey: leadKeys.backlog(),
-    queryFn: () => countLeads({ module: 'gli', status: 'new' }),
+    queryFn: () => countLeads({ module: LIVE_PIPELINE_STORAGE_KEY, status: 'new' }),
     placeholderData: (prev) => prev,
   });
 }

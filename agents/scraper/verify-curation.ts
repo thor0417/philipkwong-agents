@@ -13,6 +13,7 @@
 //
 // Run: node --env-file=.env.local --import tsx agents/scraper/verify-curation.ts
 
+import { LIVE_PIPELINE_STORAGE_KEY } from './pipelines';
 import { pathToFileURL } from 'node:url';
 import { supabaseAdmin } from '../../lib/supabase-admin';
 import { guardedUpsert, emptyWriteReport, OWNED_BY_USER } from './write-guard';
@@ -138,7 +139,7 @@ async function main(): Promise<void> {
   const { count: detached } = await supabaseAdmin
     .from('leads')
     .select('id', { count: 'exact', head: true })
-    .eq('module', 'gli')
+    .eq('module', LIVE_PIPELINE_STORAGE_KEY)
     .is('project_id', null)
     .neq('status', 'dismissed');
   console.log(`       ${detached} live GLI records sit in the Inbox with no project.`);

@@ -20,6 +20,7 @@
 // change.
 
 import { pathToFileURL } from 'node:url';
+import { LIVE_PIPELINE_STORAGE_KEY } from '../pipelines';
 import { supabaseAdmin } from '../../../lib/supabase-admin';
 import { bestDate, clusterRecords, type ClusterRecord, type ClusteredProject } from '../cluster';
 import { loadProjects, projectRow, dropEmptyEnrichment } from '../project-write';
@@ -32,7 +33,9 @@ import {
 } from '../project-events';
 import { selectAllPaged } from '../page-select';
 
-const MODULE = 'gli';
+// The pipeline this backfill operates on, from the registry rather than a
+// literal. See agents/scraper/pipelines.
+const MODULE = LIVE_PIPELINE_STORAGE_KEY;
 
 const LEAD_COLUMNS =
   'id,url,title,raw_content,source,source_type,stream,status,lifecycle,object_type,' +

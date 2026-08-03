@@ -1,4 +1,5 @@
 'use client';
+import { LIVE_PIPELINE_STORAGE_KEY } from '@/lib/pipelines';
 
 // THE PROJECTS REGISTER. The primary view.
 //
@@ -103,7 +104,7 @@ export default function ProjectsPage() {
 
   const query: ProjectQuery = useMemo(
     () => ({
-      module: 'gli',
+      module: LIVE_PIPELINE_STORAGE_KEY,
       stage: stage ?? undefined,
       country: geo.country,
       region_state: geo.region_state,

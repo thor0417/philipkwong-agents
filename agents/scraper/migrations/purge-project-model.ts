@@ -14,6 +14,7 @@
 // reports without deleting. No migration needed (reads existing columns).
 //   DRY_RUN=1 node --env-file=.env.local --import tsx agents/scraper/migrations/purge-project-model.ts
 
+import { LIVE_PIPELINE_STORAGE_KEY } from '../pipelines';
 import { writeFileSync } from 'node:fs';
 import { supabaseAdmin } from '../../../lib/supabase-admin';
 import { classifyLead, deriveLeadDates } from '../lead-date';
@@ -43,7 +44,7 @@ async function main(): Promise<void> {
   const { data, error } = await supabaseAdmin
     .from('leads')
     .select('id, stream, title, raw_content, deadline, published_date, url')
-    .eq('module', 'gli');
+    .eq('module', LIVE_PIPELINE_STORAGE_KEY);
   if (error) {
     console.error('Fetch failed:', error.message);
     process.exit(1);

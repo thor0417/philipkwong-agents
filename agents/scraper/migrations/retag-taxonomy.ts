@@ -12,6 +12,7 @@
 //
 // Run: node --env-file=.env.local --import tsx agents/scraper/migrations/retag-taxonomy.ts
 
+import { LIVE_PIPELINE_STORAGE_KEY } from '../pipelines';
 import { supabaseAdmin } from '../../../lib/supabase-admin';
 import { classifyVenueType, categoryForVenue } from '../../../lib/taxonomy';
 
@@ -29,7 +30,7 @@ async function main(): Promise<void> {
     const { data, error } = await supabaseAdmin
       .from('leads')
       .select('id, title, raw_content, venue_type')
-      .eq('module', 'gli')
+      .eq('module', LIVE_PIPELINE_STORAGE_KEY)
       .range(from, from + 999);
     if (error) {
       console.error(`Re-tag: query failed: ${error.message}`);

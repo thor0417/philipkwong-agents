@@ -13,6 +13,7 @@
 // hand-pulled finding becomes a first-class row in the same pipeline.
 
 import { pathToFileURL } from 'node:url';
+import { LIVE_PIPELINE_STORAGE_KEY } from './pipelines';
 import Anthropic from '@anthropic-ai/sdk';
 import type { NormalizedLead } from './sources/types';
 import { classifyGli } from './gli';
@@ -49,7 +50,8 @@ import { scrapeCeqanet } from './sources/ceqanet';
 import { scrapeSfwmd } from './sources/sfwmd';
 import { loadKnownEntities } from './known-entities';
 
-const GOVERNMENT_MODULE = 'gli';
+// Resolved from the pipeline registry, not a literal. See agents/scraper/pipelines.
+const GOVERNMENT_MODULE = LIVE_PIPELINE_STORAGE_KEY;
 
 // ---- Player extraction (Pass 4). Local-government records name the people and
 // entities: who presented, the applicant/developer, the consultant, and the

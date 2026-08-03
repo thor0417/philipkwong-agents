@@ -26,6 +26,7 @@
 // and pipeline; sorting a bounded set in memory is cheap and honest, whereas
 // ordering by to_value alphabetically would be wrong and silent.
 
+import { LIVE_PIPELINE_STORAGE_KEY } from './pipelines';
 import { STAGE_LADDER } from './taxonomy';
 
 // Minimal shape of the query builder both clients satisfy. Typed structurally so
@@ -58,7 +59,8 @@ export interface Scope extends Period {
   limit?: number;
 }
 
-const DEFAULT_PIPELINE = 'gli';
+// Scoped by the live pipeline's storage key, from the registry mirror.
+const DEFAULT_PIPELINE = LIVE_PIPELINE_STORAGE_KEY;
 const DEFAULT_LIMIT = 500;
 
 // The columns every query returns, with the project and triggering record

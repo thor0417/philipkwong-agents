@@ -14,6 +14,7 @@
 // writing to Supabase (a zero-cost-to-Supabase dry validation).
 
 import { pathToFileURL } from 'node:url';
+import { LIVE_PIPELINE_STORAGE_KEY } from './pipelines';
 import {
   parseRunScope,
   describeScope,
@@ -46,7 +47,8 @@ import { scrapeCdb } from './sources/cdb';
 import { scrapeAfdb } from './sources/afdb';
 import { scrapeUndp } from './sources/undp';
 
-const OPPORTUNITY_MODULE = 'gli';
+// Resolved from the pipeline registry, not a literal. See agents/scraper/pipelines.
+const OPPORTUNITY_MODULE = LIVE_PIPELINE_STORAGE_KEY;
 
 // Opportunity-lane sources: leisure/tourism advisory procurement portals plus the
 // development banks. TED runs its leisure CPV group only (its own budget). Job

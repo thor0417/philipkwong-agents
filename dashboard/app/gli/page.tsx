@@ -1,4 +1,5 @@
 'use client';
+import { LIVE_PIPELINE_STORAGE_KEY } from '@/lib/pipelines';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -345,7 +346,7 @@ export default function GLIPage() {
   // and are reachable only through Trash.
   const baseQuery: LeadQuery = useMemo(
     () => ({
-      module: 'gli',
+      module: LIVE_PIPELINE_STORAGE_KEY,
       stream: activeStream,
       lifecycle: view === 'active' ? 'active' : ['expired', 'dead'],
       ...statusFilterFor(triageView),

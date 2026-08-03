@@ -33,6 +33,7 @@
 // published_date withheld and is re-derived from its TEXT, which is the only
 // evidence that was ever behind it.
 
+import { LIVE_PIPELINE_STORAGE_KEY } from '../pipelines';
 import { supabaseAdmin } from '../../../lib/supabase-admin';
 import { deriveLeadDates } from '../lead-date';
 import { selectAllPaged } from '../page-select';
@@ -58,7 +59,7 @@ async function main(): Promise<void> {
   const { rows, complete } = await selectAllPaged<Row>(
     'leads',
     'id, stream, title, raw_content, deadline, published_date, date_source, first_seen',
-    (q: unknown) => (q as { eq: (a: string, b: string) => unknown }).eq('module', 'gli'),
+    (q: unknown) => (q as { eq: (a: string, b: string) => unknown }).eq('module', LIVE_PIPELINE_STORAGE_KEY),
     'backfill-dates'
   );
   if (!complete) {

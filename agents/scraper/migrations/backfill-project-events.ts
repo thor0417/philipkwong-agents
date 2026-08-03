@@ -33,11 +33,12 @@
 // merged/split.
 
 import { pathToFileURL } from 'node:url';
+import { LIVE_PIPELINE_STORAGE_KEY } from '../pipelines';
 import { supabaseAdmin } from '../../../lib/supabase-admin';
 import { selectAllPaged } from '../page-select';
 import { emitProjectEvents, printEmitReport, type ProjectEventInput } from '../project-events';
 
-const MODULE = 'gli';
+const MODULE = LIVE_PIPELINE_STORAGE_KEY;
 
 interface ProjectRow {
   id: string;

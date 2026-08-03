@@ -6,6 +6,7 @@
 // exactly as the leads table behaves at 20,000 records: bounded reads, exact
 // counts with no rows transferred, and facets computed by the database.
 
+import { LIVE_PIPELINE_STORAGE_KEY } from './pipelines';
 import { supabase } from './supabase';
 
 export const DEFAULT_PROJECT_PAGE_SIZE = 50;
@@ -86,7 +87,7 @@ export function applyProjectFilters<T>(builder: T, q: ProjectQuery): T {
     b = fn as typeof b;
   };
 
-  set(b.eq('module', q.module ?? 'gli'));
+  set(b.eq('module', q.module ?? LIVE_PIPELINE_STORAGE_KEY));
   if (q.stage) set(b.eq('stage', q.stage));
   if (q.status) set(b.eq('status', q.status));
   if (q.excludeStatus) set(b.not('status', 'eq', q.excludeStatus));
@@ -188,7 +189,7 @@ export async function projectFacetCounts(
   const scoped: ProjectQuery = { ...base, [field]: undefined };
   const { data, error } = await supabase.rpc('project_facet_counts', {
     p_field: field,
-    p_module: scoped.module ?? 'gli',
+    p_module: scoped.module ?? LIVE_PIPELINE_STORAGE_KEY,
     p_stage: scoped.stage ?? null,
     p_country: scoped.country ?? null,
     p_region_state: scoped.region_state ?? null,
@@ -310,7 +311,7 @@ export async function fetchInboxPage(q: InboxQuery): Promise<{
       neq: (c: string, v: unknown) => unknown;
       or: (f: string) => unknown;
     };
-    b = b.eq('module', 'gli') as typeof b;
+    b = b.eq('module', LIVE_PIPELINE_STORAGE_KEY) as typeof b;
     b = b.is('project_id', null) as typeof b;
     b = b.neq('status', 'dismissed') as typeof b;
     if (q.search && q.search.trim()) {
@@ -354,7 +355,7 @@ export async function searchProjects(term: string, limit = 12): Promise<Project[
   const { data, error } = await supabase
     .from('projects')
     .select(PROJECT_COLUMNS)
-    .eq('module', 'gli')
+    .eq('module', LIVE_PIPELINE_STORAGE_KEY)
     .or(`name.ilike."%${safe}%",primary_applicant.ilike."%${safe}%"`)
     .order('record_count', { ascending: false })
     .limit(limit);

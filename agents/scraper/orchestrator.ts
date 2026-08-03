@@ -9,6 +9,7 @@
 // One source failing only drops that source (Promise.allSettled); the run never
 // crashes. Run it: npm run scrape:all
 
+import { LIVE_PIPELINE_STORAGE_KEY } from './pipelines';
 import { supabaseAdmin } from '../../lib/supabase-admin';
 import { geographyFields } from '../../lib/geography';
 import type { NormalizedLead } from './sources/types';
@@ -116,7 +117,8 @@ const JOB_BOARD_SOURCES = new Set(['arbeitnow', 'jooble', 'reed', 'careerjet', '
 // Module tag shared by every GLI lane write (news lane in gli.ts and the Tier 1
 // opportunity lane below). The opportunity lane additionally sets stream
 // 'opportunity' and lead_type 'tender'.
-const GLI_MODULE_OPPORTUNITY = 'gli';
+// Resolved from the pipeline registry, not a literal. See agents/scraper/pipelines.
+const GLI_MODULE_OPPORTUNITY = LIVE_PIPELINE_STORAGE_KEY;
 
 // Part A development banks whose tourism notices are captured on legitimacy
 // (like the TED CPV lane): IADB/CDB notices otherwise route through the Haiku
@@ -1182,8 +1184,10 @@ export async function orchestrate(): Promise<ScrapeReport> {
   }
   if (gliReport.written > 0) {
     written += gliReport.written;
-    writtenPerModule['gli'] = (writtenPerModule['gli'] ?? 0) + gliReport.written;
-    writtenPerIndustry['gli'] = (writtenPerIndustry['gli'] ?? 0) + gliReport.written;
+    writtenPerModule[LIVE_PIPELINE_STORAGE_KEY] =
+      (writtenPerModule[LIVE_PIPELINE_STORAGE_KEY] ?? 0) + gliReport.written;
+    writtenPerIndustry[LIVE_PIPELINE_STORAGE_KEY] =
+      (writtenPerIndustry[LIVE_PIPELINE_STORAGE_KEY] ?? 0) + gliReport.written;
     writtenPerLeadType['gli'] = (writtenPerLeadType['gli'] ?? 0) + gliReport.written;
     writtenPerSource[GLI_LEAD_SOURCE] = (writtenPerSource[GLI_LEAD_SOURCE] ?? 0) + gliReport.written;
   }
@@ -1508,7 +1512,7 @@ function printReport(r: ScrapeReport): void {
     console.log(`  Kept after inclusion rule:    ${r.gli.kept}`);
     console.log(`  Dropped as noise:             ${r.gli.droppedNoise}`);
     console.log(`  Dropped as project duplicate: ${r.gli.projectDuplicates}`);
-    console.log(`  Written (module 'gli'):       ${r.gli.written}`);
+    console.log(`  Written (${LIVE_PIPELINE_STORAGE_KEY}):${' '.repeat(14)}${r.gli.written}`);
     console.log('  GLI kept per venue_type:');
     console.log(table(r.gli.perVenueType));
     console.log('  GLI kept per signal_type:');

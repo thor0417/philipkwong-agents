@@ -1,4 +1,5 @@
 'use client';
+import { LIVE_PIPELINE_STORAGE_KEY } from '@/lib/pipelines';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -74,7 +75,7 @@ export default function PipelinePage() {
       supabase
         .from('leads')
         .select('*')
-        .neq('module', 'gli')
+        .neq('module', LIVE_PIPELINE_STORAGE_KEY)
         .order('score', { ascending: false }),
       supabase.from('outreach').select('*'),
       supabase.from('agents').select('*').order('name'),
