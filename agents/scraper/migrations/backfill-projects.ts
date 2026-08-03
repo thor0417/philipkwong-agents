@@ -340,6 +340,9 @@ export function printBackfillReport(
   console.log(`  container records (agenda/calendar/portal pages, no signals): ${cluster.containerRecords}`);
   console.log(`  citywide records narrowed to their own title case root:      ${cluster.citywideRecordsDropped}`);
   console.log(`  records naming more than 3 case roots (an index, not a filing): ${cluster.omnibusRecordsDropped}`);
+  console.log(
+    `  records naming more than one Development Area (an index, not a filing): ${cluster.multiSubareaRecords}`
+  );
   console.log('  office addresses dropped (an address on many unrelated filings):');
   if (!cluster.officeAddressesDropped.length) console.log('    (none)');
   for (const a of cluster.officeAddressesDropped) {

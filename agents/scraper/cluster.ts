@@ -86,7 +86,14 @@ export interface ClusterRecord {
   stream?: string | null;
 }
 
-export type ClusterReason = 'target' | 'case-family' | 'entity' | 'site' | 'name' | 'manual';
+export type ClusterReason =
+  | 'target'
+  | 'case-family'
+  | 'companion'
+  | 'entity'
+  | 'site'
+  | 'name'
+  | 'manual';
 
 // Priority order. Lower is stronger; this IS the brief's rule order.
 //
@@ -99,9 +106,13 @@ export type ClusterReason = 'target' | 'case-family' | 'entity' | 'site' | 'name
 const REASON_PRIORITY: Record<Exclude<ClusterReason, 'manual'>, number> = {
   target: 0,
   'case-family': 1,
-  entity: 2,
-  site: 3,
-  name: 4,
+  // A companion item: the same meeting, the same sub-area of the same specific
+  // plan. Ranked just below a case number because it IS a case-like identifier -
+  // it just happens to be scoped to the hearing rather than to the jurisdiction.
+  companion: 2,
+  entity: 3,
+  site: 4,
+  name: 5,
 };
 
 // ---- Text helpers -----------------------------------------------------------
@@ -520,6 +531,35 @@ export const MAX_RECORDS_PER_ADDRESS = 3;
 // it out of an applicant field: a short name matches inside unrelated phrases.
 export const CROSS_STREAM_MIN_ENTITY = 10;
 
+// ---- 5. COMPANION: the same meeting, the same sub-area -----------------------
+
+// A Development Area designator: "DA 5", "DA5". A sub-area of a specific plan,
+// which is how a council agenda refers to the piece of a plan an amendment
+// touches when it does not repeat the plan's own number.
+//
+// Deliberately narrow. It is NOT a general "sub-area" scanner: 'Area 5',
+// 'Planning Area 5' and 'District 5' are all common enough on an agenda to
+// collide across unrelated matters, and 'DA' is the one abbreviation that is
+// unambiguous in this corpus. Five records carry it in total.
+const SUBAREA_RE = /\bDA\s?(\d{1,2})\b/g;
+
+export function subareaKeys(r: ClusterRecord): string[] {
+  const re = new RegExp(SUBAREA_RE.source, SUBAREA_RE.flags);
+  const out = new Set<string>();
+  let m: RegExpExecArray | null;
+  const text = recordText(r);
+  while ((m = re.exec(text)) !== null) out.add(`da${m[1]}`);
+  return [...out];
+}
+
+// The meeting a record was heard at: its agenda URL without the item fragment.
+// Two items on one agenda share it; the same agenda re-heard at a later meeting
+// has a different clip id and therefore a different key, which is correct - a
+// continuation is joined through the case root its other half carries.
+export function meetingOf(r: ClusterRecord): string {
+  return String(r.url ?? '').split('#')[0];
+}
+
 // ---- The engine -------------------------------------------------------------
 
 export interface ClusteredProject {
@@ -558,6 +598,9 @@ export interface ClusterResult {
   // in its own title (its subject), discarding the ones its body merely scopes.
   citywideRecordsDropped: number;
   omnibusRecordsDropped: number;
+  // Records naming more than one Development Area, refused as an index of a
+  // whole plan rather than a filing about one part of it.
+  multiSubareaRecords: number;
   officeAddressesDropped: { key: string; records: number; market: string }[];
   // Extracted project names that at least two records shared, so the name became
   // a usable signal. Reported so every name-based merge is inspectable.
@@ -777,6 +820,7 @@ export function clusterRecords(
     containerRecords: 0,
     citywideRecordsDropped: 0,
     omnibusRecordsDropped: 0,
+    multiSubareaRecords: 0,
     officeAddressesDropped: [],
     namesCorroborated: [],
     namesUncorroborated: 0,
@@ -838,7 +882,51 @@ export function clusterRecords(
       sigs.push({ key, reason: 'site' });
     }
 
-    // 5. NAME (market-scoped), intelligence stream only.
+    // 5. COMPANION ITEM: the same meeting, the same sub-area.
+    //
+    // THE MISS THIS FIXES. An entitlement reaches a council as two adjacent
+    // agenda items: a General Plan Amendment and a Specific Plan Amendment, two
+    // halves of one application. The Anaheim Hills Festival pair proves it -
+    // items 23 and 24 of the 2025-12-15 meeting, and items 19 and 20 of the
+    // 2026-01-12 continuation. The SPA half names "Specific Plan No. 90-1" and
+    // clusters on that case root. The GPA half names no case number, no
+    // applicant and no address; its entire subject is "change the land use
+    // designation within DA 5 from Regional Commercial to Mixed-Use Medium".
+    // So it carried no signal at all and sat in the Inbox while its own sibling
+    // was in the project.
+    //
+    // THE GENERAL RULE WAS TESTED AND REJECTED. "Same meeting, same market,
+    // overlapping subject" merges everything a council does in one sitting.
+    // Measured on the 2025-12-15 Anaheim agenda alone, that would have joined
+    // the Nitrous Oxide and Kratom ordinances, a Good Hope International hotel
+    // compliance review, the Anaheim GardenWalk agreement, the PT Metro A-Town
+    // agreement and the Festival items into ONE project - six developments and
+    // two public-health ordinances. A meeting is a container, exactly as
+    // isContainerRecord already says.
+    //
+    // SO THIS IS THE NARROW FIX. The signal is not "same meeting", it is "same
+    // meeting AND the same named sub-area". A Development Area designator is a
+    // sub-area of a specific plan, so DA 5 heard on one agenda is one matter.
+    // Scoped to the meeting URL, so DA 5 in an unrelated specific plan at
+    // another hearing cannot reach it.
+    //
+    // A RECORD NAMING MORE THAN ONE SUB-AREA IS REFUSED, the same way an
+    // omnibus record naming many case roots is: the Anaheim Hills Festival
+    // development application names DA 5 and DA 2 and is an index of the
+    // whole plan, not a filing about one area. It clusters on its case
+    // number regardless.
+    //
+    // MEASURED over the whole corpus: 5 records carry a sub-area token at all,
+    // 1 is refused for naming two, and the rule creates exactly 2 groups - the
+    // two GPA/SPA pairs it was written for. No other record is touched.
+    const subareas = subareaKeys(r);
+    if (subareas.length === 1) {
+      sigs.push({ key: `companion:${mk}:${meetingOf(r)}:${subareas[0]}`, reason: 'companion' });
+    } else if (subareas.length > 1) {
+      result.multiSubareaRecords++;
+    }
+
+    // 6. NAME (market-scoped), intelligence stream only.
     //
     // The signal that lets a market with no government coverage appear in the
     // register at all. Trade press names a project and carries none of the four
