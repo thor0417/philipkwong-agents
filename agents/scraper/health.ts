@@ -26,7 +26,8 @@
 // nothing is suspicious, and a unit that fetched nothing at all is worse.
 
 import { supabaseAdmin } from '../../lib/supabase-admin';
-import { captureDeadSource, captureEmptyLane } from './sentry';
+import { captureDeadSource, captureDegradedRecovery, captureEmptyLane } from './sentry';
+import { ageInDays, degradedEntry, suppressesAlert } from './degraded-sources';
 
 export interface SourceRun {
   // The thing being judged: a source name ('legistar'), or something finer
@@ -173,8 +174,32 @@ export async function reportRunHealth(
   const findings = judge(rs, baselines);
   printHealth(findings);
 
+  // THE KNOWN-DEGRADED REGISTER decides who gets paged, never who gets shown.
+  // A registered unit producing exactly the failure its entry expects is the
+  // documented condition: it appears in the run report and on the Health surface
+  // above, and Sentry is not woken for it. Anything else - a different failure,
+  // or a recovery - is a change, and a change alerts.
   for (const f of findings) {
-    if (f.verdict === 'ok') continue;
+    if (f.verdict === 'ok') {
+      // A registered unit that has RECOVERED is news: the register is now wrong.
+      const known = suppressesAlert(f.unit, f.verdict);
+      if (known) {
+        console.log(
+          `  DEGRADED-SOURCE RECOVERY: "${f.unit}" kept ${f.kept} and is registered as degraded ` +
+            `since ${known.entry.recorded}. Remove its entry in agents/scraper/degraded-sources.`
+        );
+        captureDegradedRecovery({
+          unit: f.unit,
+          lane: f.lane,
+          fetched: f.fetched,
+          kept: f.kept,
+          recordedOn: known.entry.recorded,
+        });
+      }
+      continue;
+    }
+    const known = suppressesAlert(f.unit, f.verdict);
+    if (known?.asExpected) continue;
     captureDeadSource({
       unit: f.unit,
       lane: f.lane,
@@ -205,15 +230,42 @@ export function printHealth(findings: HealthFinding[]): void {
     `\nRun health: ${findings.length - bad.length} of ${findings.length} sources produced records.`
   );
   if (bad.length === 0) return;
-  console.log('  SOURCES THAT PRODUCED NOTHING:');
-  for (const f of bad.sort((a, b) => a.verdict.localeCompare(b.verdict))) {
-    const base = f.baseline === null ? 'no history' : `usually ${f.baseline.toFixed(1)}`;
-    const label =
-      f.verdict === 'no-fetch'
-        ? 'TOTAL DEATH  fetched nothing'
-        : f.verdict === 'zero-kept'
-          ? 'ZERO KEPT    fetched but kept none'
-          : 'zero        (no baseline yet)';
-    console.log(`    ${label}  ${f.unit}  [fetched ${f.fetched}, kept ${f.kept}, ${base}]`);
+
+  // A KNOWN-DEGRADED SOURCE IS REPORTED, NOT HIDDEN. It is split into its own
+  // section so the list above it is only the things that need reading today.
+  // Silencing an alarm and hiding the condition are different acts, and only the
+  // first one is wanted here.
+  const known = bad.filter((f) => suppressesAlert(f.unit, f.verdict)?.asExpected);
+  const news = bad.filter((f) => !suppressesAlert(f.unit, f.verdict)?.asExpected);
+
+  if (news.length > 0) {
+    console.log('  SOURCES THAT PRODUCED NOTHING:');
+    for (const f of news.sort((a, b) => a.verdict.localeCompare(b.verdict))) {
+      const base = f.baseline === null ? 'no history' : `usually ${f.baseline.toFixed(1)}`;
+      const label =
+        f.verdict === 'no-fetch'
+          ? 'TOTAL DEATH  fetched nothing'
+          : f.verdict === 'zero-kept'
+            ? 'ZERO KEPT    fetched but kept none'
+            : 'zero        (no baseline yet)';
+      const entry = degradedEntry(f.unit);
+      // A registered unit failing in a way its entry did NOT predict.
+      const note = entry ? '  <- registered as degraded, but this is a DIFFERENT failure' : '';
+      console.log(`    ${label}  ${f.unit}  [fetched ${f.fetched}, kept ${f.kept}, ${base}]${note}`);
+    }
+  }
+
+  if (known.length > 0) {
+    console.log('  KNOWN DEGRADED (reported, not alerted):');
+    for (const f of known) {
+      const entry = degradedEntry(f.unit) as NonNullable<ReturnType<typeof degradedEntry>>;
+      const age = ageInDays(entry);
+      console.log(
+        `    ${f.unit}  [fetched ${f.fetched}, kept ${f.kept}]  recorded ${entry.recorded}` +
+          (age === null ? '' : ` (${age}d ago)`)
+      );
+      console.log(`        why:    ${entry.reason.replace(/\s+/g, ' ').slice(0, 160)}`);
+      console.log(`        alerts again when: ${entry.alertsAgainWhen.replace(/\s+/g, ' ')}`);
+    }
   }
 }

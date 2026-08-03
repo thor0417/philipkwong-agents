@@ -146,6 +146,33 @@ export function captureDeadSource(f: {
   });
 }
 
+// A source on the known-degraded register has started working again.
+//
+// This is the condition that makes the register safe to have. A suppression with
+// no way to expire is how a source dies twice - once when it breaks, and once
+// when it quietly changes behaviour while nobody is listening. So recovery is an
+// EVENT, not a silence: the entry in agents/scraper/degraded-sources is now
+// wrong, and somebody has to delete it.
+//
+// Reported at 'info'. Nothing is broken; the register is simply out of date.
+export function captureDegradedRecovery(f: {
+  unit: string;
+  lane: string;
+  fetched: number;
+  kept: number;
+  recordedOn: string;
+}): void {
+  if (!sentryEnabled) return;
+  Sentry.captureMessage(
+    `Known-degraded source "${f.unit}" is producing again (kept ${f.kept}); its register entry is stale`,
+    {
+      level: 'info',
+      tags: { lane: f.lane, unit: f.unit, kind: 'degraded-recovery' },
+      extra: { fetched: f.fetched, kept: f.kept, recordedOn: f.recordedOn },
+    }
+  );
+}
+
 // Whole-lane version, for the case where a lane writes nothing at all. Kept
 // separate from the per-source check because a lane can be healthy in aggregate
 // while one source inside it is dead, and the reverse.
