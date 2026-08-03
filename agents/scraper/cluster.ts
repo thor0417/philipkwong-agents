@@ -42,6 +42,7 @@ import {
   targetProjectName,
   type TargetDef,
 } from './targets';
+import { extractProjectNames, nameSignalApplies } from './project-name';
 import {
   deriveProjectStage,
   hasStallMarker,
@@ -80,16 +81,27 @@ export interface ClusterRecord {
   milestone_date?: string | null;
   venue_type?: string | null;
   development_category?: string | null;
+  // Which lane produced the record. Read ONLY by the name signal, which is
+  // scoped to the intelligence stream (see project-name).
+  stream?: string | null;
 }
 
-export type ClusterReason = 'target' | 'case-family' | 'entity' | 'site' | 'manual';
+export type ClusterReason = 'target' | 'case-family' | 'entity' | 'site' | 'name' | 'manual';
 
 // Priority order. Lower is stronger; this IS the brief's rule order.
+//
+// 'name' sits LAST, below site. A published project name is the weakest of the
+// five because it is the only one derived from prose rather than from a field a
+// filing system populated: a case number, an applicant and an address are all
+// asserted by the source, while a name is inferred from a headline. When a
+// record carries a name and anything else, the other signal is the better
+// explanation of why it belongs, and that is what gets recorded as the reason.
 const REASON_PRIORITY: Record<Exclude<ClusterReason, 'manual'>, number> = {
   target: 0,
   'case-family': 1,
   entity: 2,
   site: 3,
+  name: 4,
 };
 
 // ---- Text helpers -----------------------------------------------------------
@@ -541,6 +553,12 @@ export interface ClusterResult {
   citywideRecordsDropped: number;
   omnibusRecordsDropped: number;
   officeAddressesDropped: { key: string; records: number; market: string }[];
+  // Extracted project names that at least two records shared, so the name became
+  // a usable signal. Reported so every name-based merge is inspectable.
+  namesCorroborated: { key: string; records: number }[];
+  // Names seen exactly once, which are suppressed rather than made into
+  // one-record projects. Counted, not listed: there are hundreds.
+  namesUncorroborated: number;
   skippedDismissed: number;
   // Records Philip detached by hand, which never re-cluster.
   skippedDetached: number;
@@ -748,6 +766,8 @@ export function clusterRecords(
     citywideRecordsDropped: 0,
     omnibusRecordsDropped: 0,
     officeAddressesDropped: [],
+    namesCorroborated: [],
+    namesUncorroborated: 0,
     skippedDismissed,
     skippedDetached,
     livenessReasons: {},
@@ -804,6 +824,20 @@ export function clusterRecords(
       sigs.push({ key, reason: 'site' });
     }
 
+    // 5. NAME (market-scoped), intelligence stream only.
+    //
+    // The signal that lets a market with no government coverage appear in the
+    // register at all. Trade press names a project and carries none of the four
+    // signals above, so 391 of 410 intelligence records had nothing to cluster
+    // on. Scoped hard to the stream it was built for: on government titles the
+    // same extraction merges procedural boilerplate across unrelated projects,
+    // measured and documented in project-name.
+    if (nameSignalApplies(r.stream)) {
+      for (const n of extractProjectNames(r.title)) {
+        sigs.push({ key: `name:${mk}:${n.key}`, reason: 'name' });
+      }
+    }
+
     signals.push(sigs);
   }
 
@@ -817,6 +851,38 @@ export function clusterRecords(
       result.officeAddressesDropped.push({ key: rest.join(':'), records: n, market });
     }
   }
+  // A NAME SIGNAL MUST BE CORROBORATED. It only counts when at least one other
+  // record carries the same name in the same market.
+  //
+  // Without this the rule does not cluster, it renames the Inbox. Every trade
+  // press headline that yields a distinctive phrase would become a ONE-RECORD
+  // project: measured, that turned 219 unclustered records into 435 projects, of
+  // which roughly 256 were singletons invented from a single headline. The
+  // register would have grown by 143 percent while learning almost nothing, and
+  // every one of those names would then have landed in Part Three's naming
+  // problem.
+  //
+  // The other four signals are exempt, and the asymmetry is deliberate. A case
+  // number, an applicant and an address are ASSERTED BY THE SOURCE: one Clark
+  // County filing with a case number is a real filing on a real project even if
+  // nothing else references it yet. A name is INFERRED FROM PROSE, so a single
+  // occurrence is one journalist's phrasing and not yet evidence of anything.
+  // Corroboration is what turns it into evidence.
+  //
+  // A record whose only signal was an uncorroborated name stays in the Inbox,
+  // visible and attachable by hand, exactly as before.
+  const nameCounts = new Map<string, number>();
+  for (const sigs of signals) {
+    for (const s of sigs) {
+      if (s.reason === 'name') nameCounts.set(s.key, (nameCounts.get(s.key) ?? 0) + 1);
+    }
+  }
+  for (const [key, n] of nameCounts) {
+    if (n < 2) suppressed.add(key);
+    else result.namesCorroborated.push({ key: key.split(':').slice(2).join(':'), records: n });
+  }
+  result.namesUncorroborated = [...nameCounts.values()].filter((n) => n < 2).length;
+
   for (let i = 0; i < signals.length; i++) {
     signals[i] = signals[i].filter((s) => !suppressed.has(s.key));
   }
@@ -870,9 +936,15 @@ export function clusterRecords(
     const members = idxs.map((i) => {
       // The reason is the STRONGEST signal this record carries: the brief's
       // "first rule that fires", recorded per record.
+      // Seeded with the record's OWN first signal, never with a fixed sentinel.
+      // It used to seed with 'site', which silently assumed site was the weakest
+      // reason. Adding 'name' below site made that assumption wrong and the bug
+      // visible: a record carrying only a name signal was reported as 'site',
+      // so 280 intelligence records were attributed to a signal none of them
+      // had. signals[i] is non-empty here - the empty case returned above.
       const best = signals[i].reduce<Exclude<ClusterReason, 'manual'>>(
         (acc, s) => (REASON_PRIORITY[s.reason] < REASON_PRIORITY[acc] ? s.reason : acc),
-        'site'
+        signals[i][0].reason
       );
       return { record: records[i], reason: best as ClusterReason };
     });

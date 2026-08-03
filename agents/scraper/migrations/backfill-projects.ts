@@ -346,6 +346,16 @@ export function printBackfillReport(
     console.log(`    ${a.records}x  ${a.key}  [${a.market}]`);
   }
 
+  // EVERY NAME-BASED MERGE, listed. The name signal is the only one inferred
+  // from prose rather than asserted by a source, so it is the one that must be
+  // inspectable record by record rather than trusted.
+  console.log(
+    `\nProject names extracted from trade press (intelligence stream only):\n` +
+      `  names corroborated by 2+ records (used as a signal): ${cluster.namesCorroborated.length}\n` +
+      `  names seen exactly once (suppressed, record stays in the Inbox): ${cluster.namesUncorroborated}`
+  );
+  for (const n of cluster.namesCorroborated) console.log(`    ${n.records}x  "${n.key}"`);
+
   console.log('\nCase-family patterns found, per jurisdiction (case roots matched):');
   for (const [k, v] of Object.entries(cluster.casePatternsFound).sort((a, b) => b[1] - a[1])) {
     console.log(`  ${String(v).padStart(4)}  ${k}`);
