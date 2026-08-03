@@ -43,6 +43,7 @@ import {
   type TargetDef,
 } from './targets';
 import { extractProjectNames, nameSignalApplies } from './project-name';
+import { deriveProjectName, type NameSource } from './project-naming';
 import {
   deriveProjectStage,
   hasStallMarker,
@@ -565,6 +566,10 @@ export function meetingOf(r: ClusterRecord): string {
 export interface ClusteredProject {
   project_key: string;
   name: string;
+  // Which rule produced the name: target, applicant, site or title. Kept so the
+  // register can show how confident the name is instead of presenting a cleaned
+  // agenda line as if it were a project's real name.
+  name_source: NameSource;
   market: string | null;
   country: string | null;
   region_state: string | null;
@@ -679,22 +684,13 @@ export function cleanTitle(title: string): string {
   return t.length > 90 ? `${t.slice(0, 87).trimEnd()}...` : t;
 }
 
-// A cluster with no target term is named from its most descriptive record: the
-// EARLIEST one, because the originating filing is the one that states what the
-// project is, where later records only reference it. Philip can rename any
-// project by hand and the rename is recorded and never overwritten (Part E).
-function nameFromRecords(records: ClusterRecord[]): string {
-  const sorted = [...records].sort((a, b) => {
-    const da = bestDate(a) ?? '';
-    const db = bestDate(b) ?? '';
-    return da.localeCompare(db);
-  });
-  for (const r of sorted) {
-    const cleaned = cleanTitle(r.title ?? '');
-    if (cleaned.length >= 12) return cleaned;
-  }
-  return cleanTitle(sorted[0]?.title ?? '') || 'Untitled project';
-}
+// NAMING MOVED OUT. A project used to be named by cleaning its earliest
+// record's title and cutting it to length, which is why 148 of 179 names were
+// unusable: an agenda title is an instruction to a council, not a name. The
+// rule now lives in agents/scraper/project-naming, which tries the target, then
+// the applicant plus venue type, then the site plus venue type, and only then
+// the cleaned title. cleanTitle above is retained because the naming module and
+// other callers still use the same idea of procedural chrome.
 
 // The most common non-null value, for rolling a project's geography and people
 // up from its records.
@@ -1126,18 +1122,42 @@ export function clusterRecords(
     // lexicographically smallest key, so the same membership always produces the
     // same key.
     const allSignals = idxs.flatMap((i) => signals[i]);
+    // Seeded with Infinity, not with REASON_PRIORITY.site. Seeding with site
+    // assumed site was the weakest reason; once 'name' ranked below it, a
+    // project whose only signals were names computed strongest = site, matched
+    // no signal, and produced an UNDEFINED project_key - the upsert key. Same
+    // latent assumption as the per-record reason seed, in the second place it
+    // was written.
     const strongest = allSignals.reduce(
       (acc, s) => Math.min(acc, REASON_PRIORITY[s.reason]),
-      REASON_PRIORITY.site
+      Number.POSITIVE_INFINITY
     );
     const projectKey = allSignals
       .filter((s) => REASON_PRIORITY[s.reason] === strongest)
       .map((s) => s.key)
       .sort()[0];
 
+    // THE NAMING RULE (agents/scraper/project-naming): target, then applicant
+    // plus venue type, then site plus venue type, then a cleaned title. Which
+    // source fired is kept, so the register can show its own confidence.
+    const venueType = modeOf(recs.map((r) => r.venue_type));
+    const named = deriveProjectName({
+      targetName: target ? targetProjectName(target, market) : null,
+      records: recs,
+      venueType,
+      // Office addresses are excluded here as well as from clustering. A law
+      // firm's address or a city hall is not a project's site, so it must not
+      // become a project's NAME either: "3560 Lennox Road leisure development"
+      // named a mitigation bank after its filing agent's office.
+      siteKeysByRecord: recs.map((r) =>
+        siteKeys(r).filter((s) => !suppressed.has(`site:${marketKey(r)}:${s}`))
+      ),
+    });
+
     result.projects.push({
       project_key: projectKey,
-      name: target ? targetProjectName(target, market) : nameFromRecords(recs),
+      name: named.name,
+      name_source: named.source,
       market,
       country: modeOf(recs.map((r) => r.country)),
       region_state: modeOf(recs.map((r) => r.region_state)),
