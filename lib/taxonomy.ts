@@ -540,6 +540,16 @@ export const GOV_GATE_ACTION = [
 //   ground lease                5 hits, no headline records. This corpus's ground
 //                               leases are Phoenix Sky Harbor cargo tenants (UPS,
 //                               Custom Pipe & Fabrication).
+//                               CONFIRMED STILL OUT. 'ground lease' is in ACTION
+//                               and in ACTION ONLY, so it needs a corroborating
+//                               WEAK term and can never fire alone. That is the
+//                               correct placement and it is working: the UPS Sky
+//                               Harbor calibration probe must reject and does,
+//                               on 'no-match', having matched this term with no
+//                               venue noun beside it. Unlike 'development
+//                               agreement' and 'disposition and development
+//                               agreement', which sit in ACTION and DEAL
+//                               deliberately, this term is in one tier only.
 //   funding agreement           4 hits, 25% relevant. Fires on opioid-settlement
 //                               service agreements and $50k arts-programming
 //                               grants. The one real hit (Historic Market Square
