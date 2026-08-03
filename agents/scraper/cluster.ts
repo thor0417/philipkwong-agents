@@ -514,6 +514,12 @@ export function siteKeys(r: ClusterRecord): string[] {
 // than silent.
 export const MAX_RECORDS_PER_ADDRESS = 3;
 
+// The shortest applicant name allowed to claim an intelligence record from its
+// prose (see the cross-stream pass). Longer than the entity signal's own floor,
+// because matching a company name inside free text is a weaker act than reading
+// it out of an applicant field: a short name matches inside unrelated phrases.
+export const CROSS_STREAM_MIN_ENTITY = 10;
+
 // ---- The engine -------------------------------------------------------------
 
 export interface ClusteredProject {
@@ -559,6 +565,12 @@ export interface ClusterResult {
   // Names seen exactly once, which are suppressed rather than made into
   // one-record projects. Counted, not listed: there are hundreds.
   namesUncorroborated: number;
+  // Intelligence records attached to a project by recognising a government
+  // applicant's name in their prose. Listed, because this rule crosses streams.
+  crossStreamAttached: { entity: string; market: string; title: string }[];
+  // Intelligence records naming more than one known developer, refused rather
+  // than allowed to bridge two projects.
+  crossStreamAmbiguous: number;
   skippedDismissed: number;
   // Records Philip detached by hand, which never re-cluster.
   skippedDetached: number;
@@ -768,6 +780,8 @@ export function clusterRecords(
     officeAddressesDropped: [],
     namesCorroborated: [],
     namesUncorroborated: 0,
+    crossStreamAttached: [],
+    crossStreamAmbiguous: 0,
     skippedDismissed,
     skippedDetached,
     livenessReasons: {},
@@ -851,6 +865,59 @@ export function clusterRecords(
       result.officeAddressesDropped.push({ key: rest.join(':'), records: n, market });
     }
   }
+  // ---- Pass 1b: CROSS-STREAM ENTITY ATTACHMENT ------------------------------
+  //
+  // An intelligence record naming OCVibe joins the OCVibe project, because
+  // 'ocvibe' is a target term. An intelligence record naming Kulik River Capital
+  // joins Heart Hotel for the same reason. But those are the only two projects
+  // it works for: measured, exactly 2 of 179 projects contain more than one
+  // stream, and both are target-named. The other 158 government projects have no
+  // route to receive press coverage at all, because a target term is the ONLY
+  // signal an intelligence record and a government record could previously
+  // share - trade press has no applicant column to match on.
+  //
+  // So the entity signal is extended to read prose. A government filing ASSERTS
+  // its applicant in a field; a headline names the same company in a sentence.
+  // The vocabulary comes entirely from applicant fields already in the corpus,
+  // so this invents no entities - it only lets an existing one be recognised
+  // where it is written out rather than filed.
+  //
+  // THREE GUARDS, because this rule reaches across streams and a mistake here
+  // attaches press to the wrong project:
+  //   - the entity must be at least CROSS_STREAM_MIN_ENTITY characters. Short
+  //     names match inside unrelated words and inside each other.
+  //   - it must not be generic, which isGenericEntity already decides.
+  //   - A RECORD MATCHING MORE THAN ONE ENTITY IS REFUSED ENTIRELY. "Company A
+  //     and Company B partner on a resort" would otherwise BRIDGE two separate
+  //     government projects into one, which is the worst failure this engine
+  //     has. A record naming several developers is a market roundup, not a
+  //     project record. Same reasoning as MAX_CASE_ROOTS_PER_RECORD.
+  const knownEntities = new Map<string, Set<string>>();
+  for (let i = 0; i < records.length; i++) {
+    const e = entityOf(records[i]);
+    if (!e || e.length < CROSS_STREAM_MIN_ENTITY) continue;
+    const mk = marketKey(records[i]);
+    if (!knownEntities.has(mk)) knownEntities.set(mk, new Set());
+    knownEntities.get(mk)!.add(e);
+  }
+  for (let i = 0; i < records.length; i++) {
+    const r = records[i];
+    if (!nameSignalApplies(r.stream)) continue;
+    if (signals[i].some((s) => s.reason === 'entity')) continue;
+    const mk = marketKey(r);
+    const pool = knownEntities.get(mk);
+    if (!pool) continue;
+    const hay = ` ${recordText(r).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()} `;
+    const hits = [...pool].filter((e) => hay.includes(` ${e} `));
+    if (hits.length === 0) continue;
+    if (hits.length > 1) {
+      result.crossStreamAmbiguous++;
+      continue;
+    }
+    signals[i].push({ key: `entity:${mk}:${hits[0]}`, reason: 'entity' });
+    result.crossStreamAttached.push({ entity: hits[0], market: mk, title: (r.title ?? '').slice(0, 90) });
+  }
+
   // A NAME SIGNAL MUST BE CORROBORATED. It only counts when at least one other
   // record carries the same name in the same market.
   //

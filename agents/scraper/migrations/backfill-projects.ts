@@ -356,6 +356,16 @@ export function printBackfillReport(
   );
   for (const n of cluster.namesCorroborated) console.log(`    ${n.records}x  "${n.key}"`);
 
+  console.log(
+    `\nCross-stream attachment (an intelligence record recognised as naming a\n` +
+      `government project's applicant, so press and filings share one timeline):\n` +
+      `  attached: ${cluster.crossStreamAttached.length}\n` +
+      `  refused for naming more than one developer (a roundup, not a project): ${cluster.crossStreamAmbiguous}`
+  );
+  for (const a of cluster.crossStreamAttached) {
+    console.log(`    [${a.market}] "${a.entity}"  ::  ${a.title.replace(/\s+/g, ' ')}`);
+  }
+
   console.log('\nCase-family patterns found, per jurisdiction (case roots matched):');
   for (const [k, v] of Object.entries(cluster.casePatternsFound).sort((a, b) => b[1] - a[1])) {
     console.log(`  ${String(v).padStart(4)}  ${k}`);
