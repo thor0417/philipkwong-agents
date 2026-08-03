@@ -120,6 +120,9 @@ function main(): void {
     stage: clustered.stage,
     record_count: clustered.record_count,
     last_activity: clustered.last_activity,
+    primary_applicant: null,
+    primary_representative: null,
+    next_milestone: null,
     manual_overrides: { name: true },
   };
   const held = projectRow(clustered, renamed);

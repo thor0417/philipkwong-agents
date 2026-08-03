@@ -59,20 +59,32 @@ create index if not exists idx_project_events_recent on project_events(module, o
 -- a duplicate emission a no-op at the database level: the emitter inserts with
 -- on conflict do nothing, so re-running is safe however it is called.
 --
--- The identity of an event is (project, type, when, from, to). Two genuinely
--- distinct events of the same type on the same project at the same instant with
--- the same values do not exist - that is the same event observed twice.
+-- The identity of an event is (project, type, when, from, to, LEAD). Two
+-- genuinely distinct events of the same type on the same project at the same
+-- instant, carrying the same record and the same values, do not exist - that is
+-- the same event observed twice.
 --
--- coalesce, because a null in a unique index does not compare equal to another
--- null in Postgres, which would let unlimited duplicates of any event with a
--- null from_value through. That is most of them.
+-- lead_id IS PART OF THE IDENTITY, and this line originally omitted it. That was
+-- wrong, and the history backfill is what proved it: deriving the recoverable
+-- history over the stored corpus produced 712 events of which 89 shared a
+-- (project, type, date, from, to) key and differed ONLY by lead_id. Those are
+-- not duplicates - they are different records attaching to one project on one
+-- day - and collapsing them would have silently dropped 89 of 364 attachments,
+-- gutting the query that makes "approved by this filing" answerable. See
+-- migration 023, which corrects any database already built from the old line.
+--
+-- coalesce on all three, because a null does not compare equal to another null
+-- in a Postgres unique index. Without it, every event with no triggering record
+-- (project_created, stage_changed, renamed) would duplicate freely - which is
+-- the opposite failure and a worse one.
 create unique index if not exists idx_project_events_identity
   on project_events(
     project_id,
     event_type,
     occurred_at,
     coalesce(from_value, ''),
-    coalesce(to_value, '')
+    coalesce(to_value, ''),
+    coalesce(lead_id::text, '')
   );
 
 -- Same policy as every other table in supabase/schema.sql: the scraper writes

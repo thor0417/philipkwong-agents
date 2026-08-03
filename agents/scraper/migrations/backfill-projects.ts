@@ -21,8 +21,15 @@
 
 import { pathToFileURL } from 'node:url';
 import { supabaseAdmin } from '../../../lib/supabase-admin';
-import { clusterRecords, type ClusterRecord, type ClusteredProject } from '../cluster';
+import { bestDate, clusterRecords, type ClusterRecord, type ClusteredProject } from '../cluster';
 import { loadProjects, projectRow, dropEmptyEnrichment } from '../project-write';
+import {
+  emitProjectEvents,
+  emptyEmitReport,
+  printEmitReport,
+  type EmitReport,
+  type ProjectEventInput,
+} from '../project-events';
 import { selectAllPaged } from '../page-select';
 
 const MODULE = 'gli';
@@ -76,6 +83,27 @@ export interface BackfillReport {
   orphansRemoved: number;
   // Orphans that carried curation and were kept, with record_count corrected.
   orphansKept: string[];
+  // What this run recorded in the project_events table.
+  events: EmitReport;
+}
+
+// THE RECORD THAT JUSTIFIES A STAGE CHANGE, so "approved by this filing" is
+// answerable rather than merely "approved on this date".
+//
+// The most recently dated member, because stage is derived from the most
+// ADVANCED evidence and the newest record is the one that most recently moved
+// it. This is a best attribution rather than a proof - the clusterer computes
+// stage over the whole member set, not from a single record - so it is written
+// to lead_id, which is nullable, and never presented as certainty.
+function latestRecordId(p: ClusteredProject): string | null {
+  let best: { id: string; at: string } | null = null;
+  for (const m of p.members) {
+    const id = m.record.id;
+    const at = bestDate(m.record);
+    if (!id || !at) continue;
+    if (!best || at > best.at) best = { id, at };
+  }
+  return best?.id ?? null;
 }
 
 // Update a set of lead ids in chunks, so the query string cannot overflow.
@@ -120,9 +148,30 @@ export async function runBackfill(): Promise<{
     writeFailures: 0,
     orphansRemoved: 0,
     orphansKept: [],
+    events: emptyEmitReport(),
   };
 
   const existing = noWrite ? new Map() : await loadProjects(MODULE);
+
+  // EVENTS DERIVED DURING THE WRITE, emitted once at the end.
+  //
+  // This is the only clustering path there is - attach-on-write re-runs this
+  // same backfill rather than implementing a second matcher - so emitting here
+  // covers both the backfill and the live write path with one implementation.
+  //
+  // EVERY occurred_at IS DERIVED FROM DATA, NEVER FROM THE CLOCK. That is not a
+  // style preference, it is what makes idempotency possible: the event identity
+  // includes occurred_at, so a clock-derived timestamp would give the same
+  // logical event a different identity on every run and duplicate it forever.
+  // A change we detect today because of a filing dated three weeks ago is dated
+  // at the filing.
+  // Keyed by project_key rather than index-aligned with a second array: a
+  // project's id does not exist until the projects are written, so the key is
+  // carried WITH the event and resolved to an id in one pass afterwards.
+  const pending: { key: string; event: Omit<ProjectEventInput, 'project_id'> }[] = [];
+  const addEvent = (key: string, event: Omit<ProjectEventInput, 'project_id'>): void => {
+    pending.push({ key, event });
+  };
 
   // ---- 1. Write the projects ------------------------------------------------
   for (const p of cluster.projects) {
@@ -134,6 +183,80 @@ export async function runBackfill(): Promise<{
     }
     if (prior) report.projectsUpdated++;
     else report.projectsCreated++;
+
+    // A NEW PROJECT. Dated at first_seen, which is when we first saw evidence of
+    // it, not when this run happened to notice.
+    if (!prior) {
+      const at = p.first_seen ?? p.last_activity;
+      if (at) {
+        addEvent(p.project_key, {
+          event_type: 'project_created',
+          occurred_at: at,
+          to_value: p.name,
+          detail: { project_key: p.project_key, market: p.market, stage: p.stage },
+        });
+      }
+    } else {
+      // A STAGE CHANGE, and only a real one.
+      //
+      // Two guards, and the second is the subtle one:
+      //   - the values must actually differ. A recompute landing on the same
+      //     stage emits nothing, which is most recomputes.
+      //   - the field must NOT be held back by a manual override. If Philip
+      //     pinned the stage, the STORED value did not change no matter what the
+      //     clusterer computed, and emitting here would fire the same phantom
+      //     event on every run forever while the register never moved.
+      const stageOverridden = heldBack.includes('stage');
+      if (!stageOverridden && prior.stage && p.stage && prior.stage !== p.stage) {
+        const at = p.last_activity ?? p.first_seen;
+        if (at) {
+          addEvent(p.project_key, {
+            event_type: 'stage_changed',
+            occurred_at: at,
+            from_value: prior.stage,
+            to_value: p.stage,
+            lead_id: latestRecordId(p),
+            detail: { project_key: p.project_key, market: p.market },
+          });
+        }
+      }
+    }
+
+    // A PARTY LEARNED OR REPLACED. Emitted when the applicant or representative
+    // is first set, or changes - never when it merely stays the same, and never
+    // when a run that learned nothing would otherwise erase one (dropEmptyEnrichment
+    // already protects the column; this protects the log).
+    for (const [field, next] of [
+      ['applicant', p.primary_applicant],
+      ['representative', p.primary_representative],
+    ] as const) {
+      const before = field === 'applicant' ? prior?.primary_applicant : prior?.primary_representative;
+      if (!next || next === before) continue;
+      const at = p.last_activity ?? p.first_seen;
+      if (!at) continue;
+      addEvent(p.project_key, {
+        event_type: 'party_identified',
+        occurred_at: at,
+        from_value: before ?? null,
+        to_value: next,
+        detail: { role: field, project_key: p.project_key },
+      });
+    }
+
+    // A FUTURE DATED COMMITMENT. next_milestone is itself a date; occurred_at is
+    // when we learned it, so the two are different columns on purpose.
+    if (p.next_milestone && p.next_milestone !== prior?.next_milestone) {
+      const at = p.last_activity ?? p.first_seen;
+      if (at) {
+        addEvent(p.project_key, {
+          event_type: 'milestone_set',
+          occurred_at: at,
+          from_value: prior?.next_milestone ?? null,
+          to_value: p.next_milestone,
+          detail: { project_key: p.project_key },
+        });
+      }
+    }
     if (noWrite) continue;
     const { error } = await supabaseAdmin
       .from('projects')
@@ -148,6 +271,10 @@ export async function runBackfill(): Promise<{
 
   // ---- 2. Resolve project ids ----------------------------------------------
   const stored = await loadProjects(MODULE);
+
+  // Events whose project_id is already known (attach and detach are keyed on the
+  // stored id, not on a project_key), collected separately and merged below.
+  const attachEvents: ProjectEventInput[] = [];
 
   // ---- 3. Stamp the leads ---------------------------------------------------
   // Grouped by (project, reason) so this is a handful of statements rather than
@@ -183,6 +310,24 @@ export async function runBackfill(): Promise<{
     const [projectId, reason] = key.split('|');
     report.writeFailures += await updateLeads(ids, { project_id: projectId, cluster_reason: reason });
     report.leadsAttached += ids.length;
+    // A RECORD JOINED, and only when it actually joined. A lead already sitting
+    // on this project is re-stamped with the same values every run, and emitting
+    // there would produce one event per record per run forever. The comparison
+    // is against the lead's project_id as it was READ, before this update.
+    for (const id of ids) {
+      if (byId.get(id)?.project_id === projectId) continue;
+      const lead = byId.get(id);
+      const at = lead ? bestDate(lead) ?? lead.first_seen : null;
+      if (!at) continue;
+      attachEvents.push({
+        project_id: projectId,
+        event_type: 'record_attached',
+        occurred_at: at,
+        to_value: reason,
+        lead_id: id,
+        detail: { title: (lead?.title ?? '').slice(0, 120), source: lead?.source ?? null },
+      });
+    }
   }
 
   // ---- 4. Detach what no longer clusters ------------------------------------
@@ -198,6 +343,22 @@ export async function runBackfill(): Promise<{
     )
     .map((l) => l.id);
   if (toDetach.length > 0) {
+    // Dated at the record's own date, like the attach, so a project's timeline
+    // stays in the order the world happened rather than the order we noticed.
+    for (const id of toDetach) {
+      const lead = byId.get(id);
+      const wasOn = lead?.project_id;
+      const at = lead ? bestDate(lead) ?? lead.first_seen : null;
+      if (!wasOn || !at) continue;
+      attachEvents.push({
+        project_id: wasOn,
+        event_type: 'record_detached',
+        occurred_at: at,
+        from_value: lead?.cluster_reason ?? null,
+        lead_id: id,
+        detail: { title: (lead?.title ?? '').slice(0, 120), reason: 'no longer clusters' },
+      });
+    }
     report.writeFailures += await updateLeads(toDetach, { project_id: null, cluster_reason: null });
     report.leadsDetached = toDetach.length;
   }
@@ -267,6 +428,22 @@ export async function runBackfill(): Promise<{
     }
   }
 
+  // ---- 7. Emit the events ---------------------------------------------------
+  //
+  // Last, and only after every write has succeeded. An event says a thing
+  // HAPPENED, so emitting one for a change that then failed to write would be
+  // the one kind of lie this table cannot survive.
+  //
+  // The project_key placeholders are resolved here, where the ids exist. A key
+  // with no stored project is dropped rather than guessed.
+  const resolved: ProjectEventInput[] = [];
+  for (const { key, event } of pending) {
+    const id = stored.get(key)?.id;
+    if (!id) continue;
+    resolved.push({ ...event, project_id: id });
+  }
+  report.events = await emitProjectEvents([...resolved, ...attachEvents], { module: MODULE });
+
   return { report, projects: cluster.projects, unclustered: cluster.unclustered, cluster };
 }
 
@@ -333,6 +510,8 @@ export function printBackfillReport(
   }
 
   const held = Object.entries(report.projectFieldsHeldBack);
+  printEmitReport('Project', report.events);
+
   console.log('\nProject fields held back by a manual override:');
   console.log(held.length ? held.map(([f, n]) => `  ${f} x${n}`).join('\n') : '  (none)');
 

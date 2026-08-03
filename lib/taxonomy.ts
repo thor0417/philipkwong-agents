@@ -756,3 +756,82 @@ export function governmentGate(text: string): GateVerdict {
   }
   return { matched: false, reason: 'no-match', ...hits };
 }
+
+// ---- PROJECT EVENT VOCABULARY -----------------------------------------------
+//
+// The register's memory of change (migration 020, agents/scraper/project-events).
+// Fixed here, alongside the other closed vocabularies, for the same reason those
+// are: a set of strings that a writer and three readers must agree on is a
+// vocabulary, and a vocabulary invented at each call site drifts within a month.
+//
+// Two rules govern what belongs here:
+//
+//   AN EVENT IS SOMETHING THAT HAPPENED TO A PROJECT, not something that is true
+//   of it. "stage_changed" is an event; "stage" is a column. If the answer can
+//   be read off the projects table, it is not an event.
+//
+//   AN EVENT IS APPEND-ONLY AND THEREFORE PERMANENT. Adding a type is cheap;
+//   changing what one MEANS is not, because rows already written under the old
+//   meaning cannot be revised. Prefer a new type to redefining an old one.
+export const PROJECT_EVENT_TYPES = [
+  // The project appeared in the register.
+  'project_created',
+  // Its stage moved. from_value and to_value carry the ladder positions, and
+  // this is the only event the What Moved query reads.
+  'stage_changed',
+  // A record joined or left. lead_id carries which one, so "approved by this
+  // filing" is answerable rather than merely "approved on this date".
+  'record_attached',
+  'record_detached',
+  // An applicant or representative was learned, or replaced. Feeds the company
+  // register once migration 022 is applied.
+  'party_identified',
+  // A future dated commitment appeared (a hearing, a deadline).
+  'milestone_set',
+  // Curation, all actor 'philip'.
+  'watch_added',
+  'watch_removed',
+  'renamed',
+  'status_changed',
+  'note_added',
+  // Structural corrections, reserved: emitted by hand-run repairs rather than by
+  // the clusterer, which never merges or splits a project as a discrete act - it
+  // recomputes the whole partition.
+  'merged',
+  'split',
+] as const;
+
+export type ProjectEventType = (typeof PROJECT_EVENT_TYPES)[number];
+
+export function isProjectEventType(s: string): s is ProjectEventType {
+  return (PROJECT_EVENT_TYPES as readonly string[]).includes(s);
+}
+
+// WHO DID IT. 'system' is any automated path - the clusterer, the backfill, an
+// adapter. 'philip' is a hand decision made in the dashboard.
+//
+// This distinction cannot be reconstructed later, which is why it is a required
+// column rather than something inferred from the event type. A year from now,
+// "approved" because the clusterer read a staff report and "approved" because
+// Philip decided it look identical without it, and only one of those is
+// evidence. Several types can legitimately carry either actor: a stage change is
+// usually the clusterer and sometimes a manual override.
+export const EVENT_ACTORS = ['system', 'philip'] as const;
+export type EventActor = (typeof EVENT_ACTORS)[number];
+
+// ---- COMPANY ROLE VOCABULARY ------------------------------------------------
+//
+// For migration 022 (companies / company_projects). Role lives on the LINK, not
+// on the company: the same firm is the applicant on one project and the
+// representative on another, so a type on the company row would force one answer
+// for both.
+export const COMPANY_ROLES = [
+  'owner',
+  'applicant',
+  'representative',
+  'architect',
+  'presenter',
+  'agent',
+] as const;
+
+export type CompanyRole = (typeof COMPANY_ROLES)[number];

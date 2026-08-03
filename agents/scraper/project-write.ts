@@ -43,6 +43,14 @@ export interface ExistingProject {
   stage: string | null;
   record_count: number | null;
   last_activity: string | null;
+  // THE PRIOR VALUES CHANGE DETECTION COMPARES AGAINST. Added for project events
+  // (migration 020): an event can only be emitted on a REAL change, and a real
+  // change can only be recognised against what is currently stored. Without
+  // these three the emitter would have to either re-read the table or emit on
+  // every recompute, and the second is how an event log becomes noise.
+  primary_applicant: string | null;
+  primary_representative: string | null;
+  next_milestone: string | null;
 }
 
 // Every stored project for a module, keyed by project_key.
@@ -53,12 +61,15 @@ export async function loadProjects(module = 'gli'): Promise<Map<string, Existing
   for (;;) {
     const { data, error } = await supabaseAdmin
       .from('projects')
-      .select('id,project_key,manual_overrides,name,stage,record_count,last_activity')
+      .select(
+        'id,project_key,manual_overrides,name,stage,record_count,last_activity,' +
+          'primary_applicant,primary_representative,next_milestone'
+      )
       .eq('module', module)
       .range(from, from + PAGE - 1);
     if (error) throw new Error(`loadProjects: ${error.message}`);
     if (!data || data.length === 0) break;
-    for (const p of data as ExistingProject[]) out.set(p.project_key, p);
+    for (const p of data as unknown as ExistingProject[]) out.set(p.project_key, p);
     if (data.length < PAGE) break;
     from += PAGE;
   }

@@ -11,6 +11,7 @@
 // the correction and the register would drift back to whatever the rules said.
 
 import { supabase } from './supabase';
+import { recordManualEvent, eventForFieldEdit } from './project-events';
 
 export interface ProjectOverrideEntry {
   field: string;
@@ -57,6 +58,12 @@ export async function applyProjectEdit(
     .update({ [field]: next, manual_overrides: overrides })
     .eq('id', id);
   if (upErr) throw new Error(`project edit failed: ${upErr.message}`);
+
+  // Recorded AFTER the write succeeds. An event says a thing happened, so
+  // emitting before the update would leave a permanent record of a change that
+  // may not have landed.
+  const ev = eventForFieldEdit(field, previous, next);
+  if (ev) await recordManualEvent({ ...ev, project_id: id });
 }
 
 export async function renameProject(id: string, name: string): Promise<void> {
@@ -74,6 +81,11 @@ export async function setProjectStage(id: string, stage: string): Promise<void> 
 export async function setProjectWatch(id: string, watch: boolean): Promise<void> {
   const { error } = await supabase.from('projects').update({ watch }).eq('id', id);
   if (error) throw new Error(`watch update failed: ${error.message}`);
+  await recordManualEvent({
+    project_id: id,
+    event_type: watch ? 'watch_added' : 'watch_removed',
+    to_value: String(watch),
+  });
 }
 
 export async function setProjectNotes(id: string, notes: string): Promise<void> {
@@ -82,6 +94,14 @@ export async function setProjectNotes(id: string, notes: string): Promise<void> 
     .update({ notes: notes.trim() ? notes : null })
     .eq('id', id);
   if (error) throw new Error(`project note save failed: ${error.message}`);
+  // The note's TEXT is not copied into the event. The note lives on the project
+  // and can be edited; a copy here could not be, and the log would slowly fill
+  // with stale versions of something the reader can simply go and read.
+  await recordManualEvent({
+    project_id: id,
+    event_type: 'note_added',
+    detail: { length: notes.trim().length },
+  });
 }
 
 // DETACH. The record returns to the Inbox. It is not deleted, and it is not
@@ -97,6 +117,12 @@ export async function detachRecord(leadId: string, projectId: string): Promise<v
     .update({ project_id: null, cluster_reason: 'detached' })
     .eq('id', leadId);
   if (error) throw new Error(`detach failed: ${error.message}`);
+  await recordManualEvent({
+    project_id: projectId,
+    event_type: 'record_detached',
+    lead_id: leadId,
+    detail: { by_hand: true },
+  });
   await refreshRecordCount(projectId);
 }
 
@@ -108,6 +134,13 @@ export async function attachRecord(leadId: string, projectId: string): Promise<v
     .update({ project_id: projectId, cluster_reason: 'manual' })
     .eq('id', leadId);
   if (error) throw new Error(`attach failed: ${error.message}`);
+  await recordManualEvent({
+    project_id: projectId,
+    event_type: 'record_attached',
+    lead_id: leadId,
+    to_value: 'manual',
+    detail: { by_hand: true },
+  });
   await refreshRecordCount(projectId);
 }
 
