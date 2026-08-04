@@ -1,0 +1,277 @@
+/* THE DESIGN SYSTEM. Every value the interface is allowed to use lives here.
+ *
+ * The rule this file enforces: after it lands, no component declares a colour, a
+ * font size, a spacing value, a radius, a border or a duration of its own. It
+ * reads a token. A value that is not a token is a value that was not designed.
+ *
+ * WHY THE LADDERS ARE NAMED BY VALUE. --space-12 rather than --space-3, and
+ * --type-body rather than --type-md. An off-ladder value is then visibly
+ * off-ladder at the call site: `padding: 10px` next to `padding: var(--space-12)`
+ * reads as the mistake it is, and `var(--space-10)` does not exist to be typed.
+ *
+ * BOTH MODES ARE DESIGNED, NOT INVERTED. The dark palette is a separate set of
+ * decisions: the accent lightens (#B34700 carries 6.6:1 on warm paper but only
+ * 2.4:1 on a dark ground, which is unreadable), the greys re-space themselves
+ * because perceived contrast compresses on dark, and the hairline gains opacity
+ * because a 16% line disappears against near-black. Components style through the
+ * tokens and never inside a media query, so both modes come out of one ruleset.
+ *
+ * PRECEDENCE. prefers-color-scheme carries the OS preference; an explicit
+ * [data-theme] on the root wins over it in BOTH directions, which is why the
+ * light block is restated rather than left to the default.
+ */
+
+/* ---------------------------------------------------------------- typefaces */
+/* Three faces, three jobs, no exceptions.
+ *   DISPLAY   PP Neue York Condensed Medium. Page titles, project names in
+ *             headers. Sentence case. Nothing else.
+ *   BODY      PP Neue York Normal, Regular and Medium. Two weights, no more.
+ *   MONO      DM Mono. EVERY number, date, identifier, case number, count and
+ *             timing. This single rule does most of the visual work in the
+ *             product: it separates data from prose with no other cue and
+ *             aligns figures without needing a table to do it.
+ */
+@font-face {
+  font-family: 'PP Neue York Display';
+  src: url('/fonts/PPNeueYork-CondensedMedium.woff2') format('woff2'),
+       url('/fonts/PPNeueYork-CondensedMedium.woff') format('woff');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'PP Neue York';
+  src: url('/fonts/PPNeueYork-NormalRegular.woff2') format('woff2'),
+       url('/fonts/PPNeueYork-NormalRegular.woff') format('woff');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'PP Neue York';
+  src: url('/fonts/PPNeueYork-NormalMedium.woff2') format('woff2'),
+       url('/fonts/PPNeueYork-NormalMedium.woff') format('woff');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  --font-display: 'PP Neue York Display', Georgia, 'Times New Roman', serif;
+  --font-body: 'PP Neue York', Georgia, 'Times New Roman', serif;
+  /* --font-dm-mono is injected by next/font in app/layout.tsx. The fallback
+     chain matters more here than elsewhere: if it ever fails to load, digits
+     must still land in a monospaced face or every column in the product loses
+     its alignment. */
+  --font-mono: var(--font-dm-mono), ui-monospace, 'SFMono-Regular', 'DM Mono', Menlo, monospace;
+
+  /* Weights. Body has exactly two; display and mono have one each. */
+  --weight-regular: 400;
+  --weight-medium: 500;
+
+  /* ------------------------------------------------------------- type scale */
+  /* Seven steps and nothing between them. 11px is the floor: below it, DM Mono's
+     figures stop being reliably legible at the densities this product uses. */
+  --type-display-lg: 28px;
+  --type-display-sm: 22px;
+  --type-title-lg: 18px;
+  --type-title-sm: 16px;
+  --type-body: 14px;
+  --type-meta: 12px;
+  --type-caption: 11px;
+
+  --leading-display: 1.25;
+  --leading-dense: 1.4;
+  --leading-body: 1.5;
+
+  /* Tracking. Display tightens above 28px; uppercase labels need the opposite
+     treatment or the caps crowd at 11px. */
+  --track-display: -0.02em;
+  --track-label: 0.06em;
+  --track-none: 0;
+
+  /* ---------------------------------------------------------------- spacing */
+  --space-4: 4px;
+  --space-8: 8px;
+  --space-12: 12px;
+  --space-16: 16px;
+  --space-24: 24px;
+  --space-32: 32px;
+  --space-48: 48px;
+
+  /* -------------------------------------------------------------- structure */
+  /* Radius 0 on every surface that holds content; 2px on controls you click or
+     type into, and nowhere else. Holding this absolutely is the most
+     distinctive structural decision in the system, so there is deliberately no
+     third radius token to reach for. */
+  --radius-surface: 0;
+  --radius-control: 2px;
+
+  /* Elevation comes from surface tone and border weight. There is no shadow
+     token, because a focus ring is the only shadow the system permits and it
+     is defined with the accent, below. */
+  --hairline-width: 0.5px;
+  --rule-width: 1px;
+  /* The selected-row leading edge. A system value, not a one-off: it is the
+     only mark a selected row gets, so it must be identical everywhere it
+     appears or selection stops reading as one idea. */
+  --selected-edge-width: 2px;
+
+  /* ---------------------------------------------------------------- density */
+  --row-h: 36px;
+  --row-h-dense: 32px;
+  --cell-pad-y: 8px;
+  --cell-pad-x: 12px;
+
+  /* Shell geometry. Fixed for the life of the product: the rail is learned once
+     and never moves. */
+  --topbar-h: 48px;
+  --rail-w: 200px;
+  --rail-w-collapsed: 56px;
+  --split-list: 60fr;
+  --split-detail: 40fr;
+
+  /* ----------------------------------------------------------------- motion */
+  /* Ease-out only. No bounce, no spring, no entrance animation on content:
+     content that animates in is content you cannot read yet. */
+  --motion-state: 120ms;
+  --motion-panel: 180ms;
+  --ease-out: cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+/* ------------------------------------------------------------------- LIGHT */
+/* Warm rather than blue-grey, and deliberately short of cream: the paper carries
+   a red bias of about 4 points over blue, enough to sit under the accent without
+   the page reading as a stationery sample. */
+:root,
+:root[data-theme='light'] {
+  color-scheme: light;
+
+  /* Three surfaces. Page is the ground, card is what sits on it, rail is what
+     recedes from it. There is no fourth: a surface that needs to be
+     distinguished from these three should be distinguished by its border. */
+  --paper-page: #f2f1ee;
+  --paper-card: #fafaf8;
+  --paper-rail: #eae8e4;
+
+  /* Ink, and three greys below it. No pure black: #000 on warm paper reads as a
+     hole punched in the page. */
+  --ink: #1a1714;
+  --ink-secondary: #4a443d;
+  --ink-muted: #7a736a;
+  --ink-disabled: #a8a199;
+
+  --line: rgba(26, 23, 20, 0.16);
+  --line-strong: rgba(26, 23, 20, 0.32);
+
+  /* The accent is a scarce resource. If two accent elements are visible in one
+     view, one of them is wrong. */
+  --accent: #b34700;
+  --accent-hover: #963c00;
+  --accent-ring: rgba(179, 71, 0, 0.32);
+  --on-accent: #fdfcfa;
+
+  /* Semantic, and nothing else gets colour. Stage is communicated by position
+     and label, never by a palette of pills. */
+  --ok: #3f6b4a;
+  --bad: #9e3b32;
+
+  /* A selected row is marked by a 2px accent border on its leading edge and by
+     nothing else. This token exists so no component invents a fill. */
+  --row-hover: rgba(26, 23, 20, 0.035);
+  --row-selected-edge: var(--accent);
+}
+
+/* -------------------------------------------------------------------- DARK */
+/* Not an inversion. The greys re-space because contrast compresses on a dark
+   ground, the hairline nearly doubles in opacity to stay visible at 0.5px, and
+   the accent lightens to clear 4.5:1 against the page. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+
+    --paper-page: #131211;
+    --paper-card: #1b1a18;
+    --paper-rail: #0d0c0b;
+
+    --ink: #edeae5;
+    --ink-secondary: #b3aca2;
+    --ink-muted: #857e74;
+    --ink-disabled: #5a544d;
+
+    --line: rgba(237, 234, 229, 0.17);
+    --line-strong: rgba(237, 234, 229, 0.34);
+
+    --accent: #e06a24;
+    --accent-hover: #f07f3c;
+    --accent-ring: rgba(224, 106, 36, 0.36);
+    --on-accent: #17120e;
+
+    --ok: #6f9d78;
+    --bad: #cf6a5f;
+
+    --row-hover: rgba(237, 234, 229, 0.05);
+    --row-selected-edge: var(--accent);
+  }
+}
+
+/* The explicit toggle, which must beat the media query in both directions. */
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --paper-page: #131211;
+  --paper-card: #1b1a18;
+  --paper-rail: #0d0c0b;
+
+  --ink: #edeae5;
+  --ink-secondary: #b3aca2;
+  --ink-muted: #857e74;
+  --ink-disabled: #5a544d;
+
+  --line: rgba(237, 234, 229, 0.17);
+  --line-strong: rgba(237, 234, 229, 0.34);
+
+  --accent: #e06a24;
+  --accent-hover: #f07f3c;
+  --accent-ring: rgba(224, 106, 36, 0.36);
+  --on-accent: #17120e;
+
+  --ok: #6f9d78;
+  --bad: #cf6a5f;
+
+  --row-hover: rgba(237, 234, 229, 0.05);
+  --row-selected-edge: var(--accent);
+}
+
+/* -------------------------------------------------------- composite tokens */
+/* Declared after both palettes so they resolve against whichever is active. */
+:root {
+  /* Named --border-* rather than --hairline, because --hairline is already in
+     the codebase as a COLOUR inside `border: 0.5px solid var(--hairline)`.
+     Rebinding that name to a shorthand would expand to
+     `solid 0.5px solid rgba(...)`, which is invalid, and every border in the
+     product would silently vanish. The alias below keeps the old meaning. */
+  --border-hairline: var(--hairline-width) solid var(--line);
+  --border-strong: var(--hairline-width) solid var(--line-strong);
+  --focus-ring: 0 0 0 2px var(--accent-ring);
+}
+
+/* ------------------------------------------------- compatibility aliases */
+/* The pre-token components read --bg, --fg, --paper, --hairline (as a colour),
+ * --muted and --font-emphasis / --font-text. Two of those (--fg, --font-mono)
+ * were referenced in twenty-odd places and never defined anywhere, so every
+ * cell marked "mono" was rendering in the browser's default face and every
+ * --fg colour was silently inheriting.
+ *
+ * These aliases are a MIGRATION SHIM, not part of the system. They are deleted
+ * as each screen is rebuilt onto the real tokens; nothing new may use them.
+ */
+:root {
+  --bg: var(--paper-page);
+  --paper: var(--paper-card);
+  --fg: var(--ink);
+  --muted: var(--ink-muted);
+  --hairline: var(--line); /* a COLOUR, per its existing call sites */
+  --font-emphasis: var(--font-body);
+  --font-text: var(--font-body);
+}

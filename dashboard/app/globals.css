@@ -1,43 +1,11 @@
-/* PP Neue York, three cuts. Files live in public/fonts/ (plural). Roles:
-   DISPLAY (CondensedMedium) wordmark + titles + section headers; EMPHASIS
-   (NormalMedium) stat numbers + column headers + tabs + buttons; TEXT
-   (NormalRegular) body + cells + metadata. Fallback: Georgia serif. */
-@font-face {
-  font-family: 'PP Neue York Display';
-  src: url('/fonts/PPNeueYork-CondensedMedium.woff2') format('woff2');
-  font-weight: 500;
-  font-style: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: 'PP Neue York Emphasis';
-  src: url('/fonts/PPNeueYork-NormalMedium.woff2') format('woff2');
-  font-weight: 500;
-  font-style: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: 'PP Neue York Text';
-  src: url('/fonts/PPNeueYork-NormalRegular.woff2') format('woff2');
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
+/* BASE. Tokens come from tokens.css; this file spends them and declares nothing
+ * of its own. If a literal value appears below, it is a bug.
+ */
+@import './tokens.css';
 
-:root {
-  --bg: #f9f9f9;
-  --paper: #f9f9f9;
-  --ink: #0a0a0a;
-  --accent: #b34700;
-  --hairline: rgba(10, 10, 10, 0.18);
-  --muted: rgba(10, 10, 10, 0.55);
-  /* PP Neue York type roles (GLI type system). */
-  --font-display: 'PP Neue York Display', Georgia, 'Times New Roman', serif;
-  --font-emphasis: 'PP Neue York Emphasis', Georgia, 'Times New Roman', serif;
-  --font-text: 'PP Neue York Text', Georgia, 'Times New Roman', serif;
-}
-
-* {
+*,
+*::before,
+*::after {
   box-sizing: border-box;
 }
 
@@ -45,117 +13,202 @@ html,
 body {
   margin: 0;
   padding: 0;
-  background: var(--bg);
+  background: var(--paper-page);
   color: var(--ink);
-  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
-  font-size: 14px;
-  line-height: 1.5;
+  /* Prose is PP Neue York, not system-ui. The previous rule set body to
+     system-ui, so the three licensed faces were reaching the page only where a
+     component asked for them by name and everything else was Segoe UI. */
+  font-family: var(--font-body);
+  font-weight: var(--weight-regular);
+  font-size: var(--type-body);
+  line-height: var(--leading-body);
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Colour and type change with the theme; nothing else should move. */
+html {
+  transition: background-color var(--motion-state) var(--ease-out);
 }
 
 a {
-  color: inherit;
+  color: var(--accent);
+  text-decoration: none;
+  border-bottom: var(--hairline-width) solid var(--accent-ring);
+  transition: color var(--motion-state) var(--ease-out),
+    border-color var(--motion-state) var(--ease-out);
+}
+a:hover {
+  color: var(--accent-hover);
+  border-bottom-color: var(--accent);
 }
 
+/* Every number, date, identifier and count. Tabular figures are the point: a
+   column of counts must align without a table to align it. */
 .mono {
-  font-family: var(--font-dm-mono), ui-monospace, "SFMono-Regular", monospace;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
 }
 
 .bracket {
   color: var(--accent);
 }
 
+/* Focus is the one place a shadow is permitted, and it is never removed without
+   a replacement. */
+:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: var(--radius-control);
+}
+
 button {
-  font-family: var(--font-dm-mono), ui-monospace, monospace;
-  border: 0.5px solid var(--ink);
+  font-family: var(--font-mono);
+  font-size: var(--type-meta);
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+  border: var(--border-hairline);
+  border-color: var(--line-strong);
   background: transparent;
   color: var(--ink);
-  padding: 8px 16px;
-  border-radius: 0;
+  padding: var(--space-8) var(--space-16);
+  border-radius: var(--radius-control);
   cursor: pointer;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  font-size: 12px;
+  transition: background-color var(--motion-state) var(--ease-out),
+    color var(--motion-state) var(--ease-out),
+    border-color var(--motion-state) var(--ease-out);
 }
 
-button:hover {
+button:hover:not(:disabled) {
   background: var(--ink);
-  color: var(--bg);
+  color: var(--paper-page);
+  border-color: var(--ink);
 }
 
-input {
-  font-family: var(--font-dm-mono), ui-monospace, monospace;
-  border: 0.5px solid var(--hairline);
-  background: #fff;
+button:disabled {
+  color: var(--ink-disabled);
+  border-color: var(--line);
+  cursor: not-allowed;
+}
+
+input,
+select,
+textarea {
+  font-family: var(--font-mono);
+  font-size: var(--type-meta);
+  border: var(--border-hairline);
+  background: var(--paper-card);
   color: var(--ink);
-  padding: 10px 12px;
-  border-radius: 0;
-  font-size: 13px;
+  padding: var(--space-8) var(--space-12);
+  border-radius: var(--radius-control);
   width: 100%;
+  transition: border-color var(--motion-state) var(--ease-out);
 }
 
-input:focus {
+input:focus,
+select:focus,
+textarea:focus {
   outline: none;
   border-color: var(--accent);
+  box-shadow: var(--focus-ring);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--ink-disabled);
+}
+
+/* The one place motion earns its keep: an optimistically dismissed row fades
+   rather than vanishing, so the eye can follow what left the list. */
+@keyframes row-dismiss {
+  to {
+    opacity: 0;
+  }
+}
+.rowDismissing {
+  animation: row-dismiss var(--motion-panel) var(--ease-out) forwards;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+  }
 }
 
 /* Geographic navigation. Hairline chips, sharp corners, no fill; accent marks
    the selected level. Global rather than a CSS module because GeoNav is shared
    furniture used above the table on every stream. */
 .geoNav {
-  border-top: 0.5px solid var(--hairline);
-  border-bottom: 0.5px solid var(--hairline);
-  padding: 12px 0;
-  margin-top: 20px;
+  border-top: var(--border-hairline);
+  border-bottom: var(--border-hairline);
+  padding: var(--space-12) 0;
+  margin-top: var(--space-24);
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-8);
 }
 .geoLevel {
   display: flex;
   align-items: baseline;
-  gap: 12px;
+  gap: var(--space-12);
 }
 .geoLabel {
-  font-family: var(--font-emphasis);
-  font-size: 9px;
-  letter-spacing: 0.08em;
+  font-family: var(--font-body);
+  font-weight: var(--weight-medium);
+  font-size: var(--type-caption);
+  letter-spacing: var(--track-label);
   text-transform: uppercase;
-  color: var(--muted);
+  color: var(--ink-muted);
   min-width: 96px;
 }
 .geoChips {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: var(--space-4);
 }
 .geoChip {
-  font-family: var(--font-emphasis);
-  font-size: 10px;
-  letter-spacing: 0.04em;
-  color: var(--fg);
+  font-family: var(--font-body);
+  font-weight: var(--weight-medium);
+  font-size: var(--type-caption);
+  letter-spacing: var(--track-none);
+  text-transform: none;
+  color: var(--ink-secondary);
   background: none;
-  border: 0.5px solid var(--hairline);
-  padding: 4px 9px;
+  border: var(--border-hairline);
+  border-radius: var(--radius-control);
+  padding: var(--space-4) var(--space-8);
   cursor: pointer;
 }
-.geoChip:hover {
+/* Scoped through .geoNav deliberately. A bare `.geoChip:hover` is (0,2,0) and
+   loses to `button:hover:not(:disabled)` at (0,2,1), which would flip every chip
+   to solid ink on hover. The descendant selector takes it to (0,3,0). */
+.geoNav .geoChip:hover {
   border-color: var(--accent);
   color: var(--accent);
+  background: none;
 }
-.geoChipActive {
+.geoNav .geoChipActive,
+.geoNav .geoChipActive:hover {
   color: var(--accent);
   border-color: var(--accent);
+  background: none;
 }
 .geoCount {
   font-family: var(--font-mono);
-  font-size: 10px;
-  margin-left: 7px;
-  opacity: 0.7;
+  font-variant-numeric: tabular-nums;
+  font-size: var(--type-caption);
+  margin-left: var(--space-8);
+  color: var(--ink-muted);
 }
 .geoUnresolved {
   font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--muted);
+  font-size: var(--type-caption);
+  color: var(--ink-muted);
   padding-left: 108px;
 }

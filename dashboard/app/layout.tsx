@@ -14,13 +14,24 @@ export const metadata: Metadata = {
   description: 'Lead acquisition dashboard',
 };
 
+// Runs before first paint, ahead of React. Without it a dark-mode user gets a
+// full-brightness flash on every navigation, which is the single most visible
+// way a theme implementation reads as bolted on. Deliberately not a component:
+// anything React renders is already too late.
+const NO_FLASH = `try{var t=localStorage.getItem('pk-theme');if(t==='dark'||t==='light')document.documentElement.setAttribute('data-theme',t)}catch(e){}`;
+
 export default function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={dmMono.variable}>
+    // suppressHydrationWarning: the script above mutates <html> before React
+    // hydrates, so the server markup and the client DOM legitimately differ.
+    <html lang="en" className={dmMono.variable} suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: NO_FLASH }} />
+      </head>
       <body>
         <Providers>{children}</Providers>
       </body>

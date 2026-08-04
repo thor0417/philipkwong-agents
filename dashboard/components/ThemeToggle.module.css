@@ -1,0 +1,46 @@
+/* A segmented control, hairline, radius 2px because it is a control.
+ *
+ * The active segment is INK, not accent. The accent is reserved for the single
+ * most important thing in a view, and on any screen this appears on that thing
+ * is the active navigation item or the primary action, never the theme picker.
+ * Marking the current segment with weight and colour rather than hue is what
+ * keeps the one-accent rule true.
+ */
+.group {
+  display: inline-flex;
+  border: var(--border-hairline);
+  border-radius: var(--radius-control);
+  overflow: hidden;
+}
+
+.seg {
+  border: 0;
+  border-radius: 0;
+  border-left: var(--border-hairline);
+  background: transparent;
+  color: var(--ink-muted);
+  font-family: var(--font-mono);
+  font-size: var(--type-caption);
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+  padding: var(--space-4) var(--space-8);
+  line-height: var(--leading-dense);
+  cursor: pointer;
+}
+.seg:first-child {
+  border-left: 0;
+}
+
+/* Scoped through .group: a bare .seg:hover is (0,2,0) and loses to the global
+   button:hover:not(:disabled) at (0,2,1), which would fill the segment. */
+.group .seg:hover {
+  background: var(--row-hover);
+  color: var(--ink);
+}
+
+.segActive,
+.group .segActive:hover {
+  color: var(--ink);
+  background: var(--row-hover);
+  font-weight: var(--weight-medium);
+}
