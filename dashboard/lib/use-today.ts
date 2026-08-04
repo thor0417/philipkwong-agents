@@ -17,6 +17,7 @@ import {
   whatMoved,
   whatCameIn,
   watchlistActivity,
+  projectHistory,
   type EventClient,
   type EventRow,
   type WhatCameIn,
@@ -122,6 +123,16 @@ export function useWhatCameIn(since: string) {
   return useQuery<WhatCameIn>({
     queryKey: todayKeys.cameIn(since),
     queryFn: () => whatCameIn(eventClient, scopeFor(since)),
+  });
+}
+
+// One project's whole story, oldest first. No period bound: the point of a
+// history is that it is the whole history.
+export function useProjectHistory(projectId: string | null) {
+  return useQuery<EventRow[]>({
+    queryKey: ['today', 'history', projectId ?? ''],
+    queryFn: () => projectHistory(eventClient, projectId as string),
+    enabled: !!projectId,
   });
 }
 

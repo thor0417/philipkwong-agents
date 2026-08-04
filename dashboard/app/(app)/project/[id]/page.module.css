@@ -1,0 +1,335 @@
+/* The project page. Header, then evidence at 60% and reference at 40%.
+ *
+ * Capped at 1240px: the timeline is prose-shaped and a full-width measure on a
+ * wide monitor makes it unreadable, but it needs more room than Today because
+ * record titles are long and the reference column sits beside it.
+ */
+.screen {
+  max-width: 1240px;
+  padding: var(--space-32) var(--space-24) var(--space-48);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-24);
+}
+
+/* ------------------------------------------------------------------ header */
+.head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  border-bottom: var(--border-strong);
+  padding-bottom: var(--space-16);
+}
+
+.crumb {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  font-size: var(--type-caption);
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+.crumb a {
+  color: var(--ink-muted);
+  border-bottom: 0;
+}
+.crumb a:hover {
+  color: var(--accent);
+  border-bottom: 0;
+}
+
+/* The project name is the one display-face element on the page, and the page
+   is about exactly one project, so it can afford the full 28px. */
+.title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: var(--weight-medium);
+  font-size: var(--type-display-lg);
+  line-height: var(--leading-display);
+  letter-spacing: var(--track-display);
+  text-wrap: balance;
+}
+
+.facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-24);
+  align-items: baseline;
+  margin-top: var(--space-4);
+}
+
+.fact {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.factLabel {
+  font-size: var(--type-caption);
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+  color: var(--ink-disabled);
+}
+
+.factValue {
+  font-size: var(--type-body);
+  color: var(--ink);
+}
+
+/* The one accent on this page besides links: watching is a state the operator
+   set deliberately and needs to see without hunting. */
+.watching {
+  align-self: center;
+  font-size: var(--type-caption);
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+  color: var(--accent);
+  border: var(--hairline-width) solid var(--accent);
+  border-radius: var(--radius-surface);
+  padding: var(--space-4) var(--space-8);
+}
+
+/* -------------------------------------------------------------------- body */
+.body {
+  display: grid;
+  grid-template-columns: var(--split-list) var(--split-detail);
+  gap: var(--space-32);
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .body {
+    grid-template-columns: 1fr;
+  }
+}
+
+.h2 {
+  margin: 0 0 var(--space-12);
+  font-family: var(--font-display);
+  font-weight: var(--weight-medium);
+  font-size: var(--type-display-sm);
+  line-height: var(--leading-display);
+}
+.h2 span {
+  color: var(--ink-muted);
+  font-size: var(--type-body);
+}
+
+.h3 {
+  margin: 0 0 var(--space-8);
+  font-family: var(--font-body);
+  font-weight: var(--weight-medium);
+  font-size: var(--type-caption);
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+.h3 span {
+  color: var(--ink-disabled);
+}
+
+/* ---------------------------------------------------------------- timeline */
+.timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: var(--border-hairline);
+}
+
+.tlRow {
+  display: flex;
+  gap: var(--space-16);
+  padding: var(--space-12) 0;
+  border-bottom: var(--border-hairline);
+}
+
+.tlDate {
+  flex: none;
+  width: 11ch;
+  font-size: var(--type-caption);
+  color: var(--ink-muted);
+  padding-top: 2px;
+}
+
+.tlBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.tlTitle {
+  font-size: var(--type-body);
+  line-height: var(--leading-dense);
+  color: var(--ink);
+}
+.tlTitle a {
+  color: var(--ink);
+  border-bottom: 0;
+}
+.tlTitle a:hover {
+  color: var(--accent);
+  border-bottom: 0;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.tlMeta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-8);
+  font-size: var(--type-meta);
+}
+
+.tag {
+  font-size: var(--type-caption);
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+  color: var(--ink-muted);
+  border: var(--border-hairline);
+  border-radius: var(--radius-surface);
+  padding: 0 var(--space-4);
+  white-space: nowrap;
+}
+
+/* --------------------------------------------------------------- reference */
+.refCol {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-24);
+  min-width: 0;
+}
+
+.block {
+  display: flex;
+  flex-direction: column;
+}
+
+.partyList,
+.docList,
+.relList,
+.eventList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  border-top: var(--border-hairline);
+}
+
+.party,
+.rel,
+.event,
+.docList li {
+  display: flex;
+  gap: var(--space-8);
+  align-items: baseline;
+  justify-content: space-between;
+  padding: var(--space-8) 0;
+  border-bottom: var(--border-hairline);
+  font-size: var(--type-meta);
+  min-width: 0;
+}
+
+.partyName,
+.relName,
+.doc {
+  color: var(--ink);
+  border-bottom: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+.partyName:hover,
+.relName:hover,
+.doc:hover {
+  color: var(--accent);
+  border-bottom: 0;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.role {
+  flex: none;
+  font-size: var(--type-caption);
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+  color: var(--ink-disabled);
+}
+
+.rel {
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-4);
+}
+
+/* The reason a project is related is stated in words, not encoded in a badge
+   colour: "shares an applicant" and "same market" are different claims. */
+.relWhy {
+  font-size: var(--type-caption);
+  color: var(--ink-muted);
+}
+
+.event {
+  align-items: baseline;
+  justify-content: flex-start;
+  gap: var(--space-12);
+}
+
+.evDate {
+  flex: none;
+  width: 11ch;
+  font-size: var(--type-caption);
+  color: var(--ink-muted);
+}
+
+.evBody {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-8);
+  min-width: 0;
+}
+
+.evType {
+  color: var(--ink);
+  font-size: var(--type-meta);
+}
+
+.evChange {
+  font-size: var(--type-caption);
+  color: var(--ink-secondary);
+}
+.evFrom {
+  color: var(--ink-muted);
+  text-decoration: line-through;
+  text-decoration-thickness: var(--hairline-width);
+}
+
+.evActor {
+  font-size: var(--type-caption);
+  color: var(--ink-disabled);
+}
+
+.refCol .more {
+  align-self: flex-start;
+  margin-top: var(--space-8);
+  border: 0;
+  padding: var(--space-4) 0;
+  color: var(--ink-muted);
+  font-size: var(--type-caption);
+}
+.refCol .more:hover {
+  background: none;
+  color: var(--accent);
+}
+
+.dim {
+  color: var(--ink-muted);
+  font-size: var(--type-meta);
+  margin: 0;
+  line-height: var(--leading-body);
+}

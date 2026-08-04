@@ -17,6 +17,7 @@
 // not get used to clear a backlog.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useQueryState, parseAsString, parseAsInteger } from 'nuqs';
 import { PROJECT_STAGES } from '@/lib/taxonomy';
 import { LIVE_PIPELINE_STORAGE_KEY } from '@/lib/pipelines';
@@ -81,6 +82,7 @@ const COLUMNS: { key: string; label: string; sort?: string; numeric?: boolean }[
 ];
 
 export default function RegisterPage() {
+  const router = useRouter();
 
   // ---- URL state.
   const [view, setView] = useQueryState('view', parseAsString.withDefault('all'));
@@ -277,7 +279,9 @@ export default function RegisterPage() {
         case 'enter':
           if (current) {
             e.preventDefault();
-            void setSelected(current.id);
+            // Enter is "go and read this properly", which is the full page.
+            // Selecting alone is what J and K already do.
+            router.push(`/project/${current.id}`);
           }
           break;
         case 'e':
@@ -307,7 +311,7 @@ export default function RegisterPage() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rows, selectedIndex, selected, move, watch]);
+  }, [rows, selectedIndex, selected, move, router, watch]);
 
   const toggleCheck = (id: string) =>
     setChecked((prev) => {

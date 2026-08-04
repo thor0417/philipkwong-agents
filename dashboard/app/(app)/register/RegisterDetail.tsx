@@ -13,6 +13,7 @@
 // click away and is a different screen.
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useProject, useProjectTimeline, useProjectMutations } from '@/lib/use-projects';
 import { PROJECT_STAGES } from '@/lib/taxonomy';
 import { projectOverriddenFields } from '@/lib/project-mutations';
@@ -101,6 +102,9 @@ export default function RegisterDetail({
           {p.watch ? 'Watching' : 'Watch'}
         </button>
 
+        <Link href={`/project/${p.id}`} className={styles.fullPage}>
+          Open full page
+        </Link>
       </div>
 
       {overridden.length > 0 && (
