@@ -192,7 +192,7 @@ export default function DesignSystemPage() {
       <Section
         n="02"
         title="Colour"
-        note="Monochrome with one accent. If two accent elements are visible in one view, one of them is wrong."
+        note="Monochrome with one accent. If two accent elements are visible in one view, one of them is wrong. This page is the one exception, and only because a catalogue has to show the accent states side by side; no product screen may do this."
       >
         <div className={styles.swatchGroup}>
           <span className={styles.groupLabel}>Paper, three surfaces</span>
