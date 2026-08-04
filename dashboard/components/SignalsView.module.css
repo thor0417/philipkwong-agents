@@ -19,7 +19,7 @@
 .table {
   width: 100%;
   border-collapse: collapse;
-  background: #fff;
+  background: var(--paper-card);
   min-width: 760px;
 }
 
@@ -47,7 +47,7 @@
 }
 
 .row:hover {
-  background: rgba(10, 10, 10, 0.02);
+  background: var(--row-hover);
 }
 
 .titleCell {

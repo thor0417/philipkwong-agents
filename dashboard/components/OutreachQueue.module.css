@@ -14,7 +14,7 @@
 .error {
   font-family: var(--font-dm-mono), monospace;
   font-size: 11px;
-  color: #c0392b;
+  color: var(--bad);
   margin: 0 0 10px;
 }
 
@@ -26,7 +26,7 @@
 .table {
   width: 100%;
   border-collapse: collapse;
-  background: #fff;
+  background: var(--paper-card);
   min-width: 800px;
 }
 
@@ -50,7 +50,7 @@
 }
 
 .row:hover {
-  background: rgba(10, 10, 10, 0.02);
+  background: var(--row-hover);
 }
 
 .title {

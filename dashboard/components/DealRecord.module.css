@@ -1,7 +1,7 @@
 .overlay {
   position: fixed;
   inset: 0;
-  background: rgba(10, 10, 10, 0.35);
+  background: var(--scrim);
   z-index: 50;
   display: flex;
   justify-content: flex-end;
@@ -72,7 +72,7 @@
   font-family: var(--font-dm-mono), monospace;
   font-size: 12px;
   color: var(--ink);
-  background: #fff;
+  background: var(--paper-card);
   border: 0.5px solid var(--hairline);
   border-radius: 0;
   padding: 8px 10px;
@@ -88,7 +88,7 @@
   font-family: var(--font-dm-mono), monospace;
   font-size: 12px;
   color: var(--ink);
-  background: #fff;
+  background: var(--paper-card);
   border: 0.5px solid var(--hairline);
   border-radius: 0;
   padding: 8px 10px;
@@ -105,7 +105,7 @@
   font-size: 12px;
   line-height: 1.5;
   color: var(--ink);
-  background: #fff;
+  background: var(--paper-card);
   border: 0.5px solid var(--hairline);
   border-radius: 0;
   padding: 10px;
@@ -140,13 +140,13 @@
 .hot {
   color: var(--accent);
   border-color: var(--accent);
-  background: rgba(179, 71, 0, 0.08);
+  background: var(--accent-wash);
 }
 
 .warm {
-  color: #8a6d00;
-  border-color: #8a6d00;
-  background: rgba(138, 109, 0, 0.1);
+  color: var(--warn);
+  border-color: var(--warn);
+  background: var(--warn-wash);
 }
 
 .cold {
@@ -185,7 +185,7 @@
 .error {
   font-family: var(--font-dm-mono), monospace;
   font-size: 11px;
-  color: #c0392b;
+  color: var(--bad);
   margin: 4px 0 10px;
 }
 
@@ -198,7 +198,7 @@
 
 .draft {
   border: 0.5px solid var(--hairline);
-  background: #fff;
+  background: var(--paper-card);
   padding: 14px;
   margin-bottom: 14px;
   display: flex;

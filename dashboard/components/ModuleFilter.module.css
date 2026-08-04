@@ -4,7 +4,7 @@
   gap: 0;
   margin-top: 24px;
   border: 0.5px solid var(--hairline);
-  background: #fff;
+  background: var(--paper-card);
 }
 
 .btn {
@@ -13,7 +13,7 @@
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--muted);
-  background: #fff;
+  background: var(--paper-card);
   border: none;
   border-right: 0.5px solid var(--hairline);
   border-radius: 0;
@@ -31,5 +31,5 @@
 
 .active {
   color: var(--accent);
-  background: rgba(179, 71, 0, 0.08);
+  background: var(--accent-wash);
 }

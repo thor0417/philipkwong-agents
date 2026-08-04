@@ -24,7 +24,7 @@
   font-family: var(--font-dm-mono), monospace;
   font-size: 11px;
   color: var(--ink);
-  background: #fff;
+  background: var(--paper-card);
   border: 0.5px solid var(--hairline);
   border-radius: 0;
   padding: 5px 8px;
@@ -46,7 +46,7 @@
 .table {
   width: 100%;
   border-collapse: collapse;
-  background: #fff;
+  background: var(--paper-card);
   min-width: 1100px;
 }
 
@@ -74,7 +74,7 @@
 }
 
 .row:hover {
-  background: rgba(10, 10, 10, 0.02);
+  background: var(--row-hover);
 }
 
 .score {
@@ -91,13 +91,13 @@
 .hot {
   color: var(--accent);
   border-color: var(--accent);
-  background: rgba(179, 71, 0, 0.08);
+  background: var(--accent-wash);
 }
 
 .warm {
-  color: #8a6d00;
-  border-color: #8a6d00;
-  background: rgba(138, 109, 0, 0.1);
+  color: var(--warn);
+  border-color: var(--warn);
+  background: var(--warn-wash);
 }
 
 .cold {

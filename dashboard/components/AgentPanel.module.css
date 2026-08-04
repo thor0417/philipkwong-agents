@@ -1,7 +1,7 @@
 .panel {
   margin-top: 16px;
   border: 0.5px solid var(--hairline);
-  background: #fff;
+  background: var(--paper-card);
 }
 
 .head,
@@ -58,13 +58,13 @@
 .running {
   color: var(--accent);
   border-color: var(--accent);
-  background: rgba(179, 71, 0, 0.08);
+  background: var(--accent-wash);
 }
 
 .error {
-  color: #c0392b;
-  border-color: #c0392b;
-  background: rgba(192, 57, 43, 0.08);
+  color: var(--bad);
+  border-color: var(--bad);
+  background: var(--bad-wash);
 }
 
 .action {

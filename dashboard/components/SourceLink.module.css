@@ -2,7 +2,7 @@
   font-family: var(--font-dm-mono), monospace;
   font-size: 10px;
   letter-spacing: 0.06em;
-  color: #b34700;
+  color: var(--accent);
   text-decoration: none;
   white-space: nowrap;
 }

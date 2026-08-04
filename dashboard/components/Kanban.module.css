@@ -6,7 +6,7 @@
   gap: 0;
   overflow-x: auto;
   border: 0.5px solid var(--hairline);
-  background: #fff;
+  background: var(--paper-card);
 }
 
 .column {
@@ -33,7 +33,7 @@
   color: var(--muted);
   position: sticky;
   top: 0;
-  background: #fff;
+  background: var(--paper-card);
 }
 
 .count {
@@ -70,7 +70,7 @@
 }
 
 .card:hover {
-  background: #fff;
+  background: var(--paper-card);
   border-color: var(--ink);
   color: var(--ink);
 }
@@ -109,13 +109,13 @@
 .hot {
   color: var(--accent);
   border-color: var(--accent);
-  background: rgba(179, 71, 0, 0.08);
+  background: var(--accent-wash);
 }
 
 .warm {
-  color: #8a6d00;
-  border-color: #8a6d00;
-  background: rgba(138, 109, 0, 0.1);
+  color: var(--warn);
+  border-color: var(--warn);
+  background: var(--warn-wash);
 }
 
 .cold {
@@ -163,5 +163,5 @@
 .due {
   font-family: var(--font-dm-mono), monospace;
   font-size: 10px;
-  color: #c0392b;
+  color: var(--bad);
 }

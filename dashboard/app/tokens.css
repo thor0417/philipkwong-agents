@@ -180,6 +180,23 @@
      nothing else. This token exists so no component invents a fill. */
   --row-hover: rgba(26, 23, 20, 0.035);
   --row-selected-edge: var(--accent);
+
+  /* Quiet washes. Not new colours: these are the accent and the semantics at
+     low alpha, for the few places that genuinely need a tinted field rather
+     than a border. Tokenised because they were hardcoded at six different
+     alphas across nine stylesheets. */
+  --accent-wash: rgba(179, 71, 0, 0.06);
+  --bad-wash: rgba(158, 59, 50, 0.08);
+
+  /* LEGACY ONLY. Lead "temperature" on the retired pipeline screens, whose
+     lanes were closed on 2026-07-29. The design system permits red and green
+     and nothing else, so no NEW surface may use this; it exists so a frozen
+     screen is not left with a hardcoded amber that is unreadable in dark mode.
+     It goes when those screens do. */
+  --warn: #8a6d00;
+  --warn-wash: rgba(138, 109, 0, 0.1);
+
+  --scrim: rgba(26, 23, 20, 0.35);
 }
 
 /* -------------------------------------------------------------------- DARK */
@@ -212,6 +229,14 @@
 
     --row-hover: rgba(237, 234, 229, 0.05);
     --row-selected-edge: var(--accent);
+
+    /* Washes lift on a dark ground: the same alpha that reads as a tint on
+       warm paper is invisible against #131211. */
+    --accent-wash: rgba(224, 106, 36, 0.12);
+    --bad-wash: rgba(207, 106, 95, 0.14);
+    --warn: #c9a227;
+    --warn-wash: rgba(201, 162, 39, 0.14);
+    --scrim: rgba(0, 0, 0, 0.6);
   }
 }
 
@@ -241,6 +266,12 @@
 
   --row-hover: rgba(237, 234, 229, 0.05);
   --row-selected-edge: var(--accent);
+
+  --accent-wash: rgba(224, 106, 36, 0.12);
+  --bad-wash: rgba(207, 106, 95, 0.14);
+  --warn: #c9a227;
+  --warn-wash: rgba(201, 162, 39, 0.14);
+  --scrim: rgba(0, 0, 0, 0.6);
 }
 
 /* -------------------------------------------------------- composite tokens */

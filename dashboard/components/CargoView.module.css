@@ -3,7 +3,7 @@
 .panel {
   margin-top: 16px;
   border: 0.5px solid var(--accent);
-  background: rgba(179, 71, 0, 0.03);
+  background: var(--accent-wash);
 }
 
 .head {
@@ -65,7 +65,7 @@
 }
 
 .table tbody tr:hover {
-  background: rgba(179, 71, 0, 0.06);
+  background: var(--accent-wash);
 }
 
 .vol {

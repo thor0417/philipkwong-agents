@@ -39,8 +39,8 @@ export default function LoginPage() {
         onSubmit={handleSubmit}
         style={{
           width: 320,
-          border: '0.5px solid var(--hairline)',
-          background: '#fff',
+          border: 'var(--border-hairline)',
+          background: 'var(--paper-card)',
           padding: 32,
         }}
       >
@@ -81,7 +81,7 @@ export default function LoginPage() {
         {error && (
           <p
             className="mono"
-            style={{ fontSize: 11, color: '#c0341d', marginTop: 16 }}
+            style={{ fontSize: 11, color: 'var(--bad)', marginTop: 16 }}
           >
             {error}
           </p>

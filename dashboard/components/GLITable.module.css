@@ -33,13 +33,13 @@
 .scroll {
   overflow-x: auto;
   border: 0.5px solid var(--hairline);
-  background: #fff;
+  background: var(--paper-card);
 }
 
 .table {
   width: 100%;
   border-collapse: collapse;
-  background: #fff;
+  background: var(--paper-card);
   /* Fit the viewport: no forced 1000px width. A modest floor keeps cells legible
      on narrow screens; below it the wrapper (.scroll) scrolls, not the page. */
   min-width: 680px;
@@ -94,7 +94,7 @@
   cursor: pointer;
 }
 .row:hover {
-  background: rgba(10, 10, 10, 0.03);
+  background: var(--row-hover);
 }
 
 /* Cells: TEXT (NormalRegular) 13px, fixed 40px row height, single line. */
@@ -122,11 +122,11 @@
   text-overflow: ellipsis;
   position: sticky;
   left: 0;
-  background: #fff;
+  background: var(--paper-card);
   z-index: 1;
 }
 .row:hover .title {
-  background: #f7f7f7;
+  background: var(--paper-page);
 }
 td.title:hover {
   color: var(--accent);

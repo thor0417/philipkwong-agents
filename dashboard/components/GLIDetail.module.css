@@ -3,7 +3,7 @@
 .overlay {
   position: fixed;
   inset: 0;
-  background: rgba(10, 10, 10, 0.35);
+  background: var(--scrim);
   z-index: 50;
   display: flex;
   justify-content: flex-end;
@@ -67,7 +67,7 @@
 }
 
 .categoryTag {
-  color: #fff;
+  color: var(--on-accent);
   background: var(--accent);
   border-color: var(--accent);
 }
