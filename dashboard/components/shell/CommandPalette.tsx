@@ -111,7 +111,7 @@ export default function CommandPalette({
                 key={p.id}
                 value={`project-${p.id}`}
                 className={styles.item}
-                onSelect={() => run(() => router.push(`/projects?open=${p.id}`))}
+                onSelect={() => run(() => router.push(`/register?selected=${p.id}`))}
               >
                 <span className={styles.itemLabel}>{p.name}</span>
                 <span className={styles.itemMeta}>{p.market ?? p.country ?? ''}</span>

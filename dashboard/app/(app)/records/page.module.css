@@ -1,0 +1,383 @@
+/* Register: the working surface. The shell owns the chrome, so this file styles
+   content only.
+
+   This stylesheet still carries pre-token values (22px margins, 13px type,
+   0.5px literals). It is rebuilt onto the design system in Part 4, where the
+   three-pane Register replaces this layout wholesale; changing it here would be
+   churn on code that is about to be replaced. */
+.screen {
+  max-width: 1360px;
+  margin: 0 auto;
+  padding: var(--space-32) var(--space-24);
+}
+
+.tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 0.5px solid var(--hairline);
+  margin: 22px 0 4px;
+}
+
+.tab {
+  font-family: var(--font-emphasis);
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 10px 16px;
+  margin-bottom: -0.5px;
+  cursor: pointer;
+  border-radius: 0;
+}
+
+.tab:hover {
+  color: var(--ink);
+  background: transparent;
+}
+
+.tabActive {
+  color: var(--ink);
+  border-bottom-color: var(--accent);
+}
+
+.tabCount {
+  font-family: var(--font-emphasis);
+  font-size: 12px;
+  margin-left: 7px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.tabActive .tabCount {
+  color: var(--accent);
+}
+
+.loading {
+  font-family: var(--font-text);
+  font-size: 13px;
+  color: var(--muted);
+}
+
+/* Actions row: export / report / focus. EMPHASIS labels, sharp corners, no
+   shadows. */
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin: 16px 0 2px;
+}
+
+.actionBtn {
+  font-family: var(--font-emphasis);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink);
+  background: transparent;
+  border: 0.5px solid var(--ink);
+  border-radius: 0;
+  padding: 8px 14px;
+  cursor: pointer;
+}
+
+.actionBtn:hover:not(:disabled) {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.actionBtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.focusControl {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.focusControl span {
+  font-family: var(--font-emphasis);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.focusControl select {
+  font-family: var(--font-text);
+  font-size: 13px;
+  color: var(--ink);
+  background: var(--paper-card);
+  border: 0.5px solid var(--hairline);
+  border-radius: 0;
+  padding: 8px 10px;
+  cursor: pointer;
+}
+
+.focusControl select:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+/* Active / Archive view toggle: a filled segmented control at the top, visually
+   distinct from the underlined stream tabs so the current view is unmistakable. */
+.viewToggle {
+  display: inline-flex;
+  border: 0.5px solid var(--ink);
+  margin-bottom: 20px;
+}
+
+.viewBtn {
+  font-family: var(--font-emphasis);
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink);
+  background: transparent;
+  border: none;
+  border-right: 0.5px solid var(--ink);
+  border-radius: 0;
+  padding: 9px 22px;
+  cursor: pointer;
+}
+
+.viewBtn:last-child {
+  border-right: none;
+}
+
+.viewBtn:hover {
+  background: transparent;
+  color: var(--ink);
+}
+
+.viewBtnActive,
+.viewBtnActive:hover {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.viewCount {
+  margin-left: 9px;
+  font-family: var(--font-emphasis);
+  font-size: 12px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.viewBtnActive .viewCount {
+  color: var(--paper);
+}
+
+/* Pagination footer. Hairline rule, no fill, DM Mono for the numbers, matching
+   the table's own furniture. */
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 0.5px solid var(--hairline);
+}
+.pagerInfo {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  color: var(--muted);
+}
+.pagerBtns {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.pagerBtn {
+  font-family: var(--font-emphasis);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fg);
+  background: none;
+  border: 0.5px solid var(--hairline);
+  padding: 6px 12px;
+  cursor: pointer;
+}
+.pagerBtn:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.pagerBtn:disabled {
+  color: var(--muted);
+  cursor: default;
+  opacity: 0.5;
+}
+.pagerPage {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--muted);
+  min-width: 56px;
+  text-align: center;
+}
+
+/* Triage bar: views, backlog badge, bulk actions. */
+.triageBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 20px 0 8px;
+}
+.triageViews {
+  display: flex;
+  gap: 8px;
+}
+.triageView {
+  font-family: var(--font-emphasis);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  background: none;
+  border: 0.5px solid var(--hairline);
+  padding: 6px 12px;
+  cursor: pointer;
+}
+.triageViewActive {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.triageCount {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  margin-left: 8px;
+  opacity: 0.75;
+}
+.backlog {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--muted);
+}
+.backlog strong {
+  color: var(--accent);
+  font-family: var(--font-emphasis);
+  margin-left: 6px;
+}
+.bulkBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 8px 12px;
+  margin-bottom: 8px;
+  border: 0.5px solid var(--accent);
+}
+.bulkCount {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--accent);
+}
+.bulkActions {
+  display: flex;
+  gap: 8px;
+}
+.bulkBtn {
+  font-family: var(--font-emphasis);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fg);
+  background: none;
+  border: 0.5px solid var(--hairline);
+  padding: 5px 10px;
+  cursor: pointer;
+}
+.bulkBtn:hover:not(:disabled) {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.bulkBtn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* Delta window controls. */
+.deltaBar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+.deltaLabel {
+  font-family: var(--font-emphasis);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  min-width: 96px;
+}
+.deltaBtn {
+  font-family: var(--font-emphasis);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  background: none;
+  border: 0.5px solid var(--hairline);
+  padding: 5px 10px;
+  cursor: pointer;
+}
+.deltaBtn:hover,
+.deltaBtnActive {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.deltaDate {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--fg);
+  background: none;
+  border: 0.5px solid var(--hairline);
+  padding: 4px 7px;
+}
+
+/* Mutation failure banner. Accent hairline, no fill, consistent with the rest. */
+.mutationError {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 8px 12px;
+  margin-top: 12px;
+  border: 0.5px solid var(--accent);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--accent);
+}
+.mutationErrorClose {
+  font-family: var(--font-emphasis);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+  background: none;
+  border: 0.5px solid var(--accent);
+  padding: 4px 9px;
+  cursor: pointer;
+}
+
+/* Count on each date window, matching the tab and chip treatment. */
+.deltaCount {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  margin-left: 7px;
+  opacity: 0.75;
+}
+.deltaHint {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--muted);
+}

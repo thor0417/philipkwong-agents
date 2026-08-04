@@ -1,383 +1,549 @@
-/* Register: the working surface. The shell owns the chrome, so this file styles
-   content only.
-
-   This stylesheet still carries pre-token values (22px margins, 13px type,
-   0.5px literals). It is rebuilt onto the design system in Part 4, where the
-   three-pane Register replaces this layout wholesale; changing it here would be
-   churn on code that is about to be replaced. */
+/* THE REGISTER. List plus detail, roughly 60/40.
+ *
+ * The split is the point of the screen: inspecting a project must never cost
+ * you your place in the list. Only the panes scroll; the screen itself never
+ * does, so the column headers and the pane header stay put during triage.
+ */
 .screen {
-  max-width: 1360px;
-  margin: 0 auto;
-  padding: var(--space-32) var(--space-24);
+  display: grid;
+  grid-template-columns: var(--split-list) var(--split-detail);
+  height: 100%;
+  min-height: 0;
 }
 
-.tabs {
+/* With nothing selected the list takes the whole width rather than leaving a
+   40% hole. The detail is not a permanent column; it is a pane that arrives. */
+.screen:not(:has(> aside)) {
+  grid-template-columns: 1fr;
+}
+
+.listPane {
   display: flex;
-  gap: 0;
-  border-bottom: 0.5px solid var(--hairline);
-  margin: 22px 0 4px;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  border-right: var(--border-hairline);
 }
 
-.tab {
-  font-family: var(--font-emphasis);
-  font-size: 13px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--muted);
-  background: transparent;
-  border: none;
-  border-bottom: 2px solid transparent;
-  padding: 10px 16px;
-  margin-bottom: -0.5px;
-  cursor: pointer;
+/* ------------------------------------------------------------- list header */
+.listHead {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--space-16);
+  padding: var(--space-12) var(--space-16);
+  border-bottom: var(--border-hairline);
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  flex: 1;
+  min-width: 0;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-8);
+  font-family: var(--font-body);
+  font-size: var(--type-meta);
+  letter-spacing: var(--track-none);
+  text-transform: none;
+  color: var(--ink-secondary);
+  border: var(--border-hairline);
+  border-radius: var(--radius-control);
+  padding: var(--space-4) var(--space-8);
+  white-space: nowrap;
+}
+.chips .chip:hover {
+  background: none;
+  color: var(--ink);
+  border-color: var(--line-strong);
+}
+/* Selected is a border and a weight, never a fill. */
+.chipActive,
+.chips .chipActive:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: none;
+  font-weight: var(--weight-medium);
+}
+.chipCount {
+  font-size: var(--type-caption);
+  color: var(--ink-muted);
+}
+
+.listHead .search {
+  width: 260px;
+  flex: none;
+  font-family: var(--font-body);
+}
+
+/* -------------------------------------------------------------------- table */
+.table {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.headRow,
+.row {
+  display: grid;
+  /* Name flexes and truncates; everything else is content-sized and never
+     wraps. Last activity is fixed because a date column that resizes makes the
+     whole table shimmer as you page.
+     These widths are sized for the pane at 60%, NOT for the full viewport: at
+     the first attempt they summed to 848px inside a 790px pane and pushed the
+     last-activity column off the edge whenever the detail was open, which is
+     most of the time. */
+  grid-template-columns: 32px minmax(150px, 1fr) minmax(110px, 180px) 108px 104px 92px;
+  align-items: center;
+  gap: var(--space-12);
+  padding: 0 var(--space-16);
+}
+
+.headRow {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  height: var(--row-h-dense);
+  background: var(--paper-page);
+  border-bottom: var(--border-strong);
+}
+
+.colHead {
+  border: 0;
   border-radius: 0;
+  padding: 0;
+  background: none;
+  text-align: left;
+  font-family: var(--font-body);
+  font-size: var(--type-caption);
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+  color: var(--ink-muted);
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  white-space: nowrap;
 }
-
-.tab:hover {
+.headRow .colHead:hover {
+  background: none;
   color: var(--ink);
-  background: transparent;
 }
-
-.tabActive {
+/* The header says which column drives the sort. Ink, not accent: the accent on
+   this screen belongs to the selected row. */
+.colHeadActive,
+.headRow .colHeadActive:hover {
   color: var(--ink);
-  border-bottom-color: var(--accent);
+  font-weight: var(--weight-medium);
+  background: none;
+}
+.sortMark {
+  font-size: var(--type-caption);
 }
 
-.tabCount {
-  font-family: var(--font-emphasis);
-  font-size: 12px;
-  margin-left: 7px;
-  color: var(--muted);
-  font-variant-numeric: tabular-nums;
+.num {
+  justify-content: flex-end;
+  text-align: right;
 }
 
-.tabActive .tabCount {
+.row {
+  height: var(--row-h);
+  border-bottom: var(--border-hairline);
+  font-size: var(--type-body);
+  cursor: pointer;
+  /* Always present so selecting a row cannot shift its contents sideways. */
+  border-left: var(--selected-edge-width) solid transparent;
+  transition: background-color var(--motion-state) var(--ease-out);
+}
+.row:hover {
+  background: var(--row-hover);
+}
+/* Selected: a 2px accent leading edge and no fill. Never a coloured row. */
+.rowSelected,
+.rowSelected:hover {
+  border-left-color: var(--accent);
+  background: none;
+}
+
+.cellName {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink);
+}
+
+.cell {
+  color: var(--ink-secondary);
+  font-size: var(--type-meta);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.check {
+  width: auto;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+/* Watched is a dot, not a colour on the name: the name has to stay readable. */
+.watchDot {
+  width: var(--space-4);
+  height: var(--space-4);
+  border-radius: 50%;
+  background: var(--ink-muted);
+  flex: none;
+}
+
+/* Trash gets a sixth column for the way back out. Declared here rather than in
+   the shared grid so every other view keeps five columns exactly. */
+.trashView .headRow,
+.trashView .row {
+  grid-template-columns: 32px minmax(150px, 1fr) minmax(110px, 180px) 108px 104px 92px auto;
+}
+
+.row .rowAction {
+  border: 0;
+  padding: 0;
+  font-size: var(--type-caption);
+  color: var(--ink-muted);
+  background: none;
+}
+.row .rowAction:hover {
+  background: none;
   color: var(--accent);
 }
 
-.loading {
-  font-family: var(--font-text);
-  font-size: 13px;
-  color: var(--muted);
-}
-
-/* Actions row: export / report / focus. EMPHASIS labels, sharp corners, no
-   shadows. */
-.actions {
+/* ------------------------------------------------------------ bars and pager */
+.bulk,
+.error {
+  flex: none;
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
-  margin: 16px 0 2px;
+  gap: var(--space-8);
+  padding: var(--space-8) var(--space-16);
+  border-bottom: var(--border-hairline);
+  font-size: var(--type-meta);
+}
+.error {
+  color: var(--bad);
+  background: var(--bad-wash);
 }
 
-.actionBtn {
-  font-family: var(--font-emphasis);
-  font-size: 11px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--ink);
-  background: transparent;
-  border: 0.5px solid var(--ink);
-  border-radius: 0;
-  padding: 8px 14px;
-  cursor: pointer;
-}
-
-.actionBtn:hover:not(:disabled) {
-  background: var(--ink);
-  color: var(--paper);
-}
-
-.actionBtn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-.focusControl {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.focusControl span {
-  font-family: var(--font-emphasis);
-  font-size: 11px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-
-.focusControl select {
-  font-family: var(--font-text);
-  font-size: 13px;
-  color: var(--ink);
-  background: var(--paper-card);
-  border: 0.5px solid var(--hairline);
-  border-radius: 0;
-  padding: 8px 10px;
-  cursor: pointer;
-}
-
-.focusControl select:focus {
-  outline: none;
-  border-color: var(--accent);
-}
-
-/* Active / Archive view toggle: a filled segmented control at the top, visually
-   distinct from the underlined stream tabs so the current view is unmistakable. */
-.viewToggle {
-  display: inline-flex;
-  border: 0.5px solid var(--ink);
-  margin-bottom: 20px;
-}
-
-.viewBtn {
-  font-family: var(--font-emphasis);
-  font-size: 12px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--ink);
-  background: transparent;
-  border: none;
-  border-right: 0.5px solid var(--ink);
-  border-radius: 0;
-  padding: 9px 22px;
-  cursor: pointer;
-}
-
-.viewBtn:last-child {
-  border-right: none;
-}
-
-.viewBtn:hover {
-  background: transparent;
-  color: var(--ink);
-}
-
-.viewBtnActive,
-.viewBtnActive:hover {
-  background: var(--ink);
-  color: var(--paper);
-}
-
-.viewCount {
-  margin-left: 9px;
-  font-family: var(--font-emphasis);
-  font-size: 12px;
-  color: var(--muted);
-  font-variant-numeric: tabular-nums;
-}
-
-.viewBtnActive .viewCount {
-  color: var(--paper);
-}
-
-/* Pagination footer. Hairline rule, no fill, DM Mono for the numbers, matching
-   the table's own furniture. */
 .pager {
+  flex: none;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  margin-top: 16px;
-  padding-top: 12px;
-  border-top: 0.5px solid var(--hairline);
-}
-.pagerInfo {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  letter-spacing: 0.02em;
-  color: var(--muted);
+  gap: var(--space-16);
+  padding: var(--space-8) var(--space-16);
+  border-top: var(--border-hairline);
 }
 .pagerBtns {
   display: flex;
   align-items: center;
-  gap: 10px;
-}
-.pagerBtn {
-  font-family: var(--font-emphasis);
-  font-size: 10px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--fg);
-  background: none;
-  border: 0.5px solid var(--hairline);
-  padding: 6px 12px;
-  cursor: pointer;
-}
-.pagerBtn:hover:not(:disabled) {
-  border-color: var(--accent);
-  color: var(--accent);
-}
-.pagerBtn:disabled {
-  color: var(--muted);
-  cursor: default;
-  opacity: 0.5;
-}
-.pagerPage {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--muted);
-  min-width: 56px;
-  text-align: center;
+  gap: var(--space-8);
+  font-size: var(--type-caption);
 }
 
-/* Triage bar: views, backlog badge, bulk actions. */
-.triageBar {
+.keys {
+  flex: none;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  padding: var(--space-4) var(--space-16) var(--space-8);
+  font-size: var(--type-caption);
+  color: var(--ink-disabled);
+}
+
+.dim {
+  color: var(--ink-muted);
+  font-size: var(--type-meta);
+  padding: var(--space-16);
+  margin: 0;
+}
+
+.dot {
+  width: 2px;
+  height: 2px;
+  border-radius: 50%;
+  background: var(--ink-disabled);
+  flex: none;
+}
+
+/* ------------------------------------------------------------------- rail */
+.railList {
+  display: flex;
+  flex-direction: column;
+}
+
+.railItem {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  margin: 20px 0 8px;
-}
-.triageViews {
-  display: flex;
-  gap: 8px;
-}
-.triageView {
-  font-family: var(--font-emphasis);
-  font-size: 10px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--muted);
+  gap: var(--space-8);
+  width: 100%;
+  border: 0;
+  border-radius: 0;
   background: none;
-  border: 0.5px solid var(--hairline);
-  padding: 6px 12px;
-  cursor: pointer;
+  padding: var(--space-4) var(--space-16);
+  min-height: 26px;
+  font-family: var(--font-body);
+  font-size: var(--type-meta);
+  letter-spacing: var(--track-none);
+  text-transform: none;
+  color: var(--ink-secondary);
+  text-align: left;
+  border-left: var(--selected-edge-width) solid transparent;
 }
-.triageViewActive {
+.railList .railItem:hover {
+  background: var(--row-hover);
+  color: var(--ink);
+}
+.railItemActive,
+.railList .railItemActive:hover {
   color: var(--accent);
-  border-color: var(--accent);
+  border-left-color: var(--accent);
+  background: none;
 }
-.triageCount {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  margin-left: 8px;
-  opacity: 0.75;
+
+/* The tree indents rather than drawing connectors: at 200px a connector costs
+   more width than it earns. */
+.railL2 {
+  padding-left: var(--space-32);
 }
-.backlog {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--muted);
+.railL3 {
+  padding-left: var(--space-48);
 }
-.backlog strong {
-  color: var(--accent);
-  font-family: var(--font-emphasis);
-  margin-left: 6px;
+
+.railLabel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.bulkBar {
+.railCount {
+  font-size: var(--type-caption);
+  color: var(--ink-disabled);
+  flex: none;
+}
+
+/* ------------------------------------------------------------------ detail */
+.detail {
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  gap: var(--space-16);
+  overflow-y: auto;
+  min-height: 0;
+  padding: var(--space-16);
+  background: var(--paper-card);
+}
+
+.detailHead {
+  display: flex;
+  align-items: flex-start;
   justify-content: space-between;
-  gap: 16px;
-  padding: 8px 12px;
-  margin-bottom: 8px;
-  border: 0.5px solid var(--accent);
+  gap: var(--space-12);
 }
-.bulkCount {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--accent);
+
+.detailName {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: var(--weight-medium);
+  font-size: var(--type-display-sm);
+  line-height: var(--leading-display);
 }
-.bulkActions {
+
+.detailMeta {
   display: flex;
-  gap: 8px;
+  align-items: center;
+  gap: var(--space-8);
+  margin-top: var(--space-4);
+  font-size: var(--type-meta);
+  color: var(--ink-muted);
 }
-.bulkBtn {
-  font-family: var(--font-emphasis);
-  font-size: 10px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--fg);
+
+.detail .close {
+  flex: none;
+  border: 0;
+  padding: var(--space-4);
+  color: var(--ink-muted);
+  font-size: var(--type-caption);
+}
+.detail .close:hover {
   background: none;
-  border: 0.5px solid var(--hairline);
-  padding: 5px 10px;
-  cursor: pointer;
+  color: var(--ink);
 }
-.bulkBtn:hover:not(:disabled) {
+
+.detailActions {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-8);
+  flex-wrap: wrap;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+.fieldLabel {
+  font-size: var(--type-caption);
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+.field select {
+  width: auto;
+  font-family: var(--font-body);
+}
+
+.detailActions .watchBtn {
+  font-family: var(--font-body);
+  font-size: var(--type-meta);
+  letter-spacing: var(--track-none);
+  text-transform: none;
+  padding: var(--space-8) var(--space-12);
+}
+.detailActions .watchOn {
   color: var(--accent);
   border-color: var(--accent);
 }
-.bulkBtn:disabled {
-  opacity: 0.5;
-  cursor: default;
+.detailActions .watchOn:hover {
+  background: none;
+  color: var(--accent-hover);
+  border-color: var(--accent-hover);
 }
 
-/* Delta window controls. */
-.deltaBar {
+.fullPage {
+  font-size: var(--type-meta);
+  color: var(--ink-secondary);
+  border-bottom: var(--border-hairline);
+  padding-bottom: var(--space-4);
+}
+.fullPage:hover {
+  color: var(--ink);
+}
+
+.override {
+  margin: 0;
+  font-size: var(--type-caption);
+  color: var(--ink-muted);
+  border-left: var(--selected-edge-width) solid var(--line-strong);
+  padding-left: var(--space-8);
+}
+
+.detailBlock {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 12px;
-}
-.deltaLabel {
-  font-family: var(--font-emphasis);
-  font-size: 9px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--muted);
-  min-width: 96px;
-}
-.deltaBtn {
-  font-family: var(--font-emphasis);
-  font-size: 10px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--muted);
-  background: none;
-  border: 0.5px solid var(--hairline);
-  padding: 5px 10px;
-  cursor: pointer;
-}
-.deltaBtn:hover,
-.deltaBtnActive {
-  color: var(--accent);
-  border-color: var(--accent);
-}
-.deltaDate {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--fg);
-  background: none;
-  border: 0.5px solid var(--hairline);
-  padding: 4px 7px;
+  flex-direction: column;
+  gap: var(--space-8);
+  border-top: var(--border-hairline);
+  padding-top: var(--space-12);
 }
 
-/* Mutation failure banner. Accent hairline, no fill, consistent with the rest. */
-.mutationError {
+.blockTitle {
+  margin: 0;
+  font-family: var(--font-body);
+  font-weight: var(--weight-medium);
+  font-size: var(--type-caption);
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+.people {
+  margin: 0;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--space-4) var(--space-12);
+  font-size: var(--type-meta);
+}
+.people dt {
+  color: var(--ink-muted);
+  white-space: nowrap;
+}
+.people dd {
+  margin: 0;
+  color: var(--ink);
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 8px 12px;
-  margin-top: 12px;
-  border: 0.5px solid var(--accent);
-  font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--accent);
-}
-.mutationErrorClose {
-  font-family: var(--font-emphasis);
-  font-size: 10px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--accent);
-  background: none;
-  border: 0.5px solid var(--accent);
-  padding: 4px 9px;
-  cursor: pointer;
+  flex-direction: column;
 }
 
-/* Count on each date window, matching the tab and chip treatment. */
-.deltaCount {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  margin-left: 7px;
-  opacity: 0.75;
+/* Provenance is stated, never implied. A derived party and a corrected one are
+   different claims and the pane says which it is. */
+.provenance {
+  font-size: var(--type-caption);
+  color: var(--ink-disabled);
 }
-.deltaHint {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--muted);
+
+.timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.tlRow {
+  display: flex;
+  gap: var(--space-12);
+  padding: var(--cell-pad-y) 0;
+  border-bottom: var(--border-hairline);
+  font-size: var(--type-meta);
+}
+.tlRow:last-child {
+  border-bottom: 0;
+}
+
+.tlDate {
+  flex: none;
+  color: var(--ink-muted);
+  font-size: var(--type-caption);
+  width: 10ch;
+}
+
+.tlBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.tlLink {
+  color: var(--ink);
+  border-bottom: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tlLink:hover {
+  color: var(--accent);
+  border-bottom: 0;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.tlSource {
+  font-size: var(--type-caption);
+  color: var(--ink-disabled);
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+}
+
+.notes {
+  font-family: var(--font-body);
+  font-size: var(--type-meta);
+  resize: vertical;
+}
+
+.noteActions {
+  display: flex;
+  gap: var(--space-8);
 }

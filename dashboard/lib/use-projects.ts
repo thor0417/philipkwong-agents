@@ -35,6 +35,8 @@ import {
   setProjectNotes,
   setProjectStage,
   setProjectWatch,
+  setProjectStatus,
+  type ProjectStatus,
 } from './project-mutations';
 
 function stable(q: object): string {
@@ -157,6 +159,13 @@ export function useProjectMutations(feedback: ProjectFeedback = {}) {
     onSettled: invalidateAll,
   });
 
+  const status = useMutation({
+    mutationFn: ({ id, status: st }: { id: string; status: ProjectStatus }) =>
+      setProjectStatus(id, st),
+    onError: (e) => fail(e, 'Status change failed.'),
+    onSettled: invalidateAll,
+  });
+
   const notes = useMutation({
     mutationFn: ({ id, notes: n }: { id: string; notes: string }) => setProjectNotes(id, n),
     onError: (e) => fail(e, 'Note save failed.'),
@@ -181,6 +190,7 @@ export function useProjectMutations(feedback: ProjectFeedback = {}) {
     rename,
     stage,
     watch,
+    status,
     notes,
     detach,
     attach,
@@ -188,6 +198,7 @@ export function useProjectMutations(feedback: ProjectFeedback = {}) {
       rename.isPending ||
       stage.isPending ||
       watch.isPending ||
+      status.isPending ||
       notes.isPending ||
       detach.isPending ||
       attach.isPending,

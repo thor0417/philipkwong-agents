@@ -88,6 +88,30 @@ export async function setProjectWatch(id: string, watch: boolean): Promise<void>
   });
 }
 
+// STATUS. Philip's triage axis, and the only writer for it.
+//
+// The projects table has carried a status column since the register was built
+// and every read path filters on it (the views, the counts, Trash), but nothing
+// ever wrote it: triage existed on records only. This is that missing writer.
+//
+// Like watch and notes, status carries no override bookkeeping. The clusterer
+// never writes it, so there is nothing to protect it from, and marking a
+// project dismissed is a filter change rather than a claim about the world.
+//
+// NOTHING IS DELETED. Trash is a view over status = 'dismissed', so restoring is
+// this same call with a different value.
+export type ProjectStatus = 'new' | 'watchlist' | 'client_ready' | 'dismissed';
+
+export async function setProjectStatus(id: string, status: ProjectStatus): Promise<void> {
+  const { error } = await supabase.from('projects').update({ status }).eq('id', id);
+  if (error) throw new Error(`project status update failed: ${error.message}`);
+  await recordManualEvent({
+    project_id: id,
+    event_type: 'status_changed',
+    to_value: status,
+  });
+}
+
 export async function setProjectNotes(id: string, notes: string): Promise<void> {
   const { error } = await supabase
     .from('projects')

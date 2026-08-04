@@ -44,12 +44,22 @@ const SCREENS: Screen[] = [
     // Held at 3 so a future section cannot quietly reintroduce the flood.
     accentBudget: 3,
   },
-  // The shell, on the working surface. Not fullPage: the shell owns the
-  // viewport and nothing outside it scrolls, so a full-page capture would just
-  // be the same 900px with a taller main region.
+  // The Register: rail, list, detail. Not fullPage, because the shell owns the
+  // viewport and each pane scrolls inside it, so a full-page capture would just
+  // be the same 900px.
   {
-    name: '02-shell-register',
+    name: '02-register',
     path: '/register',
+    ready: 'header',
+    // The active nav item, the selected stage chip, the active rail view, and
+    // the selected row's edge. Anything above this is a flood.
+    accentBudget: 8,
+  },
+  // The record table, moved from /register. Still the pre-rebuild screen, so
+  // its accent debt is unchanged and held where it was measured.
+  {
+    name: '04-records',
+    path: '/records',
     ready: 'header',
     // A RATCHET ON KNOWN DEBT, not an approval. This screen is the pre-rebuild
     // Register: every "active" state in it (filter chips, geo chips, delta

@@ -64,7 +64,7 @@ test('command palette', async ({ page }, testInfo) => {
       message: 'selecting a project did not navigate anywhere',
       timeout: 20_000,
     })
-    .toMatch(/^\/projects\?open=/);
+    .toMatch(/^\/register\?selected=/);
 
   // And the destination actually opened that project rather than just changing
   // the URL.
