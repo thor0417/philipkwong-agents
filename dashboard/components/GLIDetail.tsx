@@ -110,7 +110,7 @@ export default function GLIDetail({
         className={styles.panel}
         onClick={(e) => e.stopPropagation()}
         role="dialog"
-        aria-label="GLI record"
+        aria-label="Record detail"
       >
         <header className={styles.header}>
           <div className={styles.headText}>

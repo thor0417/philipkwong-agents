@@ -39,6 +39,12 @@ export interface ReportScope {
   view?: string; // 'active' | 'archive'
   generatedDate: string; // YYYY-MM-DD
   focusLabel?: string; // preset label, when a focus preset is active
+  // Branding travels WITH the scope rather than being typed into the renderer.
+  // The renderer runs server-side and has no access to the pipeline registry,
+  // so the client resolves both from config and posts them. A second pipeline
+  // therefore changes these strings and no code.
+  deliveryLine: string; // operator and client, e.g. "Philip Kwong / JKR & Associates"
+  reportTitle: string; // e.g. "Hospitality and Entertainment Development Intelligence"
 }
 
 export interface ReportPayload {

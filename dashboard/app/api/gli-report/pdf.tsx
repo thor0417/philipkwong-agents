@@ -177,12 +177,12 @@ function ReportDocument({ payload }: { payload: ReportPayload }) {
     `${dateRange(leads)}  |  Generated ${scope.generatedDate}`;
 
   return (
-    <Document title={`GLI ${scope.streamLabel} report`}>
+    <Document title={`${scope.reportTitle} — ${scope.streamLabel}`}>
       <Page size="A4" style={s.page} wrap>
         {/* Cover header */}
-        <Text style={s.wordmark}>Philip Kwong  /  Grant Leisure International</Text>
+        <Text style={s.wordmark}>{scope.deliveryLine}</Text>
         <Text style={s.title}>
-          {scope.focusLabel ? scope.focusLabel : 'GLI Development Intelligence'}
+          {scope.focusLabel ? scope.focusLabel : scope.reportTitle}
         </Text>
         <Text style={s.scope}>{scopeLine}</Text>
         <View style={s.accentRule} />
@@ -280,7 +280,7 @@ function ReportDocument({ payload }: { payload: ReportPayload }) {
           <Text style={s.footMono}>
             <Text style={s.footBracket}>[</Text> THERE ARE NO SHORTCUTS <Text style={s.footBracket}>]</Text>
           </Text>
-          <Text style={s.footText}>Philip Kwong / Grant Leisure International   {scope.generatedDate}</Text>
+          <Text style={s.footText}>{scope.deliveryLine}   {scope.generatedDate}</Text>
         </View>
       </Page>
     </Document>

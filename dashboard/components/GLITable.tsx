@@ -194,7 +194,7 @@ export default function GLITable({
                     key={lead.id}
                     className={styles.row}
                     onClick={() => onSelect(lead)}
-                    title="Open GLI record detail"
+                    title="Open record detail"
                   >
                     {selectable && (
                       <td className={styles.checkCell} onClick={(e) => e.stopPropagation()}>

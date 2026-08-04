@@ -121,7 +121,7 @@
 }
 
 .row:hover {
-  background: rgba(179, 71, 0, 0.05);
+  background: var(--accent-wash);
   cursor: pointer;
 }
 
@@ -313,7 +313,7 @@
   font-size: 13px;
   padding: 9px 10px;
   border: 0.5px solid var(--hairline);
-  background: #fff;
+  background: var(--paper-card);
   border-radius: 0;
   resize: vertical;
 }

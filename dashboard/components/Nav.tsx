@@ -1,7 +1,12 @@
 'use client';
 
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+// Screen controls for the legacy pipeline view. NOT navigation any more.
+//
+// This used to carry a wordmark, cross-screen links and Sign Out. The shell now
+// owns all three, so keeping them here would have meant two wordmarks and two
+// sign-out buttons on the same page. What is left is what genuinely belongs to
+// this screen: its view toggle and its agents panel.
+
 import styles from './Nav.module.css';
 
 export type View = 'kanban' | 'list';
@@ -11,23 +16,14 @@ export default function Nav({
   onViewChange,
   agentsOpen,
   onToggleAgents,
-  onSignOut,
 }: {
   view: View;
   onViewChange: (view: View) => void;
   agentsOpen: boolean;
   onToggleAgents: () => void;
-  onSignOut: () => void;
 }) {
-  const pathname = usePathname();
-
   return (
     <nav className={styles.nav}>
-      <div className="mono" style={{ fontSize: 12, letterSpacing: '0.04em' }}>
-        <span className="bracket">[</span> PHILIP KWONG / PIPELINE{' '}
-        <span className="bracket">]</span>
-      </div>
-
       <div className={styles.toggle}>
         <button
           className={view === 'kanban' ? styles.active : ''}
@@ -44,25 +40,9 @@ export default function Nav({
       </div>
 
       <div className={styles.right}>
-        <Link
-          href="/projects"
-          className={`${styles.link} ${pathname === '/projects' ? styles.active : ''}`}
-        >
-          Projects
-        </Link>
-        <Link
-          href="/gli"
-          className={`${styles.link} ${pathname === '/gli' ? styles.active : ''}`}
-        >
-          GLI
-        </Link>
-        <button
-          className={agentsOpen ? styles.active : ''}
-          onClick={onToggleAgents}
-        >
+        <button className={agentsOpen ? styles.active : ''} onClick={onToggleAgents}>
           Agents
         </button>
-        <button onClick={onSignOut}>Sign Out</button>
       </div>
     </nav>
   );

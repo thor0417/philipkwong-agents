@@ -1,0 +1,196 @@
+.rail {
+  width: var(--rail-w);
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  background: var(--paper-rail);
+  border-right: var(--border-hairline);
+  /* Width is the only thing that animates, at panel speed. Nothing inside
+     moves independently: a rail whose contents slide around while it resizes
+     reads as unstable. */
+  transition: width var(--motion-panel) var(--ease-out);
+  overflow: hidden;
+}
+
+.collapsed {
+  width: var(--rail-w-collapsed);
+}
+
+/* Applied for the one frame between mount and reading the stored state, so
+   restoring a collapsed rail is not visible as a slide. */
+.noAnimate,
+.noAnimate * {
+  transition: none !important;
+}
+
+.scroll {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: var(--space-12) 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-16);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+}
+
+.sectionLabel {
+  font-size: var(--type-caption);
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+  color: var(--ink-disabled);
+  padding: 0 var(--space-16) var(--space-4);
+  white-space: nowrap;
+}
+
+/* Stands in for the section label at 56px, so the grouping survives collapse. */
+.collapsedRule {
+  height: var(--hairline-width);
+  background: var(--line);
+  margin: var(--space-4) var(--space-16) var(--space-8);
+}
+
+/* ------------------------------------------------------------------- items */
+.item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-12);
+  height: var(--row-h);
+  padding: 0 var(--space-16);
+  color: var(--ink-secondary);
+  text-decoration: none;
+  border-bottom: 0;
+  white-space: nowrap;
+  /* Present on every item so the active edge cannot shift the label. */
+  border-left: var(--selected-edge-width) solid transparent;
+  transition: color var(--motion-state) var(--ease-out),
+    background-color var(--motion-state) var(--ease-out);
+}
+
+.item:hover {
+  background: var(--row-hover);
+  color: var(--ink);
+  border-bottom: 0;
+}
+
+/* The active nav item is the accent's single job in the shell. Nothing else in
+   the rail or the top bar may take it. */
+.itemActive,
+.itemActive:hover {
+  color: var(--accent);
+  border-left-color: var(--accent);
+  background: none;
+}
+
+.mark {
+  font-family: var(--font-mono);
+  font-size: var(--type-meta);
+  width: 16px;
+  flex: none;
+  text-align: center;
+  color: var(--ink-disabled);
+}
+.itemActive .mark {
+  color: var(--accent);
+}
+
+.itemLabel {
+  font-size: var(--type-body);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* At 56px the label is clipped away rather than removed, so the collapse is one
+   width transition instead of a reflow. */
+.collapsed .itemLabel {
+  opacity: 0;
+  pointer-events: none;
+}
+.collapsed .item {
+  padding: 0 var(--space-16);
+}
+
+.contextual {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-16);
+  border-top: var(--border-hairline);
+  padding-top: var(--space-16);
+  margin-top: var(--space-4);
+}
+.contextual:empty {
+  border-top: 0;
+  padding-top: 0;
+}
+
+/* -------------------------------------------------------------------- foot */
+.foot {
+  flex: none;
+  border-top: var(--border-hairline);
+}
+
+/* Stacked, not side by side. At 200px the rail has 176px of usable width and
+   the three theme segments plus a sign-out label need more than that, so they
+   sat on one row with "Auto" clipped off the end. Two rows costs 24px of a
+   surface that has vertical room to spare. */
+.footRow {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-8);
+  padding: var(--space-8) var(--space-12);
+}
+
+/* Segments share the width evenly so the control fills the rail exactly. */
+.footRow > div {
+  display: flex;
+}
+.footRow > div > button {
+  flex: 1;
+  text-align: center;
+  justify-content: center;
+}
+
+.rail .signout {
+  border: 0;
+  padding: var(--space-4);
+  color: var(--ink-muted);
+  font-size: var(--type-caption);
+  border-radius: var(--radius-control);
+}
+.rail .signout:hover {
+  background: transparent;
+  color: var(--bad);
+}
+
+/* ------------------------------------------------------------------ toggle */
+.rail .toggle {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--space-12);
+  height: var(--row-h-dense);
+  padding: 0 var(--space-16);
+  border: 0;
+  border-top: var(--border-hairline);
+  border-radius: 0;
+  width: 100%;
+  color: var(--ink-disabled);
+  font-size: var(--type-caption);
+  justify-content: flex-start;
+}
+.rail .toggle:hover {
+  background: var(--row-hover);
+  color: var(--ink);
+}
+
+.toggleLabel {
+  white-space: nowrap;
+}
+.collapsed .toggleLabel {
+  opacity: 0;
+}

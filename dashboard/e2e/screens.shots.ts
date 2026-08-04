@@ -32,6 +32,21 @@ const SCREENS: Screen[] = [
     fullPage: true,
     accentBudget: Infinity,
   },
+  // The shell, on the working surface. Not fullPage: the shell owns the
+  // viewport and nothing outside it scrolls, so a full-page capture would just
+  // be the same 900px with a taller main region.
+  {
+    name: '02-shell-register',
+    path: '/register',
+    ready: 'header',
+    // A RATCHET ON KNOWN DEBT, not an approval. This screen is the pre-rebuild
+    // Register: every "active" state in it (filter chips, geo chips, delta
+    // buttons, triage views, tab counts) paints the accent, which is exactly
+    // the incoherence Part 4 exists to fix. The number is set to what is there
+    // today so the run is honest and so it cannot get WORSE while Part 4 is
+    // pending. Part 4 must bring it to single digits.
+    accentBudget: 38,
+  },
 ];
 
 for (const screen of SCREENS) {
@@ -76,14 +91,28 @@ for (const screen of SCREENS) {
       probe.remove();
 
       const hits: string[] = [];
+      const counted = new Set<Element>();
       for (const el of Array.from(document.querySelectorAll<HTMLElement>('body *'))) {
         const cs = getComputedStyle(el);
         if (cs.visibility === 'hidden' || cs.display === 'none') continue;
         const paintsText = cs.color === target && (el.textContent ?? '').trim().length > 0;
         const paintsFill = cs.backgroundColor === target;
-        if (paintsText || paintsFill) {
-          hits.push(`${el.tagName.toLowerCase()}.${el.className}`.slice(0, 60));
+        if (!paintsText && !paintsFill) continue;
+
+        // Count what a person SEES, not what the DOM contains. An accented nav
+        // item is one mark even though it is a link wrapping two spans that
+        // both inherit the colour; counting nodes would make every component
+        // look like a violation in proportion to how carefully it was built.
+        let inherited = false;
+        for (let p = el.parentElement; p; p = p.parentElement) {
+          if (counted.has(p)) {
+            inherited = true;
+            break;
+          }
         }
+        counted.add(el);
+        if (inherited) continue;
+        hits.push(`${el.tagName.toLowerCase()}.${el.className}`.slice(0, 60));
       }
       return { target, count: hits.length, sample: hits.slice(0, 12) };
     });

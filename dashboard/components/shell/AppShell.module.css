@@ -1,0 +1,32 @@
+/* The shell owns the viewport. Exactly one thing scrolls on any screen: the
+ * main region, or a pane inside it. The page body never does, which is what
+ * keeps the top bar and rail fixed without any position: fixed.
+ */
+.shell {
+  height: 100vh;
+  height: 100dvh; /* mobile browser chrome; harmless elsewhere */
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--paper-page);
+}
+
+.body {
+  flex: 1;
+  display: flex;
+  min-height: 0; /* lets the children scroll instead of stretching the shell */
+}
+
+.main {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  background: var(--paper-page);
+}
+
+.gate {
+  padding: var(--space-32) var(--space-24);
+  color: var(--ink-muted);
+  font-family: var(--font-mono);
+  font-size: var(--type-meta);
+}

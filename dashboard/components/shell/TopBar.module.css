@@ -1,0 +1,138 @@
+.bar {
+  height: var(--topbar-h);
+  flex: none;
+  display: flex;
+  align-items: stretch;
+  gap: var(--space-16);
+  padding: 0 var(--space-16);
+  background: var(--paper-rail);
+  border-bottom: var(--border-hairline);
+}
+
+/* --------------------------------------------------------------- brand mark */
+.brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  text-decoration: none;
+  border-bottom: 0;
+  color: var(--ink);
+  white-space: nowrap;
+  flex: none;
+}
+.brand:hover {
+  color: var(--ink);
+  border-bottom: 0;
+}
+
+/* Operator in mono caps, pipeline in the display face. The two halves of the
+   wordmark are different KINDS of thing, and the type says so without a rule
+   between them. */
+.operator {
+  font-family: var(--font-mono);
+  font-size: var(--type-caption);
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+.slash {
+  color: var(--ink-disabled);
+  font-size: var(--type-meta);
+}
+
+.pipeline {
+  font-family: var(--font-display);
+  font-weight: var(--weight-medium);
+  font-size: var(--type-title-lg);
+  line-height: 1;
+}
+
+/* ----------------------------------------------------------------- pipeline */
+.switcher {
+  display: flex;
+  align-items: center;
+  flex: none;
+}
+.switcher select {
+  width: auto;
+  font-family: var(--font-body);
+  font-size: var(--type-meta);
+  padding: var(--space-4) var(--space-8);
+}
+
+.pipelineStatic {
+  align-self: center;
+  font-size: var(--type-meta);
+  color: var(--ink-muted);
+  padding-left: var(--space-16);
+  border-left: var(--border-hairline);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: none;
+}
+
+/* ------------------------------------------------------------------- search */
+/* Takes the slack in the bar, so the clock strip stays pinned right. */
+.bar .search {
+  flex: 1;
+  min-width: 120px;
+  max-width: 420px;
+  align-self: center;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-8);
+  height: 26px;
+  padding: 0 var(--space-8);
+  background: var(--paper-card);
+  border: var(--border-hairline);
+  border-radius: var(--radius-control);
+  text-transform: none;
+  letter-spacing: var(--track-none);
+  color: var(--ink-muted);
+}
+.bar .search:hover {
+  background: var(--paper-card);
+  color: var(--ink);
+  border-color: var(--line-strong);
+}
+
+.searchText {
+  font-family: var(--font-body);
+  font-size: var(--type-meta);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kbd {
+  font-family: var(--font-mono);
+  font-size: var(--type-caption);
+  color: var(--ink-disabled);
+  flex: none;
+}
+
+/* ------------------------------------------------------------------ sign out */
+.bar .signout {
+  align-self: center;
+  flex: none;
+  border: 0;
+  padding: var(--space-4) var(--space-8);
+  color: var(--ink-muted);
+  font-size: var(--type-caption);
+}
+.bar .signout:hover {
+  background: transparent;
+  color: var(--ink);
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}

@@ -117,21 +117,15 @@ export default function PipelinePage() {
     }
   }
 
-  async function signOut() {
-    await supabase.auth.signOut();
-    router.replace('/login');
-  }
-
   const selected = leads.find((l) => l.id === selectedId) ?? null;
 
   return (
-    <main style={{ maxWidth: 1360, margin: '0 auto', padding: '40px 24px' }}>
+    <main style={{ maxWidth: 1360, margin: '0 auto', padding: '32px 24px' }}>
       <Nav
         view={view}
         onViewChange={setView}
         agentsOpen={agentsOpen}
         onToggleAgents={() => setAgentsOpen((o) => !o)}
-        onSignOut={signOut}
       />
 
       {loading ? (

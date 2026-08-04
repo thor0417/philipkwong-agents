@@ -31,6 +31,10 @@ export interface XlsxScope {
   dateRange: string;
   generatedDate: string;
   focusLabel?: string;
+  // Resolved from the pipeline registry by the caller. See lib/brand.ts: no
+  // builder, renderer or component may contain a pipeline or client name.
+  deliveryLine: string;
+  reportTitle: string;
 }
 
 function host(url: string | null | undefined): string {
@@ -160,15 +164,15 @@ export async function buildGliWorkbook(leads: GLILead[], scope: XlsxScope): Prom
   const ncols = cols.length;
 
   const wb = new ExcelJS.Workbook();
-  wb.creator = 'Philip Kwong / GLI';
+  wb.creator = scope.deliveryLine;
 
   // ---- Summary / cover sheet ----
   const cover = wb.addWorksheet('Summary');
   cover.getColumn(1).width = 30;
   cover.getColumn(2).width = 62;
-  const title = cover.addRow(['Philip Kwong / Grant Leisure International']);
+  const title = cover.addRow([scope.deliveryLine]);
   title.font = { name: 'Arial', bold: true, size: 16, color: { argb: INK } };
-  const sub = cover.addRow([scope.focusLabel ?? 'GLI Development Intelligence']);
+  const sub = cover.addRow([scope.focusLabel ?? scope.reportTitle]);
   sub.font = { name: 'Arial', bold: true, size: 12, color: { argb: ACCENT } };
   cover.addRow([]);
   const meta: [string, string][] = [

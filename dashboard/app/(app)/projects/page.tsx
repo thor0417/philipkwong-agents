@@ -15,6 +15,7 @@ import { LIVE_PIPELINE_STORAGE_KEY } from '@/lib/pipelines';
 // side paging" is a number on the screen rather than a claim.
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useQueryState } from 'nuqs';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
@@ -81,7 +82,10 @@ export default function ProjectsPage() {
     dir: 'desc',
   });
   const [page, setPage] = useState(1);
-  const [openId, setOpenId] = useState<string | null>(null);
+  // Which project is open is URL state, not component state. That makes an
+  // open record a shareable link, makes the back button close it, and is what
+  // the command palette navigates to (/projects?open=<id>).
+  const [openId, setOpenId] = useQueryState('open');
   const [inboxPage, setInboxPage] = useState(1);
   const [inboxSearch, setInboxSearch] = useState('');
   const [inboxSearchInput, setInboxSearchInput] = useState('');
@@ -197,7 +201,7 @@ export default function ProjectsPage() {
       {openId ? (
         <ProjectDetail
           id={openId}
-          onClose={() => setOpenId(null)}
+          onClose={() => void setOpenId(null)}
           mutations={mutations}
           onError={setError}
         />
@@ -348,7 +352,7 @@ export default function ProjectsPage() {
             </thead>
             <tbody>
               {(projects.data?.rows ?? []).map((p) => (
-                <tr key={p.id} className={styles.row} onClick={() => setOpenId(p.id)}>
+                <tr key={p.id} className={styles.row} onClick={() => void setOpenId(p.id)}>
                   <td>
                     <div className={styles.name}>{p.name}</div>
                     {p.next_milestone && (

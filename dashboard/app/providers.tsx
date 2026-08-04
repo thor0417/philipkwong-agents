@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { NuqsAdapter } from 'nuqs/adapters/next/app';
 
 // TanStack Query is the dashboard's data layer. No devtools, no styling: the
 // package is logic only, and nothing here renders anything of its own.
@@ -29,5 +30,13 @@ export default function Providers({ children }: { children: React.ReactNode }) {
         },
       })
   );
-  return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+  // nuqs makes the URL the source of truth for filters, selection and view, so
+  // the back button works and any view is a shareable link. It is logic only:
+  // the adapter renders nothing and ships no styling. It wraps the query client
+  // because data reads are keyed off state that now lives in the URL.
+  return (
+    <NuqsAdapter>
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    </NuqsAdapter>
+  );
 }

@@ -1,4 +1,16 @@
-/* GLI page: tab bar + loading. Card/bento grid removed. No DM Mono. */
+/* Register: the working surface. The shell owns the chrome, so this file styles
+   content only.
+
+   This stylesheet still carries pre-token values (22px margins, 13px type,
+   0.5px literals). It is rebuilt onto the design system in Part 4, where the
+   three-pane Register replaces this layout wholesale; changing it here would be
+   churn on code that is about to be replaced. */
+.screen {
+  max-width: 1360px;
+  margin: 0 auto;
+  padding: var(--space-32) var(--space-24);
+}
+
 .tabs {
   display: flex;
   gap: 0;
@@ -100,7 +112,7 @@
   font-family: var(--font-text);
   font-size: 13px;
   color: var(--ink);
-  background: #fff;
+  background: var(--paper-card);
   border: 0.5px solid var(--hairline);
   border-radius: 0;
   padding: 8px 10px;
