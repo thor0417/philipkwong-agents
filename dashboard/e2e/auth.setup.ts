@@ -125,7 +125,34 @@ setup('authenticate', async ({ page, context }) => {
     type: 'magiclink',
   }).toString();
 
-  await page.goto(`/login#${fragment}`);
+  // WAIT FOR THE ROUTE TO ACTUALLY RENDER, and retry if it does not.
+  //
+  // Two things make the first navigation of a run unreliable, and both cost an
+  // hour to diagnose from the symptom, which is a misleading "no session":
+  //
+  //  1. `next dev` binds the port and answers before it can serve. The first
+  //     request then gets Next's own "missing required error components,
+  //     refreshing..." placeholder, which contains no form and never becomes
+  //     one on its own. A reload fixes it.
+  //  2. The Supabase client only consumes the URL fragment once its module has
+  //     loaded, so polling localStorage against a page that has not run yet
+  //     just burns the timeout.
+  //
+  // Re-navigating to the same URL preserves the fragment, so a retry is free.
+  const target = `/login#${fragment}`;
+  let rendered = false;
+  for (let attempt = 1; attempt <= 4 && !rendered; attempt++) {
+    await page.goto(target, { waitUntil: 'domcontentloaded' });
+    try {
+      await page.waitForSelector('form', { timeout: 45_000 });
+      rendered = true;
+    } catch {
+      console.log(`  /login not ready (attempt ${attempt}); reloading`);
+    }
+  }
+  if (!rendered) {
+    throw new Error('/login never rendered its form; the dev server is not serving.');
+  }
 
   // Assert the handover actually worked. Without this the run would happily
   // produce a folder of login screens and call it done.
@@ -141,7 +168,7 @@ setup('authenticate', async ({ page, context }) => {
         message:
           'Supabase never persisted a session. The fragment handover may have ' +
           'broken with an auth-js upgrade; check detectSessionInUrl.',
-        timeout: 20_000,
+        timeout: 30_000,
       }
     )
     .toBe(true);

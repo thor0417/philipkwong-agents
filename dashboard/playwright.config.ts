@@ -20,8 +20,12 @@ export default defineConfig({
   workers: 1,
   fullyParallel: false,
   // A cold Next dev compile of a route it has never served can genuinely take
-  // 15s+, and a screenshot of a half-compiled page is worse than no screenshot.
-  timeout: 90_000,
+  // 15s+, and the first route after `npm run clean` is compiling the whole app
+  // from nothing. The per-locator waits below must stay UNDER this number: a
+  // locator timeout longer than the test timeout never fires, and the failure
+  // surfaces as an unexplained "test timeout" instead of the thing that was
+  // actually missing.
+  timeout: 240_000,
   expect: { timeout: 20_000 },
   reporter: [['list']],
 
@@ -68,6 +72,10 @@ export default defineConfig({
     command: 'npm run dev',
     url: BASE_URL,
     reuseExistingServer: true,
-    timeout: 120_000,
+    // `npm run verify` deletes .next immediately before this, so the dev server
+    // is starting from nothing every time. 120s was not enough.
+    timeout: 240_000,
+    stdout: 'ignore',
+    stderr: 'pipe',
   },
 });

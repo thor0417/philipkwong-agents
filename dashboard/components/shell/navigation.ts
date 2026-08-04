@@ -27,6 +27,12 @@ export const NAV: NavSection[] = [
     label: null,
     items: [
       {
+        label: 'Today',
+        href: '/today',
+        keywords: ['home', 'moved', 'new', 'digest', 'landing'],
+        hint: 'What happened while you were away.',
+      },
+      {
         label: 'Register',
         href: '/register',
         keywords: ['leads', 'records', 'triage', 'opportunities', 'gli'],

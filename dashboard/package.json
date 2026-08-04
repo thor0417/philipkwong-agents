@@ -7,7 +7,9 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
-    "shots": "playwright test"
+    "shots": "playwright test",
+    "clean": "node -e \"require('fs').rmSync('.next',{recursive:true,force:true})\"",
+    "verify": "npm run typecheck && npm run build && npm run clean && npm run shots"
   },
   "dependencies": {
     "@react-pdf/renderer": "^3.4.5",

@@ -32,6 +32,18 @@ const SCREENS: Screen[] = [
     fullPage: true,
     accentBudget: Infinity,
   },
+  // Today reads top to bottom, so it is captured full-page: cropping it at the
+  // fold would hide exactly the sections the screen is judged on.
+  {
+    name: '03-today',
+    path: '/today',
+    ready: 'h1',
+    fullPage: true,
+    // Measured at 1: the active nav item, and nothing else. Accenting every
+    // project name put this at 23, which is a page with no emphasis at all.
+    // Held at 3 so a future section cannot quietly reintroduce the flood.
+    accentBudget: 3,
+  },
   // The shell, on the working surface. Not fullPage: the shell owns the
   // viewport and nothing outside it scrolls, so a full-page capture would just
   // be the same 900px with a taller main region.

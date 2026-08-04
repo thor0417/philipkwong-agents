@@ -9,7 +9,7 @@ export default function Home() {
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
-      router.replace(data.session ? '/register' : '/login');
+      router.replace(data.session ? '/today' : '/login');
     });
   }, [router]);
 

@@ -24,6 +24,22 @@
   background: var(--paper-page);
 }
 
+/* The prerender fallback's frame. Same geometry as the real chrome so the
+   handover to the client is a fill, not a jump. */
+.barSkeleton {
+  height: var(--topbar-h);
+  flex: none;
+  background: var(--paper-rail);
+  border-bottom: var(--border-hairline);
+}
+
+.railSkeleton {
+  width: var(--rail-w);
+  flex: none;
+  background: var(--paper-rail);
+  border-right: var(--border-hairline);
+}
+
 .gate {
   padding: var(--space-32) var(--space-24);
   color: var(--ink-muted);
