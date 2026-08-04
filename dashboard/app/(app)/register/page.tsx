@@ -55,11 +55,20 @@ const VIEW_KEYS = VIEWS.map((v) => v.key) as [ViewKey, ...ViewKey[]];
 // Saved views are filter combinations worth one click. Deliberately a constant
 // rather than a stored list: a saved view nobody named is a bookmark, and the
 // URL already does bookmarks.
+// Saved views are filter COMBINATIONS worth one click, and every one of them
+// must actually change the result set. Two earlier entries did not and were
+// removed rather than documented:
+//
+//   "No stage yet"    set stage to null, which is what All already does.
+//                     applyProjectFilters has no "stage IS NULL" case, so an
+//                     unstaged filter is not expressible against this schema.
+//   "Watched, moving" only filtered on watch, so the label promised a
+//                     movement filter the query never applied.
 const SAVED = [
   { key: 'none', label: 'None' },
-  { key: 'watch-active', label: 'Watched, moving' },
   { key: 'anaheim', label: 'Anaheim' },
-  { key: 'unstaged', label: 'No stage yet' },
+  { key: 'approved', label: 'Approved, anywhere' },
+  { key: 'hearing', label: 'Hearing scheduled' },
 ] as const;
 
 function statusFilter(view: ViewKey): Pick<ProjectQuery, 'status' | 'excludeStatus' | 'watch'> {
@@ -213,17 +222,24 @@ export default function RegisterPage() {
     (key: string) => {
       void setSaved(key);
       void setPage(1);
-      if (key === 'watch-active') {
-        void setView('watchlist');
-        void setStage(null);
-      } else if (key === 'anaheim') {
+      if (key === 'anaheim') {
         void setView('all');
+        void setStage(null);
         void setCountry('United States');
         void setRegion('California');
         void setMarket('Anaheim');
-      } else if (key === 'unstaged') {
+      } else if (key === 'approved') {
         void setView('all');
-        void setStage(null);
+        void setStage('approved');
+        void setCountry(null);
+        void setRegion(null);
+        void setMarket(null);
+      } else if (key === 'hearing') {
+        void setView('all');
+        void setStage('hearing scheduled');
+        void setCountry(null);
+        void setRegion(null);
+        void setMarket(null);
       } else {
         void setView('all');
         void setStage(null);
@@ -375,6 +391,7 @@ export default function RegisterPage() {
               <button
                 key={c.label}
                 type="button"
+                data-stage={c.value ?? 'all'}
                 className={`${styles.chip} ${stage === c.value ? styles.chipActive : ''}`}
                 onClick={() => applyStage(c.value)}
               >
@@ -510,7 +527,15 @@ export default function RegisterPage() {
         </div>
 
         <div className={styles.pager}>
-          <span className={`${styles.dim} mono`}>
+          {/* data-total carries the server's exact count as a value rather than
+              as prose. The filtering audit reads it, and parsing "1-50 of 184 |
+              648 ms rows" out of a sentence is the kind of thing that silently
+              starts matching the wrong element. */}
+          <span
+            className={`${styles.dim} mono`}
+            data-testid="pager-total"
+            {...(list.isPending ? {} : { 'data-total': total })}
+          >
             {total === 0
               ? 'No projects'
               : `${(page - 1) * DEFAULT_PROJECT_PAGE_SIZE + 1}-${Math.min(

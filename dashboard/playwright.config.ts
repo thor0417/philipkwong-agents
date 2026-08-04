@@ -64,6 +64,21 @@ export default defineConfig({
         storageState: 'e2e/.auth/state.json',
       },
     },
+    // Documentation captures and the filter audit. 1920x1080 light, one pass:
+    // these are for a person to read, not a regression baseline, so they are
+    // deliberately not duplicated into dark.
+    {
+      name: 'walkthrough',
+      dependencies: ['setup'],
+      testMatch: /\.(walk|audit)\.ts/,
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 1920, height: 1080 },
+        deviceScaleFactor: 1,
+        colorScheme: 'light',
+        storageState: 'e2e/.auth/state.json',
+      },
+    },
   ],
 
   // Reuses a dev server if one is already up, so an interactive session and a

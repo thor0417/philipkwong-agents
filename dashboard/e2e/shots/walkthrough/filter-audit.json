@@ -1,0 +1,126 @@
+{
+  "baseline": 184,
+  "results": [
+    {
+      "filter": "View: New",
+      "url": "/register?view=new",
+      "filtersOn": "projects.status = 'new'",
+      "before": 184,
+      "after": 184,
+      "changed": "NO CHANGE"
+    },
+    {
+      "filter": "View: Watchlist",
+      "url": "/register?view=watchlist",
+      "filtersOn": "projects.watch = true AND status <> 'dismissed'",
+      "before": 184,
+      "after": 0,
+      "changed": "changed"
+    },
+    {
+      "filter": "View: Client ready",
+      "url": "/register?view=client_ready",
+      "filtersOn": "projects.status = 'client_ready'",
+      "before": 184,
+      "after": 0,
+      "changed": "changed"
+    },
+    {
+      "filter": "View: Trash",
+      "url": "/register?view=trash",
+      "filtersOn": "projects.status = 'dismissed'",
+      "before": 184,
+      "after": 0,
+      "changed": "changed"
+    },
+    {
+      "filter": "Stage chip: filed",
+      "url": "/register?view=all&stage=filed",
+      "filtersOn": "projects.stage =",
+      "before": 184,
+      "after": 85,
+      "changed": "changed"
+    },
+    {
+      "filter": "Stage chip: hearing scheduled",
+      "url": "/register?view=all&stage=hearing%20scheduled",
+      "filtersOn": "projects.stage =",
+      "before": 184,
+      "after": 10,
+      "changed": "changed"
+    },
+    {
+      "filter": "Stage chip: approved",
+      "url": "/register?view=all&stage=approved",
+      "filtersOn": "projects.stage =",
+      "before": 184,
+      "after": 36,
+      "changed": "changed"
+    },
+    {
+      "filter": "Geography L1: United States",
+      "url": "/register?view=all&country=United+States",
+      "filtersOn": "projects.country =",
+      "before": 184,
+      "after": 162,
+      "changed": "changed"
+    },
+    {
+      "filter": "Geography L2: California",
+      "url": "/register?view=all&country=United+States&region=California",
+      "filtersOn": "projects.country = AND projects.region_state =",
+      "before": 184,
+      "after": 20,
+      "changed": "changed"
+    },
+    {
+      "filter": "Geography L3: Anaheim",
+      "url": "/register?view=all&country=United+States&region=California&market=Anaheim",
+      "filtersOn": "country = AND region_state = AND market =",
+      "before": 184,
+      "after": 17,
+      "changed": "changed"
+    },
+    {
+      "filter": "Search: \"resort\"",
+      "url": "/register?view=all&q=resort",
+      "filtersOn": "ilike over name, primary_applicant, primary_representative",
+      "before": 184,
+      "after": 35,
+      "changed": "changed"
+    },
+    {
+      "filter": "Saved view: Anaheim",
+      "url": "/register?view=all&saved=anaheim&country=United+States&region=California&market=Anaheim",
+      "filtersOn": "country + region_state + market",
+      "before": 184,
+      "after": 17,
+      "changed": "changed"
+    },
+    {
+      "filter": "Saved view: Approved, anywhere",
+      "url": "/register?view=all&saved=approved&stage=approved",
+      "filtersOn": "projects.stage = 'approved'",
+      "before": 184,
+      "after": 36,
+      "changed": "changed"
+    },
+    {
+      "filter": "Saved view: Hearing scheduled",
+      "url": "/register?view=all&saved=hearing&stage=hearing+scheduled",
+      "filtersOn": "projects.stage = 'hearing scheduled'",
+      "before": 184,
+      "after": 10,
+      "changed": "changed"
+    },
+    {
+      "filter": "Search: \"zzzznomatch\"",
+      "url": "/register?view=all&q=zzzznomatch",
+      "filtersOn": "same three columns; proves the search is not ignored",
+      "before": 184,
+      "after": 0,
+      "changed": "changed"
+    }
+  ],
+  "sortControl": 184
+}

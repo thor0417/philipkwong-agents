@@ -237,18 +237,24 @@ export default function TodayPage() {
 
       {/* --------------------------------------------------------- needs you */}
       <Section n="03" title="Needs you" lede="Each of these is a count and a place to go.">
+        {/* Each card lands on the screen that holds the thing it counts, with
+            the filter already applied. These previously linked with a ?triage=
+            parameter that no screen reads, so they navigated to an unfiltered
+            list and looked like the count had been forgotten on arrival.
+            The backlog counts RECORDS, so it goes to Records; the other two
+            count projects, so they go to the Register. */}
         <div className={styles.needs}>
-          <Link href="/register?triage=new" className={styles.need}>
+          <Link href="/records" className={styles.need}>
             <span className={`${styles.needCount} mono`}>{backlog.data ?? '--'}</span>
-            <span className={styles.needLabel}>Triage backlog</span>
-            <span className={styles.needHint}>Records still at status new</span>
+            <span className={styles.needLabel}>Record triage backlog</span>
+            <span className={styles.needHint}>Records still at status new, on Records</span>
           </Link>
-          <Link href="/projects" className={styles.need}>
+          <Link href="/register?view=watchlist" className={styles.need}>
             <span className={`${styles.needCount} mono`}>{watchRows.length}</span>
             <span className={styles.needLabel}>Watchlist activity</span>
             <span className={styles.needHint}>Events on projects you watch</span>
           </Link>
-          <Link href="/register?triage=client_ready" className={styles.need}>
+          <Link href="/register?view=new" className={styles.need}>
             <span className={`${styles.needCount} mono`}>{created.length}</span>
             <span className={styles.needLabel}>New projects to review</span>
             <span className={styles.needHint}>Arrived in this window</span>

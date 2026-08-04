@@ -48,5 +48,9 @@ gate-corpus/
 # committed.
 dashboard/e2e/.auth/
 dashboard/e2e/shots/
+# ...except the walkthrough captures, which WALKTHROUGH.md embeds. Those are
+# documentation, not regression output: without them the document renders as a
+# page of broken images for anyone who has not run the harness.
+!dashboard/e2e/shots/walkthrough/
 dashboard/test-results/
 dashboard/playwright-report/
