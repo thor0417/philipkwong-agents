@@ -1,0 +1,304 @@
+/* The company page. Deliberately narrower than the project page: a company has
+ * far less to say than a project, and stretching it to fill a wide monitor
+ * would make three short lists look like a page that failed to load.
+ */
+.screen {
+  max-width: 1100px;
+  padding: var(--space-32) var(--space-24) var(--space-48);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-24);
+}
+
+.head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  border-bottom: var(--border-strong);
+  padding-bottom: var(--space-16);
+}
+
+.crumb {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  font-size: var(--type-caption);
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+.crumb a {
+  color: var(--ink-muted);
+  border-bottom: 0;
+}
+.crumb a:hover {
+  color: var(--accent);
+  border-bottom: 0;
+}
+
+.title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: var(--weight-medium);
+  font-size: var(--type-display-lg);
+  line-height: var(--leading-display);
+  letter-spacing: var(--track-display);
+  text-wrap: balance;
+}
+
+.facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-24);
+  align-items: baseline;
+  margin-top: var(--space-4);
+}
+
+.fact {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.factLabel {
+  font-size: var(--type-caption);
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+  color: var(--ink-disabled);
+}
+
+.factValue {
+  font-size: var(--type-body);
+  color: var(--ink);
+}
+
+.mergedNotice {
+  margin: 0;
+  font-size: var(--type-meta);
+  color: var(--ink-muted);
+  border-left: var(--selected-edge-width) solid var(--line-strong);
+  padding-left: var(--space-8);
+}
+
+.error {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  padding: var(--space-8) var(--space-12);
+  border: var(--border-hairline);
+  border-color: var(--bad);
+  background: var(--bad-wash);
+  color: var(--bad);
+  font-size: var(--type-meta);
+}
+
+/* -------------------------------------------------------------------- body */
+.body {
+  display: grid;
+  grid-template-columns: var(--split-list) var(--split-detail);
+  gap: var(--space-32);
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .body {
+    grid-template-columns: 1fr;
+  }
+}
+
+.col {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-24);
+}
+
+.h2 {
+  margin: 0 0 var(--space-12);
+  font-family: var(--font-display);
+  font-weight: var(--weight-medium);
+  font-size: var(--type-display-sm);
+  line-height: var(--leading-display);
+}
+.h2 span {
+  color: var(--ink-muted);
+  font-size: var(--type-body);
+}
+
+.h3 {
+  margin: 0 0 var(--space-4);
+  font-family: var(--font-body);
+  font-weight: var(--weight-medium);
+  font-size: var(--type-caption);
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+.note {
+  margin: 0 0 var(--space-8);
+  font-size: var(--type-caption);
+  color: var(--ink-disabled);
+  line-height: var(--leading-body);
+  max-width: 46ch;
+}
+
+.block {
+  display: flex;
+  flex-direction: column;
+}
+
+/* ---------------------------------------------------------------- projects */
+.projectList,
+.relList,
+.candidates {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  border-top: var(--border-hairline);
+}
+
+/* The role held on each project is the column that makes this page worth
+   having: the same company is an applicant on one and a representative on
+   another, and that difference is the story. */
+.projectRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 96px 120px 104px 92px;
+  gap: var(--space-12);
+  align-items: baseline;
+  padding: var(--space-8) 0;
+  border-bottom: var(--border-hairline);
+  font-size: var(--type-meta);
+}
+
+.rel {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-8);
+  padding: var(--space-8) 0;
+  border-bottom: var(--border-hairline);
+  font-size: var(--type-meta);
+}
+
+.projectName {
+  color: var(--ink);
+  border-bottom: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+.projectName:hover {
+  color: var(--accent);
+  border-bottom: 0;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.role {
+  font-size: var(--type-caption);
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+  color: var(--ink-disabled);
+  white-space: nowrap;
+}
+
+.meta {
+  color: var(--ink-secondary);
+  font-size: var(--type-caption);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.num {
+  text-align: right;
+}
+
+/* ------------------------------------------------------------------- merge */
+.block .mergeBtn,
+.block .cancelMerge {
+  align-self: flex-start;
+  font-family: var(--font-body);
+  font-size: var(--type-meta);
+  letter-spacing: var(--track-none);
+  text-transform: none;
+  padding: var(--space-4) var(--space-8);
+}
+
+.merge {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  border: var(--border-hairline);
+  padding: var(--space-12);
+}
+
+.mergeSearch {
+  font-family: var(--font-body);
+}
+
+.candidates {
+  border-top: 0;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.candidates .candidate {
+  width: 100%;
+  text-align: left;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  padding: var(--space-4);
+  font-family: var(--font-body);
+  font-size: var(--type-meta);
+  letter-spacing: var(--track-none);
+  text-transform: none;
+  color: var(--ink);
+}
+.candidates .candidate:hover {
+  background: var(--row-hover);
+  color: var(--accent);
+}
+
+/* The confirmation states what will happen in full, because a merge is the one
+   action on this screen that is tedious to reverse. */
+.confirm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.confirmText {
+  margin: 0;
+  font-size: var(--type-meta);
+  line-height: var(--leading-body);
+  color: var(--ink);
+}
+
+.confirmActions {
+  display: flex;
+  gap: var(--space-8);
+}
+
+.confirmActions .primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+.confirmActions .primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+  color: var(--on-accent);
+}
+
+.dim {
+  color: var(--ink-muted);
+  font-size: var(--type-meta);
+  margin: 0;
+  line-height: var(--leading-body);
+}
