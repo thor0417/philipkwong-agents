@@ -14,6 +14,34 @@ async function settle(page: import('@playwright/test').Page) {
   await page.waitForLoadState('networkidle').catch(() => {});
 }
 
+/**
+ * Make the page tall enough to photograph whole.
+ *
+ * The shell deliberately owns the viewport: `height: 100dvh; overflow: hidden`,
+ * with each pane scrolling inside it. That is right for the product (the top bar
+ * and column headers never drift) but it means Playwright's fullPage flag has
+ * nothing to extend into: the document is exactly 1080px tall no matter how much
+ * content sits inside the scrolling pane, so `fullPage: true` silently returns a
+ * fold-cropped shot that looks like a complete one.
+ *
+ * For documentation captures only, this releases the height so the document
+ * grows to its content and fullPage means what it says. It is injected CSS, not
+ * a change to the app.
+ */
+async function unlockHeight(page: import('@playwright/test').Page) {
+  await page.addStyleTag({
+    content: `
+      html, body { height: auto !important; overflow: visible !important; }
+      /* The shell and its scrolling regions, by the properties that pin them,
+         so this does not depend on hashed CSS-module class names. */
+      body > div, body > div > div { height: auto !important; overflow: visible !important; }
+      main, aside, nav { overflow: visible !important; max-height: none !important; }
+    `,
+  });
+  // Let the layout settle at its new height before the shutter opens.
+  await page.waitForTimeout(300);
+}
+
 // Hydration, not markup: the theme control sets aria-pressed only in an effect.
 async function hydrated(page: import('@playwright/test').Page) {
   await expect(page.locator('button[aria-pressed="true"]').first()).toBeVisible({
@@ -28,6 +56,7 @@ test('walkthrough captures', async ({ page }) => {
     timeout: 120_000,
   });
   await settle(page);
+  await unlockHeight(page);
   await page.screenshot({ path: OUT('1-today'), fullPage: true, animations: 'disabled' });
 
   // ---- 2. Register, with the detail pane open on a real project.
@@ -62,6 +91,7 @@ test('walkthrough captures', async ({ page }) => {
   await page.goto(`/project/${chosen}`, { waitUntil: 'domcontentloaded' });
   await expect(page.locator('h1')).toBeVisible({ timeout: 60_000 });
   await settle(page);
+  await unlockHeight(page);
   await page.screenshot({ path: OUT('3-project'), fullPage: true, animations: 'disabled' });
 
   // ---- 4. Company page, reached the way a person reaches it.
@@ -70,6 +100,7 @@ test('walkthrough captures', async ({ page }) => {
   await page.goto(companyHref as string, { waitUntil: 'domcontentloaded' });
   await expect(page.locator('h1')).toBeVisible({ timeout: 60_000 });
   await settle(page);
+  await unlockHeight(page);
   await page.screenshot({ path: OUT('4-company'), fullPage: true, animations: 'disabled' });
 
   // ---- 5. Command palette, open, mid-search.
@@ -91,5 +122,6 @@ test('walkthrough captures', async ({ page }) => {
     timeout: 60_000,
   });
   await settle(page);
+  await unlockHeight(page);
   await page.screenshot({ path: OUT('6-design-system'), fullPage: true, animations: 'disabled' });
 });
