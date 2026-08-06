@@ -178,3 +178,8 @@ export function estimatePages(doc: ReportDocument): number {
   }
   return Math.max(1, Math.ceil(lines / LINES_PER_PAGE));
 }
+
+/** "1 project, 4 records" - the basis line, pluralised. */
+export function basisLine(projects: number, records: number): string {
+  return `${projects} project${projects === 1 ? '' : 's'}, ${records} record${records === 1 ? '' : 's'}`;
+}

@@ -1,0 +1,225 @@
+{
+  "today": {
+    "What moved": "01 What moved Stage changes, most advanced destination first. A project reaching construction matters more than one reaching a scheduled hearing, so this is not ordered by time. Nothing changed stage in this window. Stage history only began when event capture shipped, so this section is genuinely thin for now and will ",
+    "What came in": "02 What came in New projects first, then new records on projects you already had. Grouped by project, so six records on one project is one line, not six. NEW PROJECTS 7 1020 West Imperial Highway family entertainment centre -- filed 2026-07-30 10450 Turkey Lake Road leisure development Central Florida Tourism Oversight",
+    "Needs you": "03 Needs you Each of these is a count and a place to go. 833 Record triage backlog Records still at status new, on Records 0 Watchlist activity Events on projects you watch 7 New projects to review Arrived in this window",
+    "Attention": "04 Attention The machine, not the market. Red only where something is genuinely wrong. SOURCES worldbank 13d silent 23 records uktenders 13d silent 1 records adb 13d silent 3 records canadabuys 13d silent 3 records sfwmd 10d silent 25 records gli_serper 9d silent 410 records govdoc 8d silent 8 records RUNS No failed ru"
+  },
+  "todayPeriod": {
+    "7d": 29,
+    "30d": 166,
+    "m:2026-07": 192,
+    "m:2026-01": 33
+  },
+  "records": {
+    "rows": 29,
+    "controls": [
+      "Search projects and screens⌘K",
+      "Light",
+      "Dark",
+      "Auto",
+      "Sign out",
+      "‹Collapse",
+      "Active27",
+      "Archive3",
+      "All27",
+      "Leisure/Attractions23",
+      "Mixed-Use/Real Estate1",
+      "Hospitality/Tourism3",
+      "All27",
+      "Aquarium1",
+      "Museum1",
+      "Heritage/Cultural Site5",
+      "Resort3",
+      "Waterfront Development1",
+      "Leisure Destination16",
+      "Export XLSX",
+      "Generate Report",
+      "All20",
+      "Albania3",
+      "Dominica3",
+      "Argentina2",
+      "Cabo Verde2",
+      "Ethiopia1",
+      "Finland1",
+      "India1",
+      "Ivory Coast1",
+      "Jamaica1",
+      "Kiribati1",
+      "Kyrgyzstan1",
+      "South Sudan1",
+      "Tajikistan1",
+      "Thailand1",
+      "All time27",
+      "New this week0",
+      "Last 30 days27",
+      "Since27"
+    ]
+  },
+  "register": {
+    "baseline": 184,
+    "results": [
+      {
+        "label": "baseline (all, any country)",
+        "url": "/register?view=all&country=any",
+        "total": 184,
+        "verdict": "UNCHANGED"
+      },
+      {
+        "label": "view=new",
+        "url": "/register?view=all&country=any&view=new",
+        "total": 184,
+        "verdict": "UNCHANGED"
+      },
+      {
+        "label": "view=watchlist",
+        "url": "/register?view=watchlist&country=any",
+        "total": 0,
+        "verdict": "changed"
+      },
+      {
+        "label": "view=client_ready",
+        "url": "/register?view=client_ready&country=any",
+        "total": 0,
+        "verdict": "changed"
+      },
+      {
+        "label": "view=trash",
+        "url": "/register?view=trash&country=any",
+        "total": 0,
+        "verdict": "changed"
+      },
+      {
+        "label": "stage=filed",
+        "url": "/register?view=all&country=any&stage=filed",
+        "total": 85,
+        "verdict": "changed"
+      },
+      {
+        "label": "stage=approved",
+        "url": "/register?view=all&country=any&stage=approved",
+        "total": 36,
+        "verdict": "changed"
+      },
+      {
+        "label": "stage=dormant",
+        "url": "/register?view=all&country=any&stage=dormant",
+        "total": 35,
+        "verdict": "changed"
+      },
+      {
+        "label": "country default (absent)",
+        "url": "/register?view=all",
+        "total": 162,
+        "verdict": "changed"
+      },
+      {
+        "label": "country=United States",
+        "url": "/register?view=all&country=United+States",
+        "total": 162,
+        "verdict": "changed"
+      },
+      {
+        "label": "region=Nevada",
+        "url": "/register?view=all&country=United+States&region=Nevada",
+        "total": 84,
+        "verdict": "changed"
+      },
+      {
+        "label": "market=Las Vegas",
+        "url": "/register?view=all&country=United+States&region=Nevada&market=Las+Vegas",
+        "total": 40,
+        "verdict": "changed"
+      },
+      {
+        "label": "q=resort",
+        "url": "/register?view=all&country=any&q=resort",
+        "total": 35,
+        "verdict": "changed"
+      },
+      {
+        "label": "q=zzzznomatch",
+        "url": "/register?view=all&country=any&q=zzzznomatch",
+        "total": 0,
+        "verdict": "changed"
+      },
+      {
+        "label": "period=m:2026-07 arrived",
+        "url": "/register?view=all&country=any&period=m:2026-07&axis=arrived",
+        "total": 184,
+        "verdict": "UNCHANGED"
+      },
+      {
+        "label": "period=m:2026-07 moved",
+        "url": "/register?view=all&country=any&period=m:2026-07&axis=moved",
+        "total": 184,
+        "verdict": "UNCHANGED"
+      },
+      {
+        "label": "period=m:2019-01 arrived",
+        "url": "/register?view=all&country=any&period=m:2019-01&axis=arrived",
+        "total": 0,
+        "verdict": "changed"
+      },
+      {
+        "label": "period=m:2019-01 moved",
+        "url": "/register?view=all&country=any&period=m:2019-01&axis=moved",
+        "total": 0,
+        "verdict": "changed"
+      },
+      {
+        "label": "bucket=week (must not filter)",
+        "url": "/register?view=all&country=any&bucket=week",
+        "total": 184,
+        "verdict": "correct (unchanged)"
+      },
+      {
+        "label": "bucket=month (must not filter)",
+        "url": "/register?view=all&country=any&bucket=month",
+        "total": 184,
+        "verdict": "correct (unchanged)"
+      },
+      {
+        "label": "sort=name (must not filter)",
+        "url": "/register?view=all&country=any&sort=name&dir=asc",
+        "total": 184,
+        "verdict": "correct (unchanged)"
+      },
+      {
+        "label": "page=2 (must not change total)",
+        "url": "/register?view=all&country=any&page=2",
+        "total": 184,
+        "verdict": "correct (unchanged)"
+      },
+      {
+        "label": "nonsense param",
+        "url": "/register?view=all&country=any&banana=1",
+        "total": 184,
+        "verdict": "FAILS OPEN (returns everything)"
+      },
+      {
+        "label": "nonsense stage value",
+        "url": "/register?view=all&country=any&stage=notastage",
+        "total": 0,
+        "verdict": "fails closed (0)"
+      },
+      {
+        "label": "nonsense market value",
+        "url": "/register?view=all&country=United+States&market=Atlantis",
+        "total": 0,
+        "verdict": "fails closed (0)"
+      }
+    ]
+  },
+  "keyboard": {
+    "J opens the detail pane": "works",
+    "J moves the selection": "works",
+    "K moves back": "works",
+    "Escape closes the pane": "works",
+    "typing j/k/w in search does not trigger shortcuts": "works"
+  },
+  "reportsClientOptions": [
+    "No client (internal)",
+    "Simtec Attractions"
+  ]
+}

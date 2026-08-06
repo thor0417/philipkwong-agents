@@ -1,0 +1,131 @@
+[
+  {
+    "name": "Today",
+    "url": "/today",
+    "ok": true,
+    "primary": "h1",
+    "rows": 29,
+    "consoleErrors": [],
+    "pageErrors": [],
+    "failedRequests": [],
+    "notes": [
+      "body contains \"failed\""
+    ]
+  },
+  {
+    "name": "Register",
+    "url": "/register",
+    "ok": true,
+    "primary": "[data-testid=\"pager-total\"]",
+    "rows": 50,
+    "consoleErrors": [],
+    "pageErrors": [],
+    "failedRequests": [],
+    "notes": []
+  },
+  {
+    "name": "Records",
+    "url": "/records",
+    "ok": false,
+    "primary": "h1",
+    "rows": null,
+    "consoleErrors": [],
+    "pageErrors": [],
+    "failedRequests": [],
+    "notes": [
+      "did not render: Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('h1').first()\nExpected: visible\nTimeout: 20000ms\nErr"
+    ]
+  },
+  {
+    "name": "Reports",
+    "url": "/reports",
+    "ok": true,
+    "primary": "[data-testid=\"report-client\"]",
+    "rows": 7,
+    "consoleErrors": [],
+    "pageErrors": [],
+    "failedRequests": [],
+    "notes": []
+  },
+  {
+    "name": "Clients",
+    "url": "/clients",
+    "ok": true,
+    "primary": "h1",
+    "rows": 1,
+    "consoleErrors": [],
+    "pageErrors": [],
+    "failedRequests": [],
+    "notes": []
+  },
+  {
+    "name": "Design system",
+    "url": "/design",
+    "ok": true,
+    "primary": "h1",
+    "rows": 5,
+    "consoleErrors": [],
+    "pageErrors": [],
+    "failedRequests": [],
+    "notes": []
+  },
+  {
+    "name": "Legacy pipeline",
+    "url": "/pipeline",
+    "ok": false,
+    "primary": "h1",
+    "rows": null,
+    "consoleErrors": [],
+    "pageErrors": [],
+    "failedRequests": [],
+    "notes": [
+      "did not render: Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('h1').first()\nExpected: visible\nTimeout: 20000ms\nErr"
+    ]
+  },
+  {
+    "name": "Legacy GLI",
+    "url": "/gli",
+    "ok": false,
+    "primary": "h1",
+    "rows": null,
+    "consoleErrors": [],
+    "pageErrors": [],
+    "failedRequests": [],
+    "notes": [
+      "did not render: Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('h1').first()\nExpected: visible\nTimeout: 20000ms\nErr"
+    ]
+  },
+  {
+    "name": "Projects (legacy route)",
+    "url": "/projects",
+    "ok": true,
+    "primary": "body",
+    "rows": 50,
+    "consoleErrors": [],
+    "pageErrors": [],
+    "failedRequests": [],
+    "notes": []
+  },
+  {
+    "name": "Project detail",
+    "url": "/project/57840922-6943-4c5b-9dfb-edf7169ea977",
+    "ok": false,
+    "primary": "h1",
+    "rows": null,
+    "consoleErrors": [],
+    "pageErrors": [],
+    "failedRequests": [],
+    "notes": []
+  },
+  {
+    "name": "Clients detail",
+    "url": "/clients",
+    "ok": false,
+    "primary": "h1",
+    "rows": null,
+    "consoleErrors": [],
+    "pageErrors": [],
+    "failedRequests": [],
+    "notes": []
+  }
+]

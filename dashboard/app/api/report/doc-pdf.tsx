@@ -14,7 +14,7 @@
 
 import React from 'react';
 import { Document, Page, Text, View, StyleSheet, Link, renderToBuffer } from '@react-pdf/renderer';
-import type { ReportDocument, Line } from '@/lib/report-model';
+import { basisLine, type ReportDocument, type Line } from '@/lib/report-model';
 
 const INK = '#1a1a1a';
 const MUTED = '#6b6b6b';
@@ -101,9 +101,7 @@ function DocBody({ doc }: { doc: ReportDocument }) {
           </View>
           <View style={s.scopeRow}>
             <Text style={s.scopeKey}>Basis</Text>
-            <Text style={s.scopeVal}>
-              {doc.projectCount} projects, {doc.recordCount} records
-            </Text>
+            <Text style={s.scopeVal}>{basisLine(doc.projectCount, doc.recordCount)}</Text>
           </View>
           {doc.scope.periodOpen && (
             <Text style={s.openWarn}>

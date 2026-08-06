@@ -20,7 +20,7 @@
 import { NextResponse } from 'next/server';
 import ExcelJS from 'exceljs';
 import { renderDocumentPdf } from './doc-pdf';
-import { assertProvenance, provenanceTally, ProvenanceError, type ReportDocument } from '@/lib/report-model';
+import { assertProvenance, basisLine, provenanceTally, ProvenanceError, type ReportDocument } from '@/lib/report-model';
 import { requireUser } from '@/lib/api-auth';
 import { createClient } from '@supabase/supabase-js';
 
@@ -63,7 +63,7 @@ async function xlsx(doc: ReportDocument): Promise<Buffer> {
   ws.addRow([`Geography: ${doc.scope.geography}`]);
   ws.addRow([`Period: ${doc.scope.period}${doc.scope.periodOpen ? ' (not closed)' : ''}`]);
   ws.addRow([`Filters: ${doc.scope.filters.join(' | ') || 'none'}`]);
-  ws.addRow([`Basis: ${doc.projectCount} projects, ${doc.recordCount} records`]);
+  ws.addRow([`Basis: ${basisLine(doc.projectCount, doc.recordCount)}`]);
   ws.addRow([]);
   for (const r of toRows(doc)) ws.addRow(r);
   ws.getRow(8).font = { bold: true };

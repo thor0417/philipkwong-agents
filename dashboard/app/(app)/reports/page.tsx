@@ -26,7 +26,7 @@ import { authedFetch } from '@/lib/authed-fetch';
 import type { ClientScope } from '@/lib/clients';
 import { buildReport, geographyLabel, listScopeProjects } from '@/lib/report-build';
 import { DEFAULT_SECTION_IDS, SECTION_REGISTRY, sectionById } from '@/lib/report-sections';
-import { estimatePages, provenanceTally } from '@/lib/report-model';
+import { basisLine, estimatePages, provenanceTally } from '@/lib/report-model';
 import styles from './page.module.css';
 
 const TEMPLATE_KEY = 'pk-report-templates';
@@ -523,7 +523,7 @@ export default function ReportsPage() {
                 ['Period', doc.scope.period],
                 ['Pipeline', doc.scope.pipeline],
                 ['Filters', doc.scope.filters.join(' | ') || 'none'],
-                ['Basis', `${doc.projectCount} projects, ${doc.recordCount} records`],
+                ['Basis', basisLine(doc.projectCount, doc.recordCount)],
               ] as const).map(([k, v]) => (
                 <div key={k} className={styles.scopeRow}>
                   <span className={styles.scopeKey}>{k}</span>
