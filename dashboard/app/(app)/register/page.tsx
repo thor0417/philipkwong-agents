@@ -71,6 +71,33 @@ const SAVED = [
   { key: 'hearing', label: 'Hearing scheduled' },
 ] as const;
 
+// THE REGISTER OPENS ON THE UNITED STATES.
+//
+// All ten covered markets are US. The other 22 projects are global intelligence
+// captures - a Jeddah headline, a Queensland trade item - which are worth having
+// and are not what Philip triages. Mixed into the default list they pad the
+// count and put a row with no market between two Clark County filings.
+//
+// CLEARING IT MUST STILL BE POSSIBLE, and that is why this is not simply a
+// nuqs default. With `withDefault('United States')`, clearing writes null, null
+// reads back as the default, and the filter cannot be removed at all - a
+// control that silently refuses. So the parameter carries three states:
+//
+//   absent   the default, United States
+//   'any'    explicitly cleared, every country
+//   a value  that country
+//
+// The sentinel is a real URL value, so a cleared Register is still a link that
+// survives being sent and reloaded.
+const DEFAULT_COUNTRY = 'United States';
+const GEO_ANY = 'any';
+
+function effectiveCountry(param: string | null): string | undefined {
+  if (param === null) return DEFAULT_COUNTRY;
+  if (param === GEO_ANY) return undefined;
+  return param;
+}
+
 function statusFilter(view: ViewKey): Pick<ProjectQuery, 'status' | 'excludeStatus' | 'watch'> {
   if (view === 'trash') return { status: 'dismissed' };
   if (view === 'watchlist') return { excludeStatus: 'dismissed', watch: true };
@@ -96,7 +123,7 @@ export default function RegisterPage() {
   // ---- URL state.
   const [view, setView] = useQueryState('view', parseAsString.withDefault('all'));
   const [stage, setStage] = useQueryState('stage', parseAsString);
-  const [country, setCountry] = useQueryState('country', parseAsString);
+  const [countryParam, setCountryParam] = useQueryState('country', parseAsString);
   const [region, setRegion] = useQueryState('region', parseAsString);
   const [market, setMarket] = useQueryState('market', parseAsString);
   const [search, setSearch] = useQueryState('q', parseAsString.withDefault(''));
@@ -128,13 +155,22 @@ export default function RegisterPage() {
     return () => clearTimeout(t);
   }, [searchDraft, search, setSearch, setPage]);
 
+  const country = effectiveCountry(countryParam);
+
   const geo = useMemo(
     () => ({
-      country: country ?? undefined,
+      country,
       region_state: region ?? undefined,
       market: market ?? undefined,
     }),
     [country, region, market]
+  );
+
+  // Clearing the country writes the sentinel rather than removing the parameter,
+  // because removing it is what brings the default back.
+  const setCountry = useCallback(
+    (next: string | null) => setCountryParam(next ?? GEO_ANY),
+    [setCountryParam]
   );
 
   const baseQuery: ProjectQuery = useMemo(
@@ -241,14 +277,16 @@ export default function RegisterPage() {
         void setRegion(null);
         void setMarket(null);
       } else {
+        // None means "no saved view", not "no geography". It removes the
+        // parameter entirely, which is what puts the United States default back.
         void setView('all');
         void setStage(null);
-        void setCountry(null);
+        void setCountryParam(null);
         void setRegion(null);
         void setMarket(null);
       }
     },
-    [setSaved, setPage, setView, setStage, setCountry, setRegion, setMarket]
+    [setSaved, setPage, setView, setStage, setCountry, setCountryParam, setRegion, setMarket]
   );
 
   // Dismiss is a status write, never a delete: Trash is a view, so restoring is

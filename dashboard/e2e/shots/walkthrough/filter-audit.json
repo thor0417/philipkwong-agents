@@ -1,9 +1,11 @@
 {
   "baseline": 184,
+  "defaultGeography": 162,
+  "clearedGeography": 184,
   "results": [
     {
       "filter": "View: New",
-      "url": "/register?view=new",
+      "url": "/register?view=new&country=any",
       "filtersOn": "projects.status = 'new'",
       "before": 184,
       "after": 184,
@@ -11,7 +13,7 @@
     },
     {
       "filter": "View: Watchlist",
-      "url": "/register?view=watchlist",
+      "url": "/register?view=watchlist&country=any",
       "filtersOn": "projects.watch = true AND status <> 'dismissed'",
       "before": 184,
       "after": 0,
@@ -19,7 +21,7 @@
     },
     {
       "filter": "View: Client ready",
-      "url": "/register?view=client_ready",
+      "url": "/register?view=client_ready&country=any",
       "filtersOn": "projects.status = 'client_ready'",
       "before": 184,
       "after": 0,
@@ -27,7 +29,7 @@
     },
     {
       "filter": "View: Trash",
-      "url": "/register?view=trash",
+      "url": "/register?view=trash&country=any",
       "filtersOn": "projects.status = 'dismissed'",
       "before": 184,
       "after": 0,
@@ -35,7 +37,7 @@
     },
     {
       "filter": "Stage chip: filed",
-      "url": "/register?view=all&stage=filed",
+      "url": "/register?view=all&country=any&stage=filed",
       "filtersOn": "projects.stage =",
       "before": 184,
       "after": 85,
@@ -43,7 +45,7 @@
     },
     {
       "filter": "Stage chip: hearing scheduled",
-      "url": "/register?view=all&stage=hearing%20scheduled",
+      "url": "/register?view=all&country=any&stage=hearing%20scheduled",
       "filtersOn": "projects.stage =",
       "before": 184,
       "after": 10,
@@ -51,10 +53,18 @@
     },
     {
       "filter": "Stage chip: approved",
-      "url": "/register?view=all&stage=approved",
+      "url": "/register?view=all&country=any&stage=approved",
       "filtersOn": "projects.stage =",
       "before": 184,
       "after": 36,
+      "changed": "changed"
+    },
+    {
+      "filter": "Geography default (no parameter)",
+      "url": "/register?view=all",
+      "filtersOn": "projects.country = 'United States' by default",
+      "before": 184,
+      "after": 162,
       "changed": "changed"
     },
     {
@@ -83,7 +93,7 @@
     },
     {
       "filter": "Search: \"resort\"",
-      "url": "/register?view=all&q=resort",
+      "url": "/register?view=all&country=any&q=resort",
       "filtersOn": "ilike over name, primary_applicant, primary_representative",
       "before": 184,
       "after": 35,
@@ -99,7 +109,7 @@
     },
     {
       "filter": "Saved view: Approved, anywhere",
-      "url": "/register?view=all&saved=approved&stage=approved",
+      "url": "/register?view=all&saved=approved&country=any&stage=approved",
       "filtersOn": "projects.stage = 'approved'",
       "before": 184,
       "after": 36,
@@ -107,7 +117,7 @@
     },
     {
       "filter": "Saved view: Hearing scheduled",
-      "url": "/register?view=all&saved=hearing&stage=hearing+scheduled",
+      "url": "/register?view=all&saved=hearing&country=any&stage=hearing+scheduled",
       "filtersOn": "projects.stage = 'hearing scheduled'",
       "before": 184,
       "after": 10,
@@ -115,7 +125,7 @@
     },
     {
       "filter": "Search: \"zzzznomatch\"",
-      "url": "/register?view=all&q=zzzznomatch",
+      "url": "/register?view=all&country=any&q=zzzznomatch",
       "filtersOn": "same three columns; proves the search is not ignored",
       "before": 184,
       "after": 0,

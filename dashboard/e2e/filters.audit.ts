@@ -39,7 +39,13 @@ async function totalFor(page: import('@playwright/test').Page, url: string): Pro
 
 test('register filtering audit', async ({ page }) => {
   const results: Row[] = [];
-  const BASE = '/register?view=all';
+  // THE BASELINE IS THE CLEARED REGISTER, not the default one. The Register now
+  // opens on the United States, so '/register?view=all' is itself a filtered
+  // view: measuring the country filter against it would compare United States
+  // with United States and report the geography filter as doing nothing. Every
+  // single-axis case below therefore carries country=any, so exactly one filter
+  // is under test at a time.
+  const BASE = '/register?view=all&country=any';
 
   const baseline = await totalFor(page, BASE);
   expect(baseline, 'baseline returned no count').toBeGreaterThan(0);
@@ -61,23 +67,31 @@ test('register filtering audit', async ({ page }) => {
   expect(stages.length, 'no stage chips rendered').toBeGreaterThan(0);
 
   const cases: { filter: string; url: string; filtersOn: string }[] = [
-    { filter: 'View: New', url: '/register?view=new', filtersOn: "projects.status = 'new'" },
+    { filter: 'View: New', url: '/register?view=new&country=any', filtersOn: "projects.status = 'new'" },
     {
       filter: 'View: Watchlist',
-      url: '/register?view=watchlist',
+      url: '/register?view=watchlist&country=any',
       filtersOn: "projects.watch = true AND status <> 'dismissed'",
     },
     {
       filter: 'View: Client ready',
-      url: '/register?view=client_ready',
+      url: '/register?view=client_ready&country=any',
       filtersOn: "projects.status = 'client_ready'",
     },
-    { filter: 'View: Trash', url: '/register?view=trash', filtersOn: "projects.status = 'dismissed'" },
+    { filter: 'View: Trash', url: '/register?view=trash&country=any', filtersOn: "projects.status = 'dismissed'" },
     ...stages.map((st) => ({
       filter: `Stage chip: ${st}`,
-      url: `/register?view=all&stage=${encodeURIComponent(st)}`,
+      url: `/register?view=all&country=any&stage=${encodeURIComponent(st)}`,
       filtersOn: 'projects.stage =',
     })),
+    {
+      // THE DEFAULT ITSELF, measured. No country parameter at all, which is how
+      // the Register opens: it must return fewer than the cleared baseline, or
+      // the default is not being applied.
+      filter: 'Geography default (no parameter)',
+      url: '/register?view=all',
+      filtersOn: "projects.country = 'United States' by default",
+    },
     {
       filter: 'Geography L1: United States',
       url: '/register?view=all&country=United+States',
@@ -95,7 +109,7 @@ test('register filtering audit', async ({ page }) => {
     },
     {
       filter: 'Search: "resort"',
-      url: '/register?view=all&q=resort',
+      url: '/register?view=all&country=any&q=resort',
       filtersOn: 'ilike over name, primary_applicant, primary_representative',
     },
     // Saved views: each must move the number, or it is a control that lies.
@@ -106,17 +120,17 @@ test('register filtering audit', async ({ page }) => {
     },
     {
       filter: 'Saved view: Approved, anywhere',
-      url: '/register?view=all&saved=approved&stage=approved',
+      url: '/register?view=all&saved=approved&country=any&stage=approved',
       filtersOn: "projects.stage = 'approved'",
     },
     {
       filter: 'Saved view: Hearing scheduled',
-      url: '/register?view=all&saved=hearing&stage=hearing+scheduled',
+      url: '/register?view=all&saved=hearing&country=any&stage=hearing+scheduled',
       filtersOn: "projects.stage = 'hearing scheduled'",
     },
     {
       filter: 'Search: "zzzznomatch"',
-      url: '/register?view=all&q=zzzznomatch',
+      url: '/register?view=all&country=any&q=zzzznomatch',
       filtersOn: 'same three columns; proves the search is not ignored',
     },
   ];
@@ -136,15 +150,30 @@ test('register filtering audit', async ({ page }) => {
     );
   }
 
+  // THE DEFAULT MUST BE CLEARABLE. Opening on the United States is only
+  // acceptable if All countries genuinely removes it, so both numbers are read
+  // through the real UI and compared.
+  const defaulted = await totalFor(page, '/register?view=all');
+  const cleared = await totalFor(page, '/register?view=all&country=any');
+  console.log(
+    `${'Default US vs cleared'.padEnd(34)} ${String(defaulted).padStart(5)} -> ${String(cleared).padStart(5)}`
+  );
+  expect(defaulted, 'the United States default is not being applied').toBeLessThan(cleared);
+  expect(cleared, 'clearing the country filter did not restore the global set').toBe(baseline);
+
   // Sorting must NOT change the count: it reorders the same set. A sort that
   // changes the total is a filter pretending to be a sort.
-  const sorted = await totalFor(page, '/register?view=all&sort=name&dir=asc');
+  const sorted = await totalFor(page, '/register?view=all&country=any&sort=name&dir=asc');
   console.log(`${'Sort by name (control)'.padEnd(34)} ${String(baseline).padStart(5)} -> ${String(sorted).padStart(5)}`);
   expect(sorted, 'sorting changed the result count, so it is filtering').toBe(baseline);
 
   mkdirSync('e2e/shots/walkthrough', { recursive: true });
   writeFileSync(
     'e2e/shots/walkthrough/filter-audit.json',
-    JSON.stringify({ baseline, results, sortControl: sorted }, null, 2)
+    JSON.stringify(
+      { baseline, defaultGeography: defaulted, clearedGeography: cleared, results, sortControl: sorted },
+      null,
+      2
+    )
   );
 });
