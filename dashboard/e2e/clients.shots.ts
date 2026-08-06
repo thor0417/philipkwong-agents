@@ -86,6 +86,19 @@ test('client intake and scope preview', async ({ page }, testInfo) => {
   console.log(`client detail preview: ${projects} projects, ${records} records, ${fresh} new in 30 days`);
   expect(Number(projects), 'the saved scope matches nothing').toBeGreaterThan(0);
 
-  await expect(page.getByTestId('delivery-history')).toBeVisible();
+  // THE DELIVERY HISTORY, WITH ROWS IN IT. Asserting the section is visible
+  // proves only that the heading rendered; an empty history and a broken one
+  // look identical from outside. This waits for actual rows and shoots the
+  // section on its own, so what is being claimed is what is in the picture.
+  const history = page.getByTestId('delivery-history');
+  await expect(history).toBeVisible();
+  await expect
+    .poll(async () => await history.locator('li').count(), { timeout: 60_000 })
+    .toBeGreaterThan(0);
+  const rows = await history.locator('li').count();
+  const first = (await history.locator('li').first().innerText()).replace(/\s+/g, ' ');
+  console.log(`delivery history: ${rows} row(s). most recent: ${first}`);
+  await history.scrollIntoViewIfNeeded();
+  await history.screenshot({ path: path.join('e2e', 'shots', mode, '11-delivery-history.png') });
   await shot('client-detail');
 });

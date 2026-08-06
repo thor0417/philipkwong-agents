@@ -343,6 +343,13 @@ export default function ClientDetailPage() {
                 <li key={d.id} className={detail.delivery}>
                   <span className="mono">{(d.generated_at ?? '').slice(0, 10)}</span>
                   <span className={styles.name}>{d.document_type}</span>
+                  {/* The format, from the stored filename. Without it the PDF,
+                      CSV and XLSX of one report are three identical-looking
+                      rows, and "exactly what this client received" is the one
+                      question this list exists to answer. */}
+                  <span className={`${styles.cell} mono`}>
+                    {(d.file_path ?? '').split('.').pop()?.toUpperCase() ?? '--'}
+                  </span>
                   <span className={styles.cell}>
                     {d.period_start ?? '?'} to {d.period_end ?? '?'}
                   </span>

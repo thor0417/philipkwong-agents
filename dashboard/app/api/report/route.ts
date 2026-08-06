@@ -101,7 +101,18 @@ export async function POST(req: Request) {
   const doc = body.doc;
   const tally = provenanceTally(doc);
   const stamp = (doc.generatedAt ?? new Date().toISOString()).slice(0, 10);
-  const base = `${(doc.clientName ?? doc.brandName ?? 'report').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}-${stamp}`;
+  // THE DOCUMENT TYPE IS PART OF THE FILENAME, not just of the row.
+  //
+  // Without it a full report, a county report and a referral brief generated for
+  // one client on one day all land on "simtec-attractions-2026-08-06.pdf". The
+  // delivery log then holds three rows that cannot be told apart by the one
+  // column that names the artefact, and "exactly what this client received" -
+  // the whole reason the table exists - becomes unanswerable. Found by reading
+  // the rows back rather than by reading the code.
+  const slug = (v: string) => v.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  const who = slug(doc.clientName ?? doc.brandName ?? 'report');
+  const what = slug(body.documentType || 'report');
+  const base = `${who}-${what}-${stamp}`;
 
   let payload: Buffer;
   let contentType: string;
