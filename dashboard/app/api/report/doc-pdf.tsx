@@ -1,0 +1,153 @@
+// THE SECTIONED DOCUMENT, RENDERED.
+//
+// Reuses the type, colour and layout vocabulary of the existing GLI renderer
+// (app/api/gli-report/pdf.tsx) rather than inventing a second document design.
+// That one renders a flat list of records; this one renders composed sections
+// with commentary, which is a different document, not a different look.
+//
+// THE PROVENANCE TAG IS RENDERED AS A TAG, in the margin, in monospace, on every
+// single line. Not as a footnote, not as a colour, not once per section. A
+// reader scanning the page has to be able to see which statements are documented
+// and which are Philip's read without reading the sentences first, and
+// commentary is set apart as a block so an assessment can never be mistaken for
+// the record above it.
+
+import React from 'react';
+import { Document, Page, Text, View, StyleSheet, Link, renderToBuffer } from '@react-pdf/renderer';
+import type { ReportDocument, Line } from '@/lib/report-model';
+
+const INK = '#1a1a1a';
+const MUTED = '#6b6b6b';
+const RULE = '#d9d5cf';
+const ACCENT = '#b34700';
+
+const s = StyleSheet.create({
+  page: { paddingTop: 48, paddingBottom: 56, paddingHorizontal: 48, fontSize: 9, color: INK, fontFamily: 'Helvetica' },
+  brand: { fontSize: 8, letterSpacing: 1.2, color: MUTED, textTransform: 'uppercase' },
+  title: { fontSize: 20, marginTop: 6, marginBottom: 2 },
+  addressee: { fontSize: 10, color: MUTED, marginBottom: 14 },
+
+  scopeBox: { borderWidth: 0.5, borderColor: RULE, padding: 10, marginBottom: 16 },
+  scopeRow: { flexDirection: 'row', marginBottom: 3 },
+  scopeKey: { width: 78, fontSize: 8, color: MUTED, textTransform: 'uppercase', letterSpacing: 0.6 },
+  scopeVal: { fontSize: 9, flex: 1 },
+  openWarn: { fontSize: 8, color: ACCENT, marginTop: 4 },
+
+  key: { flexDirection: 'row', gap: 12, marginBottom: 14 },
+  keyItem: { fontSize: 7.5, color: MUTED },
+
+  sectionTitle: { fontSize: 12, marginTop: 16, marginBottom: 2, borderBottomWidth: 0.5, borderBottomColor: RULE, paddingBottom: 3 },
+  lede: { fontSize: 8, color: MUTED, marginBottom: 6 },
+
+  line: { flexDirection: 'row', marginBottom: 5 },
+  tag: { width: 62, fontSize: 6.5, letterSpacing: 0.5, color: MUTED, paddingTop: 1.5 },
+  tagAssessment: { color: ACCENT },
+  body: { flex: 1 },
+  text: { fontSize: 9, lineHeight: 1.35 },
+  meta: { fontSize: 7.5, color: MUTED, marginTop: 1 },
+  link: { fontSize: 7.5, color: ACCENT, textDecoration: 'none' },
+
+  commentary: { borderLeftWidth: 2, borderLeftColor: ACCENT, paddingLeft: 8, marginTop: 8, marginBottom: 4 },
+  commentaryHead: { fontSize: 7, letterSpacing: 0.8, color: ACCENT, textTransform: 'uppercase', marginBottom: 3 },
+
+  empty: { fontSize: 8.5, color: MUTED, fontStyle: 'italic', marginBottom: 4 },
+  footer: { position: 'absolute', bottom: 28, left: 48, right: 48, flexDirection: 'row', justifyContent: 'space-between', borderTopWidth: 0.5, borderTopColor: RULE, paddingTop: 6 },
+  footText: { fontSize: 7, color: MUTED },
+});
+
+function LineRow({ l }: { l: Line }) {
+  return (
+    <View style={s.line} wrap={false}>
+      <Text style={[s.tag, l.provenance === 'ASSESSMENT' ? s.tagAssessment : {}]}>[{l.provenance}]</Text>
+      <View style={s.body}>
+        <Text style={s.text}>{l.text}</Text>
+        {l.meta ? <Text style={s.meta}>{l.meta}</Text> : null}
+        {l.source ? (
+          <Link src={l.source} style={s.link}>
+            {l.sourceLabel ?? l.source}
+          </Link>
+        ) : null}
+      </View>
+    </View>
+  );
+}
+
+function DocBody({ doc }: { doc: ReportDocument }) {
+  return (
+    <Document title={doc.title}>
+      <Page size="A4" style={s.page} wrap>
+        <Text style={s.brand}>{doc.brandName}</Text>
+        <Text style={s.title}>{doc.title}</Text>
+        <Text style={s.addressee}>Prepared for {doc.addressee}</Text>
+
+        {/* THE SCOPING STATEMENT, ON THE COVER, ALWAYS. A report scoped to
+            Nevada says so on its face; it never silently omits. */}
+        <View style={s.scopeBox}>
+          <View style={s.scopeRow}>
+            <Text style={s.scopeKey}>Geography</Text>
+            <Text style={s.scopeVal}>{doc.scope.geography}</Text>
+          </View>
+          <View style={s.scopeRow}>
+            <Text style={s.scopeKey}>Period</Text>
+            <Text style={s.scopeVal}>{doc.scope.period}</Text>
+          </View>
+          <View style={s.scopeRow}>
+            <Text style={s.scopeKey}>Pipeline</Text>
+            <Text style={s.scopeVal}>{doc.scope.pipeline}</Text>
+          </View>
+          <View style={s.scopeRow}>
+            <Text style={s.scopeKey}>Filters</Text>
+            <Text style={s.scopeVal}>{doc.scope.filters.length ? doc.scope.filters.join(' | ') : 'none'}</Text>
+          </View>
+          <View style={s.scopeRow}>
+            <Text style={s.scopeKey}>Basis</Text>
+            <Text style={s.scopeVal}>
+              {doc.projectCount} projects, {doc.recordCount} records
+            </Text>
+          </View>
+          {doc.scope.periodOpen && (
+            <Text style={s.openWarn}>
+              This period has not closed. Regenerating this report later will cover more than it does now.
+            </Text>
+          )}
+        </View>
+
+        <View style={s.key}>
+          <Text style={s.keyItem}>[RECORD] drawn from a captured filing, with its link</Text>
+          <Text style={s.keyItem}>[PRESS] reported elsewhere</Text>
+          <Text style={s.keyItem}>[ASSESSMENT] our own read, not in any document</Text>
+        </View>
+
+        {doc.sections.map((sec) => (
+          <View key={sec.id}>
+            <Text style={s.sectionTitle}>{sec.title}</Text>
+            {sec.lede ? <Text style={s.lede}>{sec.lede}</Text> : null}
+            {sec.lines.map((l, i) => (
+              <LineRow key={i} l={l} />
+            ))}
+            {sec.emptyNote ? <Text style={s.empty}>{sec.emptyNote}</Text> : null}
+            {sec.commentary.length > 0 && (
+              <View style={s.commentary}>
+                <Text style={s.commentaryHead}>Assessment</Text>
+                {sec.commentary.map((l, i) => (
+                  <LineRow key={i} l={l} />
+                ))}
+              </View>
+            )}
+          </View>
+        ))}
+
+        <View style={s.footer} fixed>
+          <Text style={s.footText}>
+            {doc.brandName} | {doc.scope.geography} | {doc.scope.period}
+          </Text>
+          <Text style={s.footText} render={({ pageNumber, totalPages }) => `${pageNumber} / ${totalPages}`} />
+        </View>
+      </Page>
+    </Document>
+  );
+}
+
+export async function renderDocumentPdf(doc: ReportDocument): Promise<Buffer> {
+  return renderToBuffer(<DocBody doc={doc} />);
+}

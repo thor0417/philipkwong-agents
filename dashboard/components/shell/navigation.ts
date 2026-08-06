@@ -45,6 +45,12 @@ export const NAV: NavSection[] = [
         hint: 'Every captured record, by stream.',
       },
       {
+        label: 'Reports',
+        href: '/reports',
+        keywords: ['report', 'compose', 'document', 'pdf', 'csv', 'xlsx', 'generate', 'brief', 'deliver'],
+        hint: 'Compose and generate a client document.',
+      },
+      {
         label: 'Clients',
         href: '/clients',
         keywords: ['client', 'scope', 'retainer', 'cadence', 'delivery', 'contacts', 'intake'],

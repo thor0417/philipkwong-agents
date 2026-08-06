@@ -1,0 +1,333 @@
+/* THE COMPOSER. Three columns, because the work is three decisions taken
+   together: what goes in, in what order, and what it looks like. Splitting them
+   across steps would mean choosing sections without seeing their effect. */
+
+.screen {
+  display: grid;
+  grid-template-columns: 300px 320px minmax(0, 1fr);
+  height: 100%;
+  min-height: 0;
+}
+
+.col {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: auto;
+  border-right: var(--border-hairline);
+  padding: var(--space-16);
+  gap: var(--space-16);
+}
+
+.colLast {
+  border-right: 0;
+  background: var(--paper-rail);
+}
+
+.colTitle {
+  font-size: var(--type-caption);
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+  color: var(--ink-muted);
+  margin: 0;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.label {
+  font-size: var(--type-caption);
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+.hint {
+  font-size: var(--type-caption);
+  color: var(--ink-disabled);
+}
+
+.input,
+.select,
+.textarea {
+  font-family: var(--font-body);
+  font-size: var(--type-meta);
+  color: var(--ink);
+  background: var(--paper-card);
+  border: var(--border-hairline);
+  border-radius: var(--radius-control);
+  padding: var(--space-8);
+  width: 100%;
+}
+
+.textarea {
+  min-height: 56px;
+  resize: vertical;
+}
+
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  font-size: var(--type-meta);
+  color: var(--ink-secondary);
+}
+
+/* ------------------------------------------------------------- the sections */
+
+.sectionItem {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  padding: var(--space-8);
+  border: var(--border-hairline);
+  background: var(--paper-card);
+  margin-bottom: var(--space-4);
+}
+
+.sectionItemDragging {
+  opacity: 0.4;
+}
+
+.grip {
+  color: var(--ink-disabled);
+  font-family: var(--font-mono);
+  font-size: var(--type-caption);
+  cursor: grab;
+}
+
+.sectionName {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--type-meta);
+  color: var(--ink);
+}
+
+.sectionDesc {
+  font-size: var(--type-caption);
+  color: var(--ink-muted);
+}
+
+.iconBtn {
+  border: 0;
+  background: none;
+  color: var(--ink-muted);
+  font-size: var(--type-meta);
+  cursor: pointer;
+  padding: 0 var(--space-4);
+}
+.iconBtn:hover {
+  color: var(--accent);
+}
+
+.available {
+  border-top: var(--border-hairline);
+  padding-top: var(--space-8);
+  margin-top: var(--space-8);
+}
+
+/* --------------------------------------------------------------- the preview */
+
+.previewHead {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-16);
+  flex-wrap: wrap;
+  padding-bottom: var(--space-8);
+  border-bottom: var(--border-hairline);
+}
+
+.stat {
+  font-family: var(--font-mono);
+  font-size: var(--type-meta);
+  color: var(--ink);
+}
+
+.statLabel {
+  font-size: var(--type-caption);
+  color: var(--ink-muted);
+  text-transform: uppercase;
+  letter-spacing: var(--track-label);
+}
+
+/* The preview renders the real document at reduced scale. Not a mockup: the
+   same lines, the same tags, the same order. A preview built from placeholder
+   text tells you nothing about whether the report is worth sending. */
+.paper {
+  background: var(--paper-card);
+  border: var(--border-hairline);
+  padding: var(--space-24);
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--ink);
+  max-width: 760px;
+}
+
+.docTitle {
+  font-family: var(--font-display);
+  font-size: var(--type-title-lg);
+  margin: 0 0 2px;
+}
+
+.docBrand {
+  font-size: var(--type-caption);
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+.docAddressee {
+  color: var(--ink-secondary);
+  font-size: var(--type-meta);
+  margin: 0 0 var(--space-16);
+}
+
+.scopeBox {
+  border: var(--border-hairline);
+  padding: var(--space-8);
+  margin-bottom: var(--space-16);
+  font-size: var(--type-caption);
+}
+
+.scopeRow {
+  display: flex;
+  gap: var(--space-8);
+}
+
+.scopeKey {
+  width: 76px;
+  color: var(--ink-muted);
+  text-transform: uppercase;
+  letter-spacing: var(--track-label);
+}
+
+.openWarn {
+  color: var(--accent);
+  margin-top: var(--space-4);
+}
+
+.docSection {
+  margin-bottom: var(--space-16);
+}
+
+.docSectionTitle {
+  font-size: var(--type-body);
+  border-bottom: var(--border-hairline);
+  padding-bottom: 2px;
+  margin: 0 0 2px;
+}
+
+.docLede {
+  font-size: var(--type-caption);
+  color: var(--ink-muted);
+  margin: 0 0 var(--space-8);
+}
+
+.docLine {
+  display: flex;
+  gap: var(--space-8);
+  margin-bottom: var(--space-4);
+}
+
+/* The tag is the whole point of the document design, so it is legible at
+   preview scale and never truncated. */
+.tag {
+  flex: none;
+  width: 84px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--ink-muted);
+  padding-top: 2px;
+}
+
+.tagAssessment {
+  color: var(--accent);
+}
+
+.lineText {
+  min-width: 0;
+}
+
+.lineMeta {
+  font-size: 9px;
+  color: var(--ink-muted);
+}
+
+.lineSource {
+  font-size: 9px;
+  color: var(--accent);
+  word-break: break-all;
+}
+
+.commentaryBlock {
+  border-left: 2px solid var(--accent);
+  padding-left: var(--space-8);
+  margin: var(--space-8) 0;
+}
+
+.commentaryHead {
+  font-size: 9px;
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.emptyNote {
+  font-size: var(--type-caption);
+  color: var(--ink-muted);
+  font-style: italic;
+}
+
+.actions {
+  display: flex;
+  gap: var(--space-8);
+  align-items: center;
+  flex-wrap: wrap;
+  padding: var(--space-8) 0;
+  border-top: var(--border-hairline);
+}
+
+.primary {
+  font-family: var(--font-body);
+  font-size: var(--type-meta);
+  color: var(--accent);
+  border: var(--hairline-width) solid var(--accent);
+  border-radius: var(--radius-control);
+  background: none;
+  padding: var(--space-8) var(--space-16);
+  cursor: pointer;
+}
+.primary:hover {
+  background: var(--accent-wash);
+}
+.primary:disabled {
+  color: var(--ink-disabled);
+  border-color: var(--rule, var(--ink-disabled));
+  cursor: default;
+}
+
+.ghost {
+  font-family: var(--font-body);
+  font-size: var(--type-meta);
+  color: var(--ink-secondary);
+  border: var(--border-hairline);
+  border-radius: var(--radius-control);
+  background: none;
+  padding: var(--space-8) var(--space-16);
+  cursor: pointer;
+}
+
+.status {
+  font-size: var(--type-caption);
+  color: var(--ink-muted);
+}
+
+.error {
+  padding: var(--space-8);
+  border: var(--hairline-width) solid var(--accent);
+  color: var(--accent);
+  font-size: var(--type-meta);
+}
