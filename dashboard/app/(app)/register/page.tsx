@@ -16,7 +16,7 @@
 // watch, Escape to close. A tool that needs the mouse to clear a backlog does
 // not get used to clear a backlog.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQueryState, parseAsString, parseAsInteger } from 'nuqs';
 import { PROJECT_STAGES } from '@/lib/taxonomy';
@@ -28,6 +28,9 @@ import {
   useProjectFacet,
   useProjectMutations,
 } from '@/lib/use-projects';
+import PeriodSelector from '@/components/PeriodSelector';
+import { BUCKETS, PERIOD_AXES, bucketOf, type BucketMode } from '@/lib/period';
+import { usePeriodState, useMovedProjectIds } from '@/lib/use-period';
 import RegisterRail from './RegisterRail';
 import RegisterDetail from './RegisterDetail';
 import styles from './page.module.css';
@@ -135,6 +138,18 @@ export default function RegisterPage() {
     parseAsString.withDefault('last_activity')
   );
   const [sortDir, setSortDir] = useQueryState('dir', parseAsString.withDefault('desc'));
+  const [bucket, setBucket] = useQueryState('bucket', parseAsString.withDefault('none'));
+
+  // THE PERIOD. Default 'all', not a rolling window: the Register is the whole
+  // register. Today is the screen that answers "recently"; opening the Register
+  // on the last 30 days would hide 'projects' rather than filter them, and the
+  // operator would have no way of knowing what was missing.
+  const { period, setToken: setPeriod, axis, setAxis } = usePeriodState('all');
+  const periodNow = useMemo(() => new Date(), []);
+
+  // The moved axis resolves through project_events, so it is a second query.
+  // Only issued when that axis is selected.
+  const moved = useMovedProjectIds(period, axis === 'moved');
 
   const [error, setError] = useState<string | null>(null);
   const [searchDraft, setSearchDraft] = useState(search);
@@ -173,20 +188,56 @@ export default function RegisterPage() {
     [setCountryParam]
   );
 
+  // THE PERIOD, ON ONE OF TWO AXES.
+  //
+  //   ARRIVED  projects.first_seen. When we captured it.
+  //   MOVED    a project_events row inside the period. When something happened
+  //            to it. Resolved to a list of ids, because the events are in
+  //            another table.
+  //
+  // The moved axis deliberately contributes NOTHING until its query has
+  // answered. Passing `ids: []` while it is in flight would show an empty
+  // register for a moment and read as "nothing moved in July", which is a
+  // different statement from "not known yet".
+  const periodFilter: Pick<ProjectQuery, 'firstSeenFrom' | 'firstSeenTo' | 'ids'> = useMemo(() => {
+    if (period.key === 'all') return {};
+    if (axis === 'moved') return moved.data ? { ids: moved.data.ids } : {};
+    return { firstSeenFrom: period.since, firstSeenTo: period.until };
+  }, [period, axis, moved.data]);
+
   const baseQuery: ProjectQuery = useMemo(
     () => ({
       module: LIVE_PIPELINE_STORAGE_KEY,
       ...statusFilter(viewKey),
       stage: stage ?? undefined,
       ...geo,
+      ...periodFilter,
       search: search.trim() || undefined,
     }),
-    [viewKey, stage, geo, search]
+    [viewKey, stage, geo, periodFilter, search]
   );
 
+  // BUCKETING OWNS THE SORT WHILE IT IS ON.
+  //
+  // Buckets group the rows of the page that was fetched. Sorted by anything
+  // other than the bucket's own date, a page produces interleaved headings -
+  // July, then June, then July again - which is not a sequence, it is a mess
+  // that looks like a data error. So turning bucketing on takes the sort with
+  // it, and the column headers show that it has.
+  const bucketMode = ((): BucketMode =>
+    bucket === 'week' || bucket === 'month' ? bucket : 'none')();
+  const bucketField = axis === 'moved' ? 'last_activity' : 'first_seen';
+  const effectiveSort = bucketMode === 'none' ? sortField : bucketField;
+
   const listQuery: ProjectQuery = useMemo(
-    () => ({ ...baseQuery, sortField, sortDir: sortDir === 'asc' ? 'asc' : 'desc', page, pageSize: DEFAULT_PROJECT_PAGE_SIZE }),
-    [baseQuery, sortField, sortDir, page]
+    () => ({
+      ...baseQuery,
+      sortField: effectiveSort,
+      sortDir: sortDir === 'asc' ? 'asc' : 'desc',
+      page,
+      pageSize: DEFAULT_PROJECT_PAGE_SIZE,
+    }),
+    [baseQuery, effectiveSort, sortDir, page]
   );
 
   const list = useProjectPage(listQuery);
@@ -381,6 +432,10 @@ export default function RegisterPage() {
       void setSortField(field);
       void setSortDir('asc');
     }
+    // Clicking a column header is an instruction to sort by that column, and
+    // bucketing owns the sort. Leaving both on would put the arrow on one column
+    // while the rows obeyed another - a header lying about what it had just done.
+    void setBucket(null);
     void setPage(1);
   };
 
@@ -447,6 +502,67 @@ export default function RegisterPage() {
           />
         </div>
 
+        <div className={styles.periodBar}>
+          <PeriodSelector
+            period={period}
+            now={periodNow}
+            onChange={(t) => {
+              setPeriod(t);
+              void setPage(1);
+            }}
+          />
+
+          {/* THE AXIS. Which date the period is applied to. Two different
+              questions - what arrived, and what moved - that a single "period"
+              control would silently conflate. */}
+          <div className={styles.axisGroup}>
+            {PERIOD_AXES.map((a) => (
+              <button
+                key={a.key}
+                type="button"
+                title={a.help}
+                data-axis={a.key}
+                className={`${styles.chip} ${axis === a.key ? styles.chipActive : ''}`}
+                onClick={() => {
+                  setAxis(a.key);
+                  void setPage(1);
+                }}
+              >
+                {a.label}
+              </button>
+            ))}
+            {BUCKETS.map((b) => (
+              <button
+                key={b.key}
+                type="button"
+                data-bucket={b.key}
+                className={`${styles.chip} ${bucketMode === b.key ? styles.chipActive : ''}`}
+                onClick={() => {
+                  void setBucket(b.key === 'none' ? null : b.key);
+                  void setPage(1);
+                }}
+              >
+                {b.label}
+              </button>
+            ))}
+          </div>
+
+          {bucketMode !== 'none' && (
+            <span className={`${styles.dim} mono`} data-testid="bucket-sort-note">
+              ordered by {bucketField === 'first_seen' ? 'first seen' : 'last activity'}
+            </span>
+          )}
+
+          {axis === 'moved' && (
+            <span className={`${styles.dim} mono`}>
+              {moved.isPending
+                ? 'resolving events...'
+                : `${moved.data?.events ?? 0} events, ${moved.data?.ids.length ?? 0} projects`}
+              {moved.data?.capped ? ' (CAPPED)' : ''}
+            </span>
+          )}
+        </div>
+
         {error && (
           <div className={styles.error} role="alert">
             {error}
@@ -497,12 +613,12 @@ export default function RegisterPage() {
                 key={c.key}
                 type="button"
                 className={`${styles.colHead} ${c.numeric ? styles.num : ''} ${
-                  sortField === c.sort ? styles.colHeadActive : ''
+                  effectiveSort === c.sort ? styles.colHeadActive : ''
                 }`}
                 onClick={() => c.sort && sortBy(c.sort)}
               >
                 {c.label}
-                {sortField === c.sort && (
+                {effectiveSort === c.sort && (
                   <span className={`${styles.sortMark} mono`} aria-hidden="true">
                     {sortDir === 'asc' ? '↑' : '↓'}
                   </span>
@@ -518,9 +634,26 @@ export default function RegisterPage() {
               No projects match this view. {view !== 'all' && 'Try All, or clear the geography filter.'}
             </p>
           ) : (
-            rows.map((r) => (
+            rows.map((r, i) => (
+              <Fragment key={r.id}>
+                {bucketMode !== 'none' &&
+                  bucketOf(bucketField === 'first_seen' ? r.first_seen : r.last_activity, bucketMode) !==
+                    bucketOf(
+                      i === 0
+                        ? null
+                        : bucketField === 'first_seen'
+                          ? rows[i - 1].first_seen
+                          : rows[i - 1].last_activity,
+                      bucketMode
+                    ) && (
+                    <div className={styles.bucketHead} role="row">
+                      {bucketOf(
+                        bucketField === 'first_seen' ? r.first_seen : r.last_activity,
+                        bucketMode
+                      ) || 'Undated'}
+                    </div>
+                  )}
               <div
-                key={r.id}
                 data-row-id={r.id}
                 role="row"
                 tabIndex={-1}
@@ -560,6 +693,7 @@ export default function RegisterPage() {
                   </button>
                 )}
               </div>
+              </Fragment>
             ))
           )}
         </div>

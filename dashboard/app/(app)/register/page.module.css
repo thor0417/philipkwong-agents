@@ -547,3 +547,42 @@
   display: flex;
   gap: var(--space-8);
 }
+
+/* ------------------------------------------------------------ the period bar */
+/* A second toolbar row rather than more controls crowded into the first. The
+   period is a different kind of filter from the stage chips - it applies to
+   every screen, not only this one - and giving it its own line is what stops
+   the head row wrapping at 1440px. */
+.periodBar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-16);
+  flex-wrap: wrap;
+  padding: var(--space-8) var(--space-16);
+  border-bottom: var(--border-hairline);
+  min-height: 0;
+}
+
+.axisGroup {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+/* A bucket heading is a rule with a date on it, not a row. It must not look
+   clickable and must not look like data: the eye should cross it, register the
+   month, and carry on down the list. */
+.bucketHead {
+  grid-column: 1 / -1;
+  padding: var(--space-16) var(--space-16) var(--space-4);
+  font-family: var(--font-mono);
+  font-size: var(--type-caption);
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+  color: var(--ink-muted);
+  border-bottom: var(--border-hairline);
+  background: var(--paper-page);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}

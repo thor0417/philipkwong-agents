@@ -17,12 +17,11 @@
 
 import Link from 'next/link';
 import { useMemo } from 'react';
-import { useQueryState, parseAsStringLiteral } from 'nuqs';
+import PeriodSelector from '@/components/PeriodSelector';
+import { usePeriodState } from '@/lib/use-period';
 import { useBacklog } from '@/lib/use-leads';
 import {
-  PERIODS,
   useLastVisit,
-  sinceFor,
   useWhatMoved,
   useWhatCameIn,
   useWatchlistActivity,
@@ -31,12 +30,9 @@ import {
   agoLabel,
   DEGRADED_DAYS,
   DEAD_DAYS,
-  type PeriodKey,
 } from '@/lib/use-today';
 import type { EventRow } from '@/lib/project-event-queries';
 import styles from './page.module.css';
-
-const PERIOD_KEYS = PERIODS.map((p) => p.key) as [PeriodKey, ...PeriodKey[]];
 
 function Section({
   n,
@@ -96,16 +92,18 @@ function MovedRow({ e }: { e: EventRow }) {
 }
 
 export default function TodayPage() {
-  const [period, setPeriod] = useQueryState(
-    'period',
-    parseAsStringLiteral(PERIOD_KEYS).withDefault('visit')
-  );
+  // Today keeps 'since last visit' as its default - it is the screen that
+  // answers "what happened while I was away" - and gains the closed periods
+  // from the same shared control the Register and the composer use, so "what
+  // happened in July" is now askable here too.
+  const { period, setToken: setPeriod } = usePeriodState('visit');
+  const periodNow = useMemo(() => new Date(), []);
   const { since: lastVisit, isFirstRun } = useLastVisit();
-  const since = useMemo(() => sinceFor(period, lastVisit), [period, lastVisit]);
+  const since = period.since ?? lastVisit;
 
-  const moved = useWhatMoved(since);
-  const cameIn = useWhatCameIn(since);
-  const watch = useWatchlistActivity(since);
+  const moved = useWhatMoved(since, period.until);
+  const cameIn = useWhatCameIn(since, period.until);
+  const watch = useWatchlistActivity(since, period.until);
   const backlog = useBacklog();
   const sources = useSourceHealth();
   const agents = useAgentHealth();
@@ -122,13 +120,13 @@ export default function TodayPage() {
   // visit case and the fixed-window cases take different prepositions, and
   // "what happened since the last 7 days" is not English.
   const windowSentence =
-    period === 'visit'
+    period.key === 'visit'
       ? isFirstRun
         ? 'What happened in the last 7 days. No previous visit recorded, so this is a first look.'
         : `What happened since your last visit, ${agoLabel(lastVisit)}.`
-      : `What happened in the last ${
-          period === '24h' ? '24 hours' : period === '7d' ? '7 days' : '30 days'
-        }.`;
+      : period.closed
+        ? `What happened in ${period.label}. That period has closed, so this page will not change.`
+        : `What happened in ${period.label.toLowerCase()}.`;
 
   return (
     <div className={styles.screen}>
@@ -138,17 +136,7 @@ export default function TodayPage() {
           <p className={styles.lede}>{windowSentence}</p>
         </div>
         <div className={styles.periods} role="group" aria-label="Period">
-          {PERIODS.map((p) => (
-            <button
-              key={p.key}
-              type="button"
-              className={`${styles.period} ${period === p.key ? styles.periodActive : ''}`}
-              aria-pressed={period === p.key}
-              onClick={() => void setPeriod(p.key)}
-            >
-              {p.label}
-            </button>
-          ))}
+          <PeriodSelector period={period} now={periodNow} onChange={setPeriod} />
         </div>
       </header>
 

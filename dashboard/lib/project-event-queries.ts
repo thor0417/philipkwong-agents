@@ -37,6 +37,7 @@ type Filterable = {
   in: (col: string, vals: readonly unknown[]) => Filterable;
   gte: (col: string, val: unknown) => Filterable;
   lte: (col: string, val: unknown) => Filterable;
+  lt: (col: string, val: unknown) => Filterable;
   order: (col: string, opts?: { ascending?: boolean }) => Filterable;
   limit: (n: number) => Filterable;
   then: Promise<{ data: unknown; error: { message: string } | null }>['then'];
@@ -44,8 +45,15 @@ type Filterable = {
 export type EventClient = { from: (table: string) => Filterable };
 
 export interface Period {
-  // Inclusive ISO bounds. Both optional: omitting `since` means all of history,
-  // which is what a project's own timeline wants.
+  // HALF-OPEN [since, until): since inclusive, until EXCLUSIVE. Both optional -
+  // omitting `since` means all of history, which is what a project's own
+  // timeline wants, and omitting `until` means up to now.
+  //
+  // The upper bound was inclusive until period selection arrived, and inclusive
+  // is unusable for a closed period: `lte('occurred_at', '2026-08-01')` compares
+  // a timestamptz against midnight and silently drops everything that happened
+  // during the last day. Weeks then do not sum to their month. lib/period.ts
+  // produces bounds in exactly this shape.
   since?: string;
   until?: string;
 }
@@ -85,7 +93,7 @@ export interface EventRow {
 function applyScope(q: Filterable, s: Scope): Filterable {
   let out = q.eq('module', s.pipeline ?? DEFAULT_PIPELINE);
   if (s.since) out = out.gte('occurred_at', s.since);
-  if (s.until) out = out.lte('occurred_at', s.until);
+  if (s.until) out = out.lt('occurred_at', s.until);
   return out;
 }
 
@@ -178,7 +186,7 @@ export async function projectHistory(
 ): Promise<EventRow[]> {
   let q = client.from('project_events').select(EVENT_COLUMNS).eq('project_id', projectId);
   if (period.since) q = q.gte('occurred_at', period.since);
-  if (period.until) q = q.lte('occurred_at', period.until);
+  if (period.until) q = q.lt('occurred_at', period.until);
   return run(q.order('occurred_at', { ascending: true }).limit(2000));
 }
 

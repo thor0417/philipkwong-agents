@@ -1,0 +1,103 @@
+/* THE PERIOD SELECTOR. One control, three screens, one appearance.
+   Built from the Register's existing chip vocabulary rather than a new one, so
+   it reads as part of the toolbar instead of as a widget bolted on. */
+
+.wrap {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.group {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-4);
+  font-family: var(--font-body);
+  font-size: var(--type-meta);
+  letter-spacing: var(--track-none);
+  text-transform: none;
+  color: var(--ink-secondary);
+  border: var(--border-hairline);
+  border-radius: var(--radius-control);
+  background: none;
+  padding: var(--space-4) var(--space-8);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.chip:hover {
+  color: var(--ink);
+  border-color: var(--ink-disabled);
+}
+
+.chipActive,
+.chipActive:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+  font-weight: var(--weight-medium);
+}
+
+/* Twelve months as chips would be the widest control on the screen, and a
+   select is the one form element every operating system already knows how to
+   scroll. */
+.select,
+.date {
+  font-family: var(--font-body);
+  font-size: var(--type-meta);
+  color: var(--ink);
+  background: var(--paper-card);
+  border: var(--border-hairline);
+  border-radius: var(--radius-control);
+  padding: var(--space-4) var(--space-8);
+}
+
+.date {
+  font-family: var(--font-mono);
+  font-size: var(--type-caption);
+}
+
+.selectActive {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.range {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.sep {
+  color: var(--ink-disabled);
+  font-size: var(--type-caption);
+}
+
+/* THE RESOLVED BOUNDS, PRINTED. A period control that shows only its label
+   leaves the operator guessing where the edges fell, and a document generated
+   over the wrong week is not something anyone should discover downstream. */
+.bounds {
+  color: var(--ink-muted);
+  font-size: var(--type-caption);
+  font-family: var(--font-mono);
+  white-space: nowrap;
+}
+
+.openMark {
+  color: var(--ink-disabled);
+  font-size: var(--type-caption);
+}
+
+.label {
+  color: var(--ink-muted);
+  font-size: var(--type-caption);
+  text-transform: uppercase;
+  letter-spacing: var(--track-label);
+}

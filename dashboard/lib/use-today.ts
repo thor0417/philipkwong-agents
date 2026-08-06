@@ -24,15 +24,15 @@ import {
 } from './project-event-queries';
 
 // ---------------------------------------------------------------- the period
-
-export type PeriodKey = 'visit' | '24h' | '7d' | '30d';
-
-export const PERIODS: { key: PeriodKey; label: string }[] = [
-  { key: 'visit', label: 'Since last visit' },
-  { key: '24h', label: '24 hours' },
-  { key: '7d', label: '7 days' },
-  { key: '30d', label: '30 days' },
-];
+//
+// THE PERIOD MODEL MOVED TO lib/period.ts, where Today, the Register and the
+// composer share one definition of "when". The four rolling keys that lived
+// here, and the sinceFor that resolved them, were deleted rather than left in
+// place: two period models is exactly the divergence this file's own header
+// warns about, and the second one would have been the one nobody updated.
+//
+// What stays is the part that is genuinely Today's and genuinely a browser
+// concern - the last-visit stamp, which is not a calendar period at all.
 
 const LAST_VISIT_KEY = 'pk-last-visit';
 // First run has no stored visit. Seven days is the honest default: it is a
@@ -87,12 +87,6 @@ export function useLastVisit(): { since: string; isFirstRun: boolean } {
   }, [captured]);
 }
 
-export function sinceFor(period: PeriodKey, lastVisit: string): string {
-  const days = period === '24h' ? 1 : period === '7d' ? 7 : period === '30d' ? 30 : 0;
-  if (period === 'visit') return lastVisit;
-  return new Date(Date.now() - days * 86_400_000).toISOString();
-}
-
 // ------------------------------------------------------------- event queries
 
 const scopeFor = (since: string) => ({ pipeline: LIVE_PIPELINE_STORAGE_KEY, since, limit: 200 });
@@ -108,21 +102,28 @@ export const todayKeys = {
   moved: (since: string) => ['today', 'moved', since] as const,
   cameIn: (since: string) => ['today', 'came-in', since] as const,
   watch: (since: string) => ['today', 'watchlist', since] as const,
+  // The upper bound joins the cache key. Without it "July" and "July to date"
+  // are the same entry, and switching between them shows the wrong numbers from
+  // cache rather than refetching.
+  bounded: (kind: string, since: string, until: string) => ['today', kind, since, until] as const,
   sources: () => ['today', 'sources'] as const,
   agents: () => ['today', 'agents'] as const,
 };
 
-export function useWhatMoved(since: string) {
+// The three period-bound questions take BOTH bounds now, because a closed
+// period has an end and a rolling one does not. `until` is exclusive, matching
+// lib/period.ts and applyScope.
+export function useWhatMoved(since: string, until?: string) {
   return useQuery<EventRow[]>({
-    queryKey: todayKeys.moved(since),
-    queryFn: () => whatMoved(eventClient, scopeFor(since)),
+    queryKey: todayKeys.bounded('moved', since, until ?? ''),
+    queryFn: () => whatMoved(eventClient, { ...scopeFor(since), until }),
   });
 }
 
-export function useWhatCameIn(since: string) {
+export function useWhatCameIn(since: string, until?: string) {
   return useQuery<WhatCameIn>({
-    queryKey: todayKeys.cameIn(since),
-    queryFn: () => whatCameIn(eventClient, scopeFor(since)),
+    queryKey: todayKeys.bounded('cameIn', since, until ?? ''),
+    queryFn: () => whatCameIn(eventClient, { ...scopeFor(since), until }),
   });
 }
 
@@ -136,10 +137,10 @@ export function useProjectHistory(projectId: string | null) {
   });
 }
 
-export function useWatchlistActivity(since: string) {
+export function useWatchlistActivity(since: string, until?: string) {
   return useQuery<EventRow[]>({
-    queryKey: todayKeys.watch(since),
-    queryFn: () => watchlistActivity(eventClient, scopeFor(since)),
+    queryKey: todayKeys.bounded('watchlist', since, until ?? ''),
+    queryFn: () => watchlistActivity(eventClient, { ...scopeFor(since), until }),
   });
 }
 
