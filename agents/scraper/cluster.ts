@@ -43,7 +43,12 @@ import {
   type TargetDef,
 } from './targets';
 import { extractProjectNames, nameSignalApplies } from './project-name';
-import { deriveProjectName, type NameSource } from './project-naming';
+import {
+  deriveProjectName,
+  disambiguateNames,
+  type Disambiguation,
+  type NameSource,
+} from './project-naming';
 import {
   deriveProjectStage,
   hasStallMarker,
@@ -624,6 +629,14 @@ export interface ClusterResult {
   skippedDetached: number;
   // Why each project is live or dormant (Part F).
   livenessReasons: Record<string, number>;
+  // Projects whose derived name collided with another project in the same market
+  // and gained a suffix from their own record (see project-naming). Listed in
+  // full: a renamed project is a visible change to what the register says, so
+  // every one of them is inspectable.
+  namesDisambiguated: Disambiguation[];
+  // Collision groups nothing could separate - same name, same market, and no
+  // case number or date of their own. Counted so the failure is not silent.
+  namesStillColliding: number;
 }
 
 class UnionFind {
@@ -825,6 +838,8 @@ export function clusterRecords(
     skippedDismissed,
     skippedDetached,
     livenessReasons: {},
+    namesDisambiguated: [],
+    namesStillColliding: 0,
   };
 
   // ---- Pass 1: signals per record -------------------------------------------
@@ -1175,6 +1190,36 @@ export function clusterRecords(
       members,
     });
   }
+
+  // ---- Pass 5: make the names distinct --------------------------------------
+  //
+  // Run over the finished project set, because a collision is a property of the
+  // set and not of any one project: deriveProjectName sees one project's records
+  // and cannot know that another project two markets' worth of rows away landed
+  // on the same string. Six Nashville TIF resolutions each produced a perfectly
+  // reasonable name and the six together were unreadable.
+  //
+  // Derived on every run from the same inputs, like the name itself, so it is
+  // idempotent: a project already carrying "(RS2026-2083)" collides with nothing
+  // on the next run, and a project that stops colliding (its twin was dismissed)
+  // loses the suffix rather than keeping a scar.
+  const renames = disambiguateNames(
+    result.projects.map((p) => ({
+      name: p.name,
+      market: p.market,
+      project_key: p.project_key,
+      caseNumbers: p.members.flatMap((m) => caseRoots(m.record).roots.map((r) => r.toUpperCase())),
+      date: p.last_activity,
+    }))
+  );
+  for (const r of renames) result.projects[r.index].name = r.to;
+  result.namesDisambiguated = renames;
+  const stillByName = new Map<string, number>();
+  for (const p of result.projects) {
+    const k = `${p.market ?? ''}|${p.name.toLowerCase()}`;
+    stillByName.set(k, (stillByName.get(k) ?? 0) + 1);
+  }
+  for (const n of stillByName.values()) if (n > 1) result.namesStillColliding += n;
 
   result.projects.sort((a, b) => b.record_count - a.record_count);
   return result;

@@ -352,6 +352,139 @@ function cutAtWord(s: string, max: number): string {
   return out.replace(/[\s,;:.–—-]+$/, '').trim();
 }
 
+// ---- Disambiguating identical names -------------------------------------------
+//
+// A NAME THAT SEVERAL PROJECTS SHARE IS NOT A NAME. Nashville's Metro Council
+// approves tax increment financing one redevelopment district at a time, and
+// every resolution opens with the same 77 characters:
+//
+//   "A Resolution approving the activities and improvements eligible for tax
+//    increment financing in the Skyline Redevelopment Plan."
+//
+// The district - the only part that differs - sits past MAX_NAME, so the title
+// rule cut all six down to the same string. In the register they read as one
+// matter listed six times, which is worse than a bad name: it looks like a bug
+// in the clustering rather than six real projects.
+//
+// THE SUFFIX COMES FROM THE RECORD, never from a counter. "(2)" would make the
+// rows distinct and tell the reader nothing; a resolution number is what the
+// clerk, the council and Philip all use to refer to the matter, so it makes the
+// row both unique and useful. In priority order:
+//
+//   1. THE CASE OR BILL NUMBER the project clusters on. It is the project's own
+//      identity (project_key), so it is unique by construction and stable across
+//      runs - the two properties a suffix has to have.
+//   2. A CASE NUMBER ON ITS RECORDS, for a project keyed on something else.
+//   3. THE DATE, for a project with no case number anywhere: same matter name,
+//      different meeting.
+//
+// APPLIED ONLY TO COLLISIONS. A name that is already unique in its market is
+// left exactly as it was: a suffix on every project would be chrome on 178 rows
+// to fix 8.
+
+// The suffix is written into MAX_NAME rather than added on top of it. The
+// register truncates the name cell with a CSS ellipsis, so a suffix pushed past
+// the column width is invisible in the one view the duplication shows up in -
+// which would leave the rows looking identical and the fix looking done. Same
+// principle as withVenue: cut the BASE, keep the part that distinguishes.
+export function withSuffix(base: string, suffix: string): string {
+  const tail = ` (${suffix})`;
+  const clean = base.replace(/\s+/g, ' ').trim();
+  const room = MAX_NAME - tail.length;
+  const head = clean.length > room ? cutAtWord(clean, Math.max(20, room)) : clean;
+  return `${head}${tail}`;
+}
+
+// A project_key of the form 'case:<market>:<root>' carries the case or bill
+// number the project is identified by. Upper-cased for display: the roots are
+// folded to lowercase for matching, and every case-id family in CASE_RULES
+// (RS2026-2083, UC-26-0219, Z-14-B) is published in capitals.
+export function caseNumberFromKey(projectKey: string | null | undefined): string | null {
+  const k = String(projectKey ?? '');
+  if (!k.startsWith('case:')) return null;
+  const root = k.split(':').slice(2).join(':').trim();
+  if (root.length < 3) return null;
+  return root.toUpperCase();
+}
+
+export interface NameCollisionInput {
+  name: string;
+  market: string | null;
+  // The project's identity key, which names its case root when it has one.
+  project_key: string;
+  // Printable case or bill numbers found on the project's own records, used when
+  // the project is keyed on something other than a case.
+  caseNumbers: string[];
+  // The project's own date - its last activity - as a last resort.
+  date: string | null;
+}
+
+// The suffix a project would carry, or null if it has nothing of its own to be
+// distinguished by. Exported so the report can say which rule fired.
+export function disambiguationSuffix(p: NameCollisionInput): string | null {
+  const fromKey = caseNumberFromKey(p.project_key);
+  if (fromKey) return fromKey;
+  const distinct = [...new Set(p.caseNumbers.map((c) => c.trim().toUpperCase()).filter(Boolean))];
+  // Only when the records agree on ONE case number. A record set naming several
+  // has no single number that identifies the project, and picking the first
+  // would label the project with whichever record happened to sort first.
+  if (distinct.length === 1) return distinct[0];
+  const date = String(p.date ?? '').slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : null;
+}
+
+function collisionKey(market: string | null, name: string): string {
+  return `${market ?? ''}|${name.replace(/\s+/g, ' ').trim().toLowerCase()}`;
+}
+
+export interface Disambiguation {
+  // Position in the array handed to disambiguateNames, so the caller can apply
+  // the rename in place.
+  index: number;
+  // The project's identity, so a LATER consumer can still find it. The index is
+  // only meaningful before the caller reorders its own array - the clusterer
+  // sorts its projects by record count immediately afterwards - and a report
+  // read after that point would otherwise point at the wrong project.
+  project_key: string;
+  from: string;
+  to: string;
+  suffix: string;
+}
+
+// Returns one entry per project whose name was changed. Projects left alone -
+// unique names, and members of a collision group with nothing to distinguish
+// them - are simply absent.
+export function disambiguateNames(projects: NameCollisionInput[]): Disambiguation[] {
+  const groups = new Map<string, number[]>();
+  projects.forEach((p, i) => {
+    const k = collisionKey(p.market, p.name);
+    const g = groups.get(k);
+    if (g) g.push(i);
+    else groups.set(k, [i]);
+  });
+
+  const out: Disambiguation[] = [];
+  for (const idxs of groups.values()) {
+    if (idxs.length < 2) continue;
+    const suffixes = idxs.map((i) => disambiguationSuffix(projects[i]));
+    // A SUFFIX TWO MEMBERS SHARE IS NOT A DISTINGUISHING SUFFIX. Six resolutions
+    // heard at one meeting all carry that meeting's date, and stamping it on all
+    // six would leave them identical while claiming to have fixed them. Those
+    // members keep their name, and the fact that they were not separated stays
+    // visible in the report rather than being papered over.
+    const seen = new Map<string, number>();
+    for (const s of suffixes) if (s) seen.set(s, (seen.get(s) ?? 0) + 1);
+    idxs.forEach((i, at) => {
+      const suffix = suffixes[at];
+      if (!suffix || (seen.get(suffix) ?? 0) > 1) return;
+      const to = withSuffix(projects[i].name, suffix);
+      if (to === projects[i].name) return;
+      out.push({ index: i, project_key: projects[i].project_key, from: projects[i].name, to, suffix });
+    });
+  }
+  return out;
+}
+
 export function deriveProjectName(ctx: NamingContext): ProjectName {
   // 1. TARGET.
   if (ctx.targetName) return { name: ctx.targetName, source: 'target' };

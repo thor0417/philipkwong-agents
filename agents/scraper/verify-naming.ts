@@ -137,6 +137,66 @@ function main(): void {
   const owned = ['status', 'notes', 'watch', 'manual_overrides'].filter((c) => c in held.row);
   check('owned columns are never written', owned, []);
 
+  // ---- 4. TWO PROJECTS CANNOT SHARE A NAME ----------------------------------
+  //
+  // Nashville's TIF resolutions, in miniature: one resolution per redevelopment
+  // district, each opening with the same 77 characters, the district itself
+  // past MAX_NAME. Three separate projects, three identical names.
+  console.log('');
+  const tif = (file: string, district: string): ClusterRecord =>
+    rec({
+      market: 'Nashville',
+      url: `https://nashville.legistar.com/gateway.aspx?M=l&ID=${file}`,
+      title: `A Resolution approving the activities and improvements eligible for tax increment financing in the ${district} Redevelopment Plan.`,
+      raw_content: `Government record (Legistar Matter): Jurisdiction: Nashville, TN File: ${file} Type: Resolution`,
+      venue_type: null,
+      published_date: '2026-08-03',
+    });
+  const collide = clusterRecords(
+    [tif('RS2026-2078', 'Arts Center'), tif('RS2026-2079', 'Bordeaux'), tif('RS2026-2083', 'Skyline')],
+    { now: Date.parse('2026-08-03T00:00:00Z') }
+  );
+  for (const p of collide.projects) console.log(`  ${p.name}`);
+  check('each resolution is its own project', collide.projects.length, 3);
+  check('all three were renamed', collide.namesDisambiguated.length, 3);
+  check('and no two names are equal', new Set(collide.projects.map((p) => p.name)).size, 3);
+  check(
+    'the suffix is the resolution number',
+    [...collide.projects.map((p) => p.name)].sort()[0],
+    'approving the activities and improvements eligible for tax (RS2026-2078)'
+  );
+  check('nothing is left colliding', collide.namesStillColliding, 0);
+
+  // A NAME THAT IS ALREADY UNIQUE IS NOT TOUCHED. The suffix is a fix for a
+  // collision, not a decoration applied to every row.
+  const alone = clusterRecords([tif('RS2026-2078', 'Arts Center')], {
+    now: Date.parse('2026-08-03T00:00:00Z'),
+  });
+  check('a unique name keeps its shape', alone.namesDisambiguated.length, 0);
+  check(
+    'and is the plain cleaned title',
+    alone.projects[0].name,
+    'approving the activities and improvements eligible for tax increment financing'
+  );
+
+  // AND A HAND-NAMED PROJECT IS STILL NEVER RENAMED. The disambiguation pass
+  // runs inside the clusterer, upstream of the gate, so it cannot reach a
+  // project Philip has named - projectRow strips the column either way.
+  const collided = collide.projects[0];
+  const heldToo = projectRow(collided, {
+    id: 'p2',
+    project_key: collided.project_key,
+    name: 'Skyline TIF district',
+    stage: collided.stage,
+    record_count: collided.record_count,
+    last_activity: collided.last_activity,
+    primary_applicant: null,
+    primary_representative: null,
+    next_milestone: null,
+    manual_overrides: { name: true },
+  });
+  check('a hand-named project is not disambiguated either', 'name' in heldToo.row, false);
+
   console.log(`\n${pass} passed, ${fail} failed`);
   if (fail > 0) process.exitCode = 1;
 }
