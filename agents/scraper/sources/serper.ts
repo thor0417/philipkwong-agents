@@ -27,6 +27,7 @@
 
 import type { NormalizedLead } from './types';
 import { TARGETS, bypassHits } from '../targets';
+import { clientWatchTerms } from '../client-watch-terms';
 import { JUNK_DOMAINS } from '../junk-domains';
 import { SerperOrganicSchema, parseRecords } from './schemas';
 import { subDays, format } from 'date-fns';
@@ -130,8 +131,22 @@ const WATCH_GROUP_SIZE = Number(process.env.SERPER_WATCH_GROUP ?? '5');
 // Set SERPER_WATCH=0 to run the curated pass alone.
 const WATCH_ENABLED = process.env.SERPER_WATCH !== '0';
 
+// TWO SOURCES, ONE LIST. The targets are ours: the projects and parties this
+// desk watches by standing decision. The client terms are theirs, primed from
+// client_scopes at the start of a run (see client-watch-terms.ts). A run that
+// never primes gets exactly the first list, which is what every run did before
+// clients existed.
+//
+// Deduplicated case-insensitively across BOTH, so a client naming a project we
+// already watch costs no extra searches rather than issuing the same query
+// twice under a different capitalisation.
 export function watchTerms(): string[] {
-  return [...new Set(TARGETS.flatMap((t) => t.bypass))];
+  const seen = new Map<string, string>();
+  for (const t of [...TARGETS.flatMap((t) => t.bypass), ...clientWatchTerms()]) {
+    const k = t.trim().toLowerCase();
+    if (k && !seen.has(k)) seen.set(k, t.trim());
+  }
+  return [...seen.values()];
 }
 
 // Junk hosts are excluded IN THE QUERY on this pass. Google returns ten organic

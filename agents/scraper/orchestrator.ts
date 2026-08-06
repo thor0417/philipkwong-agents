@@ -65,6 +65,7 @@ import { scrapeUngm } from './sources/ungm';
 import { scrapeGooglePlaces } from './sources/googleplaces';
 import { scrapeGoogleCse } from './sources/googlecse';
 import { scrapeSerper } from './sources/serper';
+import { primeClientWatchTerms } from './client-watch-terms';
 import { scrapeTenderNed } from './sources/tenderned';
 import { scrapeTexasEsbd } from './sources/texasesbd';
 import { scrapeWorldBank } from './sources/worldbank';
@@ -1551,6 +1552,16 @@ async function main(): Promise<void> {
     .eq('name', AGENT_NAME);
 
   try {
+    // Client watch terms are primed before ANY source runs, because the Serper
+    // lane builds its queries from them and the orchestrator may reach that
+    // lane at any point in the fan-out. Reported, never thrown: 20 other
+    // sources have work to do if this one lookup fails.
+    const priming = await primeClientWatchTerms();
+    console.log(
+      priming.error
+        ? `  client watch terms unavailable (${priming.error}); target terms only.`
+        : `  client watch terms: ${priming.terms.length} from ${priming.scopes} scope(s).`
+    );
     const report = await orchestrate();
     printReport(report);
     await supabaseAdmin

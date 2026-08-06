@@ -1,0 +1,68 @@
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-24);
+  padding: 0 var(--space-32) var(--space-32);
+  max-width: 1100px;
+}
+
+.card {
+  border: var(--border-hairline);
+  background: var(--paper-card);
+  padding: var(--space-24);
+}
+
+.cardHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-16);
+}
+
+/* An unsaved scope is a liability: the preview beside it is showing numbers for
+   a scope the database does not hold. It says so. */
+.dirty {
+  color: var(--accent);
+  font-size: var(--type-caption);
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+}
+
+.back {
+  display: inline-block;
+  color: var(--ink-muted);
+  font-size: var(--type-caption);
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+  text-decoration: none;
+  margin-bottom: var(--space-4);
+}
+.back:hover {
+  color: var(--accent);
+}
+
+.contacts,
+.deliveries {
+  list-style: none;
+  margin: 0 0 var(--space-16);
+  padding: 0;
+}
+
+.contact,
+.delivery {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-16);
+  padding: var(--space-8) 0;
+  border-bottom: var(--border-hairline);
+}
+
+.badge {
+  font-size: var(--type-caption);
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+  color: var(--accent);
+  border: var(--hairline-width) solid var(--accent);
+  border-radius: var(--radius-control);
+  padding: 1px var(--space-4);
+}

@@ -44,6 +44,12 @@ export const NAV: NavSection[] = [
         keywords: ['leads', 'raw', 'opportunities', 'intelligence', 'government', 'gli'],
         hint: 'Every captured record, by stream.',
       },
+      {
+        label: 'Clients',
+        href: '/clients',
+        keywords: ['client', 'scope', 'retainer', 'cadence', 'delivery', 'contacts', 'intake'],
+        hint: 'Who the work is for, and what they are covered for.',
+      },
     ],
   },
   {

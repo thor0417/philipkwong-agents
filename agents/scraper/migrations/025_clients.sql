@@ -69,10 +69,20 @@ create table if not exists client_contacts (
   created_at timestamp with time zone default now()
 );
 
+-- pipeline_id REFERENCES pipelines(id), which is how it was applied to the live
+-- database and is now recorded here so a fresh install gets the same schema.
+--
+-- The constraint earns its place: it catches the id-versus-storage-key mistake
+-- at the moment of writing rather than at the moment of reading. The pipeline's
+-- id is 'hospitality'; the value on leads.module and projects.module is 'gli'.
+-- A scope written with 'gli' would satisfy a plain text column, resolve to a
+-- module no row carries, and match nothing - a scope that looks correct in the
+-- form and returns an empty report. The foreign key refused exactly that write
+-- during the first intake run, which is how it was found.
 create table if not exists client_scopes (
   id uuid primary key default gen_random_uuid(),
   client_id uuid not null references clients(id) on delete cascade,
-  pipeline_id text not null,
+  pipeline_id text not null references pipelines(id),
   countries text[],
   regions text[],
   markets text[],

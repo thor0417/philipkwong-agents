@@ -28,6 +28,7 @@ import { parseRunScope, describeScope, scopeIncludesSource } from './run-scope';
 import { supabaseAdmin } from '../../lib/supabase-admin';
 import type { NormalizedLead } from './sources/types';
 import { scrapeSerper, lastSerperSearchCount, RECENCY_WINDOW_DAYS } from './sources/serper';
+import { primeClientWatchTerms } from './client-watch-terms';
 import { gliQueries } from './profiles';
 import { normalizeCompany } from './cross-reference';
 import { keywordMatches } from './prefilter';
@@ -936,6 +937,19 @@ async function main(): Promise<void> {
   if (queries.length === 0) {
     console.error('GLI lane: no queries configured (gli profile inactive or missing).');
     return;
+  }
+  // A CLIENT'S WATCH TERMS ARE CAPTURE INSTRUCTIONS, so they are loaded BEFORE
+  // the queries are issued. Primed rather than fetched inside the query builder:
+  // see client-watch-terms.ts. A failure here is reported and the run continues
+  // on the target terms alone - a Supabase hiccup must not stop a scrape.
+  const priming = await primeClientWatchTerms();
+  if (priming.error) {
+    console.error(`  client watch terms unavailable (${priming.error}); running on target terms alone.`);
+  } else {
+    console.log(
+      `  client watch terms: ${priming.terms.length} from ${priming.scopes} scope(s)` +
+        (priming.terms.length ? ` -> ${priming.terms.join(', ')}` : '')
+    );
   }
   const raw = await scrapeSerper(queries);
   // The intelligence lane had NO zero-write alarm either. Serper returning
