@@ -121,8 +121,60 @@ export interface ClientIntake {
   scope: Omit<ClientScope, 'id' | 'client_id' | 'created_at'>;
 }
 
+// The identity a client is unique on, matching migration 027's expression index.
+// Case and surrounding whitespace are not identity.
+export function clientIdentity(name: string, organisation: string | null | undefined): string {
+  return `${String(name ?? '').trim().toLowerCase()}|${String(organisation ?? '').trim().toLowerCase()}`;
+}
+
+/**
+ * The client with this identity, or null.
+ *
+ * Filtered in JS over a name match rather than by an ilike on both columns,
+ * because organisation is nullable and `organisation.eq.null` and
+ * `organisation.eq.''` are different queries in PostgREST while being the same
+ * client to a person.
+ */
+export async function findClientByIdentity(
+  name: string,
+  organisation: string | null
+): Promise<Client | null> {
+  // No sanitisation: this is a single .ilike() VALUE, which the client
+  // parameterises. The quote-stripping the search helpers do exists because
+  // .or() takes a filter STRING where a quote changes the parse, and copying
+  // it here would only mangle a client legitimately called O"Brien & Co.
+  const safe = name.trim();
+  if (!safe) return null;
+  const { data, error } = await supabase
+    .from('clients')
+    .select(CLIENT_COLUMNS)
+    .ilike('name', safe);
+  if (error) throw new Error(`client lookup failed: ${error.message}`);
+  const want = clientIdentity(name, organisation);
+  return (
+    ((data ?? []) as unknown as Client[]).find((c) => clientIdentity(c.name, c.organisation) === want) ??
+    null
+  );
+}
+
 /**
  * Onboard a client: the client row, its contacts, and its first scope.
+ *
+ * AN UPSERT, NOT A BLIND INSERT. Eight identical clients accumulated because
+ * this function only ever inserted, and nothing above or below it asked whether
+ * the client already existed. It now looks the client up by identity first and
+ * updates that row instead of adding another - which is also what a person
+ * double-clicking Create expects, since the second click cannot mean "make me a
+ * second identical client".
+ *
+ * Migration 027's unique index is the backstop, not the mechanism. The lookup
+ * closes the ordinary case; the index closes the race between two callers that
+ * both looked and both saw nothing.
+ *
+ * CHILDREN ARE MERGED, NOT DUPLICATED. Re-running intake for an existing client
+ * adds contacts it does not have and a scope for a pipeline it does not cover,
+ * and leaves the rest alone. Overwriting the stored scope here would let a
+ * re-run silently narrow what a client is covered for.
  *
  * NOT A TRANSACTION, AND THE ORDER IS THE MITIGATION. PostgREST has no
  * multi-statement transaction, so this writes the client first and its children
@@ -132,26 +184,41 @@ export interface ClientIntake {
  * impossible: the foreign key refuses it.
  */
 export async function createClient(intake: ClientIntake): Promise<string> {
-  const { data, error } = await supabase
-    .from('clients')
-    .insert(intake.client)
-    .select('id')
-    .single();
-  if (error) throw new Error(`client insert failed: ${error.message}`);
-  const clientId = (data as { id: string }).id;
+  const existing = await findClientByIdentity(intake.client.name, intake.client.organisation);
 
-  const contacts = intake.contacts.filter((c) => c.name.trim());
-  if (contacts.length) {
-    const { error: cErr } = await supabase
-      .from('client_contacts')
-      .insert(contacts.map((c) => ({ ...c, client_id: clientId })));
-    if (cErr) throw new Error(`contacts insert failed (client ${clientId} was created): ${cErr.message}`);
+  let clientId: string;
+  if (existing) {
+    clientId = existing.id;
+    const { error } = await supabase.from('clients').update(intake.client).eq('id', clientId);
+    if (error) throw new Error(`client update failed: ${error.message}`);
+  } else {
+    const { data, error } = await supabase.from('clients').insert(intake.client).select('id').single();
+    if (error) throw new Error(`client insert failed: ${error.message}`);
+    clientId = (data as { id: string }).id;
   }
 
-  const { error: sErr } = await supabase
-    .from('client_scopes')
-    .insert({ ...intake.scope, client_id: clientId });
-  if (sErr) throw new Error(`scope insert failed (client ${clientId} was created): ${sErr.message}`);
+  const wanted = intake.contacts.filter((c) => c.name.trim());
+  if (wanted.length) {
+    const have = existing ? await fetchContacts(clientId) : [];
+    const key = (n: string, e: string | null) =>
+      `${n.trim().toLowerCase()}|${String(e ?? '').trim().toLowerCase()}`;
+    const seen = new Set(have.map((c) => key(c.name, c.email)));
+    const fresh = wanted.filter((c) => !seen.has(key(c.name, c.email)));
+    if (fresh.length) {
+      const { error: cErr } = await supabase
+        .from('client_contacts')
+        .insert(fresh.map((c) => ({ ...c, client_id: clientId })));
+      if (cErr) throw new Error(`contacts insert failed (client ${clientId} exists): ${cErr.message}`);
+    }
+  }
+
+  const scopes = existing ? await fetchScopes(clientId) : [];
+  if (!scopes.some((s) => s.pipeline_id === intake.scope.pipeline_id)) {
+    const { error: sErr } = await supabase
+      .from('client_scopes')
+      .insert({ ...intake.scope, client_id: clientId });
+    if (sErr) throw new Error(`scope insert failed (client ${clientId} exists): ${sErr.message}`);
+  }
 
   return clientId;
 }

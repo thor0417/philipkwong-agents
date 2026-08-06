@@ -29,6 +29,16 @@ test('client intake and scope preview', async ({ page }, testInfo) => {
   await expect(page.locator('header').first()).toBeVisible({ timeout: 120_000 });
   await page.evaluate(() => document.fonts.ready);
 
+  // WAIT FOR THE LIST TO ANSWER BEFORE DECIDING WHETHER TO CREATE.
+  //
+  // This is what produced eight identical Simtecs: the visibility check ran
+  // while the clients query was still in flight, saw nothing, and onboarded the
+  // client again on every run. Either the table or the empty-state message has
+  // to be on screen before the question can be answered honestly.
+  await expect(
+    page.locator('[data-client-id]').first().or(page.getByText('No clients yet'))
+  ).toBeVisible({ timeout: 60_000 });
+
   const existing = page.locator(`text=${CLIENT_NAME}`).first();
   const alreadyThere = await existing.isVisible().catch(() => false);
 
