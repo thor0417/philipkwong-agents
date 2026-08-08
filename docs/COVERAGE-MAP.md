@@ -56,7 +56,7 @@ a per-market one, and it is stated once here rather than repeated in ten rows.
 
 ---
 
-## New York City — PRESS ONLY
+## New York City - PRESS ONLY
 
 **Added:** 2026-08-08. **Status: intelligence lane only. Not a covered market.**
 
