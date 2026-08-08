@@ -1,0 +1,26 @@
+{
+  "baseline": {
+    "projects": 4,
+    "filters": "dormant excluded | context records included | stage: approved | stage: permitted | venue: Theme Park | venue: Waterpark | venue: Family Entertainment Center | venue: Arena/Stadium | venue: Integrated Resort"
+  },
+  "category:Hospitality/Tourism": {
+    "shown": 3,
+    "expected": 3,
+    "filters": "dormant excluded | context records included | stage: approved | stage: permitted | venue: Theme Park | venue: Waterpark | venue: Family Entertainment Center | venue: Arena/Stadium | venue: Integrated Resort | category: Hospitality/Tourism"
+  },
+  "venue:Integrated Resort": {
+    "shown": 3,
+    "expected": 3,
+    "filters": "dormant excluded | context records included | stage: approved | stage: permitted | venue: Integrated Resort"
+  },
+  "stream:intelligence": {
+    "shown": 1,
+    "expected": 1,
+    "filters": "dormant excluded | context records included | stage: approved | stage: permitted | venue: Theme Park | venue: Waterpark | venue: Family Entertainment Center | venue: Arena/Stadium | venue: Integrated Resort | stream: intelligence"
+  },
+  "stream:opportunity": {
+    "shown": 0,
+    "expected": 0,
+    "filters": "dormant excluded | context records included | stage: approved | stage: permitted | venue: Theme Park | venue: Waterpark | venue: Family Entertainment Center | venue: Arena/Stadium | venue: Integrated Resort | stream: opportunity"
+  }
+}

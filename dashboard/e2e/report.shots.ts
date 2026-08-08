@@ -11,6 +11,21 @@
 // The narrowed one must be SMALLER than the full one. That comparison is the
 // whole test: two documents that differ only in a cover line, while claiming
 // different scopes, would be the silent-omission failure the brief forbids.
+//
+// THIS HARNESS DOES NOT WRITE THE ASSESSMENTS.
+//
+// It used to. It typed "Clark County filings are running ahead of Las Vegas
+// this month" into the commentary box, and that sentence was rendered as
+// [ASSESSMENT], under Philip's brand, in a PDF that then went out. Nobody
+// checked whether it was true, because nobody wrote it: a fixture invented a
+// market judgement and the provenance system faithfully attributed it to him.
+//
+// The provenance rule is about who said a thing, and a test fixture is not a
+// person. So the commentary boxes are left empty and the documents carry no
+// assessment except the ones the generator produces about its own coverage -
+// the scoping statement and the coverage note, which are statements about this
+// document rather than about the market. The ASSESSMENT path stays covered by
+// those, and the tally below asserts it.
 
 import { test, expect } from '@playwright/test';
 import path from 'node:path';
@@ -19,6 +34,7 @@ import { mkdirSync, writeFileSync, statSync } from 'node:fs';
 const OUT = path.join('e2e', 'shots', 'documents');
 
 async function download(page: import('@playwright/test').Page, testId: string, filename: string) {
+  await assertNoInventedAssessments(page);
   const wait = page.waitForEvent('download', { timeout: 120_000 });
   await page.getByTestId(testId).click();
   const dl = await wait;
@@ -26,6 +42,20 @@ async function download(page: import('@playwright/test').Page, testId: string, f
   const dest = path.join(OUT, filename);
   await dl.saveAs(dest);
   return { dest, size: statSync(dest).size };
+}
+
+// THE GUARD. Every commentary box must be empty at the moment a document is
+// generated, so a future edit cannot quietly reintroduce a fixture-written
+// assessment into a client-facing PDF.
+async function assertNoInventedAssessments(page: import('@playwright/test').Page) {
+  const typed = await page
+    .locator('[data-commentary]')
+    .evaluateAll((els) =>
+      els
+        .map((e) => ({ id: e.getAttribute('data-commentary'), v: (e as HTMLTextAreaElement).value.trim() }))
+        .filter((x) => x.v.length > 0)
+    );
+  expect(typed, 'this harness wrote an assessment into a client document').toEqual([]);
 }
 
 // Reading a count while the preview is rebuilding returns "--", which parses to
@@ -60,11 +90,6 @@ test('composer generates three documents', async ({ page }, testInfo) => {
     .poll(async () => await page.getByTestId('preview-projects-count').textContent(), { timeout: 60_000 })
     .not.toContain('--');
 
-  // Commentary, so the ASSESSMENT path is exercised in a real document rather
-  // than only in the unit test.
-  await page
-    .locator('[data-commentary="headlines"]')
-    .fill('Clark County filings are running ahead of Las Vegas this month. Worth a call before the next hearing cycle.');
   await page.evaluate(() => document.fonts.ready);
 
   const full = await counts(page);
@@ -118,9 +143,9 @@ test('composer generates three documents', async ({ page }, testInfo) => {
   }
   const addAppendix = page.locator('[data-add-section="appendix"]');
   if (await addAppendix.count()) await addAppendix.click();
-  await page
-    .locator('[data-commentary="headlines"]')
-    .fill('Referred for introduction. The applicant is active across two markets and the filing pattern suggests a decision inside the quarter.');
+  // No commentary. A referral brief without Philip's read is a thin document,
+  // and the composer says so on screen; a thin document is still better than
+  // one carrying a judgement he never made.
   await expect(page.getByTestId('report-preview')).toBeVisible();
   await page.evaluate(() => document.fonts.ready);
 
