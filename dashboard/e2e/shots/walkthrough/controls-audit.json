@@ -3,7 +3,7 @@
     "What moved": "01 What moved Stage changes, most advanced destination first. A project reaching construction matters more than one reaching a scheduled hearing, so this is not ordered by time. Nothing changed stage in this window. Stage history only began when event capture shipped, so this section is genuinely thin for now and will ",
     "What came in": "02 What came in New projects first, then new records on projects you already had. Grouped by project, so six records on one project is one line, not six. NEW RECORDS ON EXISTING PROJECTS 17 Nevada Palace resort Clark County 5 records 2026-08-04 Southern Highlands Golf Club leisure development Clark County 4 records 202",
     "Needs you": "03 Needs you Each of these is a count and a place to go. 833 Record triage backlog Records still at status new, on Records 0 Watchlist activity Events on projects you watch 0 New projects to review Arrived in this window",
-    "Attention": "04 Attention The machine, not the market. Red only where something is genuinely wrong. SOURCES worldbank 15d silent 23 records uktenders 15d silent 1 records adb 15d silent 3 records canadabuys 15d silent 3 records gli_serper 11d silent 410 records sfwmd 11d silent 25 records govdoc 10d silent 8 records ceqanet 8d sile"
+    "Attention": "04 Attention The machine, not the market. Red only where something is genuinely wrong. SOURCES worldbank 15d silent 23 records adb 15d silent 3 records uktenders 15d silent 1 records canadabuys 15d silent 3 records sfwmd 12d silent 25 records gli_serper 11d silent 410 records govdoc 10d silent 8 records ceqanet 8d sile"
   },
   "todayPeriod": {
     "7d": 29,
@@ -220,6 +220,7 @@
   },
   "reportsClientOptions": [
     "No client (internal)",
+    "JKR & Associates",
     "Simtec Attractions"
   ]
 }

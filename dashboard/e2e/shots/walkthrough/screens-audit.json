@@ -52,7 +52,7 @@
     "url": "/clients",
     "ok": true,
     "primary": "h1",
-    "rows": 1,
+    "rows": 2,
     "consoleErrors": [],
     "pageErrors": [],
     "failedRequests": [],
