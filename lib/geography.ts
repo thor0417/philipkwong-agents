@@ -211,6 +211,27 @@ const CONFIGURED_JURISDICTIONS: Record<string, { region: string; market: string 
   phoenix: { region: 'Arizona', market: 'Phoenix' },
   'san antonio': { region: 'Texas', market: 'San Antonio' },
   oakland: { region: 'California', market: 'Oakland' },
+  // NEW YORK CITY IS ONE MARKET, NOT FIVE. See MARKET_ALIASES below for why the
+  // boroughs fold into it. Listed here so the market string is produced by
+  // configuration rather than by whatever a press headline happened to say:
+  // three of the five NYC rows in the corpus carried market 'New York City'
+  // with region_state null, because they arrived through the free-text path
+  // and never met a configured jurisdiction.
+  'new york city': { region: 'New York', market: 'New York City' },
+  'city of new york': { region: 'New York', market: 'New York City' },
+  nyc: { region: 'New York', market: 'New York City' },
+  // The boroughs resolve here as well as in MARKET_ALIASES because the two
+  // paths answer different questions. The alias table normalises a market that
+  // has already been identified; this table resolves a BARE jurisdiction
+  // string, which is what a press dateline gives us ("Queens"). Both are
+  // needed: without this entry "Queens" resolved to nothing at all, which is
+  // how one of the five NYC records ended up outside the city entirely.
+  manhattan: { region: 'New York', market: 'New York City' },
+  brooklyn: { region: 'New York', market: 'New York City' },
+  queens: { region: 'New York', market: 'New York City' },
+  bronx: { region: 'New York', market: 'New York City' },
+  'the bronx': { region: 'New York', market: 'New York City' },
+  'staten island': { region: 'New York', market: 'New York City' },
 };
 
 // Market aliases: distinct strings that name ONE market. Kept deliberately short
@@ -221,6 +242,35 @@ const MARKET_ALIASES: Record<string, string> = {
   'las vegas strip': 'Las Vegas',
   'the strip': 'Las Vegas',
   'south florida': 'South Florida',
+  // THE FIVE BOROUGHS ARE ONE MARKET, and this is the one place the decision is
+  // recorded. It is not obviously right - Manhattan and Staten Island are not
+  // one property market by any professional reading - and it is chosen anyway,
+  // for two reasons that are about the product rather than about geography.
+  //
+  // A market is what a client SELECTS. client_scopes.markets holds strings a
+  // person ticks in the intake form, and "New York City" is the thing a client
+  // asks to be covered for. Five borough rows would make the city itself
+  // unselectable: a scope naming New York City would match nothing while five
+  // scopes named after boroughs matched everything, which is precisely the
+  // silently-empty scope the preview exists to prevent.
+  //
+  // And the corpus already disagrees with itself. Five NYC records arrived
+  // under three different market strings - 'New York City', 'Manhattan',
+  // 'Queens' - so without a fold the city is already fragmented across markets
+  // no client will ever tick.
+  //
+  // Reversing this later is a data migration, not a config change, so it is
+  // written down rather than left to be inferred. If NYC ever earns per-borough
+  // coverage, the entitlement source (ZAP) carries a `borough` column and the
+  // split can be driven from it.
+  manhattan: 'New York City',
+  brooklyn: 'New York City',
+  queens: 'New York City',
+  'the bronx': 'New York City',
+  bronx: 'New York City',
+  'staten island': 'New York City',
+  'new york, ny': 'New York City',
+  'new york city, ny': 'New York City',
 };
 
 const clean = (s: string): string => s.replace(/\s+/g, ' ').trim();
