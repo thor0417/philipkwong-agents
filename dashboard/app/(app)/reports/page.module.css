@@ -331,3 +331,32 @@
   color: var(--accent);
   font-size: var(--type-meta);
 }
+
+/* The narrowing chips: venue, category and stream. Same vocabulary as the
+   scope editor on the client detail, because they mean the same thing - the
+   difference is that these die with this report and those are stored. */
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  margin-top: var(--space-4);
+}
+.chip {
+  font-family: var(--font-body);
+  font-size: var(--type-caption);
+  color: var(--ink-secondary);
+  border: var(--border-hairline);
+  border-radius: var(--radius-control);
+  background: none;
+  padding: 3px var(--space-8);
+  cursor: pointer;
+}
+.chip:hover {
+  color: var(--ink);
+  border-color: var(--ink-disabled);
+}
+.chipOn,
+.chipOn:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}

@@ -21,6 +21,8 @@ import { useQuery } from '@tanstack/react-query';
 import PeriodSelector from '@/components/PeriodSelector';
 import { usePeriodState } from '@/lib/use-period';
 import { useClients, useScopes } from '@/lib/use-clients';
+import { STREAMS } from '@/components/ScopeFields';
+import { DEVELOPMENT_CATEGORIES, VENUE_TYPES } from '@/lib/taxonomy';
 import { HOSPITALITY_ID } from '@/lib/pipelines';
 import { authedFetch } from '@/lib/authed-fetch';
 import type { ClientScope } from '@/lib/clients';
@@ -92,6 +94,15 @@ export default function ReportsPage() {
   const [brandOverride, setBrandOverride] = useState('');
   const [addresseeOverride, setAddresseeOverride] = useState('');
   const [marketOverride, setMarketOverride] = useState<string>('');
+  // THE THREE AXES THE COMPOSER USED TO DROP. A client scope can constrain
+  // venue type, development category and stream, and this screen offered no way
+  // to see or narrow any of them: a report for a client scoped to attractions
+  // was assembled, previewed and generated as though the constraint did not
+  // exist. Same rule as the market override - narrowing only, and it dies with
+  // this screen rather than editing what the client is covered for.
+  const [venueOverride, setVenueOverride] = useState<string[]>([]);
+  const [categoryOverride, setCategoryOverride] = useState<string[]>([]);
+  const [streamOverride, setStreamOverride] = useState<string[]>([]);
   const [projectId, setProjectId] = useState<string>('');
   const [watchlistOnly, setWatchlistOnly] = useState(false);
   const [includeDormant, setIncludeDormant] = useState(false);
@@ -115,15 +126,45 @@ export default function ReportsPage() {
   // quietly change what they are owed.
   const effectiveScope: ClientScope = useMemo(() => {
     const base = storedScope ?? EMPTY_SCOPE;
-    if (!marketOverride) return base;
-    return { ...base, markets: [marketOverride] };
-  }, [storedScope, marketOverride]);
+    return {
+      ...base,
+      markets: marketOverride ? [marketOverride] : base.markets,
+      venue_types: venueOverride.length ? venueOverride : base.venue_types,
+      development_categories: categoryOverride.length ? categoryOverride : base.development_categories,
+      streams: streamOverride.length ? streamOverride : base.streams,
+    };
+  }, [storedScope, marketOverride, venueOverride, categoryOverride, streamOverride]);
+
+  // WHAT MAY BE OFFERED ON AN AXIS. A stored constraint is a ceiling: a client
+  // scoped to two categories can be narrowed to one of those two and never
+  // widened to a third. An unconstrained axis offers the whole vocabulary,
+  // because selecting from it is still a narrowing of "everything".
+  const allowed = useCallback(
+    (stored: string[] | null | undefined, vocabulary: readonly string[]): readonly string[] =>
+      stored && stored.length ? stored : vocabulary,
+    []
+  );
 
   const brandName = brandOverride || client?.brand_name || 'Philip Kwong';
   const addressee = addresseeOverride || client?.addressee || client?.name || 'Internal';
 
+  // EVERY AXIS THE SCOPE CONSTRAINS IS IN THE KEY. Keying on markets and stages
+  // alone meant a scope narrowed by venue, category or stream returned the
+  // previous scope's document from cache - a preview that quietly disagreed
+  // with what generation would produce.
+  const scopeKey = JSON.stringify([
+    effectiveScope.countries,
+    effectiveScope.regions,
+    effectiveScope.markets,
+    effectiveScope.stages,
+    effectiveScope.development_categories,
+    effectiveScope.venue_types,
+    effectiveScope.streams,
+    effectiveScope.pipeline_id,
+  ]);
+
   const choices = useQuery({
-    queryKey: ['report', 'choices', effectiveScope.id, JSON.stringify(effectiveScope.markets)],
+    queryKey: ['report', 'choices', effectiveScope.id, scopeKey],
     queryFn: () => listScopeProjects(effectiveScope),
   });
   const projectChoices = choices.data ?? [];
@@ -133,8 +174,7 @@ export default function ReportsPage() {
       'report',
       'build',
       effectiveScope.id,
-      JSON.stringify(effectiveScope.markets),
-      JSON.stringify(effectiveScope.stages),
+      scopeKey,
       period.since ?? '',
       period.until ?? '',
       projectId,
@@ -169,6 +209,7 @@ export default function ReportsPage() {
 
   const doc = built.data?.doc;
   const tally = doc ? provenanceTally(doc) : null;
+  const hasCommentary = Object.values(commentary).some((v) => v.trim().length > 0);
 
   const available = SECTION_REGISTRY.filter((s) => !sectionIds.includes(s.id));
 
@@ -200,10 +241,21 @@ export default function ReportsPage() {
           documentType: title,
           periodStart: period.since?.slice(0, 10) ?? null,
           periodEnd: period.until ? new Date(Date.parse(period.until) - 86_400_000).toISOString().slice(0, 10) : null,
+          // THE WHOLE SCOPE, not the two axes that happened to be filled in
+          // when this was written. The delivery row is the record of what a
+          // client was covered for; one that omits the venue, category and
+          // stream constraints the document was actually built under cannot
+          // answer the question it exists to answer.
           scope: {
+            pipeline_id: effectiveScope.pipeline_id,
+            countries: effectiveScope.countries,
+            regions: effectiveScope.regions,
             markets: effectiveScope.markets,
             stages: effectiveScope.stages,
-            pipeline_id: effectiveScope.pipeline_id,
+            development_categories: effectiveScope.development_categories,
+            venue_types: effectiveScope.venue_types,
+            streams: effectiveScope.streams,
+            projectId: projectId || null,
             period: period.key,
           },
         }),
@@ -252,6 +304,25 @@ export default function ReportsPage() {
               <option key={c.id} value={c.id}>{c.name}</option>
             ))}
           </select>
+          {/* A DROPDOWN WITH ONE ENTRY IN IT HAS TO SAY WHY.
+              A failed clients query and a database with no clients in it
+              rendered identically here: "No client (internal)" and nothing
+              else. The screen then invites an internal report for a client who
+              is sitting in the table, and nothing on screen suggests anything
+              went wrong. Both states are now named. */}
+          {clients.isError ? (
+            <span className={styles.error} role="alert" data-testid="report-client-error">
+              Clients could not be read, so this list is empty for a reason that
+              is not "there are none": {(clients.error as Error).message}
+            </span>
+          ) : clients.isPending ? (
+            <span className={styles.hint}>Loading clients...</span>
+          ) : (clients.data ?? []).length === 0 ? (
+            <span className={styles.hint}>
+              No clients on record. Onboard one on Clients before generating for
+              a client.
+            </span>
+          ) : null}
           <span className={styles.hint}>
             Selecting a client loads their stored scope, brand and addressee.
             Overriding anything here changes this report only.
@@ -287,6 +358,48 @@ export default function ReportsPage() {
             Narrows this report within the client&apos;s scope. It cannot widen it.
           </span>
         </label>
+
+        {/* THE OTHER THREE SCOPE AXES. Printed on the cover and applied by the
+            generator, so what the document says it covers and what it contains
+            are built from one object. */}
+        {(
+          [
+            ['Narrow to development categories', categoryOverride, setCategoryOverride,
+              storedScope?.development_categories, DEVELOPMENT_CATEGORIES, 'category'],
+            ['Narrow to venue types', venueOverride, setVenueOverride,
+              storedScope?.venue_types, VENUE_TYPES, 'venue'],
+            ['Narrow to capture streams', streamOverride, setStreamOverride,
+              storedScope?.streams, STREAMS, 'stream'],
+          ] as const
+        ).map(([label, selected, setSelected, stored, vocabulary, testKey]) => (
+          <div className={styles.field} key={testKey}>
+            <span className={styles.label}>{label}</span>
+            <span className={styles.hint}>
+              {selected.length > 0
+                ? `${selected.length} selected. This report only.`
+                : stored && stored.length
+                  ? `The client's stored constraint applies: ${stored.join(', ')}.`
+                  : 'No constraint. Everything in scope on this axis.'}
+            </span>
+            <div className={styles.chips} data-testid={`report-${testKey}-chips`}>
+              {allowed(stored, vocabulary).map((o) => (
+                <button
+                  key={o}
+                  type="button"
+                  data-report-option={o}
+                  className={`${styles.chip} ${selected.includes(o) ? styles.chipOn : ''}`}
+                  onClick={() =>
+                    setSelected(
+                      selected.includes(o) ? selected.filter((x) => x !== o) : [...selected, o]
+                    )
+                  }
+                >
+                  {o}
+                </button>
+              ))}
+            </div>
+          </div>
+        ))}
 
         <label className={styles.field}>
           <span className={styles.label}>Single project (referral brief)</span>
@@ -495,6 +608,19 @@ export default function ReportsPage() {
         {error && <div className={styles.error} role="alert">{error}</div>}
         {status && <div className={styles.status} data-testid="generate-status">{status}</div>}
 
+        {/* A REFERRAL WITH NO ASSESSMENT IS A RECORD DUMP, and the screen says
+            so rather than filling the gap. Nothing here writes an assessment on
+            Philip's behalf: an unwritten judgement is left unwritten, because
+            the alternative is a paragraph under his name that he did not say
+            and cannot defend. */}
+        {projectId && !hasCommentary && (
+          <p className={styles.hint} data-testid="referral-no-assessment">
+            No assessment written. This brief will go out as records and links
+            only - the commentary boxes are where your read goes, and nothing
+            will be written there for you.
+          </p>
+        )}
+
         <div className={styles.actions}>
           <button type="button" className={styles.primary} disabled={!doc || busy} data-testid="gen-pdf" onClick={() => generate('pdf')}>
             {busy ? 'Working...' : 'Generate PDF'}
@@ -525,9 +651,9 @@ export default function ReportsPage() {
                 ['Filters', doc.scope.filters.join(' | ') || 'none'],
                 ['Basis', basisLine(doc.projectCount, doc.recordCount)],
               ] as const).map(([k, v]) => (
-                <div key={k} className={styles.scopeRow}>
+                <div key={k} className={styles.scopeRow} data-scope-row={k}>
                   <span className={styles.scopeKey}>{k}</span>
-                  <span>{v}</span>
+                  <span data-scope-value={k}>{v}</span>
                 </div>
               ))}
               {doc.scope.periodOpen && (
