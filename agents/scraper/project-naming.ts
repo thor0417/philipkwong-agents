@@ -201,7 +201,7 @@ export function cleanProjectTitle(raw: string): string {
 // How a venue_type reads at the end of a name. Lowercase, because it is a common
 // noun describing what is being built, not part of a proper name.
 const VENUE_PHRASE: Record<string, string> = {
-  'Leisure Destination': 'leisure development',
+  'Entertainment Destination': 'entertainment destination',
   Resort: 'resort',
   'Integrated Resort': 'integrated resort',
   Museum: 'museum',

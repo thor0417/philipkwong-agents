@@ -7,14 +7,15 @@
 // A GLI lead has exactly ONE venue_type and ONE development_category, and the
 // category is DERIVED from the venue via VENUE_TO_CATEGORY, so the two can never
 // drift apart. Distinct venue types are never collapsed into a catch-all;
-// "Leisure Destination" and "Other" are used only when genuinely correct.
+// "Entertainment Destination" is a named destination type, never a bucket: a record
+// that matches no rule classifies as NULL. See classifyVenueType.
 //
 // NOTE ON THE TWO-PACKAGE REPO: the dashboard is a separate Next.js project and
 // cannot import this root module, so dashboard/lib/taxonomy.ts mirrors it exactly.
 // Keep the two in sync; this file is the authority.
 
 export const VENUE_TYPES = [
-  // Leisure and Attractions
+  // Entertainment and Attractions
   'Theme Park',
   'Amusement Park',
   'Waterpark',
@@ -43,15 +44,15 @@ export const VENUE_TYPES = [
   'Transit Hub',
   'Airport City',
   'Transit-Oriented Development',
-  // Fallback (genuine broad leisure destination / nothing else fits)
-  'Leisure Destination',
+  // A named destination type, not a fallback. Nothing else fits -> null.
+  'Entertainment Destination',
   'Other',
 ] as const;
 
 export type VenueType = (typeof VENUE_TYPES)[number];
 
 export const DEVELOPMENT_CATEGORIES = [
-  'Leisure/Attractions',
+  'Entertainment/Attractions',
   'Smart City/Urban',
   'Mixed-Use/Real Estate',
   'Infrastructure',
@@ -63,15 +64,15 @@ export type DevelopmentCategory = (typeof DEVELOPMENT_CATEGORIES)[number];
 
 // Each venue_type maps to exactly one development_category.
 export const VENUE_TO_CATEGORY: Record<VenueType, DevelopmentCategory> = {
-  'Theme Park': 'Leisure/Attractions',
-  'Amusement Park': 'Leisure/Attractions',
-  Waterpark: 'Leisure/Attractions',
-  'Family Entertainment Center': 'Leisure/Attractions',
-  Zoo: 'Leisure/Attractions',
-  Aquarium: 'Leisure/Attractions',
-  Museum: 'Leisure/Attractions',
-  'Science Center': 'Leisure/Attractions',
-  'Heritage/Cultural Site': 'Leisure/Attractions',
+  'Theme Park': 'Entertainment/Attractions',
+  'Amusement Park': 'Entertainment/Attractions',
+  Waterpark: 'Entertainment/Attractions',
+  'Family Entertainment Center': 'Entertainment/Attractions',
+  Zoo: 'Entertainment/Attractions',
+  Aquarium: 'Entertainment/Attractions',
+  Museum: 'Entertainment/Attractions',
+  'Science Center': 'Entertainment/Attractions',
+  'Heritage/Cultural Site': 'Entertainment/Attractions',
   Hotel: 'Hospitality/Tourism',
   Resort: 'Hospitality/Tourism',
   'Integrated Resort': 'Hospitality/Tourism',
@@ -88,12 +89,17 @@ export const VENUE_TO_CATEGORY: Record<VenueType, DevelopmentCategory> = {
   'Transit Hub': 'Infrastructure',
   'Airport City': 'Infrastructure',
   'Transit-Oriented Development': 'Infrastructure',
-  'Leisure Destination': 'Leisure/Attractions',
+  'Entertainment Destination': 'Entertainment/Attractions',
   Other: 'Other',
 };
 
-export function categoryForVenue(venue: string | null | undefined): DevelopmentCategory {
-  return (venue && VENUE_TO_CATEGORY[venue as VenueType]) || 'Other';
+// The category follows the venue, so an unclassified venue is an unclassified
+// category. Returning 'Other' for a null venue would reintroduce the bucket one
+// column across: the venue would honestly say "unknown" while the category
+// asserted a classification nobody made.
+export function categoryForVenue(venue: string | null | undefined): DevelopmentCategory | null {
+  if (!venue) return null;
+  return VENUE_TO_CATEGORY[venue as VenueType] ?? null;
 }
 
 // ---- Reserved for Pass 4 (import and extend these; do NOT define parallels). ----
@@ -344,7 +350,28 @@ const VENUE_RULES: { venue: VenueType; keywords: string[] }[] = [
   { venue: 'Downtown Redevelopment', keywords: ['downtown redevelopment', 'downtown'] },
   { venue: 'Waterfront Development', keywords: ['waterfront'] },
   { venue: 'Mixed-Use Development', keywords: ['mixed-use', 'mixed use'] },
-  { venue: 'Leisure Destination', keywords: ['leisure', 'tourism', 'tourist', 'destination', 'visitor attraction', 'attraction', 'marina', 'golf', 'spa', 'recreation'] },
+  // ENTERTAINMENT DESTINATION IS NOT A FALLBACK, and this rule is what stopped
+  // it being one.
+  //
+  // It used to carry ['leisure', 'tourism', 'tourist', 'destination',
+  // 'visitor attraction', 'attraction', 'marina', 'golf', 'spa', 'recreation'],
+  // sitting last, so any document mentioning any of those words anywhere in its
+  // full text landed here. Measured on the stored corpus that was 73 of 184
+  // projects - FORTY PER CENT of the register - and an audit of twenty of them
+  // found one that genuinely belonged. The rest were rezonings, single-family
+  // subdivisions, a vehicle wash, a lake restoration and a cooling tower
+  // contract, each renamed "<applicant> leisure development" by the naming
+  // layer, which made the misclassification invisible.
+  //
+  // 'marina' is the case that proves the point: it classified MARINA ESTATES,
+  // LLC - an office/warehouse retail use permit - as a leisure destination, on
+  // the strength of the applicant's COMPANY NAME.
+  //
+  // What remains are compound phrases that name a destination and cannot be a
+  // company name or a passing mention. A record that matches none of the rules
+  // above now classifies as NULL, which is the honest answer, rather than being
+  // swept in here.
+  { venue: 'Entertainment Destination', keywords: ['visitor attraction', 'tourist attraction', 'visitor destination', 'entertainment destination'] },
 ];
 
 // Whole-word match, tried twice: once on the text as written, and once with
@@ -383,13 +410,23 @@ export function hasWord(text: string, keyword: string): boolean {
 
 // The canonical venue_type for a lead, from its title + content (+ any existing
 // venue hint). Never collapses a distinct venue: a keyword for a specific venue
-// wins over the broad Leisure Destination fallback. Returns 'Other' only when
-// nothing matches.
-export function classifyVenueType(text: string): VenueType {
+// wins over the broader ones below it.
+//
+// NULL IS AN ANSWER. It used to return 'Other' when nothing matched, and before
+// that the Entertainment Destination rule was broad enough that almost nothing
+// reached the fallback at all. Both are the same mistake in different clothes: a
+// value that means "we could not tell" is being written into a column a client
+// scope filters on, so a scope naming a venue type silently collects everything
+// the classifier failed on.
+//
+// Null says we could not tell, which is true, and a scope filtering on venue
+// type will not match it. That is the correct behaviour: an unclassified record
+// belongs in nobody's report until somebody classifies it.
+export function classifyVenueType(text: string): VenueType | null {
   for (const rule of VENUE_RULES) {
     if (rule.keywords.some((k) => hasWord(text, k))) return rule.venue;
   }
-  return 'Other';
+  return null;
 }
 
 // ---- GLI GOVERNMENT GATE (two-tier, single source of truth) -----------------

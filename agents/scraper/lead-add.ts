@@ -40,7 +40,9 @@ async function main(): Promise<void> {
   }
   const location = await ask('Location / jurisdiction');
   console.log(`  Venue types: ${VENUE_TYPES.join(', ')}`);
-  const venue_type = await ask('Venue type', 'Leisure Destination/Mixed');
+  // No default: an unclassified venue is null, never a bucket value. See
+  // classifyVenueType in lib/taxonomy.
+  const venue_type = (await ask('Venue type (blank = unclassified)')) || null;
   console.log(`  Signal types: ${SIGNAL_TYPES.join(', ')}`);
   const signal_type = await ask('Signal type', 'Origination');
   const notes = await ask('Notes');
@@ -58,7 +60,7 @@ async function main(): Promise<void> {
     source: 'manual',
   };
   const tag: GovernmentTag = {
-    venue_type,
+    venue_type: venue_type ?? '',
     signal_type,
     contact_name: null,
     contact_email: null,

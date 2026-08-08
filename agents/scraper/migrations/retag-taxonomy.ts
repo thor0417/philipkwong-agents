@@ -47,9 +47,10 @@ async function main(): Promise<void> {
   const perCategory: Record<string, number> = {};
   for (const r of rows) {
     const venue = classifyVenueType(`${r.title ?? ''} ${r.raw_content ?? ''} ${r.venue_type ?? ''}`);
-    perVenue[venue] = (perVenue[venue] ?? 0) + 1;
+    const vKey = venue ?? '(null)';
+    perVenue[vKey] = (perVenue[vKey] ?? 0) + 1;
     const cat = categoryForVenue(venue);
-    perCategory[cat] = (perCategory[cat] ?? 0) + 1;
+    perCategory[cat ?? '(null)'] = (perCategory[cat ?? '(null)'] ?? 0) + 1;
     if (r.venue_type === venue) continue;
     const { error } = await supabaseAdmin.from('leads').update({ venue_type: venue }).eq('id', r.id);
     if (error) {

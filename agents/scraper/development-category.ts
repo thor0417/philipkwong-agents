@@ -10,7 +10,7 @@
 // keep the two keyword sets in sync.
 
 export const DEVELOPMENT_CATEGORIES = [
-  'Leisure/Attractions',
+  'Entertainment/Attractions',
   'Smart City/Urban',
   'Mixed-Use/Real Estate',
   'Infrastructure',
@@ -20,12 +20,12 @@ export const DEVELOPMENT_CATEGORIES = [
 
 export type DevelopmentCategory = (typeof DEVELOPMENT_CATEGORIES)[number];
 
-// Ordered rules (first match wins). Leisure venue terms are the most specific, so
+// Ordered rules (first match wins). Entertainment venue terms are the most specific, so
 // they lead; the broad hospitality terms come last before Other so they do not
 // swallow a smart-city or infrastructure record that also mentions a hotel.
 const RULES: { category: DevelopmentCategory; keywords: string[] }[] = [
   {
-    category: 'Leisure/Attractions',
+    category: 'Entertainment/Attractions',
     keywords: [
       'theme park', 'water park', 'waterpark', 'amusement', 'zoo', 'aquarium',
       'museum', 'casino', 'gaming', 'integrated resort', 'resort', 'family entertainment',

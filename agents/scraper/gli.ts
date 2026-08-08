@@ -758,7 +758,7 @@ export async function runGliLane(rawLeads: NormalizedLead[]): Promise<GliReport>
     const tier = sourceTier(lead.url);
     // Canonical venue is deterministic (lib/taxonomy); the LLM venue is a hint.
     const venue = classifyVenueType(`${lead.title ?? ''} ${lead.raw_content ?? ''} ${c.venue_type ?? ''}`);
-    inc(perVenueType, venue);
+    inc(perVenueType, venue ?? 'Unclassified');
     inc(perSignalType, c.signal_type ?? 'Unclassified');
     inc(perTier, tier);
     inc(perCountry, countryOf(c.location));
@@ -767,7 +767,7 @@ export async function runGliLane(rawLeads: NormalizedLead[]): Promise<GliReport>
         title: lead.title,
         published_date: lead.published_date ?? '',
         domain: hostOf(lead.url),
-        venue_type: venue,
+        venue_type: venue ?? '',
         signal_type: c.signal_type ?? '',
         location: c.location ?? '',
         contact: !!(c.contact_name || c.contact_email || c.contact_phone),

@@ -7,14 +7,14 @@
 //
 // A GLI lead has exactly ONE venue_type and ONE development_category, and the
 // category is DERIVED from the venue via VENUE_TO_CATEGORY, so the two can never
-// drift apart. "Leisure Destination" and "Other" are used only when genuinely
+// drift apart. "Entertainment Destination" is a named type, never a bucket; an
 // correct, never as catch-alls.
 //
 // This mirrors the root lib/taxonomy.ts (the dashboard is a separate package and
 // cannot import it). Keep the two in exact sync; the root file is the authority.
 
 export const VENUE_TYPES = [
-  // Leisure and Attractions
+  // Entertainment and Attractions
   'Theme Park',
   'Amusement Park',
   'Waterpark',
@@ -44,14 +44,14 @@ export const VENUE_TYPES = [
   'Airport City',
   'Transit-Oriented Development',
   // Fallback
-  'Leisure Destination',
+  'Entertainment Destination',
   'Other',
 ] as const;
 
 export type VenueType = (typeof VENUE_TYPES)[number];
 
 export const DEVELOPMENT_CATEGORIES = [
-  'Leisure/Attractions',
+  'Entertainment/Attractions',
   'Smart City/Urban',
   'Mixed-Use/Real Estate',
   'Infrastructure',
@@ -63,15 +63,15 @@ export type DevelopmentCategory = (typeof DEVELOPMENT_CATEGORIES)[number];
 
 // Each venue_type maps to exactly one development_category.
 export const VENUE_TO_CATEGORY: Record<VenueType, DevelopmentCategory> = {
-  'Theme Park': 'Leisure/Attractions',
-  'Amusement Park': 'Leisure/Attractions',
-  Waterpark: 'Leisure/Attractions',
-  'Family Entertainment Center': 'Leisure/Attractions',
-  Zoo: 'Leisure/Attractions',
-  Aquarium: 'Leisure/Attractions',
-  Museum: 'Leisure/Attractions',
-  'Science Center': 'Leisure/Attractions',
-  'Heritage/Cultural Site': 'Leisure/Attractions',
+  'Theme Park': 'Entertainment/Attractions',
+  'Amusement Park': 'Entertainment/Attractions',
+  Waterpark: 'Entertainment/Attractions',
+  'Family Entertainment Center': 'Entertainment/Attractions',
+  Zoo: 'Entertainment/Attractions',
+  Aquarium: 'Entertainment/Attractions',
+  Museum: 'Entertainment/Attractions',
+  'Science Center': 'Entertainment/Attractions',
+  'Heritage/Cultural Site': 'Entertainment/Attractions',
   Hotel: 'Hospitality/Tourism',
   Resort: 'Hospitality/Tourism',
   'Integrated Resort': 'Hospitality/Tourism',
@@ -88,7 +88,7 @@ export const VENUE_TO_CATEGORY: Record<VenueType, DevelopmentCategory> = {
   'Transit Hub': 'Infrastructure',
   'Airport City': 'Infrastructure',
   'Transit-Oriented Development': 'Infrastructure',
-  'Leisure Destination': 'Leisure/Attractions',
+  'Entertainment Destination': 'Entertainment/Attractions',
   Other: 'Other',
 };
 
