@@ -93,6 +93,13 @@ const DEFAULT_JURISDICTIONS: LegistarJurisdiction[] = [
   { client: 'phoenix', jurisdictionLabel: 'Phoenix, AZ', reason: 'Proven producer; hotel and entertainment growth.' },
   { client: 'sanantonio', jurisdictionLabel: 'San Antonio, TX', reason: 'Lowest priority; produced 8 real records and costs nothing once verified.' },
   { client: 'oakland', jurisdictionLabel: 'Oakland, CA', reason: 'Waterfront / ballpark / Coliseum-site redevelopment; verified live on Legistar.' },
+  // DOWNSTATE NEW YORK, added off the back of the NYC test. New York City itself
+  // is NOT here and cannot be: its Legistar Web API answers 403 for client 'nyc'
+  // on every endpoint (see docs/COVERAGE-MAP.md). The downstate casino cycle is
+  // live and its two largest projects sit OUTSIDE the city limits, which is the
+  // same shape of error as the Las Vegas Strip not being in Las Vegas.
+  { client: 'yonkersny', jurisdictionLabel: 'Yonkers, NY', reason: 'MGM Empire City / MGM Yonkers; a community benefits agreement with MGM Yonkers Inc is already in the record. 274 matters in 12 months, 28 leisure or entitlement. Verified live 2026-08-08.' },
+  { client: 'westchestercountyny', jurisdictionLabel: 'Westchester County, NY', reason: 'County that contains Yonkers, and owns Rye Playland, a county-run amusement park. Low yield (3 of 560 matters) but a Legistar config row costs two lines. Verified live 2026-08-08.' },
 ];
 
 // Config override: LEGISTAR_CLIENTS="lasvegas:Las Vegas NV,orlando:Orlando FL"

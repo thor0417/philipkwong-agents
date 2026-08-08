@@ -211,6 +211,13 @@ const CONFIGURED_JURISDICTIONS: Record<string, { region: string; market: string 
   phoenix: { region: 'Arizona', market: 'Phoenix' },
   'san antonio': { region: 'Texas', market: 'San Antonio' },
   oakland: { region: 'California', market: 'Oakland' },
+  // Downstate New York. Yonkers and Westchester are separate markets because an
+  // entitlement is filed with one of them and not the other, the same reason
+  // Las Vegas the city and Clark County the county are not merged.
+  yonkers: { region: 'New York', market: 'Yonkers' },
+  'city of yonkers': { region: 'New York', market: 'Yonkers' },
+  'westchester county': { region: 'New York', market: 'Westchester County' },
+  westchester: { region: 'New York', market: 'Westchester County' },
   // NEW YORK CITY IS ONE MARKET, NOT FIVE. See MARKET_ALIASES below for why the
   // boroughs fold into it. Listed here so the market string is produced by
   // configuration rather than by whatever a press headline happened to say:
