@@ -67,11 +67,42 @@ export interface ProjectQuery {
   // contained no events at all, and the honest answer is no projects rather
   // than every project.
   ids?: string[];
+  // A TOLERANT EQUALITY, for values that came from somewhere other than the
+  // register's own controls.
+  //
+  // The fields above are exact: the Register builds them from facet values it
+  // just read, so `eq` is right and is indexed. A CLIENT SCOPE is different -
+  // it is stored text, edited months later, and its market may differ from the
+  // register's by case or by a stray space. Matched with `eq` that scope
+  // returns nothing, and an empty report is indistinguishable from a client
+  // whose markets went quiet.
+  //
+  // ilike with no wildcards is a whole-string, case-insensitive match, which is
+  // the same comparison applyPostFilters makes on the multi-value path. Both
+  // paths now agree, which is the point: a scope naming one market and a scope
+  // naming two must not be matched by different rules.
+  loose?: { field: LooseField; value: string }[];
   search?: string;
   sortField?: string;
   sortDir?: 'asc' | 'desc';
   page?: number;
   pageSize?: number;
+}
+
+// Only text columns a scope can name. Narrow by design: `loose` interpolates a
+// column name into a filter, so the set of legal names is closed here.
+export type LooseField =
+  | 'country'
+  | 'region_state'
+  | 'market'
+  | 'development_category'
+  | 'venue_type'
+  | 'stage';
+
+// `%` and `_` are wildcards to ilike. No market is spelled with one today, but
+// a value that arrives with one must match itself rather than a pattern.
+function likeLiteral(v: string): string {
+  return v.trim().replace(/\s+/g, ' ').replace(/([\\%_])/g, '\\$1');
 }
 
 // Free-text search over the fields a person actually searches a project by: what
@@ -96,6 +127,7 @@ export function applyProjectFilters<T>(builder: T, q: ProjectQuery): T {
     gte: (c: string, v: unknown) => unknown;
     lt: (c: string, v: unknown) => unknown;
     in: (c: string, v: readonly unknown[]) => unknown;
+    ilike: (c: string, v: string) => unknown;
     or: (f: string) => unknown;
   };
   const set = (fn: unknown): void => {
@@ -121,6 +153,9 @@ export function applyProjectFilters<T>(builder: T, q: ProjectQuery): T {
   // and the server rejects it. Substituting an impossible value keeps "no
   // events in this period" answering zero instead of erroring.
   if (q.ids !== undefined) set(b.in('id', q.ids.length ? q.ids : [NO_SUCH_ID]));
+  for (const m of q.loose ?? []) {
+    if (m.value.trim()) set(b.ilike(m.field, likeLiteral(m.value)));
+  }
   if (q.search && q.search.trim()) set(b.or(projectSearchFilter(q.search)));
 
   return b as unknown as T;
@@ -221,9 +256,14 @@ export async function projectFacetCounts(
   // beside them showed one month - a control that lies, and the specific kind
   // this project keeps finding. The fallback applies every filter including the
   // period, and it reads one column for a set the period has already bounded.
+  //
+  // `loose` is the same problem in a second shape and is excluded for the same
+  // reason: migration 017's function compares with `=`, so a tolerant filter it
+  // has never heard of would simply not be applied, and the chips would count a
+  // wider set than the list beside them shows.
   const periodScoped = scoped.firstSeenFrom !== undefined || scoped.firstSeenTo !== undefined || scoped.ids !== undefined;
-  const { data, error } = periodScoped
-    ? { data: null, error: { message: 'period-scoped facets bypass the RPC' } }
+  const { data, error } = periodScoped || (scoped.loose ?? []).length > 0
+    ? { data: null, error: { message: 'period- or loosely-scoped facets bypass the RPC' } }
     : await supabase.rpc('project_facet_counts', {
         p_field: field,
         p_module: scoped.module ?? LIVE_PIPELINE_STORAGE_KEY,

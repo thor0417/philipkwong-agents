@@ -40,6 +40,11 @@ export interface SectionContext {
   includeDormant: boolean;
   includeContext: boolean;
   watchlistOnly: boolean;
+  // The sections this document actually contains. A section may only point the
+  // reader at another one if it is really there: the by-market note used to
+  // send them to "the appendix" in documents built from the default set, which
+  // does not include the appendix.
+  sectionIds: string[];
 }
 
 // ---- PRESS OR RECORD ---------------------------------------------------------
@@ -158,10 +163,12 @@ const whatMoved: SectionDef = {
 
 // ---- 3. HEADLINE FINDS -------------------------------------------------------
 
+const HEADLINE_CAP = 10;
+
 const headlines: SectionDef = {
   id: 'headlines',
   label: 'Headline finds',
-  description: 'The projects with the most activity in the period.',
+  description: `The ${HEADLINE_CAP} projects with the most activity in the period.`,
   build: (ctx) => {
     const byProject = new Map<string, number>();
     for (const r of ctx.records) {
@@ -170,7 +177,7 @@ const headlines: SectionDef = {
     }
     const ranked = [...ctx.projects]
       .sort((a, b) => (byProject.get(b.id) ?? 0) - (byProject.get(a.id) ?? 0) || (b.record_count ?? 0) - (a.record_count ?? 0))
-      .slice(0, 10);
+      .slice(0, HEADLINE_CAP);
     const lines = ranked.flatMap((p) => {
       const rec = ctx.records.find((r) => r.project_id === p.id);
       if (!rec) return [];
@@ -181,7 +188,10 @@ const headlines: SectionDef = {
     return withCommentary('headlines', ctx, {
       id: 'headlines',
       title: 'Headline finds',
-      lede: 'The most active projects in this scope and period, with their most recent filing.',
+      // The count is in the lede because this section is a top-N by
+      // construction. A heading reading "Headline finds" over exactly ten lines
+      // invites the reader to conclude there were ten.
+      lede: `The ${HEADLINE_CAP} most active projects in this scope and period, with their most recent filing.`,
       lines,
       emptyNote: lines.length === 0 ? 'No project in this scope had a record in this period.' : undefined,
     });
@@ -190,10 +200,24 @@ const headlines: SectionDef = {
 
 // ---- 4. BY MARKET ------------------------------------------------------------
 
+// PER-MARKET CAP, AND IT IS STATED.
+//
+// This section listed the first 25 projects in each market and said nothing
+// about the rest. A JKR report whose cover read "149 projects" listed 122 of
+// them: 19 Clark County projects and 8 Las Vegas ones vanished between the
+// basis line and the list, with no note anywhere in the document. A reader
+// counting the entries would find the cover wrong, and a reader trusting the
+// list would think their market had 25 live projects in it.
+//
+// The cap itself is worth keeping - a section listing 800 projects is not a
+// section a person reads - so what changes is that the document now says what
+// it left out, per market, in the same breath as the count on the cover.
+const MARKET_LIST_CAP = 25;
+
 const byMarket: SectionDef = {
   id: 'markets',
   label: 'By market',
-  description: 'Every project grouped by market, with its record count.',
+  description: `Every project grouped by market, up to ${MARKET_LIST_CAP} per market, with the remainder counted.`,
   build: (ctx) => {
     const groups = new Map<string, Project[]>();
     for (const p of ctx.projects) {
@@ -202,8 +226,12 @@ const byMarket: SectionDef = {
       groups.get(k)!.push(p);
     }
     const lines: Line[] = [];
+    const truncated: { market: string; listed: number; total: number }[] = [];
     for (const [market, ps] of [...groups.entries()].sort((a, b) => b[1].length - a[1].length)) {
-      for (const p of ps.slice(0, 25)) {
+      if (ps.length > MARKET_LIST_CAP) {
+        truncated.push({ market, listed: MARKET_LIST_CAP, total: ps.length });
+      }
+      for (const p of ps.slice(0, MARKET_LIST_CAP)) {
         const rec = ctx.records.find((r) => r.project_id === p.id);
         lines.push(
           rec
@@ -215,12 +243,24 @@ const byMarket: SectionDef = {
         );
       }
     }
+    const held = truncated.reduce((n, t) => n + (t.total - t.listed), 0);
     return withCommentary('markets', ctx, {
       id: 'markets',
       title: 'By market',
-      lede: 'Every project in scope, grouped by market.',
+      lede: `Every project in scope, grouped by market, up to ${MARKET_LIST_CAP} per market.`,
       lines,
-      emptyNote: lines.length === 0 ? 'No projects in scope.' : undefined,
+      emptyNote:
+        lines.length === 0
+          ? 'No projects in scope.'
+          : held > 0
+            ? `${lines.length} of ${ctx.projects.length} projects are listed individually above. ` +
+              `${held} further project${held === 1 ? ' is' : 's are'} in scope and counted on the cover but not listed here, ` +
+              `because this section lists at most ${MARKET_LIST_CAP} projects per market: ` +
+              truncated.map((t) => `${t.market} has ${t.total}`).join('; ') +
+              (ctx.sectionIds.includes('appendix')
+                ? '. The appendix below lists every record in scope, including theirs.'
+                : '. Add the appendix section to list every record in scope, including theirs.')
+            : undefined,
     });
   },
 };

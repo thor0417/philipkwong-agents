@@ -20,7 +20,12 @@
 //                    projects and nothing new in a month has no report in it.
 
 import { supabase } from './supabase';
-import { applyPostFilters, resolveScope, type ClientScope } from './clients';
+import {
+  applyPostFilters,
+  projectsHoldingStreams,
+  resolveScope,
+  type ClientScope,
+} from './clients';
 import { applyProjectFilters, PROJECT_COLUMNS, type Project } from './projects';
 import type { ResolvedPeriod } from './period';
 
@@ -50,7 +55,7 @@ export async function fetchScopePreview(
   period: ResolvedPeriod
 ): Promise<ScopePreview> {
   const t0 = Date.now();
-  const { query, postFilters } = resolveScope(scope);
+  const { query, postFilters, streams } = resolveScope(scope);
 
   const { data, error } = await applyProjectFilters(
     supabase.from('projects').select(PROJECT_COLUMNS),
@@ -61,7 +66,15 @@ export async function fetchScopePreview(
   if (error) throw new Error(`scope preview failed: ${error.message}`);
 
   const all = (data ?? []) as unknown as Project[];
-  const matched = applyPostFilters(all as unknown as Record<string, unknown>[], postFilters) as unknown as Project[];
+  let matched = applyPostFilters(all as unknown as Record<string, unknown>[], postFilters) as unknown as Project[];
+
+  // The stream axis is resolved here too, by the same helper the generator
+  // uses. A preview that ignored it would promise a count the document then
+  // failed to deliver, which is the one thing this file exists to prevent.
+  if (streams && matched.length) {
+    const keep = await projectsHoldingStreams(matched.map((p) => p.id), streams);
+    matched = matched.filter((p) => keep.has(p.id));
+  }
 
   // NEW IN THE PERIOD is computed on the SAME matched set rather than by a
   // second query, so the two numbers cannot disagree about what the scope is.
@@ -73,6 +86,12 @@ export async function fetchScopePreview(
     return at >= since && at < until;
   });
 
+  // STATED LIMITATION: record_count is every record on the project, so under a
+  // stream constraint this number counts filings from lanes the client is not
+  // covered for. The PROJECT counts are exact - they are what the document is
+  // built from - and correcting the record total means reading every lead row
+  // behind every project, which is the table scan this file exists to avoid.
+  // Written down rather than left for somebody to discover from a discrepancy.
   const records = matched.reduce((n, p) => n + (p.record_count ?? 0), 0);
   const newRecords = inPeriod.reduce((n, p) => n + (p.record_count ?? 0), 0);
 
@@ -81,7 +100,7 @@ export async function fetchScopePreview(
     records,
     newProjects: inPeriod.length,
     newRecords,
-    postFiltered: postFilters.map((f) => f.field),
+    postFiltered: [...postFilters.map((f) => f.field), ...(streams ? ['stream'] : [])],
     capped: all.length >= PREVIEW_ROW_CAP,
     sample: matched.slice(0, 8),
     ms: Date.now() - t0,

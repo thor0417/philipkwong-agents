@@ -57,7 +57,7 @@ export default function ScopePreviewStrip({ scope }: { scope: ClientScope }) {
             : d
               ? `${d.ms} ms.${
                   d.postFiltered.length
-                    ? ` Counted over fetched rows for ${d.postFiltered.join(', ')}, which name more than one value.`
+                    ? ` Counted over fetched rows for ${d.postFiltered.join(', ')}: an axis naming several values, or one the project query cannot express at all, is resolved here rather than by the database.`
                     : ''
                 }${d.capped ? ' ROW CAP REACHED, this count may be short.' : ''}`
               : ''}

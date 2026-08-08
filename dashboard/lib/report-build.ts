@@ -6,7 +6,12 @@
 // that contradicts itself is worse than one that is thin.
 
 import { supabase } from './supabase';
-import { applyPostFilters, resolveScope, type ClientScope } from './clients';
+import {
+  applyPostFilters,
+  projectsHoldingStreams,
+  resolveScope,
+  type ClientScope,
+} from './clients';
 import { applyProjectFilters, PROJECT_COLUMNS, type Project, type TimelineRecord } from './projects';
 import { LIVE_PIPELINE_STORAGE_KEY } from './pipelines';
 import type { ResolvedPeriod } from './period';
@@ -16,7 +21,11 @@ import { estimatePages, type ReportDocument } from './report-model';
 const RECORD_COLUMNS =
   'id,title,url,source,source_type,published_date,deadline,first_seen,date_source,' +
   'cluster_reason,status,applicant,representative,presented_by,action_sought,' +
-  'contact_name,contact_email,contact_phone,primary_document_url,project_id,market';
+  'contact_name,contact_email,contact_phone,primary_document_url,project_id,market,stream';
+
+// A PostgREST `in` list of 2,000 uuids overflows the URL, so every id-keyed read
+// below walks the list in chunks of this size.
+const ID_CHUNK = 150;
 
 // Bounded, and the bound is stated in the coverage note when it bites. A report
 // is a document a person reads; one citing 5,000 records is not a report.
@@ -50,7 +59,7 @@ export interface BuiltReport {
 }
 
 export async function buildReport(req: BuildRequest): Promise<BuiltReport> {
-  const { query, postFilters } = resolveScope(req.scope);
+  const { query, postFilters, streams } = resolveScope(req.scope);
 
   const { data: pdata, error: perr } = await applyProjectFilters(
     supabase.from('projects').select(PROJECT_COLUMNS),
@@ -67,24 +76,47 @@ export async function buildReport(req: BuildRequest): Promise<BuiltReport> {
 
   if (req.projectId) projects = projects.filter((p) => p.id === req.projectId);
   if (req.watchlistOnly) projects = projects.filter((p) => p.watch);
+
   // A dormant project has had no heartbeat for the liveness window. Its stage is
   // written 'dormant' by the clusterer, so excluding it is a filter on the value
   // the clusterer already computed rather than a second definition of dormancy.
   if (!req.includeDormant) projects = projects.filter((p) => p.stage !== 'dormant');
 
+  // THE STREAM AXIS, APPLIED TO PROJECTS AS WELL AS TO RECORDS.
+  //
+  // `stream` names the capture lane and lives on leads, so filtering only the
+  // records would leave the project list untouched: a cover reading "stream:
+  // opportunity" above a By-market list of projects whose every record came
+  // from the government lane, each printed as "no filing in this period". That
+  // is the silent-omission failure inverted - a document claiming a narrower
+  // scope than it has.
+  //
+  // So a project is in scope only if it holds a record in one of the named
+  // lanes. Deliberately asked WITHOUT the period: the streams a client buys are
+  // what they are covered for, while the period governs what is shown. A
+  // project whose opportunity filings all predate the month is still theirs.
+  //
+  // Last of the project filters, because it is the only one that costs a round
+  // trip and this is the smallest the set will get.
+  if (streams && projects.length) {
+    const keep = await projectsHoldingStreams(projects.map((p) => p.id), streams);
+    projects = projects.filter((p) => keep.has(p.id));
+  }
+
   const ids = projects.map((p) => p.id);
   let records: (TimelineRecord & { project_id?: string | null; market?: string | null })[] = [];
   if (ids.length) {
-    // Chunked: a PostgREST `in` list of 2,000 uuids overflows the URL.
-    const CHUNK = 150;
-    for (let i = 0; i < ids.length && records.length < RECORD_CAP; i += CHUNK) {
+    for (let i = 0; i < ids.length && records.length < RECORD_CAP; i += ID_CHUNK) {
       let q = supabase
         .from('leads')
         .select(RECORD_COLUMNS)
-        .in('project_id', ids.slice(i, i + CHUNK))
+        .in('project_id', ids.slice(i, i + ID_CHUNK))
         .neq('status', 'dismissed')
         .order('published_date', { ascending: false, nullsFirst: false })
         .limit(RECORD_CAP);
+      // The same lanes, now on the records themselves: an out-of-scope filing
+      // must not be cited in a document that says it does not cover that lane.
+      if (streams) q = q.in('stream', streams);
       if (req.period.since) q = q.gte('first_seen', req.period.since);
       if (req.period.until) q = q.lt('first_seen', req.period.until);
       const { data, error } = await q;
@@ -105,7 +137,7 @@ export async function buildReport(req: BuildRequest): Promise<BuiltReport> {
           'lead:leads!project_events_lead_id_fkey(id,title,url,source)'
       )
       .eq('module', LIVE_PIPELINE_STORAGE_KEY)
-      .in('project_id', ids.slice(0, 150))
+      .in('project_id', ids.slice(0, ID_CHUNK))
       .order('occurred_at', { ascending: false })
       .limit(500);
     if (req.period.since) eq = eq.gte('occurred_at', req.period.since);
@@ -115,10 +147,15 @@ export async function buildReport(req: BuildRequest): Promise<BuiltReport> {
     events = (data ?? []) as unknown as SectionContext['events'];
   }
 
+  const chosen = (req.sectionIds.length ? req.sectionIds : DEFAULT_SECTION_IDS)
+    .map(sectionById)
+    .filter((s): s is NonNullable<typeof s> => !!s);
+
   const ctx: SectionContext = {
     projects,
     records,
     events,
+    sectionIds: chosen.map((s) => s.id),
     periodLabel: req.period.label,
     periodSince: req.period.since ?? null,
     periodUntil: req.period.until ?? null,
@@ -128,10 +165,6 @@ export async function buildReport(req: BuildRequest): Promise<BuiltReport> {
     includeContext: req.includeContext,
     watchlistOnly: req.watchlistOnly,
   };
-
-  const chosen = (req.sectionIds.length ? req.sectionIds : DEFAULT_SECTION_IDS)
-    .map(sectionById)
-    .filter((s): s is NonNullable<typeof s> => !!s);
 
   const doc: ReportDocument = {
     title: req.title,
@@ -147,9 +180,13 @@ export async function buildReport(req: BuildRequest): Promise<BuiltReport> {
         req.watchlistOnly ? 'watch list only' : '',
         req.includeDormant ? 'dormant included' : 'dormant excluded',
         req.includeContext ? 'context records included' : 'context records excluded',
+        // EVERY AXIS THE SCOPE CONSTRAINS, on the cover. The list is built from
+        // the same arrays resolveScope filters on, so a filter that is applied
+        // and a filter that is printed cannot come apart.
         ...(req.scope.stages ?? []).map((s) => `stage: ${s}`),
         ...(req.scope.venue_types ?? []).map((s) => `venue: ${s}`),
         ...(req.scope.development_categories ?? []).map((s) => `category: ${s}`),
+        ...(req.scope.streams ?? []).map((s) => `stream: ${s}`),
       ].filter(Boolean),
       periodOpen: !req.period.closed,
     },
@@ -184,7 +221,7 @@ export function geographyLabel(scope: ClientScope): string {
 export async function listScopeProjects(
   scope: ClientScope
 ): Promise<{ id: string; name: string; market: string | null }[]> {
-  const { query, postFilters } = resolveScope(scope);
+  const { query, postFilters, streams } = resolveScope(scope);
   const { data, error } = await applyProjectFilters(
     supabase.from('projects').select('id,name,market,venue_type,development_category,stage'),
     { ...query, module: query.module ?? LIVE_PIPELINE_STORAGE_KEY }
@@ -192,7 +229,13 @@ export async function listScopeProjects(
     .order('last_activity', { ascending: false, nullsFirst: false })
     .limit(500);
   if (error) throw new Error(`scope project list failed: ${error.message}`);
-  const rows = applyPostFilters((data ?? []) as unknown as Record<string, unknown>[], postFilters);
+  let rows = applyPostFilters((data ?? []) as unknown as Record<string, unknown>[], postFilters);
+  // The picker offers what the report would cover, stream axis included. A
+  // picker listing a project the generator then drops is a control that lies.
+  if (streams && rows.length) {
+    const keep = await projectsHoldingStreams(rows.map((r) => String(r.id)), streams);
+    rows = rows.filter((r) => keep.has(String(r.id)));
+  }
   return rows.map((r) => ({
     id: String(r.id),
     name: String(r.name),

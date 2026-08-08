@@ -17,7 +17,7 @@
 
 import { supabase } from './supabase';
 import { HOSPITALITY_ID, storageKeyFor } from './pipelines';
-import type { ProjectQuery } from './projects';
+import type { LooseField, ProjectQuery } from './projects';
 
 export interface Client {
   id: string;
@@ -114,6 +114,38 @@ export async function fetchAllScopes(): Promise<ClientScope[]> {
 }
 
 // ---- Writes -------------------------------------------------------------------
+
+// Every text[] column on a scope. The first seven name values the register
+// holds and are matched against columns; watch_terms is here only to be
+// trimmed, since it is issued as a search string rather than compared to
+// anything - a term with a stray space searches for the stray space.
+const SCOPE_VALUE_FIELDS = [
+  'countries', 'regions', 'markets', 'streams',
+  'development_categories', 'venue_types', 'stages', 'watch_terms',
+] as const;
+
+/**
+ * NORMALISE ON THE WAY IN. Half of the "why is this report empty" problem.
+ *
+ * A scope value is compared against a column, so " Las Vegas" and "Las Vegas"
+ * are the same intention and only one of them matches. Whitespace is stripped
+ * and collapsed and blanks are dropped at the moment of writing, so the stored
+ * scope is the thing that will be matched rather than a near-miss of it.
+ *
+ * CASE IS DELIBERATELY LEFT ALONE. Lower-casing here would store a value that
+ * does not appear anywhere in the register, which reads as corruption to
+ * anybody opening the row. Case is handled at the other end, by matching
+ * tolerantly - see resolveScope.
+ */
+export function normaliseScope<T extends Partial<ClientScope>>(patch: T): T {
+  const out: Record<string, unknown> = { ...patch };
+  for (const f of SCOPE_VALUE_FIELDS) {
+    const v = out[f];
+    if (!Array.isArray(v)) continue;
+    out[f] = [...new Set(v.map((s) => String(s ?? '').trim().replace(/\s+/g, ' ')).filter(Boolean))];
+  }
+  return out as T;
+}
 
 export interface ClientIntake {
   client: Omit<Client, 'id' | 'created_at'>;
@@ -216,7 +248,7 @@ export async function createClient(intake: ClientIntake): Promise<string> {
   if (!scopes.some((s) => s.pipeline_id === intake.scope.pipeline_id)) {
     const { error: sErr } = await supabase
       .from('client_scopes')
-      .insert({ ...intake.scope, client_id: clientId });
+      .insert({ ...normaliseScope(intake.scope), client_id: clientId });
     if (sErr) throw new Error(`scope insert failed (client ${clientId} exists): ${sErr.message}`);
   }
 
@@ -229,7 +261,7 @@ export async function updateClient(id: string, patch: Partial<Client>): Promise<
 }
 
 export async function updateScope(id: string, patch: Partial<ClientScope>): Promise<void> {
-  const { error } = await supabase.from('client_scopes').update(patch).eq('id', id);
+  const { error } = await supabase.from('client_scopes').update(normaliseScope(patch)).eq('id', id);
   if (error) throw new Error(`scope update failed: ${error.message}`);
 }
 
@@ -256,13 +288,19 @@ export interface ResolvedScope {
   // Filters the scope states that the PROJECT query cannot express, applied to
   // the fetched rows instead. Named rather than silently dropped.
   postFilters: { field: string; values: string[] }[];
+  // THE ONE AXIS THAT IS NOT A PROJECT PROPERTY. `stream` is a column on leads,
+  // not on projects: it says which capture lane found a record. It therefore
+  // cannot be part of the project query at all, and is returned separately so
+  // the caller filters records with it - and so that nobody can mistake it for
+  // something the project query already handled.
+  streams: string[] | null;
   // Axes the scope leaves unconstrained, so the preview can say "every market"
   // rather than showing a blank.
   unconstrained: string[];
 }
 
 function nonEmpty(a: string[] | null | undefined): string[] | null {
-  const v = (a ?? []).map((s) => s.trim()).filter(Boolean);
+  const v = (a ?? []).map((s) => s.trim().replace(/\s+/g, ' ')).filter(Boolean);
   return v.length ? v : null;
 }
 
@@ -279,6 +317,13 @@ function nonEmpty(a: string[] | null | undefined): string[] | null {
  * rows. The caller knows the difference and the preview says so. The set being
  * filtered is already bounded by every single-valued axis and by the period, so
  * this is a filter over a page, not a table scan.
+ *
+ * BOTH PATHS COMPARE THE SAME WAY. The post-filter has always been
+ * case-insensitive; the single-value path used to be an exact `eq`, so
+ * `markets: ['clark county']` matched nothing while `['clark county', 'las
+ * vegas']` matched forty. One scope, two matching rules, and the narrower one
+ * was the one that silently failed. Single values now go to the server as a
+ * tolerant match (ProjectQuery.loose) rather than an exact one.
  */
 export function resolveScope(scope: ClientScope): ResolvedScope {
   const countries = nonEmpty(scope.countries);
@@ -287,6 +332,7 @@ export function resolveScope(scope: ClientScope): ResolvedScope {
   const stages = nonEmpty(scope.stages);
   const categories = nonEmpty(scope.development_categories);
   const venues = nonEmpty(scope.venue_types);
+  const streams = nonEmpty(scope.streams);
 
   // THE PIPELINE'S ID IS NOT THE VALUE STORED ON A ROW, and this is the one
   // place the two meet. client_scopes.pipeline_id is a foreign key into
@@ -297,26 +343,24 @@ export function resolveScope(scope: ClientScope): ResolvedScope {
   const query: ProjectQuery = {
     module: storageKeyFor(scope.pipeline_id || HOSPITALITY_ID),
     excludeStatus: 'dismissed',
+    loose: [],
   };
   const postFilters: ResolvedScope['postFilters'] = [];
 
-  const single = (
-    values: string[] | null,
-    field: keyof ProjectQuery,
-    postName: string
-  ): void => {
+  const axis = (values: string[] | null, field: LooseField): void => {
     if (!values) return;
-    if (values.length === 1) (query as Record<string, unknown>)[field] = values[0];
-    else postFilters.push({ field: postName, values });
+    if (values.length === 1) query.loose!.push({ field, value: values[0] });
+    else postFilters.push({ field, values });
   };
 
-  single(countries, 'country', 'country');
-  single(regions, 'region_state', 'region_state');
-  single(markets, 'market', 'market');
-  single(stages, 'stage', 'stage');
-  single(categories, 'development_category', 'development_category');
-  // venue_type has no ProjectQuery field at all, so it is always a post-filter.
-  if (venues) postFilters.push({ field: 'venue_type', values: venues });
+  axis(countries, 'country');
+  axis(regions, 'region_state');
+  axis(markets, 'market');
+  axis(stages, 'stage');
+  axis(categories, 'development_category');
+  // venue_type has no exact ProjectQuery field, but it is a real column, so a
+  // single venue narrows on the server exactly as a single market does.
+  axis(venues, 'venue_type');
 
   const unconstrained: string[] = [];
   if (!countries) unconstrained.push('country');
@@ -325,8 +369,9 @@ export function resolveScope(scope: ClientScope): ResolvedScope {
   if (!stages) unconstrained.push('stage');
   if (!categories) unconstrained.push('development category');
   if (!venues) unconstrained.push('venue type');
+  if (!streams) unconstrained.push('stream');
 
-  return { query, postFilters, unconstrained };
+  return { query, postFilters, streams, unconstrained };
 }
 
 /** Apply the post-filters a scope could not push to the server. */
@@ -336,13 +381,50 @@ export function applyPostFilters<T extends Record<string, unknown>>(
 ): T[] {
   let out = rows;
   for (const f of postFilters) {
-    const want = new Set(f.values.map((v) => v.toLowerCase()));
+    const fold = (v: string) => v.trim().replace(/\s+/g, ' ').toLowerCase();
+    const want = new Set(f.values.map(fold));
     out = out.filter((r) => {
       const v = r[f.field];
-      return typeof v === 'string' && want.has(v.toLowerCase());
+      return typeof v === 'string' && want.has(fold(v));
     });
   }
   return out;
+}
+
+// A PostgREST `in` list of a few thousand uuids overflows the URL.
+const ID_CHUNK = 150;
+
+/**
+ * Of these projects, the ones holding at least one record in one of these lanes.
+ *
+ * THE STREAM AXIS RESOLVED, and it lives here rather than in the generator
+ * because the preview, the referral picker and the document must all agree
+ * about what a stream-scoped client is covered for. Three implementations of
+ * that question is three chances for the count on the screen and the count in
+ * the PDF to differ.
+ *
+ * Not period-limited, deliberately: the lanes a client buys define coverage,
+ * the period defines what is shown. A project whose opportunity filings all
+ * predate the month is still in their scope.
+ */
+export async function projectsHoldingStreams(
+  ids: string[],
+  streams: string[]
+): Promise<Set<string>> {
+  const keep = new Set<string>();
+  for (let i = 0; i < ids.length; i += ID_CHUNK) {
+    const { data, error } = await supabase
+      .from('leads')
+      .select('project_id')
+      .in('project_id', ids.slice(i, i + ID_CHUNK))
+      .in('stream', streams)
+      .neq('status', 'dismissed');
+    if (error) throw new Error(`scope stream query failed: ${error.message}`);
+    for (const r of (data ?? []) as { project_id: string | null }[]) {
+      if (r.project_id) keep.add(r.project_id);
+    }
+  }
+  return keep;
 }
 
 export function scopeIsEmpty(scope: ClientScope): boolean {
