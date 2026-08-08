@@ -336,6 +336,35 @@
   flex: none;
 }
 
+/* The two numbers on a geography node: projects, then records.
+   The record count is set one step further back so the eye lands on the
+   project count first, which is the number the click acts on. */
+.railCounts {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-8);
+  flex: none;
+}
+.railRecordCount {
+  font-size: var(--type-caption);
+  color: var(--ink-disabled);
+  opacity: 0.55;
+  flex: none;
+}
+
+/* Names the two numbers once, at the top of the tree, rather than relying on a
+   hover title nobody hovers. */
+.railLegend {
+  font-size: var(--type-caption);
+  color: var(--ink-disabled);
+  line-height: 1.4;
+  margin: 0 0 var(--space-8);
+  padding: 0 var(--space-8);
+}
+.railLegendDim {
+  opacity: 0.55;
+}
+
 /* ------------------------------------------------------------------ detail */
 .detail {
   display: flex;

@@ -28,6 +28,8 @@ import {
   useProjectFacet,
   useProjectMutations,
 } from '@/lib/use-projects';
+import { useFacet } from '@/lib/use-leads';
+import type { LeadQuery } from '@/lib/query';
 import PeriodSelector from '@/components/PeriodSelector';
 import { BUCKETS, PERIOD_AXES, bucketOf, type BucketMode } from '@/lib/period';
 import { usePeriodState, useMovedProjectIds } from '@/lib/use-period';
@@ -278,6 +280,58 @@ export default function RegisterPage() {
     !!geo.country && !!geo.region_state
   );
 
+  // TWO NUMBERS PER NODE: projects, and the records behind them.
+  //
+  // The tree counts PROJECTS, because the Register is a project register and
+  // clicking a node filters projects. That is correct and it was also hiding
+  // the corpus: New York holds twelve records and zero projects, so it did not
+  // appear at all, and nine countries and thirty-one regions were invisible for
+  // the same reason. A reader could not tell "we cover nothing there" from
+  // "nothing there has clustered into a project yet", which are very different
+  // statements to make to a client.
+  //
+  // So each node now carries its record count as well. The click still filters
+  // projects and the project number still governs what the list shows, so the
+  // control does not lie; the second number simply says what is behind it.
+  //
+  // THE TWO NUMBERS ARE SCOPED DIFFERENTLY AND THE RAIL SAYS SO. The project
+  // count respects every filter on this screen - view, stage, period, search.
+  // The record count cannot: stage is a project attribute, and the period axes
+  // (arrived / moved) are defined on projects and project_events. It is
+  // therefore the CORPUS count for that geography - this module, not dismissed
+  // - and it does not move when the view does. Pretending otherwise by
+  // half-applying the filters would be a worse lie than the one being fixed.
+  const recordGeoBase: LeadQuery = {
+    module: LIVE_PIPELINE_STORAGE_KEY,
+    excludeStatus: 'dismissed',
+  };
+  const countryRecords = useFacet(recordGeoBase, 'country');
+  const regionRecords = useFacet({ ...recordGeoBase, country: geo.country }, 'region_state', !!geo.country);
+  const marketRecords = useFacet(
+    { ...recordGeoBase, country: geo.country, region_state: geo.region_state },
+    'market',
+    !!geo.country && !!geo.region_state
+  );
+
+  // Union of both sides. A node with projects and no records cannot happen, but
+  // the reverse is the whole point, so the record side contributes values the
+  // project side has never heard of. Ordered by projects first, because that is
+  // what the click acts on, then by records so an uncovered market with a live
+  // corpus sorts above an empty one.
+  const mergeGeo = useCallback(
+    (
+      projects: { value: string; count: number }[] | undefined,
+      records: { value: string; count: number }[] | undefined
+    ) => {
+      const p = new Map((projects ?? []).map((x) => [x.value, x.count]));
+      const r = new Map((records ?? []).map((x) => [x.value, x.count]));
+      return [...new Set([...p.keys(), ...r.keys()])]
+        .map((value) => ({ value, count: p.get(value) ?? 0, records: r.get(value) ?? 0 }))
+        .sort((a, b) => b.count - a.count || b.records - a.records || a.value.localeCompare(b.value));
+    },
+    []
+  );
+
   const { watch, status: statusMutation, busy } = useProjectMutations({ onError: setError });
 
   // ---- Navigation within the list.
@@ -462,9 +516,9 @@ export default function RegisterPage() {
           void setPage(1);
           void setSelected(null);
         }}
-        countries={countryFacet.data?.counts ?? []}
-        regions={regionFacet.data?.counts ?? []}
-        markets={marketFacet.data?.counts ?? []}
+        countries={mergeGeo(countryFacet.data?.counts, countryRecords.data?.counts)}
+        regions={mergeGeo(regionFacet.data?.counts, regionRecords.data?.counts)}
+        markets={mergeGeo(marketFacet.data?.counts, marketRecords.data?.counts)}
         geo={geo}
         onGeo={(next) => {
           void setCountry(next.country ?? null);
