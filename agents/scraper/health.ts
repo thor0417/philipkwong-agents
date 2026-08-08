@@ -170,6 +170,37 @@ export async function reportRunHealth(
   laneTotals: { fetched: number; written: number }
 ): Promise<HealthFinding[]> {
   const rs = takeSourceRuns().filter((r) => r.lane === lane);
+
+  // AN EMPTY SELECTION IS NOT A DEATH, and telling them apart is the whole
+  // point of this branch.
+  //
+  // A scoped run names markets or sources, and the lane filters its adapters
+  // down to the ones that cover them. Scope a run at a market no adapter
+  // covers - which is every market on the day it is being onboarded - and the
+  // lane correctly runs nothing at all. That used to print
+  //
+  //     Run health: 0 of 0 sources produced records.
+  //       LANE ALERT: "government" fetched 0 and wrote 0 (total death)
+  //
+  // and page Sentry at fatal. The lane was working exactly as designed.
+  //
+  // The distinction is exact and needs no new plumbing. Only adapters that RAN
+  // record a source run, so an empty `rs` means no adapter was selected, while
+  // total death means adapters ran and every one of them fetched nothing. The
+  // first has nothing to judge, no baseline to write and nobody to wake; the
+  // second is the emergency this file exists for.
+  //
+  // Found on the New York City onboarding run. run-scope.ts already insists a
+  // partial run must never be mistaken for a full one; this is the same rule
+  // applied one layer down, where the alarm lives.
+  if (rs.length === 0) {
+    console.log(
+      `\nRun health: no sources were in scope for "${lane}", so there is nothing to judge. ` +
+        `This is an empty selection, not a dead lane.`
+    );
+    return [];
+  }
+
   const baselines = await loadBaselines(lane);
   const findings = judge(rs, baselines);
   printHealth(findings);
@@ -212,7 +243,7 @@ export async function reportRunHealth(
 
   // Lane-level check as well: a lane can write nothing even when no individual
   // source looks dead, and vice versa.
-  captureEmptyLane(lane, laneTotals.fetched, laneTotals.written);
+  captureEmptyLane(lane, laneTotals.fetched, laneTotals.written, rs.length);
   if (laneTotals.written === 0) {
     console.log(
       `  LANE ALERT: "${lane}" fetched ${laneTotals.fetched} and wrote 0` +

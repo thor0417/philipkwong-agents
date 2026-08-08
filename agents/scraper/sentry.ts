@@ -176,9 +176,20 @@ export function captureDegradedRecovery(f: {
 // Whole-lane version, for the case where a lane writes nothing at all. Kept
 // separate from the per-source check because a lane can be healthy in aggregate
 // while one source inside it is dead, and the reverse.
-export function captureEmptyLane(lane: string, fetched: number, written: number): void {
+//
+// `sourcesRun` is the guard against paging for an empty selection: a scoped run
+// whose markets no adapter covers runs nothing, writes nothing, and is not a
+// failure. reportRunHealth returns before calling this in that case; the
+// parameter exists so a future caller cannot reintroduce the page by forgetting.
+export function captureEmptyLane(
+  lane: string,
+  fetched: number,
+  written: number,
+  sourcesRun = 1
+): void {
   if (!sentryEnabled) return;
   if (written > 0) return;
+  if (sourcesRun === 0) return;
   const totalDeath = fetched === 0;
   Sentry.captureMessage(
     totalDeath
