@@ -2,6 +2,7 @@
 import { LIVE_PIPELINE_STORAGE_KEY } from '@/lib/pipelines';
 
 import { useCallback, useMemo, useState } from 'react';
+import { useQueryState, parseAsString } from 'nuqs';
 import type { GLILead } from '@/lib/types';
 import { VENUE_TYPES, DEVELOPMENT_CATEGORIES, categoryForVenue } from '@/lib/taxonomy';
 import { useBrand } from '@/lib/use-pipeline';
@@ -310,7 +311,29 @@ export default function RegisterPage() {
   // Labels resolve from the pipeline registry. Nothing on this screen names a
   // pipeline; the export and report scopes below read it from here.
   const brand = useBrand();
-  const [activeStream, setActiveStream] = useState('opportunity');
+  // THE STREAM LIVES IN THE URL, like every other filter on the register.
+  //
+  // It used to be component state, and the consequence was not cosmetic. The
+  // screen opens on Opportunities, which is 27 records with a geography of its
+  // own (Albania, Dominica, Argentina), so a reader landing here sees a
+  // geography tree with no New York and no Saudi Arabia in it. Switching to
+  // Intelligence fixed that on screen and then lost it: a reload, a back button
+  // or a shared link all dropped straight back to Opportunities, so the tree
+  // appeared to be permanently built from one stream.
+  //
+  // Putting it in the URL makes /records?stream=intelligence a real address
+  // that survives a reload and can be sent to somebody, which is the rule the
+  // Register already follows and the reason its filters are shareable.
+  const [streamParam, setStreamParam] = useQueryState('stream', parseAsString);
+  const activeStream = streamParam ?? 'opportunity';
+  const setActiveStream = useCallback(
+    (next: string) => {
+      // The default is written as an ABSENT parameter rather than as
+      // ?stream=opportunity, so the bare /records URL keeps its meaning.
+      void setStreamParam(next === 'opportunity' ? null : next);
+    },
+    [setStreamParam]
+  );
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [venueFilter, setVenueFilter] = useState('all');
   const [locationQuery, setLocationQuery] = useState('');
