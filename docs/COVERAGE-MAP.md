@@ -47,6 +47,8 @@ is layers 1 and 2 with some of 3.
 | Miami-Dade County | Florida | FULL | FULL | NONE | `legistar` (miamidade) |
 | South Florida | Florida | NONE | PARTIAL | NONE | `sfwmd` (water permits, layer 4) |
 | Central Florida Tourism Oversight District | Florida | FULL | FULL | NONE | `cftod-pdf` |
+| Yonkers | New York | FULL | FULL | NONE | `legistar` (yonkersny) |
+| Westchester County | New York | FULL | FULL | NONE | `legistar` (westchestercountyny) |
 
 Layers 5 through 8 are **NONE in every market**. No aviation, special-regulator,
 capital-plan or bond source is captured anywhere. That is a system-wide gap, not
@@ -125,3 +127,118 @@ today, the entitlement layer becomes viable and NYC can be promoted to PARTIAL
 with the ~200-line adapter described in `docs/ADDING-A-MARKET.md`. The council
 layer has no re-check condition: it will not open without Legistar granting API
 access, which is a procurement question, not an engineering one.
+
+---
+
+## Downstate New York, added 2026-08-08
+
+The NYC test found the city closed. It did not look outside the city limits, and
+the two largest projects in the live downstate casino cycle are out there:
+**MGM Empire City in Yonkers** and **Sands at Nassau Coliseum in Uniondale**.
+A market named New York City would have missed both, the same way a market named
+Las Vegas misses the Strip.
+
+### Yonkers, NY - ADDED (`yonkersny`)
+
+Legistar live. 274 matters in twelve months, **28 matching leisure or
+entitlement vocabulary**, including `RES.123-2025 RESOLUTION - APPROVING
+COMMUNITY BENEFITS AGREEMENT WITH MGM YONKERS, INC.`
+
+**STATED GAP: the newest matter is 2026-06-12, 57 days old at the time of
+probing, which fails the runbook's 45-day rule.** Monthly volume was 46 in May
+and 18 in June, then nothing in July, and December was similarly thin at 5. That
+pattern reads as a council in summer recess rather than a dead feed, which is a
+different thing from a stale dataset: the source is live, the body is not
+sitting. It is added on that reading, and the reading is written down here so it
+can be checked rather than assumed.
+
+**Re-check condition:** if no Yonkers matter appears with an intro date after
+2026-09-15, the recess explanation is wrong and the jurisdiction should be
+treated as degraded.
+
+### Westchester County, NY - ADDED (`westchestercountyny`)
+
+Legistar live and current: 560 matters in twelve months, newest 10 days old.
+**Low yield - only 3 of 560 match leisure or entitlement vocabulary** - and
+added anyway because the county owns **Rye Playland**, a county-run amusement
+park, and a Legistar config row costs two lines. The first records captured are
+capital budget and bond acts for `Ice Casino Improvements II`, which is the
+historic ice rink building at Playland.
+
+### Nassau County, NY - PROBED AND REJECTED 2026-08-08
+
+Do not re-probe blindly before 2027-02.
+
+| probe | result |
+|---|---|
+| Legistar `nassau`, `nassaucounty`, `nassaucountyny`, `nassauny` | **500** on all four: the code does not exist |
+| Granicus `nassaucountyny.granicus.com` | **404 Page not found** |
+| CivicClerk `nassaucountyny.portal.civicclerk.com` | 200 - **and so does `zzznotarealjurisdiction.portal.civicclerk.com`**. The portal is a wildcard SPA shell, so the 200 means nothing. Its API answers 404. |
+| NovusAgenda `nassaucountyny.novusagenda.com` | 200, a real NovusAGENDA shell, contents not verified |
+| `www.nassaucountyny.gov` | **connection timeout** from this runtime, repeatedly |
+| Socrata `data.nassaucountyny.gov` | 404, no portal |
+
+The county's own website is unreachable from here, so even the manual tier is
+not available. **Sands at Nassau Coliseum is therefore uncovered**, and that is
+the single largest known gap in the downstate picture.
+
+---
+
+## Layer 6, special regulators: NONE in every market
+
+Probed 2026-08-08. A licence application often precedes the land use filing, so
+this is an earlier signal than anything currently captured. Nothing here is
+built.
+
+### Nevada Gaming Control Board and Commission - VIABLE, best value
+
+`https://www.gaming.nv.gov/about-us/agendas-and-dispositions-minutes/` returns
+200, 81 KB, **134 PDF links**, current: `august-2026-gcb-agenda.pdf` and
+`july-2026-ngc-agenda.pdf` are both present. Static PDF links on a plain HTML
+index, which is the exact shape `sources/pdf-agenda.ts` and `sources/govdocs.ts`
+already handle.
+
+No API. `wp-json` is 404, and the `/about/meetings/` page carries only six
+links. The agenda index is the way in.
+
+**Cost: 6 to 8 hours** - a new adapter reusing the PDF agenda parser, plus gate
+vocabulary for licensing language. **Highest value per hour of anything probed
+in this amendment.**
+
+### New York State Gaming Commission and Facility Location Board - BLOCKED
+
+`gaming.ny.gov` and `dos.ny.gov` both return **403 with a Cloudflare "Just a
+moment..." interstitial**, on every path tried, with and without `www`. NY State
+Socrata carries lottery results, not licensing.
+
+The downstate licensing decisions live here rather than in any municipal record,
+so this is the source that would complete the New York picture, and it is not
+reachable programmatically from this runtime. **Manual tier, or a headless
+browser.** Do not attempt an adapter.
+
+### Nevada ride safety permitting - NOT LOCATED
+
+`dir.nv.gov/OSHA/Home/` and `/OSHA/Mechanical_Compliance/` both return 200 with
+a **zero-byte body**, which means JS-rendered or blocked. The agency holding
+amusement ride permits was not confirmed. An amusement ride permit is as direct
+a signal as this vertical has, so this is worth a second look with a browser
+before it is written off. **Not costed; the source was not found.**
+
+### Liquor licensing - ALREADY CAPTURED, NO ADAPTER NEEDED
+
+This one answered itself. The corpus already holds **10 liquor licence records,
+all from Phoenix Legistar**, and every one of them is a hotel or an arena:
+
+    Liquor License - AC Hotel By Marriott City North and Element Hotel City North
+    Liquor License - Fire N Ice Arena - District 2
+    Liquor License - Aloft Hotel Phoenix Airport - District 8
+
+Clark County's liquor board also files through `clark.legistar.com`, which is
+already ingested. So liquor licensing is not a new source: it arrives inside the
+Legistar lanes already running.
+
+**And the flooding question answers itself too.** Every restaurant in the county
+does file, and none of them are in the corpus, because the gate requires a venue
+noun. `hotel`, `arena` and `resort` are STRONG terms; a taqueria's liquor licence
+matches nothing and is dropped. The filter is already in place and already
+working. **Cost: zero. Nothing to build.**
