@@ -74,6 +74,36 @@ export const NYC_CEQR_MARKET = 'New York City';
 // cross-reference and the clustering rule key on one spelling.
 const CEQR_SHAPE = /^[0-9]{2}[A-Z]{2,6}[0-9]{3,4}[A-Z]?$/;
 
+// THE STORED LINK IS NOT THE ONE THE DATASET PUBLISHES, and that is a
+// correction rather than a preference.
+//
+// gezn-7mgk carries a `url` column pointing at
+// a002-ceqraccess.nyc.gov/ceqr/ProjectInformation/ProjectDetail/{internalId}-{ceqr}.
+// EVERY ONE OF THOSE IS DEAD. CEQR Access answers them with HTTP 200 and a body
+// whose only heading is "Page Not Found" - measured across all 114 stored CEQR
+// URLs, 114 of 114, byte-identical to the response for a deliberately invalid
+// id. The application's deeper routes appear to have been retired; its landing
+// page still serves and contains no project links at all.
+//
+// A soft 404 is worse than a hard one: a status-code check passes it. That is
+// exactly how these were previously reported as "325 of 325 resolve".
+//
+// SO THE LINK GOES TO THE PUBLISHER OF RECORD. NYC Open Data renders the same
+// dataset with a filter in the URL, so the client opens a page that resolves
+// and shows that CEQR project rather than a page that errors. It is an index
+// view rather than the agency's own project page, and the record text says so.
+//
+// The agency URL is NOT discarded - it is written into the record so the
+// original reference survives, marked dead, in case CEQR Access returns.
+const CEQR_DATASET_VIEW = 'https://data.cityofnewyork.us/City-Government/CEQR-Projects/gezn-7mgk';
+
+export function ceqrProjectUrl(ceqr: string): string | null {
+  const n = normalizeCeqr(ceqr);
+  if (!n) return null;
+  const soql = encodeURIComponent(`SELECT * WHERE ceqr='${n}'`);
+  return `${CEQR_DATASET_VIEW}/explore/query/${soql}/page/filter`;
+}
+
 export function normalizeCeqr(raw: string | null | undefined): string | null {
   if (!raw) return null;
   const s = String(raw).replace(/\s+/g, '').toUpperCase();
@@ -130,6 +160,8 @@ export interface NycCeqrStats {
   // reads as an exhaustive one.
   outOfWindow: number;
   undatedSkipped: number;
+  // Rows whose CEQR number will not normalise, so no link can be built.
+  unlinkable: number;
   gateAdmitted: number;
   gateRejected: number;
   bypassHits: number;
@@ -157,6 +189,7 @@ export const nycCeqrStats: NycCeqrStats = {
   outOfMarket: 0,
   outOfWindow: 0,
   undatedSkipped: 0,
+  unlinkable: 0,
   gateAdmitted: 0,
   gateRejected: 0,
   bypassHits: 0,
@@ -183,6 +216,7 @@ function resetStats(): void {
     outOfMarket: 0,
     outOfWindow: 0,
     undatedSkipped: 0,
+    unlinkable: 0,
     gateAdmitted: 0,
     gateRejected: 0,
     bypassHits: 0,
@@ -333,13 +367,22 @@ export async function scrapeNycCeqr(): Promise<NormalizedLead[]> {
       }
     }
 
+    // The link a client opens. Built from the CEQR number by the one
+    // constructor above; the agency's own URL is dead (see ceqrProjectUrl).
+    const url = ceqrProjectUrl(r.ceqr);
+    if (!url) {
+      // No usable CEQR number means no addressable page, so the row is counted
+      // and skipped rather than written under a link that errors.
+      nycCeqrStats.unlinkable++;
+      continue;
+    }
     const gateText = gateTextOf(r);
     const title = (r.project_name ?? r.ceqr).slice(0, 200);
 
     const decision = gateDecide({
       source: 'nyc-ceqr',
       market: NYC_CEQR_MARKET,
-      key: r.url,
+      key: url,
       title,
       gate_text: gateText,
       bypass_mode: 'all',
@@ -358,8 +401,8 @@ export async function scrapeNycCeqr(): Promise<NormalizedLead[]> {
       nycCeqrStats.admittedSamples.push(`${title} :: ${(r.project_description ?? '').slice(0, 120)}`);
     }
     if (decision.bypass) nycCeqrStats.bypassHits++;
-    if (seen.has(r.url)) continue;
-    seen.add(r.url);
+    if (seen.has(url)) continue;
+    seen.add(url);
 
     if (ms?.latest) nycCeqrStats.withMilestone++;
     else nycCeqrStats.withoutMilestone++;
@@ -372,7 +415,7 @@ export async function scrapeNycCeqr(): Promise<NormalizedLead[]> {
 
     leads.push({
       title,
-      url: r.url,
+      url,
       raw_content: [
         `NYC environmental review (CEQR): ${r.project_name ?? r.ceqr}`,
         `CEQR number: ${ceqr ?? r.ceqr}`,
@@ -393,7 +436,8 @@ export async function scrapeNycCeqr(): Promise<NormalizedLead[]> {
           : 'No matching ZAP / ULURP application found for this CEQR number',
         `Gate: ${decision.bypass ? 'bypass' : decision.reason}`,
         hits.length ? `Target-term hits: ${hits.join(', ')}` : '',
-        `Project page: ${r.url}`,
+        `Project page (NYC Open Data, filtered to this CEQR number): ${url}`,
+        `Agency page (CEQR Access, currently dead - serves Page Not Found): ${r.url}`,
       ]
         .filter(Boolean)
         .join('\n'),
@@ -406,7 +450,7 @@ export async function scrapeNycCeqr(): Promise<NormalizedLead[]> {
       source_type: 'Environmental Review',
       applicant: null,
       action_sought: null,
-      primary_document_url: r.url,
+      primary_document_url: url,
       has_primary_document: false,
     });
   }
