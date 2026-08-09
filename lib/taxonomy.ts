@@ -463,9 +463,41 @@ export function hasWord(text: string, keyword: string): boolean {
 // Null says we could not tell, which is true, and a scope filtering on venue
 // type will not match it. That is the correct behaviour: an unclassified record
 // belongs in nobody's report until somebody classifies it.
-export function classifyVenueType(text: string): VenueType | null {
+// THE HINT IS AN ARGUMENT, NOT PART OF THE TEXT.
+//
+// Every caller used to do this:
+//
+//     classifyVenueType(`${title} ${raw_content} ${venueHint}`)
+//
+// which concatenates a previous classification into the text being keyword
+// matched. That is a feedback loop, and it had two consequences, both bad.
+//
+// IT LET THE MODEL PICK THE ANSWER. The government and opportunity lanes pass
+// the Haiku classifier's guess as the hint. Appending it means the model only
+// has to SAY the word "Resort" for the keyword rule to find "resort" in its own
+// input and agree. "2510 Coney Island Avenue Rezoning" is stored as a Resort;
+// its brief describes an 11-storey mixed-use building and the word resort
+// appears nowhere in it. On its own text the rule returns Mixed-Use
+// Development, which is right.
+//
+// IT MADE WRONG VALUES PERMANENT. The reclassify migration fed the STORED value
+// back in as the hint, so a bad classification re-elected itself on every run.
+// That is why a full reclassification pass over 1,705 records changed only 18
+// of them: the migration written to correct the column could not, because the
+// column was an input to its own correction.
+//
+// So the hint is now a separate argument, consulted ONLY when the text says
+// nothing, and validated against the vocabulary so a hallucinated venue type
+// cannot enter the column. A hint can fill a blank; it can never overrule the
+// record's own words.
+export function classifyVenueType(text: string, hint?: string | null): VenueType | null {
   for (const rule of VENUE_RULES) {
     if (rule.keywords.some((k) => hasWord(text, k))) return rule.venue;
+  }
+  if (hint) {
+    const h = String(hint).trim();
+    const exact = VENUE_TYPES.find((v) => v.toLowerCase() === h.toLowerCase());
+    if (exact && exact !== 'Other') return exact;
   }
   return null;
 }

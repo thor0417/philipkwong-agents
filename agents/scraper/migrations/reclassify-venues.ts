@@ -103,11 +103,30 @@ async function main(): Promise<void> {
     // backfill classify differently from the code that will classify tomorrow's
     // records, which is a worse defect than the one being fixed.
     //
-    // Feeding the hint back is safe precisely because 'leisure destination' was
-    // removed from the Entertainment Destination rule. The retired value cannot
-    // re-elect itself: a lead whose hint reads 'Leisure Destination' now matches
-    // no rule through the hint and is classified on its own text alone.
-    const venue = classifyVenueType(`${l.title ?? ''} ${l.raw_content ?? ''} ${l.venue_type ?? ''}`);
+    // NO HINT. The previous version passed the lead's STORED venue_type into the
+    // text being matched, and reasoned that this was safe because the one
+    // retired value ('Leisure Destination') no longer matched any rule.
+    //
+    // That reasoning covered exactly one value and missed the general case: for
+    // every value still in the vocabulary, feeding the stored classification
+    // back in makes it re-elect itself. A lead wrongly marked Resort contains
+    // the word "resort" in its own hint, so the rule finds it and confirms it,
+    // for ever. Measured: a full pass over the corpus changed 18 of 1,705
+    // records, not because the corpus was right but because this migration
+    // could not disagree with it.
+    //
+    // THE STORED VALUE IS PASSED AS A HINT, NOT AS TEXT, and the distinction is
+    // the whole fix. As a hint it is consulted only when the record's own words
+    // yield nothing, so:
+    //   - a record whose text says "mixed-use development" is corrected, even
+    //     though it is stored as Resort (2510 Coney Island Avenue);
+    //   - a record whose text names no venue at all keeps what it has, because
+    //     re-deriving it from silence would be destroying information rather
+    //     than correcting it.
+    // Passing null instead was measured: it wipes Integrated Resort (14 -> 0)
+    // and Family Entertainment Center (8 -> 0) - classifications the model made
+    // by reading records that never contain the phrase.
+    const venue = classifyVenueType(`${l.title ?? ''} ${l.raw_content ?? ''}`, l.venue_type);
     next.set(l.id, { venue, cat: categoryForVenue(venue) });
   }
 

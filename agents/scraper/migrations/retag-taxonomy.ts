@@ -46,7 +46,7 @@ async function main(): Promise<void> {
   const perVenue: Record<string, number> = {};
   const perCategory: Record<string, number> = {};
   for (const r of rows) {
-    const venue = classifyVenueType(`${r.title ?? ''} ${r.raw_content ?? ''} ${r.venue_type ?? ''}`);
+    const venue = classifyVenueType(`${r.title ?? ''} ${r.raw_content ?? ''}`);
     const vKey = venue ?? '(null)';
     perVenue[vKey] = (perVenue[vKey] ?? 0) + 1;
     const cat = categoryForVenue(venue);

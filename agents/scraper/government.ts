@@ -225,7 +225,7 @@ export function buildGovernmentRow(
   players: GovernmentPlayers = NO_PLAYERS
 ): { region: string; row: Record<string, unknown> } {
   const region = regionFor(lead, regionOf(lead.source));
-  const venue = classifyVenueType(`${lead.title ?? ''} ${lead.raw_content ?? ''} ${tag.venue_type}`);
+  const venue = classifyVenueType(`${lead.title ?? ''} ${lead.raw_content ?? ''}`, tag.venue_type);
   // Government records carry a document date (published_date), never a bid
   // deadline; parsed dates and the first_seen floor route through the same helper.
   const dates = deriveLeadDates(lead, 'government');

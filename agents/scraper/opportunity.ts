@@ -82,7 +82,7 @@ export function buildOpportunityRow(
   const om = objectFields(dates, lead.title, lead.raw_content);
   // Canonical venue is deterministic (lib/taxonomy), so it never drifts or
   // collapses; the LLM's venue is folded in as a hint. Category derives from it.
-  const venue = classifyVenueType(`${lead.title ?? ''} ${lead.raw_content ?? ''} ${tag.venue_type}`);
+  const venue = classifyVenueType(`${lead.title ?? ''} ${lead.raw_content ?? ''}`, tag.venue_type);
   // Geography resolved once, at write time, into indexed columns.
   const geo = geographyFields(lead.location, lead.country);
   return {
