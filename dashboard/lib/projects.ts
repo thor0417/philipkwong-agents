@@ -334,6 +334,11 @@ export interface TimelineRecord {
   contact_email: string | null;
   contact_phone: string | null;
   primary_document_url: string | null;
+  // The capture lane that wrote the row. Decides RECORD vs PRESS in generated
+  // documents (report-sections isFiling), so it is part of the record's shape
+  // rather than an incidental column. Optional because fetchProjectTimeline
+  // does not select it; report-build does.
+  stream?: string | null;
 }
 
 const TIMELINE_COLUMNS = [

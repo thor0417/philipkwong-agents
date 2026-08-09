@@ -17,6 +17,7 @@ import {
   recordLine,
   type ReportDocument,
 } from '../lib/report-model';
+import { isFiling } from '../lib/report-sections';
 
 function docWith(sections: ReportDocument['sections']): ReportDocument {
   return {
@@ -106,4 +107,52 @@ test('an assessment cannot be emitted unlabelled', async () => {
     },
   ]);
   expect(() => assertProvenance(unsourcedPress)).toThrow(/PRESS line with no source/);
+});
+
+// THE RECORD/PRESS RULE ITSELF, pinned.
+//
+// The assessment gate above stops us LAUNDERING an opinion as a fact. This test
+// covers the other half: whether a fact is described as the right KIND of fact.
+// It had no test, and the failure it was missing is the one that reached client
+// documents - 328 of 778 government-stream records rendered as [PRESS], because
+// the rule was a list of source names rather than a reading of the data.
+test('a filing is decided by stream, not by whether its adapter was remembered', async () => {
+  // 1. A GOVERNMENT RECORD IS A RECORD, INCLUDING FROM AN ADAPTER NOBODY LISTED.
+  // These three are the New York sources, and the bug in full: real filings
+  // from zap.planning.nyc.gov, a002-ceqraccess.nyc.gov and
+  // a856-cityrecord.nyc.gov, described to a client as press.
+  for (const source of ['nyc-zap', 'nyc-ceqr', 'nyc-city-record']) {
+    expect(isFiling(source, 'Planning Application', 'government')).toBe(true);
+  }
+  // And an adapter that does not exist yet, which is the actual point: the rule
+  // must not need to be told.
+  expect(isFiling('some-future-city-portal', null, 'government')).toBe(true);
+
+  // 2. AN OPPORTUNITY IS A FILING. A tender notice is a document.
+  expect(isFiling('brand-new-tender-portal', null, 'opportunity')).toBe(true);
+
+  // 3. INTELLIGENCE IS NOT, AND CANNOT BE ARGUED INTO IT. This is the asymmetry
+  // the rule exists to protect: telling a client a document exists that they
+  // can go and read, when it does not, is the expensive error. Note the source
+  // here IS in the legacy list and the source_type matches the filing regex -
+  // the stream still refuses it.
+  expect(isFiling('legistar', 'Council Agenda', 'intelligence')).toBe(false);
+  expect(isFiling('gli_serper', null, 'intelligence')).toBe(false);
+
+  // 4. NO STREAM STILL HAS TO EARN IT. 487 legacy rows carry no stream; they
+  // fall back to the source list rather than defaulting to RECORD.
+  expect(isFiling('tedeu', null, null)).toBe(true);
+  expect(isFiling('unknown-source', null, null)).toBe(false);
+  expect(isFiling('unknown-source', 'Tender Notice', null)).toBe(true);
+
+  // 5. THE TENDER PORTALS THE AUDIT FOUND. 41 null-stream rows, all filings.
+  for (const source of ['tenderned', 'austender', 'ungm', 'gebiz']) {
+    expect(isFiling(source, null, null)).toBe(true);
+  }
+
+  // 6. JOB BOARDS STAY PRESS. An employer advertising a role is evidence a
+  // project exists; it is not a document the client can go and read.
+  for (const source of ['adzuna', 'careerjet', 'jooble', 'reed']) {
+    expect(isFiling(source, null, null)).toBe(false);
+  }
 });

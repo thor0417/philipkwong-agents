@@ -54,18 +54,60 @@ export interface SectionContext {
 // resolution. A record from the intelligence stream is trade press - it is how
 // that lane works, and its source is a publication rather than a clerk.
 //
-// Anything whose stream is unknown is treated as PRESS, deliberately. The two
-// error directions are not symmetrical: calling a filing "press" understates
-// it, while calling a headline a "record" tells the client a document exists
-// that they can go and read, and it does not.
-const RECORD_SOURCES = new Set([
+// THAT PARAGRAPH WAS ALWAYS THE INTENT, AND THE CODE DID NOT IMPLEMENT IT. The
+// rule was a list of source NAMES, so the question it actually answered was
+// "has someone remembered to add this adapter?" rather than "is this a filing?"
+// New York arrived with three government adapters and 325 filings from
+// zap.planning.nyc.gov, a002-ceqraccess.nyc.gov and a856-cityrecord.nyc.gov
+// rendered as [PRESS] in client documents - every one of them a primary
+// government record, described to a client as something a journalist wrote.
+//
+// A WHITELIST FAILS IN THE WRONG DIRECTION. Measured over the corpus before
+// this change: 328 of 778 government-stream records rendered as [PRESS], and 0
+// of 410 intelligence-stream records rendered as [RECORD]. The rule was
+// conservative in the direction that costs nothing and permissive in the
+// direction that costs credibility, and it got worse every time an adapter was
+// added, silently, in a document nobody re-reads.
+//
+// SO THE STREAM DECIDES. The stream is set at write time by the lane that
+// captured the row (agents/scraper/government writes 'government'), so it is a
+// statement about what the record IS, not about what anyone remembered.
+//
+// The asymmetry argument in the original comment still holds and is preserved:
+// calling a filing "press" understates it, while calling a headline a "record"
+// tells the client a document exists that they can go and read when it does
+// not. That is why 'intelligence' returns false EXPLICITLY rather than falling
+// through, and why an unknown stream still has to earn RECORD through the
+// legacy list below rather than defaulting to it.
+type Stream = string | null | undefined;
+
+// LEGACY ONLY. 487 rows in the corpus predate the stream column and carry null.
+// This list exists for them and must not grow: a new adapter sets a stream, and
+// a source added here instead would reintroduce exactly the failure above.
+const LEGACY_RECORD_SOURCES = new Set([
   'legistar', 'agenda-portal', 'clark-tab', 'cftod-pdf', 'ceqanet', 'canadabuys',
   'tedeu', 'uktenders', 'iadb', 'worldbank', 'adb', 'afdb', 'undp', 'nepa_jm',
   'cayman_cpa', 'sfwmd',
+  // Tender portals that were missing, found by auditing the corpus rather than
+  // by noticing a bad document: 41 null-stream rows from these four render as
+  // [PRESS] under the old list, and a tender notice is a filing by any reading.
+  'tenderned', 'austender', 'ungm', 'gebiz',
 ]);
 
-export function isFiling(source: string | null | undefined, sourceType?: string | null): boolean {
-  if (source && RECORD_SOURCES.has(source)) return true;
+// Job boards are deliberately absent from that list and stay PRESS. An employer
+// advertising a role is evidence a project exists; it is not a filing, and a
+// client clicking through must not be told it was one.
+
+export function isFiling(
+  source: string | null | undefined,
+  sourceType?: string | null,
+  stream?: Stream
+): boolean {
+  // The stream is the answer whenever the row has one.
+  if (stream === 'government' || stream === 'opportunity') return true;
+  if (stream === 'intelligence') return false;
+  // No stream: a legacy row. It has to earn RECORD.
+  if (source && LEGACY_RECORD_SOURCES.has(source)) return true;
   if (sourceType && /agenda|filing|tender|permit|ordinance|resolution/i.test(sourceType)) return true;
   return false;
 }
@@ -85,7 +127,7 @@ function lineForRecord(
 ): Line {
   const text = `${prefix}${r.title ?? 'Untitled record'}`;
   const meta = [r.published_date?.slice(0, 10), r.market].filter(Boolean).join(' | ');
-  return isFiling(r.source, r.source_type)
+  return isFiling(r.source, r.source_type, r.stream)
     ? recordLine(text, r.url, r.source ?? host(r.url), meta)
     : pressLine(text, r.url, host(r.url) || (r.source ?? 'press'), meta);
 }
@@ -328,7 +370,7 @@ const tenders: SectionDef = {
   build: (ctx) => {
     const today = new Date().toISOString().slice(0, 10);
     const open = ctx.records.filter(
-      (r) => r.deadline && r.deadline.slice(0, 10) >= today && isFiling(r.source, r.source_type)
+      (r) => r.deadline && r.deadline.slice(0, 10) >= today && isFiling(r.source, r.source_type, r.stream)
     );
     const lines = open.map((r) => lineForRecord(r, `closes ${r.deadline?.slice(0, 10)}: `));
     return withCommentary('tenders', ctx, {
