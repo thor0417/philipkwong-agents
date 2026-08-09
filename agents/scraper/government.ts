@@ -60,6 +60,7 @@ import {
   NYC_CITY_RECORD_MARKET,
   LAND_USE_SECTIONS,
 } from './sources/nyc-city-record';
+import { scrapeNycCeqr, nycCeqrStats, NYC_CEQR_MARKET } from './sources/nyc-ceqr';
 import { loadKnownEntities } from './known-entities';
 
 // Resolved from the pipeline registry, not a literal. See agents/scraper/pipelines.
@@ -526,6 +527,27 @@ function printGovernmentReport(
     );
     if (!c.complete) console.log(`        PARTIAL HARVEST: ${c.error}`);
   }
+  if (nycCeqrStats.fetched > 0 || nycCeqrStats.error) {
+    const q = nycCeqrStats;
+    console.log(
+      `    nyc-ceqr:        ${q.fetched} / ${q.schemaRejected} / ${q.gateAdmitted} / ${q.written}` +
+        `  [newest milestone ${q.newestMilestone}]`
+    );
+    console.log(
+      `        ${q.outOfMarket} out of market (Upstate); date window dropped ${q.outOfWindow} old + ${q.undatedSkipped} undated`
+    );
+    console.log(
+      `        milestone join: ${q.milestoneRows} rows over ${q.milestoneProjects} projects; ${q.withMilestone} admitted projects dated`
+    );
+    // THE CROSS-REFERENCE COUNT. A CEQR document belongs to the same project as
+    // its ULURP application, so this is the number that says whether layer three
+    // is joining layer one or running beside it.
+    console.log(
+      `        ULURP cross-reference: ${q.crossReferenced} of ${q.written} written CEQR projects matched a ZAP application` +
+        ` (ZAP supplied ${q.crossRefCandidates} distinct CEQR numbers)`
+    );
+    if (!q.complete) console.log(`        PARTIAL HARVEST: ${q.error}`);
+  }
 
   // Explicit Las Vegas validation: does the lane surface Area15-adjacent or
   // comparable-scale pre-tender signals? Reported honestly from the actual data.
@@ -629,6 +651,7 @@ async function main(): Promise<void> {
       markets: [NYC_CITY_RECORD_MARKET],
       run: () => scrapeNycCityRecord(),
     },
+    { source: 'nyc-ceqr', markets: [NYC_CEQR_MARKET], run: () => scrapeNycCeqr() },
   ];
 
   const selected = ADAPTERS.filter(
