@@ -15,6 +15,7 @@
 // with the page; it never writes a scope.
 
 import { test, expect } from '@playwright/test';
+import { streamLabel } from '../lib/streams';
 import { createClient } from '@supabase/supabase-js';
 import { readFileSync, existsSync, writeFileSync, mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -141,8 +142,16 @@ test('the three axes the composer used to drop', async ({ page }) => {
     expect(after.projects, `${axis}=${value} did not match the database exactly`).toBe(expected);
     // THE COVER HAS TO SAY SO. A document that quietly narrowed is the same
     // defect as one that quietly did not.
+    //
+    // The cover states the narrowing in the words the PRODUCT uses, which for a
+    // stream is not the stored id: 'opportunity' is written and "Tenders and
+    // RFPs" is printed (lib/streams). Asserting on the raw id would pin the
+    // cover to the database's vocabulary and fail the moment a label is made
+    // readable - which is exactly what happened. So the expected text is the
+    // label where one exists, and the assertion is otherwise unchanged.
+    const shown = axis === 'stream' ? streamLabel(value) : value;
     expect(after.filters.toLowerCase(), 'the cover does not state the narrowing').toContain(
-      value.toLowerCase()
+      shown.toLowerCase()
     );
     out[`${axis}:${value}`] = { shown: after.projects, expected, filters: after.filters };
     await chip.click();

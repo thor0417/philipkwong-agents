@@ -17,6 +17,7 @@ import { LIVE_PIPELINE_STORAGE_KEY } from './pipelines';
 import type { ResolvedPeriod } from './period';
 import { DEFAULT_SECTION_IDS, sectionById, type SectionContext } from './report-sections';
 import { estimatePages, type ReportDocument } from './report-model';
+import { streamLabel } from './streams';
 
 const RECORD_COLUMNS =
   'id,title,url,source,source_type,published_date,deadline,first_seen,date_source,' +
@@ -186,7 +187,9 @@ export async function buildReport(req: BuildRequest): Promise<BuiltReport> {
         ...(req.scope.stages ?? []).map((s) => `stage: ${s}`),
         ...(req.scope.venue_types ?? []).map((s) => `venue: ${s}`),
         ...(req.scope.development_categories ?? []).map((s) => `category: ${s}`),
-        ...(req.scope.streams ?? []).map((s) => `stream: ${s}`),
+        // The cover names the stream the way the product does, not the way the
+        // column stores it. See lib/streams.
+        ...(req.scope.streams ?? []).map((s) => `stream: ${streamLabel(s)}`),
       ].filter(Boolean),
       periodOpen: !req.period.closed,
     },

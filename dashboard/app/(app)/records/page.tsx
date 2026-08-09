@@ -217,6 +217,8 @@ const sourceTypeCol: GLIColumn = {
   render: (l) => l.source_type ?? DASH,
   sortValue: (l) => (l.source_type ?? '').toLowerCase(),
 };
+import { STREAM_LABELS } from '@/lib/streams';
+
 // The three streams. Opportunities group by signal_type (Feasibility RFP becomes
 // its own section) and sort by soonest deadline; Intelligence sorts by newest
 // publication; Government keeps the query order (newest first).
@@ -235,7 +237,9 @@ const STREAMS: {
   // surface signal_type as the group band.
   {
     key: 'opportunity',
-    label: 'Opportunities',
+    // Stored id stays 'opportunity' (leads.stream, the ?stream= URL param, and
+    // client_scopes.streams all carry it); only the label moves. See lib/streams.
+    label: STREAM_LABELS.opportunity,
     columns: [titleCol, categoryCol, locationCol, deadlineCol, linkCol],
     group: true,
     sortKey: 'deadline',
@@ -243,7 +247,7 @@ const STREAMS: {
   },
   {
     key: 'intelligence',
-    label: 'Intelligence',
+    label: STREAM_LABELS.intelligence,
     columns: [titleCol, categoryCol, locationCol, publishedCol, linkCol],
     group: false,
     sortKey: 'published',
@@ -251,7 +255,7 @@ const STREAMS: {
   },
   {
     key: 'government',
-    label: 'Government',
+    label: STREAM_LABELS.government,
     columns: [titleCol, categoryCol, sourceTypeCol, jurisdictionCol, publishedCol, linkCol],
     group: false,
     sortDir: 'desc',

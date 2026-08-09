@@ -20,6 +20,7 @@
 import { DEVELOPMENT_CATEGORIES, PROJECT_STAGES, VENUE_TYPES } from '@/lib/taxonomy';
 import { useProjectFacet } from '@/lib/use-projects';
 import { HOSPITALITY_ID, storageKeyFor } from '@/lib/pipelines';
+import { streamLabel } from '@/lib/streams';
 import styles from '@/app/(app)/clients/page.module.css';
 
 export interface ScopeDraft {
@@ -63,7 +64,11 @@ function ChipField({
 }: {
   label: string;
   hint: string;
-  options: { value: string; count?: number }[];
+  // `label` displays instead of `value` when present. The VALUE is what is
+  // stored and filtered on; the label is only what a person reads. Used by the
+  // streams field, where 'opportunity' is stored and "Tenders and RFPs" is
+  // shown - see lib/streams.
+  options: { value: string; label?: string; count?: number }[];
   selected: string[];
   onToggle: (v: string) => void;
 }) {
@@ -82,7 +87,7 @@ function ChipField({
             className={`${styles.chip} ${selected.includes(o.value) ? styles.chipOn : ''}`}
             onClick={() => onToggle(o.value)}
           >
-            {o.value}
+            {o.label ?? o.value}
             {o.count !== undefined && <span className="mono"> {o.count}</span>}
           </button>
         ))}
@@ -165,7 +170,7 @@ export default function ScopeFields({
       <ChipField
         label="Streams"
         hint="Which capture lane."
-        options={STREAMS.map((v) => ({ value: v }))}
+        options={STREAMS.map((v) => ({ value: v, label: streamLabel(v) }))}
         selected={draft.streams}
         onToggle={(v) => set({ streams: toggle(draft.streams, v) })}
       />

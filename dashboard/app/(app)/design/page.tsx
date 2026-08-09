@@ -335,7 +335,7 @@ export default function DesignSystemPage() {
             <div className={styles.compRow}>
               {[
                 ['All', '1,284'],
-                ['Opportunity', '317'],
+                ['Tenders and RFPs', '317'],
                 ['Project event', '967'],
               ].map(([label, count], i) => (
                 <button key={label} type="button" className={`${styles.chip} ${i === 1 ? styles.chipActive : ''}`}>

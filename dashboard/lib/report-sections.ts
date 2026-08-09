@@ -366,7 +366,7 @@ const watchList: SectionDef = {
 const tenders: SectionDef = {
   id: 'tenders',
   label: 'Tenders open',
-  description: 'Opportunity-stream records whose deadline has not passed.',
+  description: 'Tenders and RFPs whose deadline has not passed.',
   build: (ctx) => {
     const today = new Date().toISOString().slice(0, 10);
     const open = ctx.records.filter(
