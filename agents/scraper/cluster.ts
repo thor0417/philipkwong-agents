@@ -311,7 +311,61 @@ export const CASE_RULES: CaseRule[] = [
     sources: ['ceqanet'],
     patterns: [/\bSCH\s*#?\s*(\d{8,10})\b/gi, /ceqanet\.opr\.ca\.gov\/Project\/(\d+)/gi],
   },
+  {
+    // NEW YORK CITY: the CEQR number and the ULURP application numbers. These
+    // are the case family for New York, the role case roots play in Clark
+    // County - but they earn it differently, and the difference matters.
+    //
+    // A Clark County case id recurs because ONE matter is heard repeatedly. A
+    // New York number recurs because one project is described by THREE
+    // SOURCES: the ZAP entitlement row carries both numbers, the CEQR
+    // environmental record carries the CEQR number, and a City Record hearing
+    // notice names the ULURP number. So the case root is what stitches the
+    // three layers of this market into one project instead of three.
+    //
+    // THE CEQR NUMBER IS THE PRIMARY ROOT because there is exactly one per
+    // project. Shape: two-digit year, agency code, sequence, borough letter
+    // (26DCP126M, 99HRA001K, 03BSA193Q).
+    //
+    // THE ULURP NUMBER is per APPLICATION, not per project, and one project
+    // routinely files several - a map amendment and its companion text
+    // amendment are different numbers on the same development. Shape: an
+    // optional prefix letter, six digits, an action code, and a borough letter
+    // (140316ZSR, N230150ZCM, M220029ALDM, F220467LDM). The trailing borough
+    // letter is REQUIRED by the pattern: without it, any six digits followed
+    // by letters would qualify and street addresses would start clustering.
+    label: 'New York City (CEQR numbers and ULURP application numbers)',
+    markets: ['New York City'],
+    sources: ['nyc-zap', 'nyc-ceqr', 'nyc-city-record'],
+    patterns: [
+      /\b(\d{2}[A-Z]{2,6}\d{3,4}[A-Z]?)\b/gi,
+      /\b([CNMF]?\d{6}[A-Z]{1,3}[MXKQR])\b/gi,
+    ],
+  },
 ];
+
+// SOURCES WHOSE RECORD IS A PROJECT MANIFEST, NOT AN INDEX.
+//
+// MAX_CASE_ROOTS_PER_RECORD exists because a record naming many case roots is
+// usually an agenda item listing many matters, and treating those as one matter
+// merges unrelated developments. That premise is about AGENDA records, where
+// one item genuinely can be about many things.
+//
+// A ZAP row is a different kind of object. The dataset's unit is the PROJECT -
+// one row is one project by construction - and its ulurp_numbers column is that
+// project's own list of applications. A ZAP row naming fourteen ULURP numbers
+// is not an index of fourteen matters; it is one development that filed
+// fourteen applications, and dropping its case signals would scatter the
+// project across the very records that prove it is one.
+//
+// Measured over the 2023+ ZAP window: 51 of 517 rows carrying any ULURP number
+// name more than three, so without this exemption 10% of New York entitlement
+// filings would lose their case family entirely - and they are the LARGE ones,
+// because filing count scales with project complexity.
+//
+// The exemption is per source and deliberately narrow. It is not "trust rows
+// with many roots"; it is "this source's unit of publication is the project".
+export const PROJECT_MANIFEST_SOURCES: ReadonlySet<string> = new Set(['nyc-zap']);
 
 // ---- Two kinds of record that must not assert project identity --------------
 
@@ -876,7 +930,7 @@ export function clusterRecords(
     const { rule, roots } = caseRoots(r);
     if (rule) result.casePatternsFound[rule] = (result.casePatternsFound[rule] ?? 0) + roots.length;
     if (roots.length > 0 && isCitywideRecord(r)) result.citywideRecordsDropped++;
-    if (roots.length > MAX_CASE_ROOTS_PER_RECORD) {
+    if (roots.length > MAX_CASE_ROOTS_PER_RECORD && !PROJECT_MANIFEST_SOURCES.has(r.source ?? '')) {
       result.omnibusRecordsDropped++;
     } else {
       for (const root of roots) sigs.push({ key: `case:${mk}:${root}`, reason: 'case-family' });
