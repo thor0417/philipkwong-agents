@@ -21,7 +21,8 @@
     "gate:terms": "node --env-file=.env.local --import tsx agents/scraper/gate-term-test.ts",
     "gate:regate": "node --env-file=.env.local --import tsx agents/scraper/regate-stored.ts",
     "verify:geography": "node --import tsx agents/scraper/verify-geography.ts",
-    "corpus:snapshot": "node --env-file=.env.local --import tsx agents/scraper/corpus-snapshot.ts"
+    "corpus:snapshot": "node --env-file=.env.local --import tsx agents/scraper/corpus-snapshot.ts",
+    "verify:urls": "node --env-file=.env.local --import tsx agents/scraper/verify-urls.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.20.0",
