@@ -325,6 +325,28 @@ export function resolveGeography(
     return hintCountry ? { country: hintCountry, region_state: null, market: null } : { ...UNRESOLVED };
   }
 
+  // A JURISDICTION THIS SYSTEM CONFIGURES IS NEVER REINTERPRETED AS A CODE.
+  //
+  // This lookup also happens further down, and it has to happen HERE as well,
+  // because the code-shaped branches below get first refusal on a bare single
+  // token and one of them was claiming a borough.
+  //
+  // Measured, not theorised: "Bronx" resolved to BRAZIL. The NUTS region-code
+  // pattern is two letters followed by one to four alphanumerics ("CZ010",
+  // "PL637"), and "BRONX" satisfies it - BR + ONX - so countryFromCode read the
+  // BR prefix as Brazil and returned before the jurisdiction table was ever
+  // consulted. 17 New York City records landed with country 'Brazil' and a null
+  // market on the first scoped NYC run.
+  //
+  // "Queens" is the same shape (QU + EENS) and escaped only because QU is not
+  // an assigned country code. That is luck, not a rule, so the fix is placed
+  // where it covers every configured jurisdiction rather than special-casing
+  // the one that happened to collide.
+  const configuredFirst = CONFIGURED_JURISDICTIONS[raw.toLowerCase()];
+  if (configuredFirst) {
+    return { country: US, region_state: configuredFirst.region, market: configuredFirst.market };
+  }
+
   const parts = raw.split(',').map(clean).filter(Boolean);
   if (parts.length === 0) return hintCountry ? { country: hintCountry, region_state: null, market: null } : { ...UNRESOLVED };
 
