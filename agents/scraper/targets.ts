@@ -63,10 +63,109 @@ export interface TargetDef {
 // be swallowed by the district.
 export const TARGETS: TargetDef[] = [
   {
+    // ADVENT ALLEN IS NOW A PORTFOLIO, NOT A PROJECT, so this is perMarket.
+    //
+    // 'advent allen' has always been a bypass term here, so an Advent filing in
+    // any market was already going to be CAPTURED. What was wrong was where it
+    // would LAND: without perMarket, a New York filing would have clustered
+    // into the Las Vegas project, because a non-perMarket target is one project
+    // wherever it appears. Advent Allen is reported to be preparing a New York
+    // development, and Mark Advent created the New York-New York Hotel &
+    // Casino, so a New York filing is a live possibility rather than a
+    // hypothetical - and it would be a different development from Top Gun.
+    //
+    // The Las Vegas display name is pinned so the existing project is not
+    // renamed by this change.
+    //
+    // Searched 2026-08-09 across all three New York sources: no Advent Allen
+    // filing exists in New York City. This is the trap set for the one that
+    // may come, not a record of one that has.
     name: 'Top Gun Las Vegas',
+    perMarket: true,
+    marketNames: { 'Las Vegas': 'Top Gun Las Vegas' },
     bypass: ['top gun', 'advent allen', '4815 s las vegas', '4815 las vegas', 'russell road', 'simtec'],
     weakForClustering: ['russell road'],
     searchOnly: ['advent', 'paramount', 'the strat', 'stratosphere', '4815', 'paradise, nv', 'paradise nv'],
+  },
+
+  // ---- NEW YORK CITY: the downstate casino programme and the large venues ----
+  //
+  // New York State's downstate gaming licences put several billion-dollar
+  // entertainment developments through city land use review at once. Each bid is
+  // a SEPARATE target because each is a separate development: one 'downstate
+  // casino' target would merge Bally's Bronx into Coney Island, which is exactly
+  // the false merge the per-project rule exists to prevent.
+  //
+  // The bypass terms are the NAMED PARTIES and the project names, never the
+  // neighbourhood. 'coney island' and 'aqueduct' are searchOnly for a measured
+  // reason: 'coney island' matches 15 stored records, most of them unrelated
+  // residential rezonings on Coney Island Avenue, and 'aqueduct' matches a Parks
+  // Department walk in the Bronx. A neighbourhood is where a project is, not
+  // which project it is - the same rule that made 'russell road' weak above.
+  {
+    name: "Bally's Bronx",
+    bypass: [
+      "bally's bronx",
+      'ballys bronx',
+      'ballys new york operating',
+      "bally's new york operating",
+      "bally's hotel and casino",
+      'ferry point',
+    ],
+    // Ferry Point is a city park before it is a casino site, and the Parks
+    // Department files on it independently.
+    weakForClustering: ['ferry point'],
+    searchOnly: ["bally's", 'ballys', 'throgs neck'],
+  },
+  {
+    name: 'The Coney (Coney Island casino)',
+    bypass: [
+      'the coney development',
+      'tsg coney island',
+      'coney island entertainment holdco',
+      'thor equities',
+      'saratoga casino holdings',
+    ],
+    searchOnly: ['coney island', 'surf avenue', 'stillwell'],
+  },
+  {
+    name: 'Metropolitan Park / Willets Point',
+    bypass: [
+      'willets point',
+      'metropolitan park',
+      'queens development group',
+      'city football stadium',
+      'steve cohen',
+      'sterling equities',
+    ],
+    searchOnly: ['citi field', 'flushing meadows'],
+  },
+  {
+    // Not found in any of the three sources as of 2026-08-09. Resorts World
+    // Aqueduct is an existing racino seeking a full licence, and an expansion
+    // would reach ZAP and CEQR the moment it needs a discretionary action.
+    name: 'Resorts World Aqueduct',
+    bypass: ['resorts world', 'genting new york', 'aqueduct racetrack', 'aqueduct racino'],
+    searchOnly: ['aqueduct', 'ozone park', 'genting'],
+  },
+  {
+    // Not found as of 2026-08-09.
+    name: 'Freedom Plaza (Soloviev)',
+    bypass: ['freedom plaza', 'soloviev'],
+    searchOnly: ['east 38th street', 'east 41st street'],
+  },
+  {
+    name: 'Hudson Yards / Western Rail Yard',
+    bypass: ['western rail yard', 'wry tenant', 'hudson yards'],
+    searchOnly: ['related companies', 'oxford properties'],
+  },
+  {
+    // Madison Square Garden's special permit is the recurring entitlement that
+    // governs whether the arena may operate at all, so its filings are the
+    // clearest large-venue signal in Manhattan.
+    name: 'Madison Square Garden',
+    bypass: ['madison square garden', 'msg arena', 'msg entertainment'],
+    searchOnly: ['penn station', 'pennsylvania plaza'],
   },
   {
     // Heart Hotel / Kulik River cluster: the heart-shaped resort hotel and casino
