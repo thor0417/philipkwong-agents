@@ -173,6 +173,11 @@ export const NycCityRecordRowSchema = z.object({
   type_of_notice_description: z.string().nullish(),
   category_description: z.string().nullish(),
   additional_description_1: z.string().nullish(),
+  // A Socrata URL column, which arrives as an object rather than a string. It
+  // is declared here rather than left out because zod STRIPS unknown keys: an
+  // undeclared field is not merely unvalidated, it is deleted, so the notice's
+  // own document link would vanish between the boundary and the adapter.
+  document_links: z.object({ url: z.string().nullish(), description: z.string().nullish() }).nullish(),
   vendor_name: z.string().nullish(),
   contact_name: z.string().nullish(),
   building_name: z.string().nullish(),

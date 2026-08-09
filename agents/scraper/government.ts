@@ -54,6 +54,12 @@ import { scrapeClarkTabAgendas } from './sources/clark-tab';
 import { scrapeCeqanet } from './sources/ceqanet';
 import { scrapeSfwmd } from './sources/sfwmd';
 import { scrapeNycZap, zapStats, NYC_ZAP_MARKET } from './sources/nyc-zap';
+import {
+  scrapeNycCityRecord,
+  cityRecordStats,
+  NYC_CITY_RECORD_MARKET,
+  LAND_USE_SECTIONS,
+} from './sources/nyc-city-record';
 import { loadKnownEntities } from './known-entities';
 
 // Resolved from the pipeline registry, not a literal. See agents/scraper/pipelines.
@@ -492,6 +498,34 @@ function printGovernmentReport(
       console.log(`        PARTIAL HARVEST: ${zapStats.error}`);
     }
   }
+  if (cityRecordStats.fetched > 0 || cityRecordStats.error) {
+    const c = cityRecordStats;
+    console.log(
+      `    nyc-city-record: ${c.fetched} / ${c.schemaRejected} / ${c.gateAdmitted} / ${c.written}` +
+        `  [newest notice ${c.newestNoticeDate}]`
+    );
+    console.log(`        sections queried: ${LAND_USE_SECTIONS.join(', ')}`);
+    console.log(
+      `        gate rejected ${c.gateRejected} (` +
+        Object.entries(c.rejectReasons)
+          .sort((a, b) => b[1] - a[1])
+          .map(([k, v]) => `${k} ${v}`)
+          .join(', ') +
+        ')'
+    );
+    // THE CALENDAR NUMBER, printed every run. This is the figure that decides
+    // whether a forward calendar screen is buildable, so it is reported rather
+    // than recomputed by hand when the question next comes up.
+    console.log(
+      `        hearing dates: ${c.withEventDate} of ${c.fetched} notices carry one; ` +
+        `${c.futureHearings} are still in the future (` +
+        (Object.entries(c.futureHearingsBySection)
+          .map(([k, v]) => `${k}: ${v}`)
+          .join('; ') || 'none') +
+        ')'
+    );
+    if (!c.complete) console.log(`        PARTIAL HARVEST: ${c.error}`);
+  }
 
   // Explicit Las Vegas validation: does the lane surface Area15-adjacent or
   // comparable-scale pre-tender signals? Reported honestly from the actual data.
@@ -590,6 +624,11 @@ async function main(): Promise<void> {
     // 'New York City' (lib/geography MARKET_ALIASES), so all three adapters
     // declare the city rather than a borough list.
     { source: 'nyc-zap', markets: [NYC_ZAP_MARKET], run: () => scrapeNycZap() },
+    {
+      source: 'nyc-city-record',
+      markets: [NYC_CITY_RECORD_MARKET],
+      run: () => scrapeNycCityRecord(),
+    },
   ];
 
   const selected = ADAPTERS.filter(
