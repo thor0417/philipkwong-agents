@@ -321,7 +321,48 @@ export function stageIsOverridden(overrides: unknown): boolean {
 // first match wins: the most specific venues lead, fallbacks last. Matched against
 // the lead's title + content (and any existing venue hint). ----
 const VENUE_RULES: { venue: VenueType; keywords: string[] }[] = [
+  // A NAMED PARK OUTRANKS A GENERIC NOUN, and it has to be ordered first.
+  //
+  // Waterpark used to be the very first rule, so any text containing "water
+  // park" won regardless of what else it said. Walt Disney World's records
+  // mention both a theme park and a water park - it has several of each - and
+  // the mode of its records made the whole CFTOD project a 'Waterpark'. The
+  // largest theme park resort on earth, filed under waterpark.
+  //
+  // A proper noun is more specific evidence than a common noun that happens to
+  // appear in the same document, so the named parks are matched before either
+  // generic rule. The generic 'theme park' phrase stays BELOW Waterpark, which
+  // preserves the original precedence for everything unnamed: a genuine water
+  // park whose brief also says "theme park" is still a Waterpark.
+  {
+    venue: 'Theme Park',
+    keywords: [
+      'disneyland', 'walt disney world', 'magic kingdom', 'epcot',
+      'hollywood studios', 'universal studios', 'universal orlando',
+      'islands of adventure', 'epic universe', 'six flags', 'cedar point',
+      'busch gardens', 'seaworld', 'sea world', 'legoland',
+    ],
+  },
   { venue: 'Waterpark', keywords: ['waterpark', 'water park'] },
+  // NAMED THEME PARKS ARE THEME PARKS, and the classifier could not see it.
+  //
+  // The rule matched only the literal phrase "theme park", so Disneyland Resort
+  // classified as 'Resort' - the word "resort" is in its name and the phrase
+  // "theme park" is not. Simtec Attractions scope names Theme Park, Amusement
+  // Park and Waterpark and does NOT name Resort, so the most relevant cluster
+  // in Anaheim was invisible to the one client whose whole business is theme
+  // parks. Disney / CFTOD (Walt Disney World) survived only because "Walt
+  // Disney World" happens to contain no competing keyword.
+  //
+  // These are proper nouns naming specific theme parks, which is the same
+  // reasoning that makes 'ocvibe' a target term rather than a vocabulary tier:
+  // there is nothing ambiguous about them.
+  //
+  // BARE 'disney' IS DELIBERATELY ABSENT. It would sweep in Disney's Fort
+  // Wilderness Cabin Improvements (lodging), the Disney I-4 Interchange
+  // (roadway) and Goaa Mitigation At Disney Wilderness Preserve (conservation),
+  // none of which are theme parks. 'animal kingdom' is absent for the same
+  // reason: its only occurrence in this corpus is the Animal Kingdom LODGE.
   { venue: 'Theme Park', keywords: ['theme park'] },
   { venue: 'Amusement Park', keywords: ['amusement park', 'amusement'] },
   { venue: 'Family Entertainment Center', keywords: ['family entertainment', 'family entertainment center', 'fec'] },
