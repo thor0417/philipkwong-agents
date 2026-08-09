@@ -307,6 +307,32 @@ export async function scrapeNycCeqr(): Promise<NormalizedLead[]> {
       continue;
     }
     const ceqr = normalizeCeqr(r.ceqr);
+
+    // THE DATE WINDOW IS APPLIED BEFORE THE GATE, not after.
+    //
+    // It used to run after, which was harmless for capture (the same records
+    // were written either way) and wrong for MEASUREMENT. gateDecide records
+    // every candidate it judges into the audit corpus, and that corpus is the
+    // denominator gate precision and recall are measured on. Gating all 15,362
+    // CEQR projects and then discarding two thirds of them put a twenty-year
+    // archive into the corpus as if the system considered it, and CEQR alone
+    // would have outweighed every other government source combined - making the
+    // pooled gate numbers a measurement of CEQR rather than of the gate.
+    //
+    // A record the run will discard is not a candidate. So the window decides
+    // first, and only what this lane would actually consider reaches the gate.
+    const ms = ceqr ? milestones.get(ceqr) : undefined;
+    if (since) {
+      if (!ms?.latest) {
+        nycCeqrStats.undatedSkipped++;
+        continue;
+      }
+      if (ms.latest < since && !ms.futureMax) {
+        nycCeqrStats.outOfWindow++;
+        continue;
+      }
+    }
+
     const gateText = gateTextOf(r);
     const title = (r.project_name ?? r.ceqr).slice(0, 200);
 
@@ -335,24 +361,8 @@ export async function scrapeNycCeqr(): Promise<NormalizedLead[]> {
     if (seen.has(r.url)) continue;
     seen.add(r.url);
 
-    const ms = ceqr ? milestones.get(ceqr) : undefined;
     if (ms?.latest) nycCeqrStats.withMilestone++;
     else nycCeqrStats.withoutMilestone++;
-
-    // The date window, applied after the milestone join because that is the
-    // first point at which this record HAS a date. A future milestone always
-    // keeps a project in scope regardless of how old its last filing is: a
-    // scheduled hearing is the strongest liveness signal the source publishes.
-    if (since) {
-      if (!ms?.latest) {
-        nycCeqrStats.undatedSkipped++;
-        continue;
-      }
-      if (ms.latest < since && !ms.futureMax) {
-        nycCeqrStats.outOfWindow++;
-        continue;
-      }
-    }
 
     const crossRef = Boolean(ceqr && zapCeqr.has(ceqr));
     if (crossRef) nycCeqrStats.crossReferenced++;

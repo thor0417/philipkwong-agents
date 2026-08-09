@@ -79,7 +79,36 @@ function sodaError(body: unknown): string | null {
   return 'unrecognised Socrata response shape';
 }
 
-async function fetchPage(url: string): Promise<{ rows: unknown[]; error: string | null }> {
+// RETRY, BECAUSE A KEYLESS SOCRATA CALL FAILS UNDER CONCURRENCY AND FAILS QUIETLY.
+//
+// Measured: run alone, the City Record adapter fetches 2,342 rows. Run inside
+// the gate harvest, alongside two other Socrata adapters and four other sources,
+// it contributed ZERO candidates to the corpus - no exception, no rejected
+// promise, nothing in the log. Keyless Socrata throttles per host, and a
+// throttled first page returned an error that this module dutifully reported as
+// `complete: false` and that nothing upstream was watching.
+//
+// That is the failure this repo has already paid for twice (see the note at the
+// top of sources/schemas.ts): a source that dies looks exactly like a quiet
+// week. So a failed page is retried with backoff before it is believed, and a
+// genuine give-up still surfaces through `complete: false`.
+//
+// A 4xx that is not a rate limit is NOT retried: a malformed query fails
+// identically every time, and retrying it just spends four seconds proving it.
+const MAX_ATTEMPTS = 4;
+
+function retryable(status: number, message: string): boolean {
+  if (status === 429 || status === 0 || status >= 500) return true;
+  // Socrata's throttle sometimes arrives as a 403 with an explanatory body
+  // rather than a 429.
+  return /throttl|rate limit|too many requests|timeout|temporarily/i.test(message);
+}
+
+const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
+
+async function fetchPageOnce(
+  url: string
+): Promise<{ rows: unknown[]; error: string | null; status: number }> {
   try {
     const res = await fetch(url, {
       headers: {
@@ -94,14 +123,26 @@ async function fetchPage(url: string): Promise<{ rows: unknown[]; error: string 
     try {
       body = JSON.parse(text);
     } catch {
-      return { rows: [], error: `HTTP ${res.status}: response was not JSON` };
+      return { rows: [], error: `HTTP ${res.status}: response was not JSON`, status: res.status };
     }
     const err = sodaError(body);
-    if (err) return { rows: [], error: `HTTP ${res.status}: ${err}` };
-    return { rows: body as unknown[], error: null };
+    if (err) return { rows: [], error: `HTTP ${res.status}: ${err}`, status: res.status };
+    return { rows: body as unknown[], error: null, status: res.status };
   } catch (error) {
-    return { rows: [], error: String(error).slice(0, 150) };
+    // A network-level failure (timeout, socket reset) has no status.
+    return { rows: [], error: String(error).slice(0, 150), status: 0 };
   }
+}
+
+async function fetchPage(url: string): Promise<{ rows: unknown[]; error: string | null }> {
+  let last = { rows: [] as unknown[], error: 'not attempted' as string | null, status: 0 };
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    last = await fetchPageOnce(url);
+    if (!last.error) return { rows: last.rows, error: null };
+    if (!retryable(last.status, last.error) || attempt === MAX_ATTEMPTS) break;
+    await sleep(500 * 2 ** (attempt - 1));
+  }
+  return { rows: last.rows, error: `${last.error} (after ${MAX_ATTEMPTS} attempts)` };
 }
 
 // Page a dataset to exhaustion (or to maxRows). Never throws: a failure stops
