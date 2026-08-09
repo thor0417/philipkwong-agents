@@ -72,6 +72,13 @@ export const SOURCE_BYPASS_MODE: Record<string, BypassMode> = {
   ceqanet: 'all',
   // Inside CFTOD's own packets the geographic Disney terms are letterhead.
   'cftod-pdf': 'strong',
+  // The three New York City sources. All read the target list, for the same
+  // reason legistar does: a watched developer's filing must be captured whether
+  // or not its title happens to carry a venue noun, and ZAP project names are
+  // very often a bare street address.
+  'nyc-zap': 'all',
+  'nyc-city-record': 'all',
+  'nyc-ceqr': 'all',
 };
 
 // The mode for a source. An unregistered source falls back to what the caller

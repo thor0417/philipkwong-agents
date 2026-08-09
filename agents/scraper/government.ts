@@ -53,6 +53,7 @@ import { scrapeLasVegasAgendas } from './sources/lasvegas';
 import { scrapeClarkTabAgendas } from './sources/clark-tab';
 import { scrapeCeqanet } from './sources/ceqanet';
 import { scrapeSfwmd } from './sources/sfwmd';
+import { scrapeNycZap, zapStats, NYC_ZAP_MARKET } from './sources/nyc-zap';
 import { loadKnownEntities } from './known-entities';
 
 // Resolved from the pipeline registry, not a literal. See agents/scraper/pipelines.
@@ -463,6 +464,35 @@ function printGovernmentReport(
     );
   }
 
+  // NEW YORK CITY source telemetry. Printed separately from the per-jurisdiction
+  // table because all three NYC adapters write the SAME market ('New York City'),
+  // so that table cannot show which of the three layers produced what - the same
+  // masking that made Anaheim hide Las Vegas before adapter-level health existed.
+  //
+  // FRESHNESS IS PRINTED, NOT REMEMBERED. ZAP is stale (docs/COVERAGE-MAP.md), and
+  // a run report that shows only counts would let a reader assume otherwise.
+  if (zapStats.fetched > 0 || zapStats.error) {
+    console.log('\nNew York City sources (fetched / schema-rejected / gate-admitted / written):');
+    const staleNote =
+      zapStats.stalenessDays === null
+        ? ''
+        : `  [newest content ${zapStats.newestContentDate}, ${zapStats.stalenessDays}d stale]`;
+    console.log(
+      `    nyc-zap:         ${zapStats.fetched} / ${zapStats.schemaRejected} / ${zapStats.gateAdmitted} / ${zapStats.written}${staleNote}`
+    );
+    console.log(
+      `        gate rejected ${zapStats.gateRejected} (` +
+        Object.entries(zapStats.rejectReasons)
+          .sort((a, b) => b[1] - a[1])
+          .map(([k, v]) => `${k} ${v}`)
+          .join(', ') +
+        `); ${zapStats.withCeqr} rows carry a CEQR number for cross-reference`
+    );
+    if (!zapStats.complete) {
+      console.log(`        PARTIAL HARVEST: ${zapStats.error}`);
+    }
+  }
+
   // Explicit Las Vegas validation: does the lane surface Area15-adjacent or
   // comparable-scale pre-tender signals? Reported honestly from the actual data.
   const lvLabel = 'Las Vegas, NV';
@@ -556,6 +586,10 @@ async function main(): Promise<void> {
       run: () => scrapeCeqanet(),
     },
     { source: 'sfwmd', markets: ['South Florida'], run: () => scrapeSfwmd() },
+    // NEW YORK CITY. Three layers, one market: the boroughs fold into
+    // 'New York City' (lib/geography MARKET_ALIASES), so all three adapters
+    // declare the city rather than a borough list.
+    { source: 'nyc-zap', markets: [NYC_ZAP_MARKET], run: () => scrapeNycZap() },
   ];
 
   const selected = ADAPTERS.filter(

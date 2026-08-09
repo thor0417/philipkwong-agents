@@ -117,6 +117,93 @@ export const GranicusMeetingSchema = z.object({
 });
 export type GranicusMeetingParsed = z.infer<typeof GranicusMeetingSchema>;
 
+// ---- New York City / Socrata (data.cityofnewyork.us) ------------------------
+//
+// Three datasets, one rule each about what is genuinely required. The rule is
+// always the same question: without this field, can the record be given an
+// identity and a URL a client can open? If not, it is rejected rather than
+// written half-understood.
+//
+// Socrata returns every column as a JSON string, and OMITS a column entirely
+// when its value is null rather than sending null. So every optional field is
+// `.nullish()` and nothing may be `.default()`-ed into existence.
+
+// ZAP / ULURP. project_id is the identity AND the thing the public portal URL
+// is built from, so it is the one required field. Everything else, including
+// the project name, is tolerated missing.
+export const NycZapRowSchema = z.object({
+  project_id: z.string().min(1),
+  project_name: z.string().nullish(),
+  project_brief: z.string().nullish(),
+  project_status: z.string().nullish(),
+  public_status: z.string().nullish(),
+  ulurp_non: z.string().nullish(),
+  actions: z.string().nullish(),
+  ulurp_numbers: z.string().nullish(),
+  ceqr_number: z.string().nullish(),
+  ceqr_type: z.string().nullish(),
+  ceqr_leadagency: z.string().nullish(),
+  primary_applicant: z.string().nullish(),
+  applicant_type: z.string().nullish(),
+  borough: z.string().nullish(),
+  community_district: z.string().nullish(),
+  cc_district: z.string().nullish(),
+  current_milestone: z.string().nullish(),
+  current_milestone_date: z.string().nullish(),
+  app_filed_date: z.string().nullish(),
+  noticed_date: z.string().nullish(),
+  certified_referred: z.string().nullish(),
+  approval_date: z.string().nullish(),
+  completed_date: z.string().nullish(),
+});
+export type NycZapRowParsed = z.infer<typeof NycZapRowSchema>;
+
+// City Record Online. request_id is the record's identity and the only part of
+// the public URL that varies; a notice with no title cannot be presented to a
+// client, so short_title is required too.
+export const NycCityRecordRowSchema = z.object({
+  request_id: z.string().min(1),
+  short_title: z.string().min(1),
+  start_date: z.string().nullish(),
+  end_date: z.string().nullish(),
+  event_date: z.string().nullish(),
+  due_date: z.string().nullish(),
+  agency_name: z.string().nullish(),
+  section_name: z.string().nullish(),
+  type_of_notice_description: z.string().nullish(),
+  category_description: z.string().nullish(),
+  additional_description_1: z.string().nullish(),
+  vendor_name: z.string().nullish(),
+  contact_name: z.string().nullish(),
+  building_name: z.string().nullish(),
+  street_address_1: z.string().nullish(),
+  city: z.string().nullish(),
+  zip_code: z.string().nullish(),
+});
+export type NycCityRecordRowParsed = z.infer<typeof NycCityRecordRowSchema>;
+
+// CEQR project. The dataset ships its own per-project URL, which is the whole
+// reason this adapter does not have to construct one, so the url is required
+// and validated as a URL. The CEQR number is the cross-reference key to ZAP.
+export const NycCeqrProjectSchema = z.object({
+  ceqr: z.string().min(1),
+  project_name: z.string().nullish(),
+  project_description: z.string().nullish(),
+  borough: z.string().nullish(),
+  lead_agency: z.string().nullish(),
+  url: z.string().url(),
+});
+export type NycCeqrProjectParsed = z.infer<typeof NycCeqrProjectSchema>;
+
+// CEQR milestone. Dates live in this separate dataset, so a milestone with no
+// date carries no information this lane can use.
+export const NycCeqrMilestoneSchema = z.object({
+  ceqr: z.string().min(1),
+  milestone_name: z.string().nullish(),
+  milestone_date: z.string().min(1),
+});
+export type NycCeqrMilestoneParsed = z.infer<typeof NycCeqrMilestoneSchema>;
+
 // ---- the parse harness ------------------------------------------------------
 
 export interface ParseReport {
