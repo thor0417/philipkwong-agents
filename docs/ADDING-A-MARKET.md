@@ -1,10 +1,15 @@
 # Adding a market
 
 Written from adding New York City on 2026-08-08, which took a day and ended in
-a decision **not** to add it as a covered market. That is the useful version of
-this document. A runbook written from Nashville alone would say market
-onboarding takes four minutes, and would be wrong about most of the remaining
-fifteen.
+a decision **not** to add it as a covered market - and revised on 2026-08-09,
+when that decision turned out to be wrong. New York City IS coverable, on three
+bulk datasets nobody had probed, and the first attempt missed them because it
+asked whether the portal could be scraped instead of where the jurisdiction
+publishes. Both versions are kept below, because the mistake is more instructive
+than the fix: see step 2c.
+
+A runbook written from Nashville alone would say market onboarding takes four
+minutes, and would be wrong about most of the remaining fifteen.
 
 ## The two-tier answer
 
@@ -61,14 +66,17 @@ For any candidate source, ask for the newest record it holds and compare it to
 today:
 
 ```bash
-# Socrata example
+# Socrata example. READ STEP 2b BEFORE COPYING THIS: the column matters more
+# than the query, and this exact example is the wrong column for ZAP.
 curl -s "https://data.cityofnewyork.us/resource/{id}.json?\$select=max(app_filed_date)"
 ```
 
 **Rule: if the newest record is more than 45 days old, the source cannot feed a
-monthly report.** ZAP's newest filing was 110 days old. A market whose only
-entitlement source is that stale must not be added as a covered market, however
-easy the adapter would be.
+monthly report.** ZAP's newest filing was 110 days old, and still is: measured
+again on 2026-08-09 it was 107 days stale, so the original reading was right.
+A market whose only entitlement source is that stale must not be sold as
+covered on that layer, however easy the adapter is - but see step 2c before
+concluding the MARKET is closed, because ZAP was not New York's only source.
 
 Record the numbers in `docs/COVERAGE-MAP.md` with the probe date, so the next
 person can tell a stale source from an unchecked one.
@@ -177,3 +185,161 @@ Do not skip these because the adapter worked.
   answer is often not to add it. That is a successful outcome, not a failed one.
   It cost a day to learn that about market eleven instead of finding out from a
   client asking why their New York section was empty.
+
+---
+
+## Step 2b: a staleness reading is only as good as the column it was taken on
+
+Added 2026-08-09, after New York City was reopened and turned out to be three
+quarters live.
+
+Step 2 above says to probe freshness and gives a Socrata example that reads
+`max(app_filed_date)`. That example is **wrong for ZAP**, and following it
+produced two opposite errors on the same source four months apart.
+
+**Socrata does not fail loudly on a bad column in every client.** Ask for a
+column that does not exist and the API answers:
+
+```
+{"errorCode":"query.soql.no-such-column","message":"No such column: last_milestone_date"}
+```
+
+with an HTTP status that a `curl -w '%{http_code}'` probe reports as success.
+Read as a freshness number by something that did not check the body, a
+non-existent column made a 107-day-stale source look 6 days fresh.
+
+The reverse error is just as easy. `app_filed_date` **does** exist on ZAP, and
+it is populated on 1,409 of 32,931 rows - 4%. A `$where` on it captures almost
+nothing, and a `max()` on it describes 4% of the dataset.
+
+**So the probe is two questions, not one:**
+
+```bash
+# 1. Which columns actually exist?
+curl -s "https://data.cityofnewyork.us/api/views/{id}.json" | jq '[.columns[].fieldName]'
+
+# 2. For each date column: how many rows actually have it, and what is the max?
+curl -s "https://data.cityofnewyork.us/resource/{id}.json?\$select=count(*),count(col),max(col)"
+```
+
+A `max()` over a sparsely populated column is not a freshness measurement. On
+ZAP the answer split three ways:
+
+| column | populated | role |
+|---|---|---|
+| `certified_referred` | 97% | the **record date** - the only column that can date the corpus |
+| `current_milestone_date` | 6% | the **incremental cursor** - the only column that ADVANCES |
+| `app_filed_date` | 4% | neither |
+
+Low population is not automatically a defect. `current_milestone_date` is at 6%
+*because* it is populated for the projects still moving, which is exactly the
+set an incremental run wants. Ask what a column MEANS before judging its
+coverage.
+
+**And check the dataset's own clock, not just its contents.** The decisive
+evidence that ZAP was frozen rather than quiet was not a content date at all:
+
+```bash
+curl -s ".../api/views/{id}.json" | jq '.rowsUpdatedAt, .metadata.custom_fields.Update'
+```
+
+`rowsUpdatedAt` was 2026-05-26 against a declared **monthly automated** update -
+two missed cycles - and the companion ZAP-BBL dataset stopped the same day three
+minutes earlier. One publisher, one pipeline, one failure. Content dates tell
+you how old the newest record is; the dataset clock tells you whether anyone is
+still feeding it.
+
+## Step 2c: the portal being closed does not mean the market is closed
+
+This is the lesson the first New York attempt got backwards, and it cost a
+market for four months.
+
+That attempt probed the two things a person thinks of first - the council API
+and the public-facing portal - found a 403 and a JavaScript application, and
+concluded New York City could not be covered. Both findings were correct. The
+conclusion did not follow.
+
+- `webapi.legistar.com/v1/nyc/Bodies` -> 403. Still true. Still no council.
+- `zap.planning.nyc.gov` -> a JavaScript SPA with no reachable API. Still true.
+- **The same data, published as bulk open data, was live the whole time.**
+
+New York City was ultimately covered by three Socrata datasets, two of them
+refreshed within 48 hours, and none of them was the portal anyone had looked at.
+The environmental review layer (15,362 CEQR projects, shipping its own
+per-project URL) and the legal notice layer (1.1M City Record rows, carrying
+hearing dates) were never probed at all, because the first probe answered "can
+we scrape the portal?" instead of "where does this jurisdiction publish?"
+
+**So the probe order is: bulk data, then API, then portal.**
+
+```bash
+# The catalogue search that should come FIRST for any US city.
+curl -s "https://api.us.socrata.com/api/catalog/v1?domains={data-portal-host}&q=zoning&limit=15"
+curl -s "https://api.us.socrata.com/api/catalog/v1?domains={data-portal-host}&q=environmental&limit=15"
+curl -s "https://api.us.socrata.com/api/catalog/v1?domains={data-portal-host}&q=hearing&limit=15"
+```
+
+**Do not trust a dataset id you were given; look it up.** Two of the three ids
+this market was described by did not exist (`7mgc-yumh` and `fkig-eyar` both
+return `dataset.missing`); the real ones were `dg92-zbpx` and `gezn-7mgk`, and
+the catalogue search found them in one request. The row counts were wrong too -
+CEQR was described as 2,241 rows and is 15,362.
+
+**Verify every number you are handed before building on it.** Of five claims
+about this market, four were wrong: two dead dataset ids, a non-existent column,
+a population figure off by 176x, and a freshness reading inverted. The one that
+was right - "the council API is closed" - was the one already recorded here from
+a previous probe.
+
+## Step 5b: a portal market may need TWO date columns and a second dataset
+
+Two shapes appeared in New York that step 5 does not anticipate, and both are
+common enough to expect elsewhere:
+
+**The cursor and the record date can be different columns.** See step 2b. Write
+down which is which in the adapter, because the next reader will assume there is
+one date.
+
+**The dates may not be in the dataset at all.** NYC's CEQR Projects table has
+six columns and none is a date; the dates live in a separate milestone dataset
+keyed by project number. Fetch the second dataset ONCE per run and join in
+memory - the alternative is one request per project, which for 15,362 projects
+is a lookup rebuilt fifteen thousand times.
+
+**Apply the date window BEFORE the gate, not after.** Both orders capture the
+same records, so this looks like a style choice, and it is not. `gateDecide`
+records every candidate it judges into the audit corpus, and that corpus is the
+denominator gate precision and recall are measured on. Gating a twenty-year
+archive and then discarding it puts records into the corpus that the system
+never considered - CEQR alone contributed 15,362 candidates that way, more than
+every other government source combined, which would have made the pooled gate
+numbers a measurement of CEQR. Windowing first cut it to 1,350.
+
+## Step 6b: run the new adapters alone first, then in the lane
+
+A Socrata source that works perfectly alone can contribute **zero** inside a
+concurrent run, silently. Measured here: the City Record adapter fetches 2,342
+rows on its own and produced zero candidates in the gate harvest alongside two
+other Socrata adapters - no exception, no rejected promise, and nothing in the
+per-source table, because a source that produces nothing does not get a row in
+it. Keyless Socrata throttles per host.
+
+Two fixes, both now in the repo, and the second matters more:
+
+1. `sources/socrata.ts` retries a failed page with backoff.
+2. `gate-harvest.ts` lists the sources it EXPECTS and names any that returned
+   zero. **An absent row is not a zero, and only an expectation makes it one.**
+
+## Step 8b: what a new market can break, one more entry
+
+- **The geography resolver.** A new market's place names are new INPUTS to
+  `resolveGeography`, and its pattern branches overlap. "Bronx" resolved to
+  **Brazil**: the NUTS region-code pattern is two letters plus one to four
+  alphanumerics, "BRONX" satisfies it, and the BR prefix won before the
+  configured-jurisdiction table was consulted. 17 records were stored in South
+  America.
+
+  It was caught only by step 7's count diff - 325 records written, the market
+  count up by 308 - which is the single strongest argument for doing step 7 with
+  a table rather than by eye. `npm run verify:geography` now pins it, and
+  `npm run corpus:snapshot` produces the before/after step 7 asks for.

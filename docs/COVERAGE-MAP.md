@@ -29,7 +29,7 @@ Layers, from the eight-layer blueprint:
 
 ---
 
-## The ten covered markets
+## The covered markets
 
 These are the markets a government-lane adapter is pointed at. Layer coverage
 below is stated at the level the adapters actually reach, which for most markets
@@ -47,6 +47,7 @@ is layers 1 and 2 with some of 3.
 | Miami-Dade County | Florida | FULL | FULL | NONE | `legistar` (miamidade) |
 | South Florida | Florida | NONE | PARTIAL | NONE | `sfwmd` (water permits, layer 4) |
 | Central Florida Tourism Oversight District | Florida | FULL | FULL | NONE | `cftod-pdf` |
+| New York City | New York | NONE | **STALE** | FULL | `nyc-zap`, `nyc-ceqr`, `nyc-city-record` |
 | Yonkers | New York | FULL | FULL | NONE | `legistar` (yonkersny) |
 | Westchester County | New York | FULL | FULL | NONE | `legistar` (westchestercountyny) |
 
@@ -56,23 +57,112 @@ a per-market one, and it is stated once here rather than repeated in ten rows.
 
 ---
 
-## New York City - PRESS ONLY
+## New York City - COVERED, with the entitlement layer stale
 
-**Added:** 2026-08-08. **Status: intelligence lane only. Not a covered market.**
+**Added:** 2026-08-08 as press-only. **Promoted 2026-08-09** on three Socrata
+sources. **Status: covered on environmental review and legal notices; the
+entitlement layer is captured but frozen.**
 
-| layer | status | why |
+| layer | status | source | why |
+|---|---|---|---|
+| 1 Legislative agendas | **NONE** | - | NYC Council is not on the public Legistar Web API. 403, evidence below. |
+| 2 Entitlement filings | **STALE** | `nyc-zap` | ZAP captured in full, but DCP stopped publishing 2026-05-26 |
+| 3 Environmental review | **FULL** | `nyc-ceqr` | CEQR Projects + Milestones, refreshed daily |
+| 6 Special regulators | **PARTIAL** | `nyc-city-record` | BSA, Landmarks, City Planning Commission and FCRC hearing notices |
+| 4, 5, 7, 8 | **NONE** | - | as everywhere |
+
+**What we have:** 330 records and 178 projects, up from 5 press records.
+
+| source | dataset | fetched | written | freshness (probed 2026-08-09) |
+|---|---|---|---|---|
+| `nyc-zap` | `hgx4-8ukb` | 860 | 88 | **107 days stale** |
+| `nyc-city-record` | `dg92-zbpx` | 2,342 | 123 | 4 days |
+| `nyc-ceqr` | `gezn-7mgk` + `8fj8-3sgg` | 15,362 | 114 | 2 days |
+
+70 of the 114 CEQR projects cross-reference a ZAP application on the CEQR
+number, so the environmental and entitlement layers join into one project
+rather than running beside each other.
+
+### The entitlement layer is captured and frozen, and that is not the same as covered
+
+ZAP is ingested as a **historical entitlement backbone**, not as live coverage.
+It is the only source of applicant names, borough, and the `ulurp_numbers` to
+`ceqr_number` link, and it is 107 days stale.
+
+| measure | value (probed 2026-08-09) |
+|---|---|
+| dataset `rowsUpdatedAt` | 2026-05-26 (75 days before the probe) |
+| newest `current_milestone_date` | 2026-04-24 |
+| rows filed in the last 90 days | **0** |
+| rows with a milestone in the last 90 days | **0** |
+| declared update frequency | **Monthly, automated** |
+
+**Why it stopped: no stated reason and no successor.** DCP's metadata still
+declares a monthly automated feed, names no replacement, and the companion
+ZAP-BBL dataset (`2iga-a6mk`) froze the same day three minutes earlier. That is
+the signature of a stalled automated job, not a supersession. There is no
+replacement feed: both "ULURP Recommendations" datasets are abandoned (88 and 91
+rows, last touched 2017 and 2021), and `zap.planning.nyc.gov` is a JavaScript
+application with no reachable public API from this runtime. The dataset version
+stamp is `20260427`, published 2026-05-26, which is one on-schedule monthly run
+followed by two missed ones.
+
+**Re-check condition:** re-probe `max(current_milestone_date)` monthly. If it
+moves inside 45 days of today, the entitlement layer becomes live and this row
+becomes FULL with no code change - the incremental cursor is already wired.
+Worth an email to `zap_feedback_dl@planning.nyc.gov`.
+
+### Measuring staleness on the wrong column
+
+The earlier probe reported ZAP as 110 days stale and was **correct**. A later
+reading claimed the source was 6 days fresh, measured on `last_milestone_date` -
+a column that does not exist. The query returns `query.soql.no-such-column`, and
+read as a freshness figure it made a frozen source look live.
+
+Column population over all 32,931 rows:
+
+| column | populated | share |
 |---|---|---|
-| 1 Legislative agendas | **NONE** | NYC Council is not on the public Legistar Web API |
-| 2 Entitlement filings | **NONE** | ZAP exists and is machine-readable but is ~3.5 months stale |
-| 3 Environmental review | **NONE** | CEQR rides inside ZAP; inherits the same lag |
-| 4 Utility permits | **NONE** | DOB NOW is live but is not captured, and is low-signal |
-| 5-8 | **NONE** | as everywhere |
+| `certified_referred` | 32,017 | 97% |
+| `completed_date` | 29,882 | 91% |
+| `current_milestone_date` | 2,069 | 6% |
+| `app_filed_date` | 1,409 | 4% |
 
-**What we do have:** 5 records in the corpus, all `gli_serper`, all
-`stream=intelligence`. Trade press about Resorts World, Willets Point, the USS
-housing project. No filing, no hearing date, no applicant from a public record.
+`current_milestone_date` is the incremental **cursor** (the only column that
+advances as a project moves through review). `certified_referred` is the
+**record date** (the only column populated enough to date the corpus).
+`app_filed_date` is neither: set once at filing, populated on 4% of rows, so a
+`$where` on it captures almost nothing.
 
-### The council gap, measured 2026-08-08
+### The hearing-date question, answered
+
+The City Record is the only New York source carrying a hearing date, so it
+decides whether a forward calendar screen is buildable.
+
+- 2,027 of 2,342 land use notices (87%) carry an `event_date`.
+- **13 carry one still in the future**, all in Public Hearings and Meetings.
+- **0** carry a future `due_date`.
+
+13 is not a small number because the source is thin; it is the steady-state size
+of a two-week rolling window. Over the last twelve months, 532 notices carry
+both a publication and a hearing date, **100% were published before the
+hearing**, median lead **13 days**, and 387 of 532 had at least 7 days. So the
+calendar IS buildable and would hold roughly 13 to 25 items at any moment,
+refreshed daily. Bodies on it today: City Planning Commission, Board of
+Standards and Appeals, Landmarks Preservation Commission, Franchise and
+Concession Review Committee, and DCAS property acquisitions.
+
+### What Property Disposition names
+
+It names the **agency and the site, not a buyer**. A disposition notice is
+published before a counterparty is selected ("FOR ACQUISITION - portions of
+Block 3264, Lot 20"), so there is no named buyer to capture at this stage; the
+buyer appears later in the procurement award stream, which this adapter
+excludes. These rows are a site-level early signal - block and lot identify a
+parcel years before an entitlement - but the "city land sale with a named buyer"
+shape does not exist at disposition time.
+
+### The council gap, measured 2026-08-08, unchanged
 
 `webapi.legistar.com/v1/{code}/Bodies`, the endpoint every other Legistar market
 answers 200 on:
@@ -93,40 +183,23 @@ answers 200 on:
 - NYC Open Data `6ctv-n46c` "City Council Legislation" is 11,622 rows but was
   **last updated 2025-03-27** and is citywide legislation, not land use.
 
-**There is no council record to configure.** A Legistar config row for NYC would
-add a jurisdiction that returns 403 on every fetch: zero records, a permanent
-dead-source alarm, and the market's name on a coverage map backed by nothing.
-
-### The ULURP gap
-
-The entitlement layer for NYC is ULURP, exposed as **ZAP (`hgx4-8ukb`)** on NYC
-Open Data. It is genuinely good data - 32,931 rows, named applicants, ULURP and
-CEQR numbers, per-project public URLs - and it is **stale**:
-
-| measure | value (probed 2026-08-08) |
-|---|---|
-| portal `rowsUpdatedAt` | 2026-05-26 |
-| max `app_filed_date` | 2026-04-20 |
-| max `current_milestone_date` | 2026-04-24 |
-| rows with a milestone after 2026-06-01 | **0** |
-| rows filed in July 2026 or later | **0** |
-
-A July 2026 report would have received nothing from it.
+**There is no council record to configure.** It will not open without Legistar
+granting API access, which is a procurement question, not an engineering one.
 
 ### What this means for a client scope
 
-`New York City` is selectable in the intake form and resolves correctly
-(country United States, region New York, market New York City). **A scope that
-selects it is buying press coverage, not filings.** Say so in writing before a
-client's scope includes it.
+`New York City` is selectable and resolves correctly (United States / New York /
+New York City). A scope selecting it now buys **environmental review and hearing
+notices as they happen, plus entitlement filings up to April 2026**. Say the
+April cutoff in writing.
 
-### Re-check condition
+### The boroughs are one market
 
-Re-probe ZAP freshness monthly. If `max(app_filed_date)` moves inside 45 days of
-today, the entitlement layer becomes viable and NYC can be promoted to PARTIAL
-with the ~200-line adapter described in `docs/ADDING-A-MARKET.md`. The council
-layer has no re-check condition: it will not open without Legistar granting API
-access, which is a procurement question, not an engineering one.
+Unchanged, and now load-bearing: `nyc-zap` and `nyc-ceqr` both carry a `borough`
+column and both fold it to `New York City` through `lib/geography`. No
+borough-level market is created. CEQR's 523 `Upstate` rows - city watershed
+property in the Catskill and Delaware systems - are excluded rather than folded,
+because they are city agency actions outside the five boroughs.
 
 ---
 
