@@ -206,12 +206,30 @@ export async function buildReport(req: BuildRequest): Promise<BuiltReport> {
 }
 
 /** The geography a scope covers, as a printable sentence for the cover. */
+/**
+ * The geography a document covers, stated in full.
+ *
+ * EVERY CONSTRAINED LEVEL IS NAMED. This used to be an else-if chain: markets
+ * won, and if any were set the region and country were never printed. A report
+ * scoped to Nevada AND Las Vegas said only "Las Vegas", which understates the
+ * filter that was actually applied - the axes are ANDed, so both are load
+ * bearing and a reader who sees one has been told half the rule.
+ *
+ * The levels are named outermost first, the way a person says where something
+ * is, and joined with a separator that reads as narrowing rather than as a
+ * list of alternatives.
+ *
+ * "all covered markets" is only ever returned when NOTHING constrains the
+ * geography. A document that covers three markets must never imply national
+ * coverage, and the only honest way to guarantee that is for the label to be
+ * built from the same object the generator filters on.
+ */
 export function geographyLabel(scope: ClientScope): string {
-  const parts: string[] = [];
-  if (scope.markets?.length) parts.push(scope.markets.join(', '));
-  else if (scope.regions?.length) parts.push(scope.regions.join(', '));
-  else if (scope.countries?.length) parts.push(scope.countries.join(', '));
-  return parts.length ? parts.join('; ') : 'all covered markets';
+  const levels: string[] = [];
+  if (scope.countries?.length) levels.push(scope.countries.join(', '));
+  if (scope.regions?.length) levels.push(scope.regions.join(', '));
+  if (scope.markets?.length) levels.push(scope.markets.join(', '));
+  return levels.length ? levels.join(' > ') : 'all covered markets';
 }
 
 /**

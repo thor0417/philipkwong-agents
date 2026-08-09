@@ -23,7 +23,9 @@ import { usePeriodState } from '@/lib/use-period';
 import { useClients, useScopes } from '@/lib/use-clients';
 import { STREAMS } from '@/components/ScopeFields';
 import { DEVELOPMENT_CATEGORIES, VENUE_TYPES } from '@/lib/taxonomy';
-import { HOSPITALITY_ID } from '@/lib/pipelines';
+import { HOSPITALITY_ID, storageKeyFor } from '@/lib/pipelines';
+import { useProjectFacet } from '@/lib/use-projects';
+import type { FacetCount } from '@/lib/projects';
 import { authedFetch } from '@/lib/authed-fetch';
 import type { ClientScope } from '@/lib/clients';
 import { buildReport, geographyLabel, listScopeProjects } from '@/lib/report-build';
@@ -93,7 +95,14 @@ export default function ReportsPage() {
   const [title, setTitle] = useState('Market intelligence report');
   const [brandOverride, setBrandOverride] = useState('');
   const [addresseeOverride, setAddresseeOverride] = useState('');
-  const [marketOverride, setMarketOverride] = useState<string>('');
+  // GEOGRAPHY IS THREE MULTI-SELECT AXES, NOT ONE DROPDOWN. It used to be a
+  // single market string, so a report could be narrowed to exactly one market
+  // and never to three, and neither country nor region could be touched at all.
+  // A client scope holds a SET of markets (Simtec's holds sixteen), so the
+  // composer could not express the thing the data model already supported.
+  const [countryOverride, setCountryOverride] = useState<string[]>([]);
+  const [regionOverride, setRegionOverride] = useState<string[]>([]);
+  const [marketOverride, setMarketOverride] = useState<string[]>([]);
   // THE THREE AXES THE COMPOSER USED TO DROP. A client scope can constrain
   // venue type, development category and stream, and this screen offered no way
   // to see or narrow any of them: a report for a client scoped to attractions
@@ -117,6 +126,20 @@ export default function ReportsPage() {
 
   useEffect(() => setTemplates(loadTemplates()), []);
 
+  // THE OPTIONS ARE THE CORPUS, NOT A FIXED LIST. Same facet source the client
+  // scope editor uses, so the composer can never offer a market the register
+  // does not hold, and never omit one it does.
+  //
+  // The three axes are NOT cascaded. Cascading would stop "Clark County plus
+  // Las Vegas plus New York City" being expressible, which is three markets in
+  // two states and exactly the case this exists for. resolveScope ANDs the
+  // levels, so a region and a market outside it correctly match nothing - the
+  // hint says so rather than the UI silently preventing it.
+  const facetBase = { module: storageKeyFor(HOSPITALITY_ID), excludeStatus: 'dismissed' as const };
+  const countryFacet = useProjectFacet(facetBase, 'country');
+  const regionFacet = useProjectFacet(facetBase, 'region_state');
+  const marketFacet = useProjectFacet(facetBase, 'market');
+
   const client = (clients.data ?? []).find((c) => c.id === clientId) ?? null;
   const storedScope = (clientScopes.data ?? [])[0] ?? null;
 
@@ -128,12 +151,22 @@ export default function ReportsPage() {
     const base = storedScope ?? EMPTY_SCOPE;
     return {
       ...base,
-      markets: marketOverride ? [marketOverride] : base.markets,
+      countries: countryOverride.length ? countryOverride : base.countries,
+      regions: regionOverride.length ? regionOverride : base.regions,
+      markets: marketOverride.length ? marketOverride : base.markets,
       venue_types: venueOverride.length ? venueOverride : base.venue_types,
       development_categories: categoryOverride.length ? categoryOverride : base.development_categories,
       streams: streamOverride.length ? streamOverride : base.streams,
     };
-  }, [storedScope, marketOverride, venueOverride, categoryOverride, streamOverride]);
+  }, [
+    storedScope,
+    countryOverride,
+    regionOverride,
+    marketOverride,
+    venueOverride,
+    categoryOverride,
+    streamOverride,
+  ]);
 
   // WHAT MAY BE OFFERED ON AN AXIS. A stored constraint is a ceiling: a client
   // scoped to two categories can be narrowed to one of those two and never
@@ -203,7 +236,7 @@ export default function ReportsPage() {
         projectId: projectId || null,
         geographyLabel: projectId
           ? (projectChoices.find((p) => p.id === projectId)?.name ?? 'one project')
-          : marketOverride || geographyLabel(effectiveScope),
+          : geographyLabel(effectiveScope),
       }),
   });
 
@@ -339,25 +372,56 @@ export default function ReportsPage() {
           <PeriodSelector period={period} now={periodNow} onChange={setPeriod} showRolling={false} />
         </div>
 
-        <label className={styles.field}>
-          <span className={styles.label}>Narrow to one market</span>
-          <select
-            className={styles.select}
-            data-testid="report-market"
-            value={marketOverride}
-            onChange={(e) => setMarketOverride(e.target.value)}
-          >
-            <option value="">
-              {storedScope?.markets?.length ? storedScope.markets.join(', ') : 'All in scope'}
-            </option>
-            {(storedScope?.markets ?? []).map((m) => (
-              <option key={m} value={m}>{m}</option>
-            ))}
-          </select>
-          <span className={styles.hint}>
-            Narrows this report within the client&apos;s scope. It cannot widen it.
-          </span>
-        </label>
+        {/* GEOGRAPHY. Three levels, each multi-select, any combination. */}
+        {(
+          [
+            ['Narrow to countries', countryOverride, setCountryOverride,
+              storedScope?.countries, countryFacet, 'country'],
+            ['Narrow to regions and states', regionOverride, setRegionOverride,
+              storedScope?.regions, regionFacet, 'region'],
+            ['Narrow to markets', marketOverride, setMarketOverride,
+              storedScope?.markets, marketFacet, 'market'],
+          ] as const
+        ).map(([label, selected, setSelected, stored, facet, testKey]) => {
+          const counts: FacetCount[] = facet.data?.counts ?? [];
+          const fromCorpus = counts.map((c) => c.value);
+          // A stored constraint is a ceiling: a client scoped to sixteen markets
+          // can be narrowed to three of those sixteen and never widened to a
+          // seventeenth. An unconstrained axis offers everything the register
+          // holds, because selecting from it is still a narrowing.
+          const options = allowed(stored, fromCorpus);
+          const countOf = (v: string) => counts.find((c) => c.value === v)?.count;
+          return (
+            <div className={styles.field} key={testKey}>
+              <span className={styles.label}>{label}</span>
+              <span className={styles.hint}>
+                {selected.length > 0
+                  ? `${selected.length} selected. This report only; the client's stored scope is unchanged.`
+                  : stored && stored.length
+                    ? `The client's stored constraint applies: ${stored.join(', ')}.`
+                    : 'No constraint on this level.'}
+              </span>
+              <div className={styles.chips} data-testid={`report-${testKey}-chips`}>
+                {options.map((o) => (
+                  <button
+                    key={o}
+                    type="button"
+                    data-report-option={o}
+                    className={`${styles.chip} ${selected.includes(o) ? styles.chipOn : ''}`}
+                    onClick={() =>
+                      setSelected(
+                        selected.includes(o) ? selected.filter((x) => x !== o) : [...selected, o]
+                      )
+                    }
+                  >
+                    {o}
+                    {countOf(o) !== undefined && <span className="mono"> {countOf(o)}</span>}
+                  </button>
+                ))}
+              </div>
+            </div>
+          );
+        })}
 
         {/* THE OTHER THREE SCOPE AXES. Printed on the cover and applied by the
             generator, so what the document says it covers and what it contains

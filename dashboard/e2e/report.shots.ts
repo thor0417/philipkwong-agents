@@ -108,7 +108,15 @@ test('composer generates three documents', async ({ page }, testInfo) => {
   summary.deliveryStatus = status;
 
   // ---- 2. THE SAME REPORT, ONE COUNTY --------------------------------------
-  await page.getByTestId('report-market').selectOption('Clark County');
+  // GEOGRAPHY IS CHIPS NOW, NOT A SELECT. The composer used to offer one
+  // market through a dropdown, which could express "narrow to Clark County"
+  // and could not express "New York City plus Las Vegas plus San Antonio" -
+  // three markets in three states, which is what a client scope holding
+  // sixteen markets actually needs. Clicking the chip is the same narrowing
+  // this test always asserted; only the control changed.
+  await page
+    .locator('[data-testid="report-market-chips"] [data-report-option="Clark County"]')
+    .click();
   await expect
     .poll(async () => await page.getByTestId('preview-projects-count').textContent(), { timeout: 60_000 })
     .not.toBe(full.p);
