@@ -11,6 +11,7 @@
 import type { NormalizedLead } from './types';
 import { SfwmdFeatureSchema, parseRecords } from './schemas';
 import { strongBypassHits } from '../targets';
+import { isCivicInstitutional } from '../../../lib/taxonomy';
 
 const UA = 'Mozilla/5.0 (compatible; philipkwong-agents/1.0 +scraper)';
 const ARCGIS = 'https://services1.arcgis.com/sDAPyc2rGRn7vf9B/arcgis/rest/services';
@@ -71,8 +72,12 @@ async function queryLayer(path: string): Promise<ErpAttrs[]> {
 export interface SfwmdStats {
   fetched: number;
   kept: number;
+  // Rows the geographic query returned that name a civic or institutional use.
+  // Counted rather than dropped silently, so a query that starts sweeping in a
+  // school district is visible in the run report.
+  institutional: number;
 }
-export const sfwmdStats: SfwmdStats = { fetched: 0, kept: 0 };
+export const sfwmdStats: SfwmdStats = { fetched: 0, kept: 0, institutional: 0 };
 
 export async function scrapeSfwmd(): Promise<NormalizedLead[]> {
   const leads: NormalizedLead[] = [];
@@ -90,6 +95,21 @@ export async function scrapeSfwmd(): Promise<NormalizedLead[]> {
       const status = a.PermitStatus || a.AppStatus || '';
       const date = isoFromEpoch(a.IssueDate) ?? isoFromEpoch(a.AppReceivedDate);
       const title = `${a.PROJECT_NAME || 'SFWMD Environmental Resource Permit'} (${permitNo})`.slice(0, 200);
+      // THE QUERY SELECTS ON A PLACE, SO IT RETURNS THE PLACE'S SCHOOLS.
+      //
+      // WHERE matches PROJECT_NAME LIKE '%REEDY CREEK%', and Reedy Creek is the
+      // district's name rather than Disney's, so the layer hands back everything
+      // sited in it - including "Reedy Creek Elementary School", captured twice.
+      //
+      // This adapter deliberately takes no gate decision (a permit record carries
+      // no entitlement vocabulary, so the gate would reject the Disney permits
+      // this source exists to find), which means the gate cannot be what catches
+      // it. The institutional veto is applied here instead, on the record's own
+      // name and applicant, and it is counted rather than dropped silently.
+      if (isCivicInstitutional(`${title} ${applicant}`)) {
+        sfwmdStats.institutional++;
+        continue;
+      }
       const loc = [a.City, a.State].filter(Boolean).join(', ') || 'South Florida';
       const hits = [...new Set(strongBypassHits(`${applicant} ${a.PROJECT_NAME ?? ''}`).map((h) => h.term))];
       leads.push({

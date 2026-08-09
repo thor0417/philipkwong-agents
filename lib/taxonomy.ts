@@ -801,7 +801,13 @@ export const GOV_GATE_EXCLUSIONS = [
 // housing. Verified against the corpus: it excludes 12 rows and touches none of
 // the known-good records (OCVibe, Disneyland Resort, Heart Hotel, Hilton,
 // Tropicana Land, Mirage Propco, GD Carden, Fire N Ice, Children's Museum).
-const RESIDENTIAL_SCALE = /\b\d{1,4}[-\s]?(?:unit|units|dwelling units|apartments|condominium units|residential units)\b|\bmultifamily\b|\bmulti-family\b/i;
+// 'DU' / 'DUs' added: ZAP and CEQR write dwelling units that way on every New
+// York filing ("53 DUs, 100% affordable senior housing", "765 dus"), so the
+// rule could not see the unit count it was written to detect. Without it,
+// affordable and seniors housing rezonings read as mixed-use developments and
+// passed on weak+action.
+const RESIDENTIAL_SCALE =
+  /\b\d{1,4}[-\s]?(?:units?|dwelling units?|dus?|apartments|condominium units|residential units)\b|\bmultifamily\b|\bmulti-family\b/i;
 const MIXED_USE_ONLY = new Set<string>(['mixed use', 'mixed-use']);
 
 function isResidentialMixedUse(text: string, strongHits: string[], weakHits: string[]): boolean {
@@ -809,6 +815,61 @@ function isResidentialMixedUse(text: string, strongHits: string[], weakHits: str
   if (weakHits.length === 0) return false;
   if (!weakHits.every((w) => MIXED_USE_ONLY.has(w))) return false;
   return RESIDENTIAL_SCALE.test(text);
+}
+
+// A CIVIC OR INSTITUTIONAL USE, named as the SUBJECT of the record.
+//
+// Exported because two different layers need it and they must agree: the gate,
+// and the sources that legitimately bypass the gate. SFWMD is the case - its
+// ArcGIS query selects on applicant and project NAME ("%REEDY CREEK%"), which
+// is a place, so it returns everything sited in the district including Reedy
+// Creek Elementary School. A permit record carries no entitlement vocabulary,
+// which is exactly why that adapter bypasses the gate, so the gate cannot be
+// the thing that catches it.
+//
+// PHRASES, NOT BARE WORDS, and that is the whole design. 'school' alone matches
+// "School Street"; 'church' alone matches St. Paul Community Baptist Church,
+// which is the APPLICANT for Baobab Village, a 765-unit mixed-use development.
+// The institution has to be the use, not the neighbour and not the sponsor.
+//
+// Deliberately NOT included: senior and affordable housing. Those are
+// residential, and isResidentialMixedUse already handles them on the evidence
+// of a unit count rather than on a keyword.
+const CIVIC_INSTITUTIONAL = [
+  new RegExp('\\b(?:elementary|middle|high|primary|charter|public|nursery|grammar)\\s+school\\b', 'i'),
+  new RegExp('\\bschool\\s+(?:district|campus|board)\\b', 'i'),
+  new RegExp('\\b(?:day\\s?care|child\\s?care)\\s+(?:centre|center|facility)\\b', 'i'),
+  new RegExp('\\b(?:hospital|medical center|medical centre|health clinic|dialysis|nursing home|skilled nursing)\\b', 'i'),
+  new RegExp('\\b(?:place|house)\\s+of\\s+worship\\b', 'i'),
+  new RegExp('\\b(?:in conjunction with|for)\\s+(?:an?\\s+)?(?:existing\\s+)?(?:church|synagogue|mosque|temple)\\b', 'i'),
+  new RegExp('\\b(?:homeless|emergency)\\s+shelter\\b', 'i'),
+  new RegExp('\\b(?:correctional facility|detention cent(?:er|re)|county jail)\\b', 'i'),
+];
+
+// AN INSTITUTION LISTED AS A COMPONENT IS NOT THE USE. "a mixed-use project
+// including residential, retail, community centre, cultural space, and public
+// school facilities" is a rezoning that contains a school, not a school. The
+// filing signals this itself with a joining word, so the guard reads the words
+// immediately before the match rather than guessing from the whole sentence.
+const COMPONENT_LEAD = /\b(?:including|includes|plus|with|and|alongside|together with)\s+(?:\w+\s+){0,3}$/i;
+
+/**
+ * True when the text names a civic or institutional use as its SUBJECT.
+ *
+ * False when the institution is merely a component of a larger development or
+ * the applicant behind one - those are the two ways a legitimate project
+ * mentions an institution, and both were live in the corpus (240 Nassau Street
+ * contains school facilities; Baobab Village's applicant is a church).
+ */
+export function isCivicInstitutional(text: string): boolean {
+  for (const re of CIVIC_INSTITUTIONAL) {
+    const m = re.exec(text);
+    if (!m) continue;
+    const before = text.slice(Math.max(0, m.index - 40), m.index);
+    if (COMPONENT_LEAD.test(before)) continue;
+    return true;
+  }
+  return false;
 }
 
 export type GateReason =
@@ -833,7 +894,46 @@ export interface GateVerdict {
 // Two-tier gate verdict for a government record's combined text. Exclusions win
 // over any match; a STRONG term matches alone; a WEAK term needs a corroborating
 // ACTION term. The hit lists feed gate telemetry (Part F) and audit sampling.
-export function governmentGate(text: string): GateVerdict {
+// TWO KINDS OF BORROWED CONTEXT THAT MADE A LEISURE NOUN MEAN NOTHING.
+//
+// A STRONG term matches alone, so a single misfire admits a record outright.
+// Both of these were found by auditing what admitted civic and institutional
+// uses, and neither is about institutions - they are general defects that
+// happened to surface there.
+//
+// 1. A ZONING DISTRICT IS NOT A VENUE. Clark County writes "in a CR (Commercial
+//    Resort) Zone" on filings for anything sited in that category, so the word
+//    "resort" appears on records with no resort in them. It admitted
+//    "UC-25-0839-WESTERN PRELACY ARMENIAN APOSTOLIC CHURCH OF LV: USE PERMIT
+//    for an office in conjunction with an existing building" as a STRONG resort
+//    match. Same failure the 'tirz' term was rejected for: a phrase that is
+//    boilerplate carried by every filing in a district.
+//
+// 2. AN ACCESSORY AMENITY IS NOT THE PROJECT. "approximately 1,800 sf of
+//    accessory recreational facility space" inside an affordable seniors
+//    building matched STRONG 'recreational facility'. The word "accessory" is
+//    the filing itself saying this is subordinate to the main use.
+//
+// Neutralised BEFORE matching rather than subtracted after, because a record
+// may legitimately contain the term twice - once as district boilerplate and
+// once as the actual subject - and only removing the boilerplate occurrence
+// preserves the real one.
+const BORROWED_CONTEXT: RegExp[] = [
+  // Zoning district names carrying a leisure noun.
+  new RegExp('\\b(?:commercial resort|resort commercial|resort residential)\\b', 'gi'),
+  // A strong noun explicitly qualified as accessory or ancillary.
+  new RegExp('\\b(?:accessory|ancillary)\\s+(?:\\w+\\s+){0,2}?(?:recreational facility|recreation center|recreation centre|entertainment center|entertainment centre|museum|marina|pier)\\b', 'gi'),
+];
+
+/** The text the gate judges, with borrowed-context phrases blanked. */
+export function gateReadableText(text: string): string {
+  let out = text;
+  for (const re of BORROWED_CONTEXT) out = out.replace(re, ' ');
+  return out;
+}
+
+export function governmentGate(raw: string): GateVerdict {
+  const text = gateReadableText(raw);
   const strongHits = GOV_GATE_STRONG.filter((t) => hasWord(text, t));
   const weakHits = GOV_GATE_WEAK.filter((t) => hasWord(text, t));
   const actionHits = GOV_GATE_ACTION.filter((t) => hasWord(text, t));
