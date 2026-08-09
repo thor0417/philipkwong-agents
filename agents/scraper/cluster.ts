@@ -189,6 +189,21 @@ const GENERIC_APPLICANT_PATTERNS: RegExp[] = [
   /\b(metropolitan (council|government)|formal meeting|subcommittee|committee)\b/,
   /^(city|county|state|district|department|council|commission|board|authority|agency)$/,
   /\b(director|councilman|councilwoman|councilmember|mayor)\b/,
+  // NEW YORK'S AGENCIES NAME THEMSELVES AS THE APPLICANT, and on a
+  // city-initiated action they are the applicant on every one of them. ZAP
+  // writes "DCP - Department of City Planning (NYC)" as primary_applicant on
+  // every neighbourhood rezoning the department sponsors, so clustering on it
+  // welded the Long Island City Neighborhood Rezoning to the citywide Arena
+  // Text Amendment - two unrelated city-initiated actions with nothing in
+  // common but their sponsor.
+  //
+  // The patterns above miss these because ZAP writes them as an abbreviation
+  // followed by an expansion, so neither "^department of" nor the bare-word
+  // rule matches. Anchored on the abbreviation with its separator so a private
+  // company whose name merely contains these letters is untouched.
+  /^(dcp|hpd|edc|dot|dpr|dcas|nycha|sca|hra|dsny|ddc|nypd|fdny|acs|dep)\b[\s-]/,
+  /\b(department of (city planning|housing preservation|parks|transportation|design|sanitation|environmental protection))\b/,
+  /\b(economic development corporation|housing authority|school construction authority)\b/,
 ];
 
 export function isGenericEntity(normalized: string): boolean {
@@ -204,6 +219,46 @@ function entityOf(r: ClusterRecord): string {
   const e = normalizeEntity(r.applicant);
   if (e && !isGenericEntity(e)) return e;
   return '';
+}
+
+// AN AWARDEE IS A COUNTERPARTY, NOT A PROJECT SPONSOR.
+//
+// The entity signal assumes the named party is the one developing the thing.
+// For a concession award that assumption is wrong in a specific way: the party
+// is whoever won a licence to operate at a site the CITY owns, and one operator
+// routinely holds several unrelated concessions.
+//
+// Busters Marine Bronx Marina, LLC is the case. Three New York City Parks
+// concession notices, three different sites in three different boroughs -
+// Locust Point Marina in the Bronx, Bayside Marina in Queens, and an outdoor
+// cafe in WNYC Transmitter Park in Brooklyn - welded into one project called
+// "Busters Marine Bronx Marina", because the boroughs fold to one market and
+// the operator's name is the same on all three. The register then described a
+// Brooklyn cafe concession as a Bronx marina.
+//
+// WHY NOT THE MORE GENERAL RULE. The obvious fix is "entity must not join
+// records naming disjoint sites", and it was written and measured before this
+// one. Over the whole corpus it fires on exactly ONE project - two Mulkey
+// Holdings filings at 2001 and 2021 West Charleston Boulevard, which are
+// adjacent parcels and a correct merge - and it does not catch Busters at all,
+// because these notices name their sites as places ("Bayside Marina") rather
+// than as street addresses. A rule that fixes nothing it was aimed at and
+// breaks one thing that was right is not a fix.
+//
+// So the rule keys on what the record IS. Measured over the corpus: 11 records
+// are concession awards, all nyc-city-record, and exactly one project is built
+// from more than one of them.
+//
+// The record keeps every other signal. A concession notice that names a street
+// address or a case number still clusters on it; what it no longer does is
+// claim a project on the operator's name alone. The company relationship is not
+// lost - the companies layer records that this operator holds three concessions
+// - it simply stops being an assertion that they are one development.
+const CONCESSION_AWARD_RE =
+  /\bintent to award\b[\s\S]{0,40}\bas a concession\b|\bintent to award a concession\b|\bas a concession a license\b/i;
+
+export function isConcessionAward(r: ClusterRecord): boolean {
+  return CONCESSION_AWARD_RE.test(r.raw_content ?? '');
 }
 
 // FUZZY MATCHING. Library: fastest-levenshtein 1.0.16 (headless, dependency-free).
@@ -385,11 +440,48 @@ export const PROJECT_MANIFEST_SOURCES: ReadonlySet<string> = new Set(['nyc-zap']
 // '#item-N' fragment, so a record without one is the page, not the item.
 const CONTAINER_TITLE_RE = /\b(agenda|agendas|calendar|minutes|portal|packet)\b/i;
 
+// A CONTAINER CAN ALSO ANNOUNCE ITSELF IN ITS BODY, and in New York it does.
+//
+// The title test above was built for Legistar and Granicus, where the meeting
+// says "agenda" on it. A New York community board publishes its meeting to the
+// City Record under a title like "JUNE 9, 2026 PUBLIC HEARING" or "FEBRUARY 25,
+// 2026 MEETING" - no container word anywhere - and then lists in its body every
+// ULURP application the board will hear that night.
+//
+// BOTH OF THE FALSE MERGES THIS RULE WAS WRITTEN FOR CAME FROM ONE BOARD.
+// Bronx Community Board No. 6, meeting at its own district office at 1932
+// Arthur Avenue:
+//
+//   - "JUNE 9, 2026 PUBLIC HEARING" names ULURP 240206ZMX and N240207ZRX, the
+//     Sojourner Truth / Mapes Rezoning case roots, so it joined that project.
+//   - "PUBLIC HEARING ON THE GAMING FACILITY TEXT AMENDMENT" joined on the SITE
+//     signal, because both notices carry 1932 Arthur Avenue - the board's own
+//     office, which is where the meeting is, not where anything is being built.
+//
+// Between them they welded a Phipps Houses affordable-housing project at 110
+// East 138th Street to a citywide casino zoning text amendment, and the
+// register named the result "East 138th Street JV Associates casino". A client
+// reading that would have been told an affordable-housing scheme was a casino.
+//
+// The phrase is the notice's own words and it is exactly the container claim:
+// the record is about a LIST of matters, not a matter. Measured over the
+// corpus: 23 records match, all nyc-city-record, 19 of them currently attached
+// to a project.
+//
+// IT MUST NOT CATCH A SINGLE-MATTER NOTICE. The Franchise and Concession
+// Review Committee publishes to the same section in the same format, and those
+// notices are about one concession each ("NOTICE OF A JOINT PUBLIC HEARING ...
+// relative to: INTENT TO AWARD as a concession a License Agreement to X").
+// They carry no such phrase and are untouched, which is the whole point: this
+// keys on the record declaring itself a list, not on it being a hearing.
+const CONTAINER_BODY_RE = /\bthe following matters have been scheduled\b/i;
+
 export function isContainerRecord(r: ClusterRecord): boolean {
   const url = r.url ?? '';
   if (url.includes('#event-')) return true;
   if (url.includes('#item')) return false;
-  return CONTAINER_TITLE_RE.test(r.title ?? '');
+  if (CONTAINER_TITLE_RE.test(r.title ?? '')) return true;
+  return CONTAINER_BODY_RE.test(r.raw_content ?? '');
 }
 
 // A CITYWIDE / CITY-INITIATED record is legislation, not a project. An omnibus
@@ -936,8 +1028,8 @@ export function clusterRecords(
       for (const root of roots) sigs.push({ key: `case:${mk}:${root}`, reason: 'case-family' });
     }
 
-    // 3. Entity (market-scoped).
-    const entity = entityOf(r);
+    // 3. Entity (market-scoped), unless the party is a concession counterparty.
+    const entity = isConcessionAward(r) ? '' : entityOf(r);
     if (entity) sigs.push({ key: `entity:${mk}:${entity}`, reason: 'entity' });
 
     // 4. Site (market-scoped).
