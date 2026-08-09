@@ -379,7 +379,11 @@ const VENUE_RULES: { venue: VenueType; keywords: string[] }[] = [
   // Redevelopment), so it is ordered before Convention/Expo and the urban block.
   { venue: 'Entertainment District', keywords: ['entertainment district', 'entertainment complex'] },
   { venue: 'Resort', keywords: ['resort'] },
-  { venue: 'Hotel', keywords: ['hotel', 'lodging', 'hospitality'] },
+  // 'motel' was simply missing. Two SFWMD permits ("Motel 6, Disney World",
+  // "Disney West Motel") sat unclassified because the rule knew 'hotel' and
+  // 'lodging' but not the third word for the same thing. This is a gap, not a
+  // new venue type: they are Hotels.
+  { venue: 'Hotel', keywords: ['hotel', 'motel', 'lodging', 'hospitality'] },
   { venue: 'Convention/Expo', keywords: ['convention center', 'convention centre', 'convention', 'exhibition center', 'exhibition centre', 'expo', 'exposition', 'congress center', 'congress centre'] },
   { venue: 'Smart City', keywords: ['smart city'] },
   { venue: 'Master-Planned Community', keywords: ['master-planned community', 'master planned community', 'master-planned', 'masterplanned'] },
