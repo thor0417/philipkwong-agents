@@ -494,7 +494,35 @@ export function hasWord(text: string, keyword: string): boolean {
 // nothing, and validated against the vocabulary so a hallucinated venue type
 // cannot enter the column. A hint can fill a blank; it can never overrule the
 // record's own words.
-export function classifyVenueType(text: string, hint?: string | null): VenueType | null {
+// A VENUE NOUN INSIDE A PLAN'S NAME IS THE PLAN'S NAME.
+//
+// Nashville's Metro Council finances redevelopment districts one plan at a
+// time, and the plans are named after the neighbourhood or landmark they cover:
+// the "Arts Center Redevelopment Plan", the "Rutledge Hill Redevelopment Plan".
+// A resolution approving tax increment financing in the Arts Center
+// Redevelopment Plan classified as Heritage/Cultural Site, and then as a Museum
+// on a second record, because the words "Arts Center" are in it.
+//
+// It is the same failure BORROWED_CONTEXT already handles for the gate, where
+// "in a CR (Commercial Resort) Zone" made a church a resort: a proper name that
+// happens to contain a venue noun is not a statement that a venue exists.
+//
+// Measured before shipping: 3 records in the corpus classify a venue from a
+// phrase inside a "<Name> Redevelopment Plan", all three from the same Nashville
+// project, and one further record classifies Downtown Redevelopment correctly
+// from its own subject and is untouched.
+const PLAN_NAME = new RegExp(
+  "\\b[A-Z][\\w'&.-]*(?:\\s+[A-Z][\\w'&.-]*)*\\s+Redevelopment Plan\\b",
+  'g'
+);
+
+/** The text a venue rule reads, with plan names blanked. */
+export function venueReadableText(text: string): string {
+  return text.replace(PLAN_NAME, ' ');
+}
+
+export function classifyVenueType(raw: string, hint?: string | null): VenueType | null {
+  const text = venueReadableText(raw);
   for (const rule of VENUE_RULES) {
     if (rule.keywords.some((k) => hasWord(text, k))) return rule.venue;
   }
