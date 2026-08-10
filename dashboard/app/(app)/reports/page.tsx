@@ -28,7 +28,7 @@ import { useProjectFacet } from '@/lib/use-projects';
 import type { FacetCount } from '@/lib/projects';
 import { authedFetch } from '@/lib/authed-fetch';
 import type { ClientScope } from '@/lib/clients';
-import { buildReport, geographyLabel, listScopeProjects } from '@/lib/report-build';
+import { buildReport, DETAIL_CAP_DEFAULT, geographyLabel, listScopeProjects } from '@/lib/report-build';
 import { DEFAULT_SECTION_IDS, SECTION_REGISTRY, sectionById } from '@/lib/report-sections';
 import { basisLine, estimatePages, provenanceTally } from '@/lib/report-model';
 import styles from './page.module.css';
@@ -113,6 +113,11 @@ export default function ReportsPage() {
   const [categoryOverride, setCategoryOverride] = useState<string[]>([]);
   const [streamOverride, setStreamOverride] = useState<string[]>([]);
   const [projectId, setProjectId] = useState<string>('');
+  // HOW MANY PROJECTS THE DOCUMENT DESCRIBES. Held as a string because a number
+  // input that coerces on every keystroke cannot be cleared to retype it: the
+  // field snaps back to 1 the moment it empties. Parsed at the point of use.
+  const [detailCapText, setDetailCapText] = useState(String(DETAIL_CAP_DEFAULT));
+  const detailCap = Math.max(1, Number(detailCapText) || DETAIL_CAP_DEFAULT);
   const [watchlistOnly, setWatchlistOnly] = useState(false);
   const [includeDormant, setIncludeDormant] = useState(false);
   const [includeContext, setIncludeContext] = useState(true);
@@ -219,6 +224,7 @@ export default function ReportsPage() {
       watchlistOnly,
       includeDormant,
       includeContext,
+      detailCap,
     ],
     queryFn: () =>
       buildReport({
@@ -233,6 +239,7 @@ export default function ReportsPage() {
         watchlistOnly,
         includeDormant,
         includeContext,
+        detailCap,
         projectId: projectId || null,
         geographyLabel: projectId
           ? (projectChoices.find((p) => p.id === projectId)?.name ?? 'one project')
@@ -464,6 +471,34 @@ export default function ReportsPage() {
             </div>
           </div>
         ))}
+
+        {/* SELECTION, NOT LENGTH. This is the number of projects the document
+            describes in full; the rest are counted in the by-market section and
+            can be named by adding the remainder appendix. It is a control
+            rather than a constant because what reads well depends on what an
+            entry costs in page space, and the July standard ran considerably
+            more than the default. */}
+        <label className={styles.field}>
+          <span className={styles.label}>Projects described in full</span>
+          <input
+            className={styles.input}
+            data-testid="report-detail-cap"
+            type="number"
+            min={1}
+            step={1}
+            value={detailCapText}
+            onChange={(e) => setDetailCapText(e.target.value)}
+          />
+          <span className={styles.hint}>
+            The most significant {detailCap} projects in scope get a full entry.
+            {built.data
+              ? ` ${built.data.selection.counted} further in scope ${built.data.selection.counted === 1 ? 'is' : 'are'} counted but not described` +
+                (built.data.selection.silent
+                  ? `, and ${built.data.selection.silent} filed nothing in this period.`
+                  : '.')
+              : ''}
+          </span>
+        </label>
 
         <label className={styles.field}>
           <span className={styles.label}>Single project (referral brief)</span>

@@ -103,6 +103,63 @@ test('composer generates three documents', async ({ page }, testInfo) => {
   console.log(`  pdf ${fullPdf.size} b, csv ${fullCsv.size} b, xlsx ${fullXlsx.size} b`);
   summary.fullFiles = { pdf: fullPdf.size, csv: fullCsv.size, xlsx: fullXlsx.size };
 
+  // ---- 1b. THE SAME SCOPE AT 15 AND AT 30 ----------------------------------
+  //
+  // The detail cap is the one control whose right value cannot be reasoned out
+  // in advance: it trades page count against coverage, and what reads well
+  // depends on what an entry costs on the page. The July standard ran 26 pages
+  // and detailed considerably more than the default of 15. So both are
+  // generated and saved, to be read side by side. Neither is asserted to be
+  // correct; the comparison is the deliverable.
+  //
+  // ON THE INTERNAL SCOPE, NOT ON SIMTEC'S. This first ran against the client
+  // selected above and produced two identical documents, because Simtec's
+  // stored scope resolves to 13 projects and a cap of 15 never binds on 13. The
+  // assertion caught it, which is the reason it is written as a comparison of
+  // page counts rather than as a screenshot. Selection only means anything
+  // where there is more in scope than fits, so the comparison uses the whole
+  // register: no client, every market.
+  await page.getByTestId('report-client').selectOption({ label: 'No client (internal)' });
+  await expect
+    .poll(async () => await page.getByTestId('preview-projects-count').textContent(), { timeout: 60_000 })
+    .not.toContain('--');
+
+  const at15 = await counts(page);
+  console.log(`INTERNAL 15: ${at15.p} | ${at15.r} | ${at15.pg} | ${at15.prov}`);
+  summary.detail15 = at15;
+  await shot('composer-detail-15');
+  const pdf15 = await download(page, 'gen-pdf', 'register-detail-15.pdf');
+  const csv15 = await download(page, 'gen-csv', 'register-detail-15.csv');
+  console.log(`  pdf ${pdf15.size} b, csv ${csv15.size} b`);
+
+  await page.getByTestId('report-detail-cap').fill('30');
+  await expect
+    .poll(async () => await page.getByTestId('preview-pages').textContent(), { timeout: 60_000 })
+    .not.toBe(at15.pg);
+  const at30 = await counts(page);
+  console.log(`INTERNAL 30: ${at30.p} | ${at30.r} | ${at30.pg} | ${at30.prov}`);
+  summary.detail30 = at30;
+  await shot('composer-detail-30');
+  const pdf30 = await download(page, 'gen-pdf', 'register-detail-30.pdf');
+  const csv30 = await download(page, 'gen-csv', 'register-detail-30.csv');
+  console.log(`  pdf ${pdf30.size} b, csv ${csv30.size} b`);
+  summary.detailFiles = { at15: pdf15.size, at30: pdf30.size };
+
+  // A document detailing 30 must be longer than one detailing 15, or the cap
+  // is not doing anything and the two files differ only in a cover line.
+  expect(
+    Number((at30.pg ?? '').replace(/\D/g, '')),
+    'raising the detail cap did not lengthen the document'
+  ).toBeGreaterThan(Number((at15.pg ?? '').replace(/\D/g, '')));
+
+  // Back to the client and the default for everything that follows, so the
+  // county comparison below measures geography rather than detail.
+  await page.getByTestId('report-detail-cap').fill('15');
+  await page.getByTestId('report-client').selectOption({ label: 'Simtec Attractions' });
+  await expect
+    .poll(async () => await page.getByTestId('preview-projects-count').textContent(), { timeout: 60_000 })
+    .toBe(full.p);
+
   const status = await page.getByTestId('generate-status').textContent();
   console.log(`  delivery: ${status}`);
   summary.deliveryStatus = status;

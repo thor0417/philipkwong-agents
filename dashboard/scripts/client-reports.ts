@@ -24,7 +24,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import { fetchClients, fetchAllScopes, resolveScope } from '../lib/clients';
-import { buildReport } from '../lib/report-build';
+import { buildReport, DETAIL_CAP_DEFAULT } from '../lib/report-build';
 import { geographyLabel } from '../lib/report-build';
 import { resolvePeriod } from '../lib/period';
 import { DEFAULT_SECTION_IDS } from '../lib/report-sections';
@@ -89,6 +89,10 @@ async function main(): Promise<void> {
       period,
       sectionIds: DEFAULT_SECTION_IDS,
       commentary: {},
+      // The default, explicitly. This harness exists to audit what a client
+      // would receive, so it must not quietly ask for a different document
+      // shape than the composer produces.
+      detailCap: DETAIL_CAP_DEFAULT,
       title: `${c.name} - register report`,
       brandName: c.brand_name ?? 'Philip Kwong',
       addressee: c.addressee ?? '',

@@ -30,7 +30,19 @@ import {
 import { buildEntry } from './report-entry';
 
 export interface SectionContext {
+  // Every project in scope, after the scope, dormancy, stream and hollowness
+  // filters. The three sets below partition it.
   projects: Project[];
+  // The projects this document describes in full, most significant first.
+  detailedProjects: Project[];
+  // In scope, filed inside the period, but below the detail cap. Counted.
+  undetailedProjects: Project[];
+  // In scope and filed nothing inside the period. Counted, and counted
+  // SEPARATELY: "quiet this month" and "less significant" are different facts.
+  silentProjects: Project[];
+  // Dropped before scope for having no live record at all.
+  excludedHollow: number;
+  detailCap: number;
   // Records attached to those projects, already scoped and period-filtered.
   records: (TimelineRecord & { project_id?: string | null; market?: string | null })[];
   events: EventRow[];
@@ -127,10 +139,29 @@ const cover: SectionDef = {
       // our own description of our own coverage, not something a filing says.
       // Labelling it RECORD would be the exact category error the rule exists to
       // prevent, even though it is factually true.
+      // THE SELECTION, ON THE COVER, IN FULL. A reader who counts the entries
+      // must find the cover already told them the number, and must be able to
+      // account for every project in scope without turning a page. The four
+      // counts partition the set: detailed plus counted plus silent is exactly
+      // the scope, and the hollow ones are named as never having reached it.
       lines: commentaryLines(
         `This report covers ${ctx.geographyLabel} for ${ctx.periodLabel}. ` +
           `It is drawn from ${ctx.projects.length} project${ctx.projects.length === 1 ? '' : 's'} ` +
           `and ${ctx.records.length} captured record${ctx.records.length === 1 ? '' : 's'}. ` +
+          `Of those projects, ${ctx.detailedProjects.length} ${ctx.detailedProjects.length === 1 ? 'is' : 'are'} ` +
+          `described in full, selected by significance` +
+          (ctx.undetailedProjects.length
+            ? `; ${ctx.undetailedProjects.length} further ${ctx.undetailedProjects.length === 1 ? 'project is' : 'projects are'} counted but not described`
+            : '') +
+          (ctx.silentProjects.length
+            ? `; and ${ctx.silentProjects.length} ${ctx.silentProjects.length === 1 ? 'project' : 'projects'} filed nothing in this period`
+            : '') +
+          `. ` +
+          (ctx.excludedHollow
+            ? `${ctx.excludedHollow} project${ctx.excludedHollow === 1 ? '' : 's'} whose every record has been dismissed ` +
+              `${ctx.excludedHollow === 1 ? 'is' : 'are'} excluded entirely, because ${ctx.excludedHollow === 1 ? 'it has' : 'they have'} ` +
+              `no filing to cite. `
+            : '') +
           `Anything outside that geography or period is not covered here.`
       ),
     }),
@@ -251,26 +282,40 @@ const headlines: SectionDef = {
 // not fixed; it is gone, and the count of what it would have covered is stated
 // in the section note instead.
 //
-// PER-MARKET CAP, AND IT IS STATED.
+// THE SECTION DESCRIBES WHAT THE DOCUMENT SELECTED. It does not select.
 //
-// A JKR report whose cover read "149 projects" listed 122 of them: 19 Clark
-// County projects and 8 Las Vegas ones vanished between the basis line and the
-// list, with no note anywhere in the document. The cap is worth keeping - a
-// section describing 800 projects is not a section a person reads - so what
-// changes is that the document says what it left out, per market, in the same
-// breath as the count on the cover.
-const MARKET_LIST_CAP = 25;
+// It used to: it took every project in scope and cut each market to 25. That is
+// a per-market quota, and a quota is not a selection - it gave a market with 27
+// low-significance projects more of the document than a market with 3 important
+// ones, and it made the total unpredictable, which is how a cover reading "149
+// projects" ended up over a list of 122.
+//
+// Selection is now made once, in buildReport, across the whole scope and by
+// significance. This section groups the result for reading and counts the
+// remainder per market, which is the one thing that genuinely belongs here
+// because it is the one thing that is per-market.
 
 const byMarket: SectionDef = {
   id: 'markets',
   label: 'By market',
-  description: `Each project described, with its filings, grouped by market, up to ${MARKET_LIST_CAP} per market.`,
+  description: 'Each selected project described, with its filings, grouped by market.',
   build: (ctx) => {
+    const marketOf = (p: Project) => p.market ?? p.region_state ?? 'Unassigned';
+
     const groups = new Map<string, Project[]>();
-    for (const p of ctx.projects) {
-      const k = p.market ?? p.region_state ?? 'Unassigned';
+    for (const p of ctx.detailedProjects) {
+      const k = marketOf(p);
       if (!groups.has(k)) groups.set(k, []);
       groups.get(k)!.push(p);
+    }
+
+    // The remainder, per market, so a reader of one market's section learns how
+    // much of that market is not on the page without doing arithmetic against
+    // the cover.
+    const remainderByMarket = new Map<string, number>();
+    for (const p of ctx.undetailedProjects) {
+      const k = marketOf(p);
+      remainderByMarket.set(k, (remainderByMarket.get(k) ?? 0) + 1);
     }
 
     // Records bucketed once. find() per project was O(projects x records) and
@@ -285,62 +330,68 @@ const byMarket: SectionDef = {
     }
 
     const entries: Entry[] = [];
-    const truncated: { market: string; listed: number; total: number; unreached: number }[] = [];
-    let silent = 0; // in scope, but with no filing inside the period
     let heldRecords = 0; // filings beyond an entry's own cap
     let mergedRecords = 0; // the same filing captured twice, folded into one
 
-    for (const [market, ps] of [...groups.entries()].sort((a, b) => b[1].length - a[1].length)) {
-      // WITHIN A MARKET, MOST SIGNIFICANT FIRST. The cap means this decides
-      // WHICH projects a market shows, not merely their order, so ordering by
-      // anything else silently drops the important ones.
+    // Markets ordered by how much of the document they hold, which is now a
+    // consequence of significance rather than of how many rows a clerk filed.
+    for (const [, ps] of [...groups.entries()].sort((a, b) => b[1].length - a[1].length)) {
       ps.sort((a, b) => (b.significance ?? -1) - (a.significance ?? -1));
-
-      const forMarket: Entry[] = [];
-      let considered = 0;
       for (const p of ps) {
-        if (forMarket.length >= MARKET_LIST_CAP) break;
-        considered++;
         const built = buildEntry(p, byProject.get(p.id) ?? []);
-        if (!built) {
-          silent++;
-          continue;
-        }
+        // Eligibility was settled before selection, so every detailed project
+        // has a filing in the period and this cannot normally fire. It stays
+        // because "cannot normally" is not "cannot", and an entry with nothing
+        // to cite must never be printed.
+        if (!built) continue;
         heldRecords += built.held;
         mergedRecords += built.merged;
-        // The market is on the entry's meta line, so the name does not have to
-        // carry it. "Clark County | Heart Hotel / Kulik River: ..." was a line
-        // that named a place twice and a project once.
-        forMarket.push(built.entry);
+        entries.push(built.entry);
       }
-      // Truncated only if the cap is what stopped us, and the count is of the
-      // projects never looked at - not of the ones looked at and found silent,
-      // which the note below reports separately and for a different reason.
-      if (considered < ps.length) {
-        truncated.push({ market, listed: forMarket.length, total: ps.length, unreached: ps.length - considered });
-      }
-      entries.push(...forMarket);
+    }
+
+    // COUNTED, NOT LISTED, ONE CLAUSE PER MARKET - EXCEPT THE SINGLETONS.
+    //
+    // A line per market is the right unit until the tail arrives: on the whole
+    // register this produced fifteen consecutive sentences, nine of which read
+    // "1 further project in X is not detailed here." That is a paragraph
+    // pretending to be a list, and a reader skips it, which defeats the point
+    // of counting the remainder at all. Markets holding one undetailed project
+    // are named together in a single clause; the count is identical and it can
+    // actually be read.
+    const ranked = [...remainderByMarket.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+    const many = ranked.filter(([, n]) => n > 1);
+    const singles = ranked.filter(([, n]) => n === 1).map(([m]) => m);
+    const remainderLines = many.map(
+      ([market, n]) => `${n} further projects in ${market} are not detailed here.`
+    );
+    if (singles.length === 1) {
+      remainderLines.push(`1 further project in ${singles[0]} is not detailed here.`);
+    } else if (singles.length > 1) {
+      remainderLines.push(
+        `1 further project in each of ${singles.slice(0, -1).join(', ')} and ` +
+          `${singles[singles.length - 1]} is not detailed here.`
+      );
     }
 
     const notes: string[] = [];
-    if (truncated.length) {
-      const held = truncated.reduce((n, t) => n + t.unreached, 0);
+    if (remainderLines.length) {
       notes.push(
-        `${entries.length} of ${ctx.projects.length} projects are described above. ` +
-          `${held} further project${held === 1 ? ' is' : 's are'} in scope and counted on the cover but not described here, ` +
-          `because this section describes at most ${MARKET_LIST_CAP} projects per market: ` +
-          truncated.map((t) => `${t.market} has ${t.total}`).join('; ') +
-          (ctx.sectionIds.includes('appendix')
-            ? '. The appendix below lists every record in scope, including theirs.'
-            : '. Add the appendix section to list every record in scope, including theirs.')
+        `${entries.length} of ${ctx.projects.length} projects in scope are described above, ` +
+          `selected by significance. ` +
+          remainderLines.join(' ') +
+          (ctx.sectionIds.includes('remainder')
+            ? ' The appendix below names them.'
+            : ' Add the "Appendix: projects not detailed" section to name them.')
       );
     }
-    if (silent) {
+    if (ctx.silentProjects.length) {
       // STATED, NOT PRINTED AS AN ENTRY. These are the projects the old section
       // rendered as [ASSESSMENT] lines. They are in the client's scope and they
       // did nothing in the period, and saying so once in a sentence is both
       // shorter and more honest than saying it project by project in a label
       // that claims Philip wrote it.
+      const silent = ctx.silentProjects.length;
       notes.push(
         `${silent} further project${silent === 1 ? '' : 's'} in scope had no filing captured during ` +
           `${ctx.periodLabel}, so ${silent === 1 ? 'it is' : 'they are'} not described here. ` +
@@ -371,7 +422,7 @@ const byMarket: SectionDef = {
     return withCommentary('markets', ctx, {
       id: 'markets',
       title: 'By market',
-      lede: 'Each project in scope, described from its own filings, grouped by market.',
+      lede: `The ${ctx.detailCap} most significant projects in this scope, described from their own filings and grouped by market.`,
       lines: [],
       entries,
       emptyNote: entries.length === 0
@@ -496,7 +547,56 @@ const appendix: SectionDef = {
   },
 };
 
-// ---- 9. COVERAGE NOTE --------------------------------------------------------
+// ---- 9. APPENDIX: PROJECTS NOT DETAILED --------------------------------------
+//
+// OFF BY DEFAULT. The point of selection is that a client document is not the
+// register, so naming the remainder is an option a reader asks for rather than
+// the default state of the document.
+//
+// EVERY LINE STILL CITES A FILING. A one-line-per-project appendix is exactly
+// the shape the old by-market section had, and that shape is what forced the
+// [ASSESSMENT] fallback: a project name with no record to point at cannot be
+// labelled anything honest. It works here only because these projects are
+// undetailed for want of ROOM, not for want of evidence - each one filed
+// something inside the period, which is what made it eligible for selection in
+// the first place. A project with nothing to cite is in the silent count and
+// never reaches this section.
+const remainder: SectionDef = {
+  id: 'remainder',
+  label: 'Appendix: projects not detailed',
+  description: 'The projects counted but not described above, one line each, with their most recent filing.',
+  build: (ctx) => {
+    const byProject = new Map<string, SectionContext['records']>();
+    for (const r of ctx.records) {
+      const id = r.project_id ?? '';
+      if (!id) continue;
+      if (!byProject.has(id)) byProject.set(id, []);
+      byProject.get(id)!.push(r);
+    }
+    const lines = ctx.undetailedProjects.flatMap((p) => {
+      const rec = (byProject.get(p.id) ?? [])
+        .slice()
+        .sort((a, b) => (b.published_date ?? '').localeCompare(a.published_date ?? ''))[0];
+      if (!rec) return [];
+      const market = p.market ?? p.region_state ?? 'Unassigned';
+      return [lineForRecord(rec, `${market} | ${p.name}: `)];
+    });
+    return withCommentary('remainder', ctx, {
+      id: 'remainder',
+      title: 'Appendix: projects not detailed',
+      lede:
+        'Every project in scope that filed inside the period but is not described above, ' +
+        'with its most recent filing so it can be looked up.',
+      lines,
+      emptyNote:
+        lines.length === 0
+          ? `Every project in scope is described above; there is no remainder.`
+          : undefined,
+    });
+  },
+};
+
+// ---- 10. COVERAGE NOTE -------------------------------------------------------
 
 const coverage: SectionDef = {
   id: 'coverage',
@@ -510,6 +610,25 @@ const coverage: SectionDef = {
     if (!ctx.includeDormant) notes.push('Dormant projects are excluded from this report.');
     if (!ctx.includeContext) notes.push('Context records that support a finding without being about it are excluded.');
     if (ctx.watchlistOnly) notes.push('This report is restricted to watch-listed projects.');
+    // THE SELECTION IS A LIMIT ON THE DOCUMENT, so it belongs in the list of
+    // the document's limits and not only on the cover. A reader who reaches
+    // this section without having read the cover still learns that what they
+    // have is the top of a longer list.
+    notes.push(
+      `This document describes the ${ctx.detailCap} most significant projects in scope. ` +
+        (ctx.undetailedProjects.length
+          ? `${ctx.undetailedProjects.length} further project${ctx.undetailedProjects.length === 1 ? '' : 's'} ` +
+            `in scope ${ctx.undetailedProjects.length === 1 ? 'is' : 'are'} counted but not described.`
+          : 'Every project in scope is described.')
+    );
+    if (ctx.excludedHollow) {
+      notes.push(
+        `${ctx.excludedHollow} project${ctx.excludedHollow === 1 ? '' : 's'} in this geography ` +
+          `${ctx.excludedHollow === 1 ? 'holds' : 'hold'} no live record and ${ctx.excludedHollow === 1 ? 'is' : 'are'} ` +
+          `excluded: every record attached to ${ctx.excludedHollow === 1 ? 'it' : 'them'} has been dismissed on review, ` +
+          `so there is nothing to cite.`
+      );
+    }
     notes.push(
       'Records are captured from published sources. A matter that has not been published, or that is published somewhere we do not yet capture, will not appear.'
     );
@@ -530,6 +649,7 @@ export const SECTION_REGISTRY: SectionDef[] = [
   hearings,
   watchList,
   tenders,
+  remainder,
   appendix,
   coverage,
 ];

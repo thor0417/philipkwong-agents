@@ -33,6 +33,20 @@ const ID_CHUNK = 150;
 export const RECORD_CAP = 1500;
 export const PROJECT_CAP = 2000;
 
+// HOW MANY PROJECTS A DOCUMENT DESCRIBES IN FULL.
+//
+// The generated report that started this rewrite listed 229 projects at one
+// line each, which is not a document anyone reads: it is the register, printed.
+// The fix is not a smaller list, it is SELECTION - the most significant N
+// described properly, and the rest counted so the reader knows they exist.
+//
+// 15 IS A DEFAULT, NOT A LIMIT, and it is configurable from the composer for a
+// reason: the July report ran 26 pages and detailed considerably more than 15.
+// What the right number is depends on what an entry costs in page space, which
+// could not be judged until entries existed. So the composer offers it and the
+// document states it.
+export const DETAIL_CAP_DEFAULT = 15;
+
 export interface BuildRequest {
   scope: ClientScope;
   period: ResolvedPeriod;
@@ -46,6 +60,9 @@ export interface BuildRequest {
   includeDormant: boolean;
   includeContext: boolean;
   geographyLabel: string;
+  // HOW MANY PROJECTS THE DOCUMENT DESCRIBES IN FULL. The rest are counted.
+  // See DETAIL_CAP_DEFAULT for why this is a number a person chooses.
+  detailCap: number;
   // A REFERRAL BRIEF IS ONE PROJECT. Not a narrower market - a single matter,
   // written to be forwarded to someone who will act on that matter alone. The
   // scope model is geography-and-stage shaped and cannot express it, so this is
@@ -63,6 +80,17 @@ export interface BuiltReport {
   // not the report, and the two can differ for exactly the reasons an audit
   // exists to catch.
   projects: Project[];
+  // WHAT THE SELECTION DID, in numbers, so the composer and the audit harness
+  // can assert on it without re-deriving it. Reported on the cover as well:
+  // every project in scope is in exactly one of detailed, counted or silent,
+  // and excludedHollow is the set that never reached scope at all.
+  selection: {
+    inScope: number;
+    detailed: number;
+    counted: number;
+    silent: number;
+    excludedHollow: number;
+  };
 }
 
 export async function buildReport(req: BuildRequest): Promise<BuiltReport> {
@@ -88,6 +116,24 @@ export async function buildReport(req: BuildRequest): Promise<BuiltReport> {
   // written 'dormant' by the clusterer, so excluding it is a filter on the value
   // the clusterer already computed rather than a second definition of dormancy.
   if (!req.includeDormant) projects = projects.filter((p) => p.stage !== 'dormant');
+
+  // HOLLOW PROJECTS ARE EXCLUDED ENTIRELY, not merely left undetailed.
+  //
+  // A project whose every record has been dismissed has nothing to tell a
+  // client. It has no filing to cite, no date, no party and no link, so it can
+  // only ever appear as a name - which is the by-market line this rewrite
+  // deleted. When this was specified, 91 projects were in that state, and 3 of
+  // them were the whole of Simtec's "hearing scheduled" tier: a reader looking
+  // for forward motion would have found the tier hollow and drawn the obvious
+  // conclusion about the rest of the document.
+  //
+  // record_count is maintained as the count of LIVE rows by the clusterer's
+  // recount pass (agents/scraper/project-recount.ts skips dismissed), so this
+  // is a filter on a number the pipeline already computes rather than a second
+  // definition of the same thing. verify-curation reports drift on it.
+  const beforeHollow = projects.length;
+  projects = projects.filter((p) => (p.record_count ?? 0) > 0);
+  const excludedHollow = beforeHollow - projects.length;
 
   // THE STREAM AXIS, APPLIED TO PROJECTS AS WELL AS TO RECORDS.
   //
@@ -158,8 +204,40 @@ export async function buildReport(req: BuildRequest): Promise<BuiltReport> {
     .map(sectionById)
     .filter((s): s is NonNullable<typeof s> => !!s);
 
+  // ---- SELECTION, DECIDED ONCE ------------------------------------------
+  //
+  // WHICH projects the document describes is a property of the document, not of
+  // a section. Deciding it inside by-market would mean the cover could not
+  // state it without recomputing it, and two computations of the same thing
+  // eventually disagree - which is how a cover reading "229 projects" ended up
+  // over a list of 122.
+  //
+  // ELIGIBILITY COMES BEFORE RANK. A project with no filing inside the period
+  // cannot produce an entry, so ranking first and taking the top 15 would spend
+  // the budget on projects that then print nothing. The silent ones are counted
+  // separately, because "in your scope and quiet this month" and "in your scope
+  // and less significant" are different facts and a client should not have them
+  // merged.
+  const withPeriodRecords = new Set(records.map((r) => r.project_id ?? '').filter(Boolean));
+  const eligible = projects.filter((p) => withPeriodRecords.has(p.id));
+  const silent = projects.filter((p) => !withPeriodRecords.has(p.id));
+  const ranked = [...eligible].sort(
+    (a, b) =>
+      (b.significance ?? -1) - (a.significance ?? -1) ||
+      (b.record_count ?? 0) - (a.record_count ?? 0) ||
+      a.name.localeCompare(b.name)
+  );
+  const detailCap = Math.max(1, Math.floor(req.detailCap || DETAIL_CAP_DEFAULT));
+  const detailedProjects = ranked.slice(0, detailCap);
+  const undetailedProjects = ranked.slice(detailCap);
+
   const ctx: SectionContext = {
     projects,
+    detailedProjects,
+    undetailedProjects,
+    silentProjects: silent,
+    excludedHollow,
+    detailCap,
     records,
     events,
     sectionIds: chosen.map((s) => s.id),
@@ -209,6 +287,13 @@ export async function buildReport(req: BuildRequest): Promise<BuiltReport> {
     pages: estimatePages(doc),
     capped: { projects: (pdata ?? []).length >= PROJECT_CAP, records: records.length >= RECORD_CAP },
     projects,
+    selection: {
+      inScope: projects.length,
+      detailed: detailedProjects.length,
+      counted: undetailedProjects.length,
+      silent: silent.length,
+      excludedHollow,
+    },
   };
 }
 
