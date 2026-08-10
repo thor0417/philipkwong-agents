@@ -18,6 +18,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useQueryState, parseAsString } from 'nuqs';
 import PeriodSelector from '@/components/PeriodSelector';
 import { usePeriodState } from '@/lib/use-period';
 import { useClients, useScopes } from '@/lib/use-clients';
@@ -29,7 +30,12 @@ import type { FacetCount } from '@/lib/projects';
 import { authedFetch } from '@/lib/authed-fetch';
 import type { ClientScope } from '@/lib/clients';
 import { buildReport, DETAIL_CAP_DEFAULT, geographyLabel, listScopeProjects } from '@/lib/report-build';
-import { DEFAULT_SECTION_IDS, SECTION_REGISTRY, sectionById } from '@/lib/report-sections';
+import {
+  DEFAULT_SECTION_IDS,
+  REFERRAL_SECTION_IDS,
+  SECTION_REGISTRY,
+  sectionById,
+} from '@/lib/report-sections';
 import { basisLine, estimatePages, provenanceTally } from '@/lib/report-model';
 import styles from './page.module.css';
 
@@ -112,7 +118,17 @@ export default function ReportsPage() {
   const [venueOverride, setVenueOverride] = useState<string[]>([]);
   const [categoryOverride, setCategoryOverride] = useState<string[]>([]);
   const [streamOverride, setStreamOverride] = useState<string[]>([]);
-  const [projectId, setProjectId] = useState<string>('');
+  // THE PROJECT LIVES IN THE URL, so that another screen can hand this one a
+  // referral to write. It was local state, which meant the only way to compose
+  // a brief for a known project was to open this screen and hunt for it in a
+  // dropdown of every project in scope - and meant a link to "the brief for
+  // this project" could not be written at all, by a person or by the project
+  // page's own button.
+  const [projectId, setProjectId] = useQueryState('project', parseAsString.withDefault(''));
+  // 'referral' starts the document from the referral section set instead of the
+  // default one. Read once, on mount: it seeds the section list rather than
+  // pinning it, so every section control stays usable afterwards.
+  const [mode] = useQueryState('mode', parseAsString.withDefault(''));
   // HOW MANY PROJECTS THE DOCUMENT DESCRIBES. Held as a string because a number
   // input that coerces on every keystroke cannot be cleared to retype it: the
   // field snaps back to 1 the moment it empties. Parsed at the point of use.
@@ -121,7 +137,9 @@ export default function ReportsPage() {
   const [watchlistOnly, setWatchlistOnly] = useState(false);
   const [includeDormant, setIncludeDormant] = useState(false);
   const [includeContext, setIncludeContext] = useState(true);
-  const [sectionIds, setSectionIds] = useState<string[]>(DEFAULT_SECTION_IDS);
+  const [sectionIds, setSectionIds] = useState<string[]>(
+    mode === 'referral' ? REFERRAL_SECTION_IDS : DEFAULT_SECTION_IDS
+  );
   const [commentary, setCommentary] = useState<Record<string, string>>({});
   const [dragging, setDragging] = useState<string | null>(null);
   const [templates, setTemplates] = useState<Template[]>([]);

@@ -90,6 +90,32 @@
   padding: var(--space-4) var(--space-8);
 }
 
+/* The one action in the header. Set apart from the fact strip because a fact is
+   read and an action is taken, and a link that looks like a value gets skipped. */
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-12);
+  margin-top: var(--space-16);
+}
+
+.briefLink {
+  display: inline-block;
+  font-size: var(--type-caption);
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+  color: var(--accent);
+  border: var(--hairline-width) solid var(--accent);
+  border-radius: var(--radius-surface);
+  padding: var(--space-8) var(--space-12);
+  text-decoration: none;
+}
+
+.briefLink:hover {
+  background: var(--accent);
+  color: var(--paper);
+}
+
 /* -------------------------------------------------------------------- body */
 .body {
   display: grid;

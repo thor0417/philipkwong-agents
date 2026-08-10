@@ -685,6 +685,19 @@ export const SECTION_REGISTRY: SectionDef[] = [
   coverage,
 ];
 
+// A REFERRAL BRIEF IS A DIFFERENT DOCUMENT, so it starts from a different set.
+//
+// It is about one matter, for someone who will act on that matter, so the
+// sections that answer "what else is going on" are noise: nothing moved but
+// this, there is no market to survey, and a watch list of one is not a list.
+// What is left is the cover, the entry itself, and the complete record set
+// behind it, which is what a person receiving a referral checks first.
+//
+// Part 4 of the brief rebuilds this document to the Heart Hotel standard, at
+// which point this array becomes that structure. Until then it is the honest
+// subset of the sections that exist.
+export const REFERRAL_SECTION_IDS = ['cover', 'markets', 'appendix', 'coverage'];
+
 export const DEFAULT_SECTION_IDS = [
   'cover',
   'moved',

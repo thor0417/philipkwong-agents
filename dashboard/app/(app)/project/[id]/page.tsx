@@ -111,6 +111,32 @@ export default function ProjectPage() {
           )}
           {p.watch && <span className={styles.watching}>Watching</span>}
         </div>
+
+        {/* THE BRIEF, FROM THE PAGE WHERE THE DECISION IS MADE.
+            This page exists to answer "what do I actually know" before a brief
+            goes out, and the next thing after answering it was to open the
+            composer and find this project again in a dropdown of everything in
+            scope. The link carries the project and the referral section set, so
+            the composer opens on this matter with the right document already
+            started. It is a link rather than a generate button on purpose: a
+            referral is Philip's assessment plus the record, and the assessment
+            is written in the composer's commentary boxes. Generating straight
+            from here would produce the record dump the composer already warns
+            about. */}
+        <div className={styles.headerActions}>
+          <Link
+            className={styles.briefLink}
+            data-testid="project-referral-brief"
+            href={`/reports?project=${encodeURIComponent(id)}&mode=referral`}
+          >
+            Generate referral brief
+          </Link>
+          {(p.record_count ?? records.length) === 0 && (
+            <span className={styles.dim}>
+              This project holds no live records, so a brief would have nothing to cite.
+            </span>
+          )}
+        </div>
       </header>
 
       <div className={styles.body}>
