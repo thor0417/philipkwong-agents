@@ -131,7 +131,10 @@ export interface GateDecision {
 // bypass inert rather than wrong, which is the safe default for any caller that
 // does not want to consult the register.
 export function decide(c: GateCandidate): GateDecision {
-  const verdict = governmentGate(c.gate_text);
+  // The market is passed because one rule is calibrated per market. Every other
+  // rule ignores it, and a candidate whose market is unknown gets the global
+  // behaviour rather than an error.
+  const verdict = governmentGate(c.gate_text, c.market);
   const bypassText = c.bypass_text ?? c.gate_text;
   // Resolved from the source policy, not from the candidate's stored literal, so
   // a frozen corpus re-gates under today's rule. See SOURCE_BYPASS_MODE.

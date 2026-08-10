@@ -810,10 +810,48 @@ const RESIDENTIAL_SCALE =
   /\b\d{1,4}[-\s]?(?:units?|dwelling units?|dus?|apartments|condominium units|residential units)\b|\bmultifamily\b|\bmulti-family\b/i;
 const MIXED_USE_ONLY = new Set<string>(['mixed use', 'mixed-use']);
 
-function isResidentialMixedUse(text: string, strongHits: string[], weakHits: string[]): boolean {
+// ONE MARKET IS CALIBRATED SEPARATELY, AND ONLY BECAUSE THE DATA FORCED IT.
+//
+// Condition 1 (a stated unit count) exists so the rule cannot drop a mixed-use
+// filing that is genuinely commercial. In New York it costs almost nothing to
+// remove, and everywhere else it is load-bearing. Measured over 484 labelled
+// government records, dropping mixed-use-alone admissions REGARDLESS of unit
+// count:
+//
+//   New York City   precision 30 -> 40   recall 97 -> 92    36 noise cut, 2 relevant lost
+//   Anaheim         precision 48 -> 47   recall 75 -> 65     3 noise cut, 4 relevant lost
+//   Clark County    precision 33 -> 37   recall 68 -> 68     5 noise cut, 0 relevant lost
+//   Las Vegas       precision 29 -> 31   recall 92 -> 92     2 noise cut, 0 relevant lost
+//
+// Anaheim pays for New York's gain and receives nothing: its precision FALLS
+// while it loses ten points of recall and four real records. Shipping this
+// globally would have been a net improvement on the corpus total (precision
+// 42.8 -> 48.4, recall 79.3 -> 76.1) and a straight loss for the market Philip
+// works in most. A corpus-wide average is the wrong unit of account when the
+// markets are not interchangeable.
+//
+// WHY THE MARKETS GENUINELY DIFFER. New York's ULURP pipeline is mostly
+// residential rezonings, and DCP writes "mixed use" on nearly all of them, so
+// the term carries no information there. Anaheim writes "mixed use" inside
+// Platinum Triangle and resort-district specific plans, where it describes real
+// leisure development.
+//
+// THIS IS THE ONLY MARKET-SPECIFIC RULE IN THE GATE, and it should stay that
+// way unless another market produces numbers this lopsided. A gate with a
+// special case per market is not a gate, it is a lookup table, and it stops
+// generalising to the market added next.
+const UNSCALED_MIXED_USE_MARKETS = new Set(['New York City']);
+
+function isResidentialMixedUse(
+  text: string,
+  strongHits: string[],
+  weakHits: string[],
+  market?: string | null
+): boolean {
   if (strongHits.length > 0) return false;
   if (weakHits.length === 0) return false;
   if (!weakHits.every((w) => MIXED_USE_ONLY.has(w))) return false;
+  if (market && UNSCALED_MIXED_USE_MARKETS.has(market)) return true;
   return RESIDENTIAL_SCALE.test(text);
 }
 
@@ -932,7 +970,13 @@ export function gateReadableText(text: string): string {
   return out;
 }
 
-export function governmentGate(raw: string): GateVerdict {
+/**
+ * @param market Jurisdiction label, when the caller knows it. Consulted by
+ *   exactly one rule (see UNSCALED_MIXED_USE_MARKETS); every other decision in
+ *   this function is a pure function of the text, and omitting it only makes
+ *   the gate more permissive, never wrong in a new way.
+ */
+export function governmentGate(raw: string, market?: string | null): GateVerdict {
   const text = gateReadableText(raw);
   const strongHits = GOV_GATE_STRONG.filter((t) => hasWord(text, t));
   const weakHits = GOV_GATE_WEAK.filter((t) => hasWord(text, t));
@@ -947,7 +991,7 @@ export function governmentGate(raw: string): GateVerdict {
   if (strongHits.length > 0) {
     return { matched: true, reason: 'strong', ...hits };
   }
-  if (isResidentialMixedUse(text, [...strongHits], [...weakHits])) {
+  if (isResidentialMixedUse(text, [...strongHits], [...weakHits], market)) {
     return { matched: false, reason: 'residential-mixed-use', ...hits };
   }
   if (weakHits.length > 0 && actionHits.length > 0) {
