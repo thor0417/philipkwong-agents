@@ -38,6 +38,10 @@ export const PROJECT_OVERRIDABLE = [
   // holds back BOTH columns, because summary_source would otherwise be
   // recomputed to 'derived' while summary stayed 'manual' - see summaryPair.
   'summary',
+  // A PINNED SCORE OUTRANKS THE MODEL PERMANENTLY. Philip's judgement about
+  // what matters is the thing the model is trying to approximate, so where he
+  // has stated it the model does not get a second opinion.
+  'significance',
 ] as const;
 
 export interface ExistingProject {
@@ -108,7 +112,18 @@ export function projectRow(
     summary: c.summary,
     summary_source: c.summary_source,
     summary_url: c.summary_url,
+    significance: c.significance,
+    significance_detail: c.significance_detail,
+    significance_computed_at: new Date().toISOString(),
   };
+
+  // The pin holds all three columns together: a held-back score beside a fresh
+  // computed_at would claim the pinned number was recomputed just now.
+  if (overriddenFields(existing?.manual_overrides).has('significance')) {
+    delete row.significance;
+    delete row.significance_detail;
+    delete row.significance_computed_at;
+  }
 
   // THE TWO SUMMARY COLUMNS MOVE TOGETHER OR NOT AT ALL. The table enforces
   // (summary is null) = (summary_source is null), so writing one without the

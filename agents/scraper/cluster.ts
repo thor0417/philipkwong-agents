@@ -44,6 +44,7 @@ import {
 } from './targets';
 import { extractProjectNames, nameSignalApplies } from './project-name';
 import { deriveSummary } from './project-summary';
+import { score as significanceOf } from './significance';
 import {
   deriveProjectName,
   disambiguateNames,
@@ -773,6 +774,13 @@ export interface ClusteredProject {
   summary_source: 'derived' | null;
   // The filing the sentence was quoted from, so a report can cite it.
   summary_url: string | null;
+  // RECOMPUTED ON EVERY RUN FROM THE MEMBERS JUST ASSEMBLED. That is the whole
+  // recompute trigger for "a filing arrived": a project that gains a record is
+  // rewritten in the same pass, so no queue and no staleness sweep is needed
+  // for the common case. A weight change is the other case and needs a full
+  // corpus pass - see migrations/backfill-significance.
+  significance: number | null;
+  significance_detail: Record<string, unknown> | null;
   record_count: number;
   live: boolean;
   liveness_reason: ProjectLiveness['reason'];
@@ -1356,6 +1364,23 @@ export function clusterRecords(
       ),
     });
 
+    const sig = significanceOf({
+      stage,
+      venue_type: venueType,
+      primary_applicant: modeOf(recs.map((r) => r.applicant)),
+      primary_representative: modeOf(recs.map((r) => r.representative)),
+      record_count: recs.length,
+      last_activity: liveness.lastActivity,
+      records: recs.map((r) => ({
+        title: r.title ?? null,
+        raw_content: r.raw_content ?? null,
+        source: r.source ?? null,
+        source_type: r.source_type ?? null,
+        stream: r.stream ?? null,
+        published_date: r.published_date ?? null,
+      })),
+    });
+
     const derived = deriveSummary(
       recs.map((r) => ({
         url: r.url,
@@ -1388,6 +1413,8 @@ export function clusterRecords(
       summary: derived?.summary ?? null,
       summary_source: derived ? 'derived' : null,
       summary_url: derived?.sourceUrl ?? null,
+      significance: sig.score,
+      significance_detail: sig.detail,
       record_count: recs.length,
       live: liveness.live,
       liveness_reason: liveness.reason,
