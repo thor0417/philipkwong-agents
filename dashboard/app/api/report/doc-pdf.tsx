@@ -129,6 +129,7 @@ function EntryBlock({ e }: { e: Entry }) {
               {r.text}
             </Text>
             {r.figures.length > 0 ? <Text style={s.recDetail}>{r.figures.join(' | ')}</Text> : null}
+            {r.language ? <Text style={s.recDetail}>{r.language}</Text> : null}
             {r.players.length > 0 ? (
               <Text style={s.recDetail}>
                 Players: {r.players.map((p) => `${p.name} (${p.role})`).join('; ')}

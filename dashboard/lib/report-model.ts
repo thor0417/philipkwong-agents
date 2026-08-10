@@ -168,6 +168,11 @@ export interface EntryRecord {
   // Acreage, unit counts, floor area, money - only where the record carries
   // them, and only when they are not already in the text above.
   figures: string[];
+  // Set when the captured record is not in English and no English capture of
+  // the same item exists to print instead. Anaheim publishes bilingual agendas;
+  // a Spanish line in an English report is unreadable, and an unlabelled one is
+  // worse than a labelled one.
+  language: string | null;
   players: EntryPlayer[];
   // "Elias George, EPG Law Group. No phone or email in the record." The negative
   // half is not decoration: 24 of the 33 records carrying a named individual

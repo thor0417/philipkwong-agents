@@ -23,6 +23,7 @@
 // negative, because for 24 of the 33 records with a named individual the
 // negative is the whole truth of it.
 
+import { cleanRecordText } from '../../agents/scraper/project-summary';
 import type { Project, TimelineRecord } from './projects';
 import {
   assembleSentence,
@@ -57,12 +58,11 @@ function recordDate(r: ScopedRecord): string | null {
 
 // ---- WHAT THE RECORD SEEKS ---------------------------------------------------
 
-// Agenda titles arrive as a numbered blob: "5. UC-26-0219-KULIK RIVER CAPITAL,
-// LLC: USE PERMITS for the following: 1) expand the gaming enterprise district".
-// The item number is a position on someone's agenda and means nothing in a
-// report, so it goes; the case reference is pulled out and printed as a
-// reference instead of being left mid-sentence.
-const ITEM_PREFIX = /^(item\s+no\.?\s*)?\d+\.\s*/i;
+// The item number, the case prefix and the block capitals are all stripped by
+// the scraper's cleanRecordText, which is imported rather than reimplemented -
+// see next.config.js for why that import is allowed to cross the package split.
+// The case reference is pulled out separately BEFORE cleaning, because the
+// report prints it as a reference rather than discarding it.
 
 // A case, bill, ordinance or application reference as the sources write them.
 //
@@ -100,33 +100,80 @@ function trimToClause(text: string, cap: number): string {
 // running on, so a title at the storage width is marked as continuing.
 const TITLE_STORAGE_WIDTH = 190;
 
-function actionText(r: ScopedRecord, reference: string | null): string {
+// ---- THE NAMES DESHOUTING FLATTENS ------------------------------------------
+//
+// Deshouting is right for a clerk's block capitals and wrong for a brand that is
+// genuinely capitalised. "OCVIBE" came out as "Ocvibe" and "CFTOD" as "Cftod",
+// in the entry for a project the register calls OCVibe and CFTOD.
+//
+// The register's own name for the thing settles it. A token that the source
+// shouted, and that the project name also contains, is restored to the casing
+// the project name uses.
+//
+// ONLY WHERE THE NAME DISAGREES WITH TITLE CASE. "Heart Hotel" contains "hotel",
+// and a source that writes "RESORT HOTEL" must not come back as "resort Hotel" -
+// so a token whose project-name form is just its capitalised form is left to the
+// deshouter. OCVibe and CFTOD are restored because neither is Title Case, which
+// is exactly what makes them names rather than words.
+function brandCasing(projectName: string): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const token of projectName.split(/[^A-Za-z0-9']+/)) {
+    if (token.length < 3) continue;
+    const titled = token.charAt(0).toUpperCase() + token.slice(1).toLowerCase();
+    if (token !== titled) out.set(token.toLowerCase(), token);
+  }
+  return out;
+}
+
+function restoreBrands(text: string, source: string, brands: Map<string, string>): string {
+  if (brands.size === 0) return text;
+  return text.replace(/\b[A-Za-z][A-Za-z0-9']{2,}\b/g, (word) => {
+    const canonical = brands.get(word.toLowerCase());
+    if (!canonical || word === canonical) return word;
+    // Only where the SOURCE shouted it. A source that already wrote "OCVibe"
+    // needs no help, and a lower-case word in the source was never a brand.
+    const shouted = new RegExp(`\\b${word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+    const m = shouted.exec(source);
+    return m && m[0] === m[0].toUpperCase() ? canonical : word;
+  });
+}
+
+function actionText(
+  r: ScopedRecord,
+  reference: string | null,
+  brands: Map<string, string>
+): string {
   // action_sought is what the scraper derived as the thing being sought, and it
   // is already plain language. The title is a fallback for the 11% of records
   // without one - press headlines, mostly, where the headline IS the statement.
   const rawTitle = tidy(r.title);
   const fromTitle = !tidy(r.action_sought);
-  let text = tidy(r.action_sought) || rawTitle.replace(ITEM_PREFIX, '');
+  const raw = tidy(r.action_sought) || rawTitle;
+
+  // THE SCRAPER'S CLEANING, NOT A SECOND ONE. This used to be a local item
+  // prefix regex plus an all-or-nothing deshout, and both were too weak: the
+  // deshout only fired when the WHOLE line was capitals, so
+  // "ORDINANCE No. 6609: (ADOPTION) AN ORDINANCE OF THE CITY OF ANAHEIM" kept
+  // its shouting because the first two words were mixed case, and the item
+  // prefix missed "16. DEVELOPMENT APPLICATION NO. 2026-00022 (DEV2026-00022)"
+  // because the case number sat between the number and the text.
+  let text = cleanRecordText(raw);
   if (fromTitle && rawTitle.length >= TITLE_STORAGE_WIDTH && !/[.!?]$/.test(text)) {
     text = `${text.replace(/[,;\s]+$/, '')}...`;
   }
-  // The reference is printed as a reference; leaving it embedded reads as
-  // "UC-26-0219-KULIK RIVER CAPITAL, LLC: USE PERMITS to..." mid-sentence. What
-  // follows it on a Clark County item is the applicant, which is printed under
-  // Players, so that goes with it.
+  // The reference is printed as a reference. cleanRecordText removes it from
+  // the front of the sentence; this handles the shapes it leaves, where the
+  // reference is followed by the applicant before the colon.
   if (reference) {
     const escaped = reference.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     text = text.replace(new RegExp(`^${escaped}[^:]{0,80}:\\s*|^${escaped}[-:\\s]*`, 'i'), '');
   }
   text = trimToClause(tidy(text), ACTION_CAP);
-  // Sources shout. A client document does not.
-  if (text === text.toUpperCase() && /[A-Z]{4}/.test(text)) {
-    text = text.charAt(0) + text.slice(1).toLowerCase();
-  }
-  // And sources start mid-sentence, because the phrase was lifted out of a
-  // longer one: "levying Special Taxes within Community Facilities District No.
-  // 06-2". As the first words after a date, that reads as a typo.
+  // Sources start mid-sentence, because the phrase was lifted out of a longer
+  // one: "levying Special Taxes within Community Facilities District No. 06-2".
+  // As the first words after a date, that reads as a typo.
   text = text.charAt(0).toUpperCase() + text.slice(1);
+  text = restoreBrands(text, raw, brands);
   // A TRAILING ELLIPSIS IS THE SOURCE SPEAKING, NOT NOISE. Press headlines
   // arrive already cut - "...sells to developer who ..." - and stripping the
   // dots turned a visibly truncated headline into a sentence that appeared to
@@ -300,6 +347,38 @@ function contentWords(r: ScopedRecord): Set<string> {
   );
 }
 
+// ---- WHICH LANGUAGE THE RECORD IS IN -----------------------------------------
+//
+// Anaheim publishes its council agendas in English and in Spanish, and both are
+// captured, so a project can hold two records of one item that differ in every
+// character. The deduper folds them together and then has to choose which one
+// to print - and choosing "whichever says more" printed the Spanish one, because
+// the Spanish minute of the Disneyland development-agreement review is the
+// longer of the pair. A client document in the wrong language is not a small
+// defect; it reads as though nobody looked at the output.
+//
+// So: prefer English where both exist, and where only the Spanish record exists,
+// SAY SO rather than printing it unmarked. The alternative to saying so is a
+// line the reader cannot parse and cannot account for.
+//
+// Detected by function words, not by an accent test: the accents survive
+// inconsistently through PDF extraction, while "que", "sobre" and "del" do not
+// appear in English filings. "los" and "las" are deliberately absent from the
+// list because Los Angeles and Las Vegas are in this corpus on every page.
+const SPANISH_MARKERS = new RegExp(
+  '\\b(que|del|para|sobre|por|una|sus|este|esta|mediante|conforme|propiedad|' +
+    'condiciones|propietario|presentada|cumplido|determinar|aprobar|ordenanza|' +
+    'resoluci[oó]n|t[eé]rminos|acuerdo|ciudad|desarrollo|reuni[oó]n|sesi[oó]n)\\b',
+  'gi'
+);
+const SPANISH_MARKER_THRESHOLD = 3;
+
+function isSpanish(r: ScopedRecord): boolean {
+  const text = tidy(`${r.action_sought ?? ''} ${r.title ?? ''}`);
+  const hits = new Set((text.match(SPANISH_MARKERS) ?? []).map((m) => m.toLowerCase()));
+  return hits.size >= SPANISH_MARKER_THRESHOLD;
+}
+
 function sharedCount(a: Set<string>, b: Set<string>): number {
   let shared = 0;
   for (const w of a) if (b.has(w)) shared++;
@@ -317,6 +396,7 @@ interface Kept {
   text: string;
   filing: boolean;
   reference: string | null;
+  spanish: boolean;
 }
 
 // TWO WAYS TO BE THE SAME RECORD, AND PRESS ONLY GETS THE STRICT ONE.
@@ -373,17 +453,26 @@ function dedupe(records: ScopedRecord[]): Deduped {
       text: normalisedText(r),
       filing: isFiling(r.source, r.source_type, r.stream),
       reference: referenceOf(r),
+      spanish: isSpanish(r),
     };
     const dup = kept.find((k) => isDuplicate(k, candidate));
     if (dup) {
       merged++;
-      // Keep whichever of the two says more; the English minute is longer than
-      // the Spanish one, and the full item is longer than a page fragment.
-      if (candidate.words.size > dup.words.size) {
+      // WHICH OF THE TWO TO KEEP. Language decides first: between a bilingual
+      // pair, the English record is the one that goes in an English document,
+      // whatever their relative lengths. Only when both are the same language
+      // does the longer one win, which is the rule that keeps the full item
+      // over a page fragment.
+      const preferByLanguage = dup.spanish !== candidate.spanish;
+      const takeCandidate = preferByLanguage
+        ? dup.spanish && !candidate.spanish
+        : candidate.words.size > dup.words.size;
+      if (takeCandidate) {
         dup.r = r;
         dup.words = candidate.words;
         dup.text = candidate.text;
         dup.reference = candidate.reference ?? dup.reference;
+        dup.spanish = candidate.spanish;
       }
       continue;
     }
@@ -432,15 +521,20 @@ export function buildEntry(
   const ordered = [...usable].sort((a, b) => (recordDate(a) ?? '').localeCompare(recordDate(b) ?? ''));
   const shown = ordered.slice(Math.max(0, ordered.length - cap));
 
+  const brands = brandCasing(project.name);
   const entryRecords: EntryRecord[] = shown.map((r) => {
     const reference = referenceOf(r);
-    const text = actionText(r, reference);
+    const text = actionText(r, reference, brands);
     const isRecord = isFiling(r.source, r.source_type, r.stream);
     return {
       date: recordDate(r),
       reference,
       text,
       figures: figuresOf(r, text),
+      // Only ever set on a record that survived deduping WITHOUT an English
+      // twin: where the pair existed, the English one is what is printed and
+      // there is nothing to declare.
+      language: isSpanish(r) ? 'Spanish-language record; no English capture of this item' : null,
       players: playersOf(r, project, isRecord),
       contact: contactOf(r),
       provenance: isRecord ? 'RECORD' : 'PRESS',

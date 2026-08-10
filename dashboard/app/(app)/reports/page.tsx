@@ -778,6 +778,7 @@ export default function ReportsPage() {
                           {r.figures.length > 0 && (
                             <div className={styles.entryRecDetail}>{r.figures.join(' | ')}</div>
                           )}
+                          {r.language && <div className={styles.entryRecDetail}>{r.language}</div>}
                           {r.players.length > 0 && (
                             <div className={styles.entryRecDetail}>
                               Players: {r.players.map((p) => `${p.name} (${p.role})`).join('; ')}

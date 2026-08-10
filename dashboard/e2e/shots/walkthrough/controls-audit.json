@@ -3,7 +3,7 @@
     "What moved": "01 What moved Stage changes, most advanced destination first. A project reaching construction matters more than one reaching a scheduled hearing, so this is not ordered by time. Nothing changed stage in this window. Stage history only began when event capture shipped, so this section is genuinely thin for now and will ",
     "What came in": "02 What came in New projects first, then new records on projects you already had. Grouped by project, so six records on one project is one line, not six. NEW PROJECTS 107 1605 Nelson Avenue mixed-use development New York City filed 2026-08-09 240 Nassau Street heritage site New York City stalled 2026-08-09 Rehabilitati",
     "Needs you": "03 Needs you Each of these is a count and a place to go. 980 Record triage backlog Records still at status new, on Records 9 Watchlist activity Events on projects you watch 107 New projects to review Arrived in this window",
-    "Attention": "04 Attention The machine, not the market. Red only where something is genuinely wrong. SOURCES sfwmd 14d silent 25 records gli_serper 13d silent 238 records govdoc 12d silent 8 records ceqanet 10d silent 9 records clark-tab 10d silent 53 records agenda-portal 10d silent 179 records cftod-pdf 10d silent 26 records RUNS "
+    "Attention": "04 Attention The machine, not the market. Red only where something is genuinely wrong. SOURCES gli_serper 14d silent 238 records sfwmd 14d silent 25 records govdoc 12d silent 8 records ceqanet 10d silent 9 records clark-tab 10d silent 53 records agenda-portal 10d silent 179 records cftod-pdf 10d silent 26 records RUNS "
   },
   "todayPeriod": {
     "7d": 127,

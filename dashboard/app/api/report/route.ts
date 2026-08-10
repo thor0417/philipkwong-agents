@@ -67,6 +67,7 @@ function toRows(doc: ReportDocument): string[][] {
         const detail = [
           r.reference,
           r.figures.join(' | ') || null,
+          r.language,
           r.players.length ? `Players: ${r.players.map((p) => `${p.name} (${p.role})`).join('; ')}` : null,
           r.contact,
         ]
