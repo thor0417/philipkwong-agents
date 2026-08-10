@@ -89,6 +89,7 @@ export interface BuiltReport {
     detailed: number;
     counted: number;
     silent: number;
+    unplaced: number;
     excludedHollow: number;
   };
 }
@@ -218,9 +219,34 @@ export async function buildReport(req: BuildRequest): Promise<BuiltReport> {
   // separately, because "in your scope and quiet this month" and "in your scope
   // and less significant" are different facts and a client should not have them
   // merged.
+  // A PROJECT WITH NO RESOLVED PLACE IS NEVER A MARKET SECTION.
+  //
+  // The by-market grouping used to fall back to the string 'Unassigned', which
+  // turned "we do not know where this is" into a heading that reads like a
+  // region. A hospitality market report went out with an "Unassigned" section
+  // carrying World Bank consultancy tenders - Senior Credit Officer, Savusavu
+  // Participatory Sanitation Master Plan, Marketing Telecommunications
+  // opportunities in Kiribati - presented to the client as a market they are
+  // covered for.
+  //
+  // 18 of the 171 live projects are in this state today, all of them
+  // development-bank tenders that arrived through the opportunity lane with a
+  // country and nothing finer.
+  //
+  // They are NOT dropped from the report. A client scoped by country may
+  // legitimately hold them, and deleting them from the counts would understate
+  // what is in scope. They are counted as their own bucket and named in the
+  // coverage note, in the same way silent projects are: the document says the
+  // thing it knows, which is that these exist and could not be placed.
+  //
+  // region_state counts as a place. A state is somewhere; only a project with
+  // neither a market nor a region is unplaced.
+  const placed = (p: Project) => !!(p.market ?? p.region_state);
+  const unplaced = projects.filter((p) => !placed(p));
+
   const withPeriodRecords = new Set(records.map((r) => r.project_id ?? '').filter(Boolean));
-  const eligible = projects.filter((p) => withPeriodRecords.has(p.id));
-  const silent = projects.filter((p) => !withPeriodRecords.has(p.id));
+  const eligible = projects.filter((p) => placed(p) && withPeriodRecords.has(p.id));
+  const silent = projects.filter((p) => placed(p) && !withPeriodRecords.has(p.id));
   const ranked = [...eligible].sort(
     (a, b) =>
       (b.significance ?? -1) - (a.significance ?? -1) ||
@@ -236,6 +262,7 @@ export async function buildReport(req: BuildRequest): Promise<BuiltReport> {
     detailedProjects,
     undetailedProjects,
     silentProjects: silent,
+    unplacedProjects: unplaced,
     excludedHollow,
     detailCap,
     records,
@@ -292,6 +319,7 @@ export async function buildReport(req: BuildRequest): Promise<BuiltReport> {
       detailed: detailedProjects.length,
       counted: undetailedProjects.length,
       silent: silent.length,
+      unplaced: unplaced.length,
       excludedHollow,
     },
   };

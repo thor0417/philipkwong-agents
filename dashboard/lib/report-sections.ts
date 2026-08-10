@@ -40,6 +40,10 @@ export interface SectionContext {
   // In scope and filed nothing inside the period. Counted, and counted
   // SEPARATELY: "quiet this month" and "less significant" are different facts.
   silentProjects: Project[];
+  // In scope with neither a market nor a region. Counted and named, never
+  // grouped: 'Unassigned' is not a place, and printing it as one is how World
+  // Bank consultancy tenders came to appear as a market in a hospitality report.
+  unplacedProjects: Project[];
   // Dropped before scope for having no live record at all.
   excludedHollow: number;
   detailCap: number;
@@ -154,7 +158,10 @@ const cover: SectionDef = {
             ? `; ${ctx.undetailedProjects.length} further ${ctx.undetailedProjects.length === 1 ? 'project is' : 'projects are'} counted but not described`
             : '') +
           (ctx.silentProjects.length
-            ? `; and ${ctx.silentProjects.length} ${ctx.silentProjects.length === 1 ? 'project' : 'projects'} filed nothing in this period`
+            ? `; ${ctx.silentProjects.length} ${ctx.silentProjects.length === 1 ? 'project' : 'projects'} filed nothing in this period`
+            : '') +
+          (ctx.unplacedProjects.length
+            ? `; and ${ctx.unplacedProjects.length} ${ctx.unplacedProjects.length === 1 ? 'carries' : 'carry'} no market or region we could resolve`
             : '') +
           `. ` +
           (ctx.excludedHollow
@@ -300,7 +307,10 @@ const byMarket: SectionDef = {
   label: 'By market',
   description: 'Each selected project described, with its filings, grouped by market.',
   build: (ctx) => {
-    const marketOf = (p: Project) => p.market ?? p.region_state ?? 'Unassigned';
+    // No 'Unassigned' fallback. Selection guarantees every project reaching
+    // this section has one of the two, so the coalesce cannot produce a
+    // placeholder heading.
+    const marketOf = (p: Project) => p.market ?? p.region_state ?? '';
 
     const groups = new Map<string, Project[]>();
     for (const p of ctx.detailedProjects) {
@@ -396,6 +406,18 @@ const byMarket: SectionDef = {
         `${silent} further project${silent === 1 ? '' : 's'} in scope had no filing captured during ` +
           `${ctx.periodLabel}, so ${silent === 1 ? 'it is' : 'they are'} not described here. ` +
           `${silent === 1 ? 'It remains' : 'They remain'} on the register.`
+      );
+    }
+    if (ctx.unplacedProjects.length) {
+      // NAMED, NOT GROUPED. The count belongs here because a reader of the
+      // by-market section is entitled to know that the markets above do not
+      // account for everything in scope; the reason they are absent is that we
+      // could not place them, which is a statement about our capture and not
+      // about a market.
+      const n = ctx.unplacedProjects.length;
+      notes.push(
+        `${n} further project${n === 1 ? '' : 's'} in scope ${n === 1 ? 'has' : 'have'} no market or region ` +
+          `resolved and ${n === 1 ? 'is' : 'are'} therefore not grouped under any market above.`
       );
     }
     if (heldRecords) {
@@ -621,6 +643,15 @@ const coverage: SectionDef = {
             `in scope ${ctx.undetailedProjects.length === 1 ? 'is' : 'are'} counted but not described.`
           : 'Every project in scope is described.')
     );
+    if (ctx.unplacedProjects.length) {
+      const n = ctx.unplacedProjects.length;
+      notes.push(
+        `${n} project${n === 1 ? '' : 's'} in scope carr${n === 1 ? 'ies' : 'y'} no market or region in our ` +
+          `capture, most often a tender published against a country rather than a place. ` +
+          `${n === 1 ? 'It is' : 'They are'} counted but not grouped under any market, because a project ` +
+          `we cannot place must not be printed as though it were a market of its own.`
+      );
+    }
     if (ctx.excludedHollow) {
       notes.push(
         `${ctx.excludedHollow} project${ctx.excludedHollow === 1 ? '' : 's'} in this geography ` +
