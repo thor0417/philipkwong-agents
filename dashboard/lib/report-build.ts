@@ -57,6 +57,12 @@ export interface BuiltReport {
   doc: ReportDocument;
   pages: number;
   capped: { projects: boolean; records: boolean };
+  // THE PROJECTS THE DOCUMENT WAS BUILT FROM. Returned so a document can be
+  // audited against its own contents rather than against a separately-derived
+  // set: re-running the scope query to check a report is checking the query,
+  // not the report, and the two can differ for exactly the reasons an audit
+  // exists to catch.
+  projects: Project[];
 }
 
 export async function buildReport(req: BuildRequest): Promise<BuiltReport> {
@@ -202,6 +208,7 @@ export async function buildReport(req: BuildRequest): Promise<BuiltReport> {
     doc,
     pages: estimatePages(doc),
     capped: { projects: (pdata ?? []).length >= PROJECT_CAP, records: records.length >= RECORD_CAP },
+    projects,
   };
 }
 
