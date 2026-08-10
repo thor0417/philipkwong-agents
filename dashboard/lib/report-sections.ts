@@ -242,8 +242,20 @@ const headlines: SectionDef = {
       const id = r.project_id ?? '';
       if (id) byProject.set(id, (byProject.get(id) ?? 0) + 1);
     }
+    // SELECTED BY SIGNIFICANCE, NOT BY ACTIVITY COUNT.
+    //
+    // Counting filings in the period picked whichever project a clerk had
+    // filed on most, which is a measure of paperwork rather than of
+    // importance: a rezoning heard twice outranked a multi-billion casino bid
+    // heard once. Activity count survives as the tiebreak, because between two
+    // equally significant projects the busier one is the better story.
     const ranked = [...ctx.projects]
-      .sort((a, b) => (byProject.get(b.id) ?? 0) - (byProject.get(a.id) ?? 0) || (b.record_count ?? 0) - (a.record_count ?? 0))
+      .sort(
+        (a, b) =>
+          (b.significance ?? -1) - (a.significance ?? -1) ||
+          (byProject.get(b.id) ?? 0) - (byProject.get(a.id) ?? 0) ||
+          (b.record_count ?? 0) - (a.record_count ?? 0)
+      )
       .slice(0, HEADLINE_CAP);
     const lines = ranked.flatMap((p) => {
       const rec = ctx.records.find((r) => r.project_id === p.id);
@@ -258,7 +270,7 @@ const headlines: SectionDef = {
       // The count is in the lede because this section is a top-N by
       // construction. A heading reading "Headline finds" over exactly ten lines
       // invites the reader to conclude there were ten.
-      lede: `The ${HEADLINE_CAP} most active projects in this scope and period, with their most recent filing.`,
+      lede: `The ${HEADLINE_CAP} most significant projects in this scope and period, with their most recent filing.`,
       lines,
       emptyNote: lines.length === 0 ? 'No project in this scope had a record in this period.' : undefined,
     });
@@ -298,6 +310,10 @@ const byMarket: SectionDef = {
       if (ps.length > MARKET_LIST_CAP) {
         truncated.push({ market, listed: MARKET_LIST_CAP, total: ps.length });
       }
+      // WITHIN A MARKET, MOST SIGNIFICANT FIRST. The cap means this decides
+      // WHICH projects a market shows, not merely their order, so ordering by
+      // anything else silently drops the important ones.
+      ps.sort((a, b) => (b.significance ?? -1) - (a.significance ?? -1));
       for (const p of ps.slice(0, MARKET_LIST_CAP)) {
         const rec = ctx.records.find((r) => r.project_id === p.id);
         lines.push(

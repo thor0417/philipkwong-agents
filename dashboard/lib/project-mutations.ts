@@ -26,6 +26,9 @@ export const PROJECT_EDITABLE_FIELDS = [
   'stage',
   'development_category',
   'venue_type',
+  // A pinned score. Mirrors PROJECT_OVERRIDABLE on the scraper side, which is
+  // what actually makes the clusterer and the backfill leave it alone.
+  'significance',
 ] as const;
 export type ProjectEditableField = (typeof PROJECT_EDITABLE_FIELDS)[number];
 
@@ -70,6 +73,26 @@ export async function renameProject(id: string, name: string): Promise<void> {
   const trimmed = name.trim();
   if (!trimmed) throw new Error('A project name cannot be empty.');
   await applyProjectEdit(id, 'name', trimmed);
+}
+
+// PIN A SCORE. Philip's judgement about what matters is the thing the model is
+// trying to approximate, so where he has stated it the model does not get a
+// second opinion: applyProjectEdit records 'significance' in manual_overrides,
+// and both the clusterer and the backfill skip a project carrying it, on every
+// future run and after any weight change.
+export async function pinProjectSignificance(id: string, value: number): Promise<void> {
+  const n = Math.max(0, Math.min(100, Math.round(value)));
+  await applyProjectEdit(id, 'significance', n);
+  // The breakdown would describe a computation that no longer produced this
+  // number, so it is replaced by a statement of where the number came from.
+  const { error } = await supabase
+    .from('projects')
+    .update({
+      significance_detail: { pinned: { points: n, of: 100, why: 'pinned by hand; the model is not consulted' } },
+      significance_computed_at: new Date().toISOString(),
+    })
+    .eq('id', id);
+  if (error) throw new Error(`pin detail update failed: ${error.message}`);
 }
 
 export async function setProjectStage(id: string, stage: string): Promise<void> {

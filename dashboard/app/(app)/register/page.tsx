@@ -114,8 +114,23 @@ function ymd(iso: string | null | undefined): string {
   return iso ? iso.slice(0, 10) : '--';
 }
 
+// The score's own breakdown, on hover. Explainable at the point of use: a
+// ranking nobody can interrogate is a ranking nobody can trust.
+function significanceTitle(p: Project): string {
+  if (p.significance == null) return 'not scored yet';
+  const d = p.significance_detail ?? {};
+  const parts = Object.entries(d)
+    .filter(([, v]) => v && v.points !== 0)
+    .sort((a, b) => b[1].points - a[1].points)
+    .map(([k, v]) => `${k} ${v.points}/${v.of}  ${v.why}`);
+  const pinned = (p.manual_overrides ?? {}) as Record<string, unknown>;
+  const head = 'significance' in pinned ? `${p.significance} (pinned by you)` : `${p.significance} of 100`;
+  return [head, ...parts].join('\n');
+}
+
 const COLUMNS: { key: string; label: string; sort?: string; numeric?: boolean }[] = [
   { key: 'name', label: 'Project', sort: 'name' },
+  { key: 'significance', label: 'Sig', sort: 'significance' },
   { key: 'applicant', label: 'Applicant', sort: 'primary_applicant' },
   { key: 'market', label: 'Market', sort: 'market' },
   { key: 'stage', label: 'Stage', sort: 'stage' },
@@ -128,6 +143,12 @@ export default function RegisterPage() {
   // ---- URL state.
   const [view, setView] = useQueryState('view', parseAsString.withDefault('all'));
   const [stage, setStage] = useQueryState('stage', parseAsString);
+  // VENUE AND CATEGORY ON THE REGISTER. Records has had both since it was
+  // built; the register, which is the working surface, could not answer
+  // "New York, then Casino/Gaming" at all - so the question had to be asked on
+  // the screen that cannot act on the answer.
+  const [venue, setVenue] = useQueryState('venue', parseAsString);
+  const [category, setCategory] = useQueryState('category', parseAsString);
   const [countryParam, setCountryParam] = useQueryState('country', parseAsString);
   const [region, setRegion] = useQueryState('region', parseAsString);
   const [market, setMarket] = useQueryState('market', parseAsString);
@@ -135,9 +156,11 @@ export default function RegisterPage() {
   const [page, setPage] = useQueryState('page', parseAsInteger.withDefault(1));
   const [selected, setSelected] = useQueryState('selected', parseAsString);
   const [saved, setSaved] = useQueryState('saved', parseAsString.withDefault('none'));
+  // DEFAULT SORT IS SIGNIFICANCE. Last activity stays available, because "what
+  // moved most recently" is a real question; it is simply not the first one.
   const [sortField, setSortField] = useQueryState(
     'sort',
-    parseAsString.withDefault('last_activity')
+    parseAsString.withDefault('significance')
   );
   const [sortDir, setSortDir] = useQueryState('dir', parseAsString.withDefault('desc'));
   const [bucket, setBucket] = useQueryState('bucket', parseAsString.withDefault('none'));
@@ -212,6 +235,8 @@ export default function RegisterPage() {
       module: LIVE_PIPELINE_STORAGE_KEY,
       ...statusFilter(viewKey),
       stage: stage ?? undefined,
+      venue_type: venue ?? undefined,
+      development_category: category ?? undefined,
       ...geo,
       ...periodFilter,
       search: search.trim() || undefined,
@@ -266,6 +291,14 @@ export default function RegisterPage() {
   // Stage facets exclude the stage filter, so a chip's count equals what
   // clicking it shows.
   const stageFacet = useProjectFacet({ ...baseQuery, stage: undefined }, 'stage');
+  // Each facet excludes its OWN filter and honours every other, so a chip's
+  // count is exactly what clicking it shows. Counts come from the indexed
+  // count query, never from loading rows.
+  const venueFacet = useProjectFacet({ ...baseQuery, venue_type: undefined }, 'venue_type');
+  const categoryFacet = useProjectFacet(
+    { ...baseQuery, development_category: undefined },
+    'development_category'
+  );
   const geoBase: ProjectQuery = {
     ...baseQuery,
     country: undefined,
@@ -506,6 +539,30 @@ export default function RegisterPage() {
     ];
   }, [stageFacet.data, stage]);
 
+  const facetChips = (
+    counts: { value: string; count: number }[] | undefined,
+    active: string | null,
+    allLabel: string
+  ): { value: string | null; label: string; count: number }[] => {
+    const m = new Map((counts ?? []).map((f) => [f.value, f.count] as const));
+    const total = [...m.values()].reduce((a, b) => a + b, 0);
+    return [
+      { value: null as string | null, label: allLabel, count: total },
+      ...[...m.entries()]
+        .filter(([v, n]) => n > 0 || active === v)
+        .sort((a, b) => b[1] - a[1])
+        .map(([v, n]) => ({ value: v as string | null, label: v, count: n })),
+    ];
+  };
+  const venueChips = useMemo(
+    () => facetChips(venueFacet.data?.counts, venue, 'All venues'),
+    [venueFacet.data, venue]
+  );
+  const categoryChips = useMemo(
+    () => facetChips(categoryFacet.data?.counts, category, 'All categories'),
+    [categoryFacet.data, category]
+  );
+
   return (
     <div className={styles.screen}>
       <RegisterRail
@@ -539,8 +596,48 @@ export default function RegisterPage() {
                 key={c.label}
                 type="button"
                 data-stage={c.value ?? 'all'}
-                className={`${styles.chip} ${stage === c.value ? styles.chipActive : ''}`}
+                className={`${styles.chip} ${
+                  stage === c.value ? (c.value === null ? styles.chipAllActive : styles.chipActive) : ''
+                }`}
                 onClick={() => applyStage(c.value)}
+              >
+                {c.label}
+                <span className={`${styles.chipCount} mono`}>{c.count}</span>
+              </button>
+            ))}
+          </div>
+          <div className={styles.chips} data-testid="register-venue-chips">
+            {venueChips.map((c) => (
+              <button
+                key={`v-${c.label}`}
+                type="button"
+                data-venue={c.value ?? 'all'}
+                className={`${styles.chip} ${
+                  venue === c.value ? (c.value === null ? styles.chipAllActive : styles.chipActive) : ''
+                }`}
+                onClick={() => {
+                  void setVenue(c.value);
+                  void setPage(1);
+                }}
+              >
+                {c.label}
+                <span className={`${styles.chipCount} mono`}>{c.count}</span>
+              </button>
+            ))}
+          </div>
+          <div className={styles.chips} data-testid="register-category-chips">
+            {categoryChips.map((c) => (
+              <button
+                key={`c-${c.label}`}
+                type="button"
+                data-category={c.value ?? 'all'}
+                className={`${styles.chip} ${
+                  category === c.value ? (c.value === null ? styles.chipAllActive : styles.chipActive) : ''
+                }`}
+                onClick={() => {
+                  void setCategory(c.value);
+                  void setPage(1);
+                }}
               >
                 {c.label}
                 <span className={`${styles.chipCount} mono`}>{c.count}</span>
@@ -736,6 +833,9 @@ export default function RegisterPage() {
                   {/* The name answers "which one". This answers "what is it".
                       Rendered even when null so every row is the same height. */}
                   <span className={styles.cellSummary}>{r.summary ?? ''}</span>
+                </span>
+                <span className={`${styles.cell} ${styles.num} mono`} title={significanceTitle(r)}>
+                  {r.significance == null ? '--' : Math.round(r.significance)}
                 </span>
                 <span className={styles.cell}>{r.primary_applicant ?? '--'}</span>
                 <span className={styles.cell}>{r.market ?? r.region_state ?? '--'}</span>

@@ -81,6 +81,30 @@ export default function RegisterDetail({
               </span>
             </p>
           )}
+          {/* THE SCORE, WITH ITS BREAKDOWN, AT THE POINT OF USE. A ranking
+              nobody can interrogate is a ranking nobody can trust; showing
+              only the number would move the problem rather than fix it. */}
+          {p.significance != null && (
+            <div className={styles.sigBlock}>
+              <span className={`${styles.sigScore} mono`}>{Math.round(p.significance)}</span>
+              <span className={styles.sigOf}>of 100</span>
+              {overridden.includes('significance') && <span className={styles.sigPinned}>pinned by you</span>}
+              <ul className={styles.sigList}>
+                {Object.entries(p.significance_detail ?? {})
+                  .filter(([, d]) => d && d.points !== 0)
+                  .sort((a, b) => b[1].points - a[1].points)
+                  .map(([k, d]) => (
+                    <li key={k}>
+                      <span className={styles.sigName}>{k}</span>
+                      <span className={`${styles.sigPts} mono`}>
+                        {d.points}/{d.of}
+                      </span>
+                      <span className={styles.sigWhy}>{d.why}</span>
+                    </li>
+                  ))}
+              </ul>
+            </div>
+          )}
           <div className={styles.detailMeta}>
             <span>{p.market ?? p.region_state ?? p.country ?? 'Unresolved location'}</span>
             <span className={styles.dot} aria-hidden="true" />

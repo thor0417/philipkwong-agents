@@ -63,6 +63,23 @@
   border-color: var(--line-strong);
 }
 /* Selected is a border and a weight, never a fill. */
+/* "All X" SELECTED IS NOT A SELECTION. The accent marks the single most
+   important thing in a view, and the design suite budgets eight per screen.
+   Three chip rows each accenting their "All" chip spent three of that budget
+   saying no filter is applied - which is the default state and therefore the
+   least informative thing on the page. It pushed the register to nine and
+   failed the budget the moment venue and category chips arrived.
+
+   So an "All" chip reads as current without taking the accent, and the accent
+   is reserved for a chip that is actually narrowing the list. */
+.chipAllActive,
+.chips .chipAllActive:hover {
+  color: var(--ink);
+  border-color: var(--ink-secondary);
+  background: none;
+  font-weight: var(--weight-medium);
+}
+
 .chipActive,
 .chips .chipActive:hover {
   color: var(--accent);
@@ -659,3 +676,29 @@
   top: 0;
   z-index: 1;
 }
+
+/* The significance block in the detail pane. Quiet by default: the score is a
+   number you glance at and a breakdown you read only when you doubt it. */
+.sigBlock { margin: var(--space-12) 0 0; }
+.sigScore { font-size: var(--type-display-sm); font-weight: var(--weight-medium); }
+.sigOf { margin-left: var(--space-4); color: var(--ink-secondary); font-size: var(--type-caption); }
+.sigPinned {
+  margin-left: var(--space-8);
+  padding: 0 var(--space-4);
+  border: var(--border-hairline);
+  border-radius: 2px;
+  color: var(--ink-secondary);
+  font-size: var(--type-caption);
+}
+.sigList { margin: var(--space-8) 0 0; padding: 0; list-style: none; }
+.sigList li {
+  display: grid;
+  grid-template-columns: 110px 56px 1fr;
+  gap: var(--space-8);
+  padding: 1px 0;
+  font-size: var(--type-caption);
+  color: var(--ink-secondary);
+}
+.sigName { color: var(--ink); }
+.sigPts { text-align: right; }
+.sigWhy { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

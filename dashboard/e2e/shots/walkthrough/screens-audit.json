@@ -4,7 +4,7 @@
     "url": "/today",
     "ok": true,
     "primary": "h1",
-    "rows": 180,
+    "rows": 127,
     "consoleErrors": [],
     "pageErrors": [],
     "failedRequests": [],
@@ -18,9 +18,13 @@
     "ok": true,
     "primary": "[data-testid=\"pager-total\"]",
     "rows": 50,
-    "consoleErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 400 ()"
+    ],
     "pageErrors": [],
-    "failedRequests": [],
+    "failedRequests": [
+      "400 https://ifpbvuclzjoxblgywibi.supabase.co/rest/v1/rpc/project_facet_counts"
+    ],
     "notes": []
   },
   {
@@ -101,14 +105,18 @@
     "ok": true,
     "primary": "body",
     "rows": 50,
-    "consoleErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 400 ()"
+    ],
     "pageErrors": [],
-    "failedRequests": [],
+    "failedRequests": [
+      "400 https://ifpbvuclzjoxblgywibi.supabase.co/rest/v1/rpc/project_facet_counts"
+    ],
     "notes": []
   },
   {
     "name": "Project detail",
-    "url": "/project/57840922-6943-4c5b-9dfb-edf7169ea977",
+    "url": "/project/2bc81605-e639-4a95-8353-026bd7808b23",
     "ok": false,
     "primary": "h1",
     "rows": null,

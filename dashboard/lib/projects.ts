@@ -22,6 +22,9 @@ export const PROJECT_COLUMNS = [
   // every register row and every detail header, which is exactly why it is a
   // stored column rather than something recomputed per render.
   'summary', 'summary_source', 'summary_url',
+  // The ranking and its breakdown. Read on every register row, so stored
+  // rather than recomputed per render - same reason as summary.
+  'significance', 'significance_detail', 'significance_computed_at',
 ].join(',');
 
 export interface Project {
@@ -55,6 +58,11 @@ export interface Project {
   // summary they can cite, so this is what decides whether the sentence is
   // allowed into a client document at all.
   summary_url: string | null;
+  significance: number | null;
+  // Each signal's contribution, so the score is explainable at the point of
+  // use rather than in a document nobody opens.
+  significance_detail: Record<string, { points: number; of: number; why: string }> | null;
+  significance_computed_at: string | null;
 }
 
 export interface ProjectQuery {
@@ -66,6 +74,7 @@ export interface ProjectQuery {
   region_state?: string;
   market?: string;
   development_category?: string;
+  venue_type?: string;
   watch?: boolean;
   // Activity window, on last_activity.
   activeFrom?: string;
@@ -155,6 +164,10 @@ export function applyProjectFilters<T>(builder: T, q: ProjectQuery): T {
   if (q.region_state) set(b.eq('region_state', q.region_state));
   if (q.market) set(b.eq('market', q.market));
   if (q.development_category) set(b.eq('development_category', q.development_category));
+  // Venue type on the register. Records has had this filter since it was built;
+  // the register, which is the working surface, could not answer "New York,
+  // then Casino/Gaming" at all.
+  if (q.venue_type) set(b.eq('venue_type', q.venue_type));
   if (q.watch !== undefined) set(b.eq('watch', q.watch));
   if (q.activeFrom) set(b.gte('last_activity', q.activeFrom));
   if (q.firstSeenFrom) set(b.gte('first_seen', q.firstSeenFrom));
@@ -192,7 +205,13 @@ export async function fetchProjectPage(q: ProjectQuery): Promise<ProjectPage> {
   const page = Math.max(1, q.page ?? 1);
   const pageSize = Math.max(1, q.pageSize ?? DEFAULT_PROJECT_PAGE_SIZE);
   const from = (page - 1) * pageSize;
-  const sortField = q.sortField ?? 'last_activity';
+  // SIGNIFICANCE IS THE DEFAULT SORT.
+  //
+  // last_activity was the default and it is why the register could not be
+  // browsed: a dormant 2024 street-address filing outranked a multi-billion
+  // casino bid. It stays available as an alternative, because "what moved most
+  // recently" is a real question - it is simply not the first one.
+  const sortField = q.sortField ?? 'significance';
   const ascending = q.sortDir === 'asc';
 
   const t0 = Date.now();
@@ -241,7 +260,7 @@ export async function countProjects(q: ProjectQuery): Promise<number> {
 // Until that migration is applied the fallback reads ONLY the one facet column
 // for the current filter - never row bodies - and reports viaRpc:false, so the
 // interim cost is visible rather than hidden.
-export type ProjectFacetField = 'stage' | 'country' | 'region_state' | 'market' | 'development_category' | 'status';
+export type ProjectFacetField = 'stage' | 'country' | 'region_state' | 'market' | 'development_category' | 'venue_type' | 'status';
 
 export interface FacetCount {
   value: string;

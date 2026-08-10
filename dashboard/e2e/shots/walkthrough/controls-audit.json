@@ -1,15 +1,15 @@
 {
   "today": {
     "What moved": "01 What moved Stage changes, most advanced destination first. A project reaching construction matters more than one reaching a scheduled hearing, so this is not ordered by time. Nothing changed stage in this window. Stage history only began when event capture shipped, so this section is genuinely thin for now and will ",
-    "What came in": "02 What came in New projects first, then new records on projects you already had. Grouped by project, so six records on one project is one line, not six. NEW PROJECTS 156 1605 Nelson Avenue mixed-use development New York City filed 2026-08-09 240 Nassau Street heritage site New York City stalled 2026-08-09 Rehabilitati",
-    "Needs you": "03 Needs you Each of these is a count and a place to go. 1152 Record triage backlog Records still at status new, on Records 9 Watchlist activity Events on projects you watch 156 New projects to review Arrived in this window",
-    "Attention": "04 Attention The machine, not the market. Red only where something is genuinely wrong. SOURCES gli_serper 13d silent 238 records sfwmd 13d silent 25 records govdoc 11d silent 8 records ceqanet 10d silent 9 records clark-tab 10d silent 53 records agenda-portal 10d silent 179 records cftod-pdf 10d silent 26 records RUNS "
+    "What came in": "02 What came in New projects first, then new records on projects you already had. Grouped by project, so six records on one project is one line, not six. NEW PROJECTS 107 1605 Nelson Avenue mixed-use development New York City filed 2026-08-09 240 Nassau Street heritage site New York City stalled 2026-08-09 Rehabilitati",
+    "Needs you": "03 Needs you Each of these is a count and a place to go. 980 Record triage backlog Records still at status new, on Records 9 Watchlist activity Events on projects you watch 107 New projects to review Arrived in this window",
+    "Attention": "04 Attention The machine, not the market. Red only where something is genuinely wrong. SOURCES sfwmd 14d silent 25 records gli_serper 13d silent 238 records govdoc 12d silent 8 records ceqanet 10d silent 9 records clark-tab 10d silent 53 records agenda-portal 10d silent 179 records cftod-pdf 10d silent 26 records RUNS "
   },
   "todayPeriod": {
-    "7d": 180,
-    "30d": 185,
-    "m:2026-07": 189,
-    "m:2026-01": 41
+    "7d": 127,
+    "30d": 184,
+    "m:2026-07": 144,
+    "m:2026-01": 36
   },
   "records": {
     "rows": 29,
@@ -57,18 +57,18 @@
     ]
   },
   "register": {
-    "baseline": 345,
+    "baseline": 260,
     "results": [
       {
         "label": "baseline (all, any country)",
         "url": "/register?view=all&country=any",
-        "total": 345,
+        "total": 260,
         "verdict": "UNCHANGED"
       },
       {
         "label": "view=new",
         "url": "/register?view=all&country=any&view=new",
-        "total": 345,
+        "total": 260,
         "verdict": "UNCHANGED"
       },
       {
@@ -92,49 +92,49 @@
       {
         "label": "stage=filed",
         "url": "/register?view=all&country=any&stage=filed",
-        "total": 124,
+        "total": 104,
         "verdict": "changed"
       },
       {
         "label": "stage=approved",
         "url": "/register?view=all&country=any&stage=approved",
-        "total": 56,
+        "total": 39,
         "verdict": "changed"
       },
       {
         "label": "stage=dormant",
         "url": "/register?view=all&country=any&stage=dormant",
-        "total": 118,
+        "total": 89,
         "verdict": "changed"
       },
       {
         "label": "country default (absent)",
         "url": "/register?view=all",
-        "total": 323,
+        "total": 238,
         "verdict": "changed"
       },
       {
         "label": "country=United States",
         "url": "/register?view=all&country=United+States",
-        "total": 323,
+        "total": 238,
         "verdict": "changed"
       },
       {
         "label": "region=Nevada",
         "url": "/register?view=all&country=United+States&region=Nevada",
-        "total": 83,
+        "total": 66,
         "verdict": "changed"
       },
       {
         "label": "market=Las Vegas",
         "url": "/register?view=all&country=United+States&region=Nevada&market=Las+Vegas",
-        "total": 40,
+        "total": 39,
         "verdict": "changed"
       },
       {
         "label": "q=resort",
         "url": "/register?view=all&country=any&q=resort",
-        "total": 22,
+        "total": 18,
         "verdict": "changed"
       },
       {
@@ -146,13 +146,13 @@
       {
         "label": "period=m:2026-07 arrived",
         "url": "/register?view=all&country=any&period=m:2026-07&axis=arrived",
-        "total": 185,
+        "total": 144,
         "verdict": "changed"
       },
       {
         "label": "period=m:2026-07 moved",
         "url": "/register?view=all&country=any&period=m:2026-07&axis=moved",
-        "total": 184,
+        "total": 136,
         "verdict": "changed"
       },
       {
@@ -170,31 +170,31 @@
       {
         "label": "bucket=week (must not filter)",
         "url": "/register?view=all&country=any&bucket=week",
-        "total": 345,
+        "total": 260,
         "verdict": "correct (unchanged)"
       },
       {
         "label": "bucket=month (must not filter)",
         "url": "/register?view=all&country=any&bucket=month",
-        "total": 345,
+        "total": 260,
         "verdict": "correct (unchanged)"
       },
       {
         "label": "sort=name (must not filter)",
         "url": "/register?view=all&country=any&sort=name&dir=asc",
-        "total": 345,
+        "total": 260,
         "verdict": "correct (unchanged)"
       },
       {
         "label": "page=2 (must not change total)",
         "url": "/register?view=all&country=any&page=2",
-        "total": 345,
+        "total": 260,
         "verdict": "correct (unchanged)"
       },
       {
         "label": "nonsense param",
         "url": "/register?view=all&country=any&banana=1",
-        "total": 345,
+        "total": 260,
         "verdict": "FAILS OPEN (returns everything)"
       },
       {
