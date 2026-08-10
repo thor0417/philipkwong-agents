@@ -22,7 +22,9 @@
     "gate:regate": "node --env-file=.env.local --import tsx agents/scraper/regate-stored.ts",
     "verify:geography": "node --import tsx agents/scraper/verify-geography.ts",
     "corpus:snapshot": "node --env-file=.env.local --import tsx agents/scraper/corpus-snapshot.ts",
-    "verify:urls": "node --env-file=.env.local --import tsx agents/scraper/verify-urls.ts"
+    "verify:urls": "node --env-file=.env.local --import tsx agents/scraper/verify-urls.ts",
+    "summaries": "node --env-file=.env.local --import tsx agents/scraper/migrations/backfill-project-summaries.ts",
+    "rename:instruments": "node --env-file=.env.local --import tsx agents/scraper/migrations/rename-instrument-projects.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.20.0",

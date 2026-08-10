@@ -196,6 +196,115 @@ export function cleanProjectTitle(raw: string): string {
   return fixShouting(t);
 }
 
+// ---- The subject of an instrument ---------------------------------------------
+//
+// AN ORDINANCE'S TITLE IS A SENTENCE, AND CUTTING A SENTENCE DOES NOT PRODUCE A
+// NAME. LEAD_STRIP removes the opening verb, which leaves the rest of the
+// sentence starting mid-clause, and the register fills with rows like:
+//
+//   "approving the activities and improvements eligible for tax (RS2026-2081)"
+//   "to authorize building material restrictions and requirements for BL2026-1474"
+//   "providing for the issuance by the City of Las Vegas of its General Obligation"
+//   "accepting a grant from the Centennial Park Conservancy to the Metropolitan"
+//
+// Eighteen projects across Nashville, Las Vegas and Clark County. Every one of
+// them names the ACTION and never names the THING, which is exactly backwards:
+// the action is already in the stage column, and the thing is what Philip is
+// looking for when he scans the register.
+//
+// So the name becomes the instrument's SUBJECT - the proper-noun phrase it acts
+// on. "approving Amendment No. 6 to the Arts Center Redevelopment Plan" is
+// about the Arts Center Redevelopment Plan.
+//
+// WHY THIS IS SAFE TO PREFER OVER THE CLEANED TITLE. It only fires when the
+// cleaned title is a FRAGMENT - lowercase-initial, or opening on a participle -
+// which is a state that only arises from a stripped verb. A title that reads as
+// a name is never touched.
+//
+// WHY A PROPER-NOUN PHRASE AND NOT THE SUMMARY. Part 9's summary is a sentence
+// describing what is sought; it has the same problem as the title. What names a
+// project is the capitalised entity inside it, and that can be found without a
+// model.
+
+// A fragment: the cleaned title begins mid-sentence.
+const FRAGMENT_START = new RegExp(
+  '^(?:[a-z]|(?:approving|authorizing|providing|accepting|amending|adopting|' +
+    'establishing|creating|declaring|to\\s+(?:authorize|approve|amend|accept))\\b)',
+  ''
+);
+
+// Words that begin a proper-noun phrase but never identify a project on their
+// own: every filing in a jurisdiction names its own government.
+const GENERIC_SUBJECT = new RegExp(
+  '^(?:the\\s+)?(?:city|county|state|metropolitan|municipal\\w*|department|' +
+    'district\\s+of|government|council|board|commission|authority|agency)\\b',
+  'i'
+);
+
+// An instrument noun standing alone is the paperwork, not the project.
+// "Lease and Operating Agreement" and "Interlocal Agreement" are what the
+// council signed; they identify nothing and would collide across every filing
+// that uses the same instrument.
+const INSTRUMENT_ONLY = new RegExp(
+  '^(?:(?:the|a|an|first|second|third|fourth|fifth|amended|restated|interlocal|' +
+    'intergovernmental|lease|operating|master|joint|and|of|to)\\s+)*' +
+    '(?:agreement|amendment|lease|contract|ordinance|resolution|memorandum|' +
+    'covenant|easement|deed)$',
+  'i'
+);
+
+// The domain nouns a named thing ends on. A phrase closing on one of these is
+// the instrument's subject rather than an incidental capitalised word.
+const SUBJECT_NOUN = new RegExp(
+  '\\b(plan|district|agreement|authority|conservancy|corporation|center|centre|' +
+    'park|redevelopment|project|program|programme|association|company|trust|' +
+    'partnership|terminal|station|campus|resort|hotel|casino|museum|arena|' +
+    'stadium|theatre|theater|garden|gardens|market|yard|yards|pier|bank)$',
+  'i'
+);
+
+/**
+ * The proper-noun phrase an instrument acts on, or null when its title names no
+ * such thing (a general bond issue, a code amendment with no site).
+ */
+export function instrumentSubject(title: string): string | null {
+  const t = String(title ?? '').replace(/\s+/g, ' ').trim();
+  if (!t) return null;
+  // Capitalised runs, allowing the small joining words a real name contains.
+  const runs = t.match(/\b[A-Z][\w'&.-]*(?:\s+(?:of|the|and|for|at|de|du)\s+[A-Z][\w'&.-]*|\s+[A-Z][\w'&.-]*)*/g) ?? [];
+  const candidates = runs
+    // The run pattern allows '.' inside a token so "No." and "U.S." survive,
+    // which means a phrase ending a sentence keeps its full stop - and
+    // "Redevelopment Plan." then fails the SUBJECT_NOUN test that "Plan" passes.
+    .map((r) => r.replace(/^(?:No\.?\s*\d+\s*)/i, '').replace(/[.,;:]+$/, '').trim())
+    .filter((r) => r.split(/\s+/).length >= 2)
+    .filter((r) => !GENERIC_SUBJECT.test(r));
+  if (candidates.length === 0) return null;
+  // Prefer a phrase that closes on a domain noun; among those take the longest,
+  // which is the most specific. "Arts Center Redevelopment Plan" beats "Arts
+  // Center".
+  const named = candidates.filter((c) => SUBJECT_NOUN.test(c) && !INSTRUMENT_ONLY.test(c));
+  if (named.length === 0) return null;
+
+  // AN OMNIBUS NAMES NOTHING. BL2026-1451 amends six redevelopment plans in one
+  // ordinance - Arts Center, Bordeaux, Central State, Phillips-Jackson,
+  // Rutledge Hill and Skyline. Taking the longest of them produced
+  // "Phillips-Jackson Redevelopment Plan", which is a real plan that already
+  // has its OWN project from its own resolution, so the register would have
+  // shown two rows claiming to be the same thing and one of them would have
+  // been wrong. A title naming several subjects has no single subject.
+  //
+  // Overlapping candidates are not separate subjects: "Arts Center" inside
+  // "Arts Center Redevelopment Plan" is one thing described twice.
+  const distinct = named.filter(
+    (a) => !named.some((b) => b !== a && b.length > a.length && b.includes(a))
+  );
+  if (distinct.length !== 1) return null;
+
+  const best = distinct[0];
+  return best.length >= 8 ? best : null;
+}
+
 // ---- The venue phrase ---------------------------------------------------------
 
 // How a venue_type reads at the end of a name. Lowercase, because it is a common
@@ -509,7 +618,18 @@ export function deriveProjectName(ctx: NamingContext): ProjectName {
   });
   for (const r of sorted) {
     const cleaned = cleanProjectTitle(r.title ?? '');
-    if (cleaned.length >= 12) return { name: cleaned, source: 'title' };
+    if (cleaned.length < 12) continue;
+    // A cleaned title that begins mid-sentence is the tail of an instrument's
+    // opening clause, not a name. Prefer the thing the instrument acts on.
+    if (FRAGMENT_START.test(cleaned)) {
+      // NO VENUE SUFFIX. The subject is already a proper name, and appending
+      // the venue phrase to one produces "Neon Museum museum" and
+      // "Centennial Park Conservancy museum". The suffix exists to turn a bare
+      // address or applicant into something readable; a name does not need it.
+      const subject = instrumentSubject(r.title ?? '');
+      if (subject) return { name: subject, source: 'title' };
+    }
+    return { name: cleaned, source: 'title' };
   }
   return {
     name: cleanProjectTitle(sorted[0]?.title ?? '') || 'Untitled project',
