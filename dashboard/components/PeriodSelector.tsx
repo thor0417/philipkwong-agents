@@ -37,6 +37,20 @@ function inclusiveEndDay(p: ResolvedPeriod): string {
   return new Date(Date.parse(p.until) - 86_400_000).toISOString().slice(0, 10);
 }
 
+// The end to assume when only a start has been picked: today, or the start day
+// itself if that start is in the future. A range is never inverted, and it is
+// only one day long when the operator genuinely asked for one day.
+function defaultEnd(start: string, now: Date): string {
+  const today = now.toISOString().slice(0, 10);
+  return today >= start ? today : start;
+}
+
+// The start to assume when only an end has been picked: the first of that end's
+// month. It is a guess, which is why it is written into the visible input.
+function defaultStart(end: string): string {
+  return `${end.slice(0, 7)}-01`;
+}
+
 export default function PeriodSelector({
   period,
   onChange,
@@ -105,6 +119,19 @@ export default function PeriodSelector({
         </select>
       </div>
 
+      {/* HALF A RANGE IS NOT A ONE-DAY RANGE.
+          Both handlers used to fall back to the value just typed for the other
+          end, so setting a start date with the end still empty produced
+          customToken(x, x) - a period exactly one day long. That is how a
+          generated report came to be scoped to a single day, with every section
+          reading "no filing in this period" and a basis line of 0 records. The
+          operator picked a start date and got a document about one Tuesday.
+
+          A missing end means "until now", which is what a person picking only a
+          start date means. A missing start means "since the beginning of that
+          month", which is the smallest assumption that still produces a period
+          worth reporting on. Both fill the other input visibly, so the guess is
+          on screen and can be corrected rather than discovered in the PDF. */}
       <div className={styles.range}>
         <input
           type="date"
@@ -112,7 +139,7 @@ export default function PeriodSelector({
           aria-label="Range start"
           data-testid="period-from"
           value={from}
-          onChange={(e) => e.target.value && onChange(customToken(e.target.value, to || e.target.value))}
+          onChange={(e) => e.target.value && onChange(customToken(e.target.value, to || defaultEnd(e.target.value, now)))}
         />
         <span className={styles.sep}>to</span>
         <input
@@ -121,7 +148,7 @@ export default function PeriodSelector({
           aria-label="Range end"
           data-testid="period-to"
           value={to}
-          onChange={(e) => e.target.value && onChange(customToken(from || e.target.value, e.target.value))}
+          onChange={(e) => e.target.value && onChange(customToken(from || defaultStart(e.target.value), e.target.value))}
         />
       </div>
 

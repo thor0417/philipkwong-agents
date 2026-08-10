@@ -97,3 +97,49 @@ test('period selection sums', async ({ page }) => {
     JSON.stringify({ ...out, arrivedJuly, movedJuly, allTime, emptyPeriod: empty }, null, 2)
   );
 });
+
+// HALF A RANGE MUST NOT BECOME A ONE-DAY RANGE.
+//
+// The custom-range inputs used to fall back to the value just typed for the
+// other end, so picking a start date while the end was empty produced a period
+// exactly one day long. That is how a generated report came to cover a single
+// day, with every section reading "no filing in this period" and a basis line
+// of 0 records. The operator picked a start date and got a document about one
+// Tuesday, and nothing on the screen said so.
+//
+// Driven through the composer because that is the screen where the damage was
+// done, and asserted on the bounds the control prints rather than on the token,
+// so the test fails if the display and the resolution ever disagree.
+test('picking one end of a custom range does not collapse it to a day', async ({ page }) => {
+  await page.goto('/reports', { waitUntil: 'domcontentloaded' });
+  await expect(page.getByTestId('report-client')).toBeVisible({ timeout: 120_000 });
+
+  // A start with no end. The end must become a real later date, not the start.
+  await page.getByTestId('period-from').fill('2026-07-01');
+  await expect
+    .poll(async () => await page.getByTestId('period-bounds').textContent(), { timeout: 30_000 })
+    .toContain('2026-07-01');
+  const startOnly = (await page.getByTestId('period-bounds').textContent()) ?? '';
+  console.log(`start only  -> ${startOnly.trim()}`);
+  expect(startOnly, 'a start date with no end collapsed the period to one day').toContain(' to ');
+  const [, endDay] = startOnly.split(' to ');
+  expect(
+    (endDay ?? '').trim(),
+    'a start date with no end produced a period ending on the start date'
+  ).not.toBe('2026-07-01');
+
+  // An end with no start. Reload so the range is empty again.
+  await page.goto('/reports', { waitUntil: 'domcontentloaded' });
+  await expect(page.getByTestId('report-client')).toBeVisible({ timeout: 120_000 });
+  await page.getByTestId('period-to').fill('2026-07-31');
+  await expect
+    .poll(async () => await page.getByTestId('period-bounds').textContent(), { timeout: 30_000 })
+    .toContain('2026-07-31');
+  const endOnly = (await page.getByTestId('period-bounds').textContent()) ?? '';
+  console.log(`end only    -> ${endOnly.trim()}`);
+  const [startDay] = endOnly.split(' to ');
+  expect(
+    (startDay ?? '').trim(),
+    'an end date with no start produced a period beginning on the end date'
+  ).not.toBe('2026-07-31');
+});
