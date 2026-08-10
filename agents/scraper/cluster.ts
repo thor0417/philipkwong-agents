@@ -398,6 +398,37 @@ export const CASE_RULES: CaseRule[] = [
       /\b([CNMF]?\d{6}[A-Z]{1,3}[MXKQR])\b/gi,
     ],
   },
+  // ---- LEGISTAR, ANY JURISDICTION. Must stay LAST. --------------------------
+  //
+  // caseRuleFor returns the FIRST rule matching by market or source, so every
+  // market-specific rule above still wins for its own market. This catches the
+  // rest.
+  //
+  // WHY IT WAS MISSING AND WHAT IT COST. Case rules were keyed per market, so a
+  // Legistar jurisdiction nobody had hand-listed had NO case signal at all -
+  // not a weaker one, none. Westchester County's two Ice Casino Improvements
+  // filings and Yonkers' budget ordinance carried no applicant, no address and
+  // no target either, so they carried no signal of any kind and sat in the
+  // Inbox permanently. The county read as zero projects while holding records
+  // about a casino.
+  //
+  // Every Legistar instance publishes a file number for every matter; the
+  // adapter already writes it as "File: BL2026-1451". Reading it is what makes
+  // a new Legistar market work on arrival rather than on the day someone
+  // notices it is empty.
+  //
+  // The second pattern is the capital-project code. Westchester writes
+  // "BOND ACT(Amended)-RP02A-3248-Ice Casino Improvements I" and
+  // "CBA-RP02A-3248-Ice Casino Improvements II" - two instruments, two file
+  // numbers, ONE project, and the code is the only thing that says so.
+  {
+    label: 'Legistar, any jurisdiction (file number, capital project code)',
+    sources: ['legistar'],
+    patterns: [
+      /^File:\s*([A-Z0-9][A-Z0-9.\-]{2,})\s*$/gim,
+      /\b([A-Z]{2}\d{2}[A-Z]-\d{3,5})\b/g,
+    ],
+  },
 ];
 
 // SOURCES WHOSE RECORD IS A PROJECT MANIFEST, NOT AN INDEX.
