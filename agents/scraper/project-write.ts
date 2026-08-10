@@ -34,6 +34,10 @@ export const PROJECT_OVERRIDABLE = [
   'market',
   'country',
   'region_state',
+  // A hand-written summary is Philip's sentence about the project. Overriding it
+  // holds back BOTH columns, because summary_source would otherwise be
+  // recomputed to 'derived' while summary stayed 'manual' - see summaryPair.
+  'summary',
 ] as const;
 
 export interface ExistingProject {
@@ -101,7 +105,27 @@ export function projectRow(
     record_count: c.record_count,
     primary_applicant: c.primary_applicant,
     primary_representative: c.primary_representative,
+    summary: c.summary,
+    summary_source: c.summary_source,
+    summary_url: c.summary_url,
   };
+
+  // THE TWO SUMMARY COLUMNS MOVE TOGETHER OR NOT AT ALL. The table enforces
+  // (summary is null) = (summary_source is null), so writing one without the
+  // other is a constraint violation, and holding back only 'summary' on an
+  // override would do exactly that. Both are dropped whenever either would be.
+  const summaryHeld =
+    overriddenFields(existing?.manual_overrides).has('summary') ||
+    // A derivation that found nothing this run has LEARNED nothing - it has not
+    // discovered that the stored sentence was wrong. Same rule as the enrichment
+    // fields below: a generated summary must survive a clustering run that could
+    // only derive null, or every backfill would be undone by the next scrape.
+    row.summary === null;
+  if (summaryHeld) {
+    delete row.summary;
+    delete row.summary_source;
+    delete row.summary_url;
+  }
   // first_seen is set once, on insert, and never moved backwards or forwards by
   // a later run: it records when WE first saw the project.
   if (!existing && c.first_seen) row.first_seen = c.first_seen;
@@ -116,6 +140,10 @@ export function projectRow(
       heldBack.push(f);
     }
   }
+  // Reported even though the pair was already removed above, so the run's
+  // held-back tally still counts a protected summary. A silent hold looks
+  // identical to a field the clusterer never tried to write.
+  if (overridden.has('summary') && !heldBack.includes('summary')) heldBack.push('summary');
   return { row, heldBack };
 }
 

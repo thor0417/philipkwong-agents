@@ -18,6 +18,10 @@ export const PROJECT_COLUMNS = [
   'stage', 'development_category', 'venue_type', 'status', 'watch', 'notes',
   'manual_overrides', 'first_seen', 'last_activity', 'next_milestone',
   'record_count', 'primary_applicant', 'primary_representative', 'created_at',
+  // What the project IS, in one line, and how that line was produced. Read on
+  // every register row and every detail header, which is exactly why it is a
+  // stored column rather than something recomputed per render.
+  'summary', 'summary_source', 'summary_url',
 ].join(',');
 
 export interface Project {
@@ -42,6 +46,15 @@ export interface Project {
   primary_applicant: string | null;
   primary_representative: string | null;
   created_at: string | null;
+  summary: string | null;
+  // 'derived' (quoted from the filing) | 'generated' (model, factual) |
+  // 'manual' (Philip wrote it). A surface that cannot tell a quotation from a
+  // model's reading of a document cannot decide which one it is safe to quote.
+  summary_source: string | null;
+  // The filing a DERIVED summary was quoted from. Reports may only print a
+  // summary they can cite, so this is what decides whether the sentence is
+  // allowed into a client document at all.
+  summary_url: string | null;
 }
 
 export interface ProjectQuery {

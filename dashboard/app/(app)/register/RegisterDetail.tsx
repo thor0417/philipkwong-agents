@@ -64,6 +64,23 @@ export default function RegisterDetail({
       <div className={styles.detailHead}>
         <div className={styles.detailIdent}>
           <h2 className={styles.detailName}>{p.name}</h2>
+          {/* LABELLED BY PROVENANCE, for the same reason the report labels
+              [RECORD] and [ASSESSMENT]: a derived line is the filing's own
+              words and can be quoted to a client, a generated line is a
+              model's reading of it and cannot. A pane that shows both
+              identically forces the reader to guess which is which. */}
+          {p.summary && (
+            <p className={styles.detailSummary}>
+              {p.summary}
+              <span className={styles.summarySource}>
+                {p.summary_source === 'derived'
+                  ? 'from the filing'
+                  : p.summary_source === 'generated'
+                    ? 'written by model from the records'
+                    : 'written by you'}
+              </span>
+            </p>
+          )}
           <div className={styles.detailMeta}>
             <span>{p.market ?? p.region_state ?? p.country ?? 'Unresolved location'}</span>
             <span className={styles.dot} aria-hidden="true" />

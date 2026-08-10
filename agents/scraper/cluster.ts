@@ -43,6 +43,7 @@ import {
   type TargetDef,
 } from './targets';
 import { extractProjectNames, nameSignalApplies } from './project-name';
+import { deriveSummary } from './project-summary';
 import {
   deriveProjectName,
   disambiguateNames,
@@ -732,6 +733,15 @@ export interface ClusteredProject {
   last_activity: string | null;
   next_milestone: string | null;
   first_seen: string | null;
+  // One line saying what the project IS, quoted from its own records. Null when
+  // none of them contains a usable sentence, which is the honest answer for a
+  // project whose only record is a meeting agenda. The GENERATED fallback is not
+  // computed here: it costs a model call per project and the clusterer runs on
+  // every scrape. See migrations/backfill-project-summaries.ts.
+  summary: string | null;
+  summary_source: 'derived' | null;
+  // The filing the sentence was quoted from, so a report can cite it.
+  summary_url: string | null;
   record_count: number;
   live: boolean;
   liveness_reason: ProjectLiveness['reason'];
@@ -1315,6 +1325,16 @@ export function clusterRecords(
       ),
     });
 
+    const derived = deriveSummary(
+      recs.map((r) => ({
+        url: r.url,
+        title: r.title ?? null,
+        raw_content: r.raw_content ?? null,
+        source: r.source ?? null,
+        published_date: r.published_date ?? null,
+      }))
+    );
+
     result.projects.push({
       project_key: projectKey,
       name: named.name,
@@ -1330,6 +1350,13 @@ export function clusterRecords(
       last_activity: liveness.lastActivity,
       next_milestone: liveness.nextMilestone,
       first_seen: recs.map((r) => r.first_seen).filter(Boolean).sort()[0] ?? null,
+      // RECOMPUTED FROM THE MEMBERS ON EVERY RUN, which is what makes it update
+      // when a record is attached: a project that gains a ZAP filing gains the
+      // brief that filing carries. A hand-written summary is protected the same
+      // way a hand-set name is, by manual_overrides in project-write.
+      summary: derived?.summary ?? null,
+      summary_source: derived ? 'derived' : null,
+      summary_url: derived?.sourceUrl ?? null,
       record_count: recs.length,
       live: liveness.live,
       liveness_reason: liveness.reason,

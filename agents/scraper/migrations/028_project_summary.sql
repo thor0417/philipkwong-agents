@@ -46,6 +46,20 @@
 alter table projects add column if not exists summary text;
 alter table projects add column if not exists summary_source text;
 
+-- THE CITATION, and it is not optional for a derived line.
+--
+-- A derived summary is a QUOTATION from one specific filing, and the report
+-- layer labels every line RECORD, PRESS or ASSESSMENT with a gate that refuses
+-- to render a RECORD without a source. Storing the sentence without the
+-- document it came from would leave the report two bad options: cite the wrong
+-- record, or downgrade a genuine quotation to an assessment. So the sentence
+-- carries its source with it.
+--
+-- Null for 'generated' (a model read several records; no one of them said it)
+-- and for 'manual' (Philip said it). Those two never enter a client document
+-- for exactly that reason - see backfill-project-summaries.ts.
+alter table projects add column if not exists summary_url text;
+
 -- The vocabulary is closed. A value outside it means a writer invented one.
 alter table projects drop constraint if exists projects_summary_source_check;
 alter table projects add constraint projects_summary_source_check
@@ -58,6 +72,14 @@ alter table projects add constraint projects_summary_source_check
 alter table projects drop constraint if exists projects_summary_pairing_check;
 alter table projects add constraint projects_summary_pairing_check
   check ((summary is null) = (summary_source is null));
+
+-- A derived line without its source cannot be rendered as a record, which is
+-- the only form a client document may carry it in. Enforced rather than trusted
+-- because the writers are the clusterer and the backfill, and only one of them
+-- is thinking about reports.
+alter table projects drop constraint if exists projects_summary_url_check;
+alter table projects add constraint projects_summary_url_check
+  check (summary_source is distinct from 'derived' or summary_url is not null);
 
 comment on column projects.summary is
   'One line: what is being sought and for what. Never an assessment.';

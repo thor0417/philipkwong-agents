@@ -31,9 +31,18 @@ export type SummarySource = 'derived' | 'generated' | 'manual';
 export interface SummaryResult {
   summary: string;
   source: SummarySource;
+  // THE FILING THIS WAS QUOTED FROM. A derived summary is somebody else's
+  // sentence, and a client document may only carry it as a RECORD line - which
+  // the report layer refuses to render without a source. Null is impossible for
+  // a derived result and expected for the other two.
+  sourceUrl: string | null;
+  // Which derivation field fired. Reported by the backfill so a bad rule can be
+  // found by its name rather than by re-reading every summary it produced.
+  field: string | null;
 }
 
 export interface SummaryRecord {
+  url?: string | null;
   title: string | null;
   raw_content: string | null;
   source: string | null;
@@ -50,6 +59,26 @@ const DERIVATION_FIELDS: { label: string; re: RegExp }[] = [
   { label: 'ceqr-description', re: new RegExp('^Project description: (.+)$', 'm') },
   // City Record. The notice states its own subject after this clause.
   { label: 'city-record-subject', re: new RegExp('relative to:\\s*(.+?)(?:\\s{2,}|$)', 'm') },
+
+  // ---- Outside New York -----------------------------------------------------
+  //
+  // The first version of this file read three fields, all of them NYC, and
+  // derived 134 of 345 projects: 83% of New York and 0% of everywhere else.
+  // "39% derive without a model call" was really "New York derives". Every one
+  // of the 211 others would have gone to the model, at a call each, to
+  // reconstruct a sentence the filing already contains.
+  //
+  // Anaheim's planners write the request out under its own heading, which is
+  // the single best derivation field in the corpus outside ZAP.
+  { label: 'agenda-request', re: new RegExp('^\\s*Request:\\s*(.+?)$', 'm') },
+  // Legistar publishes the ordinance or resolution's subject as its title. It
+  // is a full sentence written by the clerk: "An ordinance approving Amendment
+  // No. 6 to the Arts Center Redevelopment Plan".
+  { label: 'legistar-subject', re: new RegExp('^Government record \\(Legistar [^)]*\\): (.+)$', 'm') },
+  // The agenda item itself, for the portal sources. Lower than the two above
+  // because an item line carries procedural scaffolding ("For possible action
+  // to...") that LEAD_IN has to strip before anything useful is left.
+  { label: 'agenda-item', re: new RegExp('--- item text ---\\s*\\n([\\s\\S]+?)(?:\\n\\s*\\n|$)') },
 ];
 
 // Boilerplate that appears at the START of a source sentence and says nothing.
@@ -66,7 +95,40 @@ const LEAD_IN = new RegExp(
     '|the applicants?\\b,?' +
     '|the proposed actions?\\b (?:include|involve|would)' +
     '|the proposed action is' +
-    '|notice is hereby given that)\\s*',
+    '|notice is hereby given that' +
+    // Agenda scaffolding. "31. For possible action to approve a One-Day Opening
+    // for a Non-Restricted Gaming license" is a sentence about the council's
+    // procedure wrapped around a sentence about the project. The item NUMBER
+    // goes too: it identifies a line on a page, not a project, and it changes
+    // between the agenda and the minutes for the same matter.
+    '|\\d{1,3}\\.\\s*' +
+    '|for possible action(?: to)?' +
+    '|determinar sobre la base de la evidencia presentada por' +
+    '|item no\\.?\\s*\\d+\\s*' +
+    '|public hearing and ordinance adoption\\s*[-–]\\s*' +
+    '|an? (?:ordinance|resolution) (?=approv|authoriz|amend|accept|declar))\\s*',
+  'i'
+);
+
+// A DERIVED LINE MUST SAY WHAT IS BEING SOUGHT.
+//
+// Without this, the ZAP brief for 730 Avenue derived to "Fulcrum Properties,
+// LLC; The Briarwood Organization, LLC; and Moses Sole Realty, LLC, in
+// cooperation with Godian Fellowship Inc. and Thomas White, Jr." - a correct
+// quotation of the filing's first sentence, and useless. The register already
+// has an applicant column; a summary that only names the applicant answers
+// "which one" a second time and never answers "what is it".
+//
+// Applied to the EMITTED line, not the source clause, because a sentence whose
+// action verb sits beyond the length budget gets truncated into an applicant
+// list regardless of what the untruncated text said.
+const ACTION_TERMS = new RegExp(
+  '\\b(seek|seeks|seeking|request|requests|requesting|propose|proposes|proposed|' +
+    'application|apply|applies|amendment|amend|rezon\\w*|permit|variance|' +
+    'certification|certify|concession|licen[cs]e|authoriz\\w*|special permit|' +
+    'redevelop\\w*|develop\\w*|construct\\w*|renovat\\w*|demap\\w*|disposition|' +
+    'acquire|acquisition|lease|award|approv\\w*|designat\\w*|map\\w*|study|' +
+    'facilitate|replace\\w*|rehabilitat\\w*|expansion|expand)\\b',
   'i'
 );
 
@@ -80,7 +142,40 @@ const CONTENTLESS = new RegExp(
 // Block capitals are a property of a notice's typography, not of the fact.
 // FCRC writes its subject as "INTENT TO AWARD as a concession ...", and a
 // register full of shouting is unreadable.
-const SHOUTED = new RegExp('\\b[A-Z]{4,}(?:\\s+[A-Z]{2,})*\\b', 'g');
+//
+// MATCHED AS A RUN, NOT AS A WORD. Matching single words meant "USE PERMIT"
+// came out as "USE Permit", because USE is three letters and the pattern
+// required four; and "BALLY'S" came out as "bally'S", because the apostrophe
+// ended the match and left the trailing S as its own word. A run is two or more
+// consecutive all-capital tokens, at least one of them four letters or longer -
+// which is what typographic shouting actually looks like, and which leaves a
+// lone "MGM" or "LLC" alone because a real acronym does not travel in a pack.
+const SHOUTED = new RegExp("\\b[A-Z][A-Z0-9'’-]*(?:\\s+[A-Z][A-Z0-9'’-]*)+\\b", 'g');
+const HAS_LONG_WORD = new RegExp('[A-Z]{4,}');
+
+// A shouted word standing on its own: "APPLICANT: Panther Acquisitions, LLC -
+// OWNER: Margel". No run to belong to, so the run pattern leaves it, and the
+// register ends up shouting one word per clause. Five letters is the threshold
+// because it clears every acronym the corpus actually uses - LLC, MGM, RFP, IP,
+// ERP, HPD, MIH - while catching APPLICANT, ABEYANCE and OWNER.
+const SHOUTED_WORD = new RegExp("\\b[A-Z]{5,}(?:['’][A-Z]+)?\\b", 'g');
+
+// Case numbers, which identify a filing and describe nothing. Clark County
+// writes "UC-26-0128-Marina Estates, LLC:", Las Vegas writes "R-40-2025 - ",
+// Phoenix wraps withdrawals in "***...***".
+const CASE_PREFIX = new RegExp(
+  '^(?:\\*{2,}[^*]*\\*{2,}\\s*' +
+    '|abeyance\\s*[-–]\\s*' +
+    // The parenthetical is NESTED in Clark County's review filings:
+    // "AR-26-400068 (ET-25-400074(UC-23-0659))-Buona Vita, LLC:" carries a
+    // review number wrapping an extension number wrapping the original use
+    // permit. [^)]* stops at the first ')' and left the whole prefix standing
+    // on the one filing shaped that way. Matching balanced-ish nesting one
+    // level deep covers it without reaching for a parser.
+    '|[A-Z]{1,4}-\\d{2,4}-[\\dA-Z]+(?:\\s*\\((?:[^()]|\\([^()]*\\))*\\))?\\s*[-–:]\\s*' +
+    '|\\d{2}-\\d{3,4}-[A-Z]+\\d*\\s*[-–]\\s*)+',
+  'i'
+);
 
 // Control characters. Socrata emits a raw 0x1a where the publisher had a smart
 // quote, and it renders as a black box in a client document.
@@ -90,8 +185,35 @@ const ABBREVIATIONS = new RegExp('\\b(No|Nos|St|Ave|Blvd|Rd|Inc|Ltd|Co|Corp|Sq|F
 
 const clean = (s: string): string => s.replace(CONTROL_CHARS, '').replace(/\s+/g, ' ').trim();
 
+// Company suffixes caught inside a shouted run come out as "Llc", which reads
+// as a typo rather than as a company. Restored after deshouting rather than
+// excluded from it, because they sit mid-run and splitting the run around them
+// would leave the shouting either side.
+const SUFFIXES = new RegExp('\\b(Llc|Llp|Inc|Ltd|Lp|Plc|Ny|Nv|Nyc|Mta|Hpd|Dcp|Edc|Dot|Dpr)\\b', 'g');
+
 const deshout = (s: string): string =>
-  s.replace(SHOUTED, (m) => m.charAt(0) + m.slice(1).toLowerCase());
+  s
+    .replace(SHOUTED, (m) => (HAS_LONG_WORD.test(m) ? m.charAt(0) + m.slice(1).toLowerCase() : m))
+    .replace(SHOUTED_WORD, (m) => m.charAt(0) + m.slice(1).toLowerCase())
+    .replace(SUFFIXES, (m) => m.toUpperCase());
+
+// STRIP UNTIL STABLE, ALTERNATING BOTH PATTERNS.
+//
+// The prefixes nest and they nest in either order: Clark County writes
+// "31. UC-26-0128-Marina Estates, LLC:" (item number, then case number) and Las
+// Vegas writes "ABEYANCE - 25-0536-GPA1 -" (status word, then case number). One
+// pass of each in a fixed order strips whichever happens to be outermost and
+// leaves the other, which is why the first attempt at this left "Uc-26-0128-"
+// sitting at the front of a client-facing line.
+function stripScaffolding(text: string): string {
+  let out = clean(text);
+  for (let i = 0; i < 4; i++) {
+    const before = out;
+    out = clean(clean(out.replace(CASE_PREFIX, '')).replace(LEAD_IN, ''));
+    if (out === before) break;
+  }
+  return out;
+}
 
 /** First sentence, or a hard-trimmed clause when the text has no full stop. */
 function firstSentence(text: string, max = 200): string {
@@ -125,12 +247,23 @@ export function deriveSummary(records: SummaryRecord[]): SummaryResult | null {
       if (!m) continue;
       const raw = clean(m[1]);
       if (!raw || CONTENTLESS.test(raw)) continue;
-      const stripped = clean(raw.replace(LEAD_IN, ''));
+      // Twice, because agenda scaffolding nests: "31. For possible action to
+      // approve" is an item number wrapped around a procedural clause, and one
+      // pass leaves the other behind.
+      const stripped = stripScaffolding(raw);
       // A fragment shorter than this is a label, not a description.
       if (stripped.length < 25) continue;
       const sentence = firstSentence(deshout(stripped));
+      // No action, no summary. Fall through to the next field or the next
+      // record rather than emitting a list of names.
+      if (!ACTION_TERMS.test(sentence)) continue;
       // Capitalise, because the source clause often begins mid-sentence.
-      return { summary: sentence.charAt(0).toUpperCase() + sentence.slice(1), source: 'derived' };
+      return {
+        summary: sentence.charAt(0).toUpperCase() + sentence.slice(1),
+        source: 'derived',
+        sourceUrl: r.url ?? null,
+        field: f.label,
+      };
     }
   }
   return null;

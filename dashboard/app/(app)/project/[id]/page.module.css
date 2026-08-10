@@ -333,3 +333,20 @@
   margin: 0;
   line-height: var(--leading-body);
 }
+
+.summary {
+  margin: var(--space-12) 0 0;
+  max-width: 68ch;
+  color: var(--ink-secondary);
+  font-size: var(--type-body-lg, var(--type-body));
+  line-height: var(--leading-body);
+}
+
+/* Same rule as the register detail: the provenance travels with the sentence,
+   because a derived line may be quoted to a client and a generated one may not. */
+.summarySource {
+  display: block;
+  margin-top: var(--space-4);
+  color: var(--ink-tertiary, var(--ink-secondary));
+  font-size: var(--type-caption);
+}

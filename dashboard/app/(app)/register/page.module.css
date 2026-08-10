@@ -151,7 +151,12 @@
 }
 
 .row {
-  height: var(--row-h);
+  /* TWO LINES NOW: the name, and one line saying what the project IS. The
+     height is fixed rather than auto because a summary exists for most rows
+     but not all, and rows that change height as you scroll make a dense table
+     impossible to scan. Every row reserves the second line; the ones with
+     nothing to say leave it empty, which is the honest rendering of null. */
+  height: var(--row-h-two-line, calc(var(--row-h) + 1.15em));
   border-bottom: var(--border-hairline);
   font-size: var(--type-body);
   cursor: pointer;
@@ -171,13 +176,33 @@
 
 .cellName {
   display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1px;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ink);
+}
+
+.cellNameLine {
+  display: flex;
   align-items: center;
   gap: var(--space-8);
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--ink);
+}
+
+/* Secondary by weight and colour, because it must never compete with the name
+   for the eye: the name is what you are looking for, the summary is what you
+   read once you have found it. */
+.cellSummary {
+  color: var(--ink-secondary);
+  font-size: var(--type-caption);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .cell {
@@ -389,6 +414,25 @@
   font-weight: var(--weight-medium);
   font-size: var(--type-display-sm);
   line-height: var(--leading-display);
+}
+
+.detailSummary {
+  margin: var(--space-8) 0 0;
+  color: var(--ink-secondary);
+  font-size: var(--type-body);
+  line-height: var(--leading-body);
+}
+
+/* The provenance rides with the sentence rather than sitting in a legend
+   somewhere else on the page, because the question it answers ("can I quote
+   this?") is asked at the moment the sentence is read. */
+.summarySource {
+  display: block;
+  margin-top: var(--space-4);
+  color: var(--ink-tertiary, var(--ink-secondary));
+  font-size: var(--type-caption);
+  text-transform: lowercase;
+  letter-spacing: var(--tracking-caption, 0);
 }
 
 .detailMeta {

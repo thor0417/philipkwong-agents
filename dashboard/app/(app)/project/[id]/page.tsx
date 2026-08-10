@@ -71,6 +71,21 @@ export default function ProjectPage() {
           <span>{p.market ?? p.region_state ?? p.country ?? 'Unresolved'}</span>
         </div>
         <h1 className={styles.title}>{p.name}</h1>
+        {/* The lede. Every fact below this line is a category or a date; this
+            is the only sentence on the page that says what the project is, so
+            it sits directly under the name and above the fact strip. */}
+        {p.summary && (
+          <p className={styles.summary}>
+            {p.summary}
+            <span className={styles.summarySource}>
+              {p.summary_source === 'derived'
+                ? 'quoted from the filing'
+                : p.summary_source === 'generated'
+                  ? 'written by model from the records'
+                  : 'written by you'}
+            </span>
+          </p>
+        )}
         <div className={styles.facts}>
           <span className={styles.fact}>
             <span className={styles.factLabel}>Stage</span>

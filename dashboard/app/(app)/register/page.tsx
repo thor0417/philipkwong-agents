@@ -723,11 +723,19 @@ export default function RegisterPage() {
                     aria-label={`Select ${r.name}`}
                   />
                 </span>
-                <span className={styles.cellName} title={r.name}>
-                  {r.watch && (
-                    <span className={styles.watchDot} title="Watched" aria-label="Watched" />
-                  )}
-                  {r.name}
+                <span
+                  className={styles.cellName}
+                  title={r.summary ? `${r.name}\n${r.summary}` : r.name}
+                >
+                  <span className={styles.cellNameLine}>
+                    {r.watch && (
+                      <span className={styles.watchDot} title="Watched" aria-label="Watched" />
+                    )}
+                    {r.name}
+                  </span>
+                  {/* The name answers "which one". This answers "what is it".
+                      Rendered even when null so every row is the same height. */}
+                  <span className={styles.cellSummary}>{r.summary ?? ''}</span>
                 </span>
                 <span className={styles.cell}>{r.primary_applicant ?? '--'}</span>
                 <span className={styles.cell}>{r.market ?? r.region_state ?? '--'}</span>

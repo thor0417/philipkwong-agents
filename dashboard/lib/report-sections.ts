@@ -132,6 +132,31 @@ function lineForRecord(
     : pressLine(text, r.url, host(r.url) || (r.source ?? 'press'), meta);
 }
 
+// ---- WHAT THE PROJECT IS ----------------------------------------------------
+//
+// ONLY DERIVED SUMMARIES REACH A CLIENT DOCUMENT, and the provenance model is
+// what decides that rather than a preference.
+//
+// A DERIVED summary is a quotation from one filing. It is a RECORD, and the
+// gate requires a RECORD to carry the source the client can go and read - which
+// is why the sentence is stored with the URL it came from. Printed without that
+// citation it would be an unattributed claim wearing a record's label.
+//
+// A GENERATED summary has no such source. It is a model's reading of several
+// records, and none of them contains the sentence. It cannot be RECORD (no
+// document says it), it cannot be PRESS (nobody published it), and labelling it
+// ASSESSMENT would put a machine's paraphrase under Philip's name in a document
+// going to a client - the exact failure the shot harness was rewritten to stop.
+// So it is not printed at all. It stays on the register, the detail pane and
+// the project page, each of which says in words that a model wrote it.
+//
+// A MANUAL summary is Philip's own sentence and belongs in commentary, which he
+// writes in the composer, not in a line the generator emits on his behalf.
+function summaryLine(p: Project): Line[] {
+  if (p.summary_source !== 'derived' || !p.summary || !p.summary_url) return [];
+  return [recordLine(`   ${p.summary}`, p.summary_url, 'quoted from the filing')];
+}
+
 export interface SectionDef {
   id: string;
   label: string;
@@ -223,9 +248,9 @@ const headlines: SectionDef = {
     const lines = ranked.flatMap((p) => {
       const rec = ctx.records.find((r) => r.project_id === p.id);
       if (!rec) return [];
-      return [
-        lineForRecord(rec, `${p.name}: `),
-      ];
+      return [lineForRecord(rec, `${p.name}: `), ...summaryLine(p)].filter(
+        (l): l is Line => !!l
+      );
     });
     return withCommentary('headlines', ctx, {
       id: 'headlines',

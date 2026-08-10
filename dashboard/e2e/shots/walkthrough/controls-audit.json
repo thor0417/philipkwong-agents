@@ -1,15 +1,15 @@
 {
   "today": {
     "What moved": "01 What moved Stage changes, most advanced destination first. A project reaching construction matters more than one reaching a scheduled hearing, so this is not ordered by time. Nothing changed stage in this window. Stage history only began when event capture shipped, so this section is genuinely thin for now and will ",
-    "What came in": "02 What came in New projects first, then new records on projects you already had. Grouped by project, so six records on one project is one line, not six. NEW RECORDS ON EXISTING PROJECTS 17 Nevada Palace resort Clark County 5 records 2026-08-04 Southern Highlands Golf Club leisure development Clark County 4 records 202",
-    "Needs you": "03 Needs you Each of these is a count and a place to go. 833 Record triage backlog Records still at status new, on Records 0 Watchlist activity Events on projects you watch 0 New projects to review Arrived in this window",
-    "Attention": "04 Attention The machine, not the market. Red only where something is genuinely wrong. SOURCES worldbank 15d silent 23 records adb 15d silent 3 records uktenders 15d silent 1 records canadabuys 15d silent 3 records sfwmd 12d silent 25 records gli_serper 11d silent 410 records govdoc 10d silent 8 records ceqanet 8d sile"
+    "What came in": "02 What came in New projects first, then new records on projects you already had. Grouped by project, so six records on one project is one line, not six. NEW PROJECTS 156 1605 Nelson Avenue mixed-use development New York City filed 2026-08-09 240 Nassau Street heritage site New York City stalled 2026-08-09 Rehabilitati",
+    "Needs you": "03 Needs you Each of these is a count and a place to go. 1152 Record triage backlog Records still at status new, on Records 9 Watchlist activity Events on projects you watch 156 New projects to review Arrived in this window",
+    "Attention": "04 Attention The machine, not the market. Red only where something is genuinely wrong. SOURCES gli_serper 13d silent 238 records sfwmd 13d silent 25 records govdoc 11d silent 8 records ceqanet 10d silent 9 records clark-tab 10d silent 53 records agenda-portal 10d silent 179 records cftod-pdf 10d silent 26 records RUNS "
   },
   "todayPeriod": {
-    "7d": 29,
-    "30d": 171,
-    "m:2026-07": 197,
-    "m:2026-01": 38
+    "7d": 180,
+    "30d": 185,
+    "m:2026-07": 189,
+    "m:2026-01": 41
   },
   "records": {
     "rows": 29,
@@ -22,17 +22,16 @@
       "‹Collapse",
       "Active27",
       "Archive3",
-      "All27",
-      "Leisure/Attractions23",
+      "All11",
+      "Entertainment/Attractions7",
       "Mixed-Use/Real Estate1",
       "Hospitality/Tourism3",
-      "All27",
+      "All11",
       "Aquarium1",
       "Museum1",
       "Heritage/Cultural Site5",
-      "Resort3",
+      "Hotel3",
       "Waterfront Development1",
-      "Leisure Destination16",
       "Export XLSX",
       "Generate Report",
       "All20",
@@ -53,28 +52,29 @@
       "All time27",
       "New this week0",
       "Last 30 days27",
-      "Since27"
+      "Since27",
+      "All27"
     ]
   },
   "register": {
-    "baseline": 184,
+    "baseline": 345,
     "results": [
       {
         "label": "baseline (all, any country)",
         "url": "/register?view=all&country=any",
-        "total": 184,
+        "total": 345,
         "verdict": "UNCHANGED"
       },
       {
         "label": "view=new",
         "url": "/register?view=all&country=any&view=new",
-        "total": 184,
+        "total": 345,
         "verdict": "UNCHANGED"
       },
       {
         "label": "view=watchlist",
         "url": "/register?view=watchlist&country=any",
-        "total": 0,
+        "total": 1,
         "verdict": "changed"
       },
       {
@@ -92,37 +92,37 @@
       {
         "label": "stage=filed",
         "url": "/register?view=all&country=any&stage=filed",
-        "total": 85,
+        "total": 124,
         "verdict": "changed"
       },
       {
         "label": "stage=approved",
         "url": "/register?view=all&country=any&stage=approved",
-        "total": 36,
+        "total": 56,
         "verdict": "changed"
       },
       {
         "label": "stage=dormant",
         "url": "/register?view=all&country=any&stage=dormant",
-        "total": 35,
+        "total": 118,
         "verdict": "changed"
       },
       {
         "label": "country default (absent)",
         "url": "/register?view=all",
-        "total": 162,
+        "total": 323,
         "verdict": "changed"
       },
       {
         "label": "country=United States",
         "url": "/register?view=all&country=United+States",
-        "total": 162,
+        "total": 323,
         "verdict": "changed"
       },
       {
         "label": "region=Nevada",
         "url": "/register?view=all&country=United+States&region=Nevada",
-        "total": 84,
+        "total": 83,
         "verdict": "changed"
       },
       {
@@ -134,7 +134,7 @@
       {
         "label": "q=resort",
         "url": "/register?view=all&country=any&q=resort",
-        "total": 35,
+        "total": 22,
         "verdict": "changed"
       },
       {
@@ -146,14 +146,14 @@
       {
         "label": "period=m:2026-07 arrived",
         "url": "/register?view=all&country=any&period=m:2026-07&axis=arrived",
-        "total": 184,
-        "verdict": "UNCHANGED"
+        "total": 185,
+        "verdict": "changed"
       },
       {
         "label": "period=m:2026-07 moved",
         "url": "/register?view=all&country=any&period=m:2026-07&axis=moved",
         "total": 184,
-        "verdict": "UNCHANGED"
+        "verdict": "changed"
       },
       {
         "label": "period=m:2019-01 arrived",
@@ -170,31 +170,31 @@
       {
         "label": "bucket=week (must not filter)",
         "url": "/register?view=all&country=any&bucket=week",
-        "total": 184,
+        "total": 345,
         "verdict": "correct (unchanged)"
       },
       {
         "label": "bucket=month (must not filter)",
         "url": "/register?view=all&country=any&bucket=month",
-        "total": 184,
+        "total": 345,
         "verdict": "correct (unchanged)"
       },
       {
         "label": "sort=name (must not filter)",
         "url": "/register?view=all&country=any&sort=name&dir=asc",
-        "total": 184,
+        "total": 345,
         "verdict": "correct (unchanged)"
       },
       {
         "label": "page=2 (must not change total)",
         "url": "/register?view=all&country=any&page=2",
-        "total": 184,
+        "total": 345,
         "verdict": "correct (unchanged)"
       },
       {
         "label": "nonsense param",
         "url": "/register?view=all&country=any&banana=1",
-        "total": 184,
+        "total": 345,
         "verdict": "FAILS OPEN (returns everything)"
       },
       {
