@@ -262,6 +262,70 @@
   word-break: break-all;
 }
 
+/* THE ENTRY, AT PREVIEW SCALE. Same reading order as the generated page: name,
+   description, then the filings the description is built from. The preview is
+   the document, so an entry that reads well here reads well in the PDF. */
+.entry {
+  margin: var(--space-12) 0;
+}
+
+.entryHead {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-8);
+}
+
+.entryName {
+  font-size: var(--type-body);
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+}
+
+.entryMeta {
+  flex: none;
+  font-size: 9px;
+  color: var(--ink-muted);
+}
+
+.entryDesc {
+  margin: 2px 0 0;
+}
+
+.entryCite {
+  display: block;
+  font-size: 9px;
+  color: var(--accent);
+  word-break: break-all;
+  margin-bottom: var(--space-4);
+}
+
+.entryAssembled {
+  margin: 0 0 var(--space-8);
+}
+
+.entryRec {
+  display: flex;
+  gap: var(--space-8);
+  margin-bottom: var(--space-4);
+  padding-left: var(--space-8);
+}
+
+.entryRecBody {
+  min-width: 0;
+}
+
+.entryRecDetail {
+  font-size: 9px;
+  color: var(--ink-muted);
+}
+
+.entryHeld {
+  font-size: 9px;
+  color: var(--ink-muted);
+  font-style: italic;
+}
+
 .commentaryBlock {
   border-left: 2px solid var(--accent);
   padding-left: var(--space-8);

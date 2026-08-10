@@ -14,7 +14,7 @@
 
 import React from 'react';
 import { Document, Page, Text, View, StyleSheet, Link, renderToBuffer } from '@react-pdf/renderer';
-import { basisLine, type ReportDocument, type Line } from '@/lib/report-model';
+import { basisLine, type Entry, type ReportDocument, type Line } from '@/lib/report-model';
 
 const INK = '#1a1a1a';
 const MUTED = '#6b6b6b';
@@ -50,6 +50,25 @@ const s = StyleSheet.create({
   commentary: { borderLeftWidth: 2, borderLeftColor: ACCENT, paddingLeft: 8, marginTop: 8, marginBottom: 4 },
   commentaryHead: { fontSize: 7, letterSpacing: 0.8, color: ACCENT, textTransform: 'uppercase', marginBottom: 3 },
 
+  // ---- THE ENTRY. A project named, described, then evidenced.
+  entry: { marginTop: 10, marginBottom: 6 },
+  entryHead: { flexDirection: 'row', alignItems: 'baseline', marginBottom: 2 },
+  entryName: { fontSize: 10.5, flex: 1 },
+  entryMeta: { fontSize: 7.5, color: MUTED },
+  entryDesc: { fontSize: 9, lineHeight: 1.4, marginBottom: 1 },
+  entryCite: { fontSize: 7, color: ACCENT, textDecoration: 'none', marginBottom: 3 },
+  // The assembled sentence. Set in the body face, not italicised or coloured:
+  // it is a statement about the filings below it, not an aside about them.
+  entryAssembled: { fontSize: 9, lineHeight: 1.4, marginBottom: 5 },
+
+  rec: { flexDirection: 'row', marginBottom: 4, paddingLeft: 8 },
+  recTag: { width: 46, fontSize: 6.5, letterSpacing: 0.5, color: MUTED, paddingTop: 1.5 },
+  recBody: { flex: 1 },
+  recDate: { fontSize: 8.5 },
+  recText: { fontSize: 8.5, lineHeight: 1.35 },
+  recDetail: { fontSize: 7.5, color: MUTED, marginTop: 1 },
+  recContact: { fontSize: 7.5, color: MUTED, marginTop: 1 },
+
   empty: { fontSize: 8.5, color: MUTED, fontStyle: 'italic', marginBottom: 4 },
   footer: { position: 'absolute', bottom: 28, left: 48, right: 48, flexDirection: 'row', justifyContent: 'space-between', borderTopWidth: 0.5, borderTopColor: RULE, paddingTop: 6 },
   footText: { fontSize: 7, color: MUTED },
@@ -68,6 +87,60 @@ function LineRow({ l }: { l: Line }) {
           </Link>
         ) : null}
       </View>
+    </View>
+  );
+}
+
+// THE ENTRY, RENDERED.
+//
+// Reading order is the order a person asks the questions in: what is this, what
+// do our records show about it, and then each filing - when, what it sought, who
+// the parties are, and the link to go and read it.
+//
+// The description paragraph is two sentences with different standing, so they
+// are not run together. The first is a quotation and carries the filing's link
+// directly beneath it. The second is assembled from the filings listed below and
+// says so in its own first two words.
+function EntryBlock({ e }: { e: Entry }) {
+  return (
+    <View style={s.entry} wrap={false}>
+      <View style={s.entryHead}>
+        <Text style={s.entryName}>{e.name}</Text>
+        {e.meta ? <Text style={s.entryMeta}>{e.meta}</Text> : null}
+      </View>
+
+      {e.summary ? (
+        <>
+          <Text style={s.entryDesc}>{e.summary.text}</Text>
+          <Link src={e.summary.url} style={s.entryCite}>
+            quoted from the filing
+          </Link>
+        </>
+      ) : null}
+      {e.assembled ? <Text style={s.entryAssembled}>{e.assembled}</Text> : null}
+
+      {e.records.map((r, i) => (
+        <View key={i} style={s.rec} wrap={false}>
+          <Text style={s.recTag}>[{r.provenance}]</Text>
+          <View style={s.recBody}>
+            <Text style={s.recText}>
+              {r.date ? <Text style={s.recDate}>{r.date}. </Text> : null}
+              {r.reference ? <Text style={s.recDate}>{r.reference}: </Text> : null}
+              {r.text}
+            </Text>
+            {r.figures.length > 0 ? <Text style={s.recDetail}>{r.figures.join(' | ')}</Text> : null}
+            {r.players.length > 0 ? (
+              <Text style={s.recDetail}>
+                Players: {r.players.map((p) => `${p.name} (${p.role})`).join('; ')}
+              </Text>
+            ) : null}
+            {r.contact ? <Text style={s.recContact}>{r.contact}</Text> : null}
+            <Link src={r.url} style={s.link}>
+              {r.sourceLabel}
+            </Link>
+          </View>
+        </View>
+      ))}
     </View>
   );
 }
@@ -122,6 +195,9 @@ function DocBody({ doc }: { doc: ReportDocument }) {
             {sec.lede ? <Text style={s.lede}>{sec.lede}</Text> : null}
             {sec.lines.map((l, i) => (
               <LineRow key={i} l={l} />
+            ))}
+            {(sec.entries ?? []).map((e) => (
+              <EntryBlock key={e.id} e={e} />
             ))}
             {sec.emptyNote ? <Text style={s.empty}>{sec.emptyNote}</Text> : null}
             {sec.commentary.length > 0 && (

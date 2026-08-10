@@ -748,6 +748,55 @@ export default function ReportsPage() {
                     {sec.lines.length - 40} further lines in the generated document.
                   </p>
                 )}
+
+                {/* THE ENTRIES. Capped for the preview only - the generated
+                    document carries all of them - and the cap says so, because
+                    a preview that silently shows less than it will print is the
+                    same silent-omission failure at a smaller scale. */}
+                {(sec.entries ?? []).slice(0, 12).map((e) => (
+                  <div key={e.id} className={styles.entry} data-entry={e.id}>
+                    <div className={styles.entryHead}>
+                      <h4 className={styles.entryName}>{e.name}</h4>
+                      {e.meta && <span className={styles.entryMeta}>{e.meta}</span>}
+                    </div>
+                    {e.summary && (
+                      <>
+                        <p className={styles.entryDesc} data-entry-summary>{e.summary.text}</p>
+                        <span className={styles.entryCite}>quoted from the filing</span>
+                      </>
+                    )}
+                    {e.assembled && (
+                      <p className={styles.entryAssembled} data-entry-assembled>{e.assembled}</p>
+                    )}
+                    {e.records.map((r, i) => (
+                      <div key={i} className={styles.entryRec}>
+                        <span className={styles.tag}>[{r.provenance}]</span>
+                        <span className={styles.entryRecBody}>
+                          {r.date && <b>{r.date}. </b>}
+                          {r.reference && <b>{r.reference}: </b>}
+                          {r.text}
+                          {r.figures.length > 0 && (
+                            <div className={styles.entryRecDetail}>{r.figures.join(' | ')}</div>
+                          )}
+                          {r.players.length > 0 && (
+                            <div className={styles.entryRecDetail}>
+                              Players: {r.players.map((p) => `${p.name} (${p.role})`).join('; ')}
+                            </div>
+                          )}
+                          {r.contact && <div className={styles.entryRecDetail}>{r.contact}</div>}
+                          <div className={styles.lineSource}>{r.sourceLabel}</div>
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                ))}
+                {(sec.entries?.length ?? 0) > 12 && (
+                  <p className={styles.entryHeld}>
+                    {(sec.entries?.length ?? 0) - 12} further project entries in the
+                    generated document.
+                  </p>
+                )}
+
                 {sec.emptyNote && <p className={styles.emptyNote}>{sec.emptyNote}</p>}
                 {sec.commentary.length > 0 && (
                   <div className={styles.commentaryBlock}>

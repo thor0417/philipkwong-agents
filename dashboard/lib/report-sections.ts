@@ -20,11 +20,14 @@ import type { TimelineRecord } from './projects';
 import type { EventRow } from './project-event-queries';
 import {
   commentaryLines,
+  isFiling,
   pressLine,
   recordLine,
+  type Entry,
   type Line,
   type Section,
 } from './report-model';
+import { buildEntry } from './report-entry';
 
 export interface SectionContext {
   projects: Project[];
@@ -47,70 +50,11 @@ export interface SectionContext {
   sectionIds: string[];
 }
 
-// ---- PRESS OR RECORD ---------------------------------------------------------
-//
-// The distinction is in the data, not in a guess. A record from the government
-// or opportunity streams is a filing: an agenda item, a tender notice, a
-// resolution. A record from the intelligence stream is trade press - it is how
-// that lane works, and its source is a publication rather than a clerk.
-//
-// THAT PARAGRAPH WAS ALWAYS THE INTENT, AND THE CODE DID NOT IMPLEMENT IT. The
-// rule was a list of source NAMES, so the question it actually answered was
-// "has someone remembered to add this adapter?" rather than "is this a filing?"
-// New York arrived with three government adapters and 325 filings from
-// zap.planning.nyc.gov, a002-ceqraccess.nyc.gov and a856-cityrecord.nyc.gov
-// rendered as [PRESS] in client documents - every one of them a primary
-// government record, described to a client as something a journalist wrote.
-//
-// A WHITELIST FAILS IN THE WRONG DIRECTION. Measured over the corpus before
-// this change: 328 of 778 government-stream records rendered as [PRESS], and 0
-// of 410 intelligence-stream records rendered as [RECORD]. The rule was
-// conservative in the direction that costs nothing and permissive in the
-// direction that costs credibility, and it got worse every time an adapter was
-// added, silently, in a document nobody re-reads.
-//
-// SO THE STREAM DECIDES. The stream is set at write time by the lane that
-// captured the row (agents/scraper/government writes 'government'), so it is a
-// statement about what the record IS, not about what anyone remembered.
-//
-// The asymmetry argument in the original comment still holds and is preserved:
-// calling a filing "press" understates it, while calling a headline a "record"
-// tells the client a document exists that they can go and read when it does
-// not. That is why 'intelligence' returns false EXPLICITLY rather than falling
-// through, and why an unknown stream still has to earn RECORD through the
-// legacy list below rather than defaulting to it.
-type Stream = string | null | undefined;
-
-// LEGACY ONLY. 487 rows in the corpus predate the stream column and carry null.
-// This list exists for them and must not grow: a new adapter sets a stream, and
-// a source added here instead would reintroduce exactly the failure above.
-const LEGACY_RECORD_SOURCES = new Set([
-  'legistar', 'agenda-portal', 'clark-tab', 'cftod-pdf', 'ceqanet', 'canadabuys',
-  'tedeu', 'uktenders', 'iadb', 'worldbank', 'adb', 'afdb', 'undp', 'nepa_jm',
-  'cayman_cpa', 'sfwmd',
-  // Tender portals that were missing, found by auditing the corpus rather than
-  // by noticing a bad document: 41 null-stream rows from these four render as
-  // [PRESS] under the old list, and a tender notice is a filing by any reading.
-  'tenderned', 'austender', 'ungm', 'gebiz',
-]);
-
-// Job boards are deliberately absent from that list and stay PRESS. An employer
-// advertising a role is evidence a project exists; it is not a filing, and a
-// client clicking through must not be told it was one.
-
-export function isFiling(
-  source: string | null | undefined,
-  sourceType?: string | null,
-  stream?: Stream
-): boolean {
-  // The stream is the answer whenever the row has one.
-  if (stream === 'government' || stream === 'opportunity') return true;
-  if (stream === 'intelligence') return false;
-  // No stream: a legacy row. It has to earn RECORD.
-  if (source && LEGACY_RECORD_SOURCES.has(source)) return true;
-  if (sourceType && /agenda|filing|tender|permit|ordinance|resolution/i.test(sourceType)) return true;
-  return false;
-}
+// isFiling - the RECORD-or-PRESS rule - now lives in report-model beside the
+// provenance gate it feeds, so that report-entry can reach it without importing
+// this file back. Re-exported here because it is part of this module's public
+// surface and the provenance audit asserts on it by that name.
+export { isFiling };
 
 function host(url: string | null | undefined): string {
   if (!url) return '';
@@ -258,7 +202,14 @@ const headlines: SectionDef = {
       )
       .slice(0, HEADLINE_CAP);
     const lines = ranked.flatMap((p) => {
-      const rec = ctx.records.find((r) => r.project_id === p.id);
+      // THE MOST RECENT ONE, WHICH IS WHAT THE LEDE PROMISES. find() returned
+      // whichever filing the query happened to yield first, so the section
+      // heading said "their most recent filing" over a line that was often the
+      // oldest - and for Heart Hotel that meant a press aggregator page stood in
+      // for a July zoning approval.
+      const rec = ctx.records
+        .filter((r) => r.project_id === p.id)
+        .sort((a, b) => (b.published_date ?? '').localeCompare(a.published_date ?? ''))[0];
       if (!rec) return [];
       return [lineForRecord(rec, `${p.name}: `), ...summaryLine(p)].filter(
         (l): l is Line => !!l
@@ -279,24 +230,41 @@ const headlines: SectionDef = {
 
 // ---- 4. BY MARKET ------------------------------------------------------------
 
+// THE SECTION THAT LISTED STRANGERS.
+//
+// It printed one line per project - market, name, stage, link - and never said
+// what a single one of them was. 111 of the 171 live projects carry a derived,
+// citable sentence describing themselves; none of it appeared here. And for a
+// project with no filing inside the period it printed
+//
+//   [ASSESSMENT] Clark County | Symphony Park Hotel (approved), no filing in this period
+//
+// which is the defect the brief names first: our own register, rendered as
+// Philip's personal judgement, on a line the client cannot check.
+//
+// BOTH FAILURES HAVE THE SAME FIX. The section now emits ENTRIES: a project
+// named, described from its own derived summary, and evidenced by its own dated
+// filings, each with players, figures, a contact where the record names one, and
+// a link. An entry is built from records, so a project with no record in the
+// period cannot produce one - buildEntry returns null - and there is no longer
+// any code path that reaches for commentary to fill the hole. The fallback is
+// not fixed; it is gone, and the count of what it would have covered is stated
+// in the section note instead.
+//
 // PER-MARKET CAP, AND IT IS STATED.
 //
-// This section listed the first 25 projects in each market and said nothing
-// about the rest. A JKR report whose cover read "149 projects" listed 122 of
-// them: 19 Clark County projects and 8 Las Vegas ones vanished between the
-// basis line and the list, with no note anywhere in the document. A reader
-// counting the entries would find the cover wrong, and a reader trusting the
-// list would think their market had 25 live projects in it.
-//
-// The cap itself is worth keeping - a section listing 800 projects is not a
-// section a person reads - so what changes is that the document now says what
-// it left out, per market, in the same breath as the count on the cover.
+// A JKR report whose cover read "149 projects" listed 122 of them: 19 Clark
+// County projects and 8 Las Vegas ones vanished between the basis line and the
+// list, with no note anywhere in the document. The cap is worth keeping - a
+// section describing 800 projects is not a section a person reads - so what
+// changes is that the document says what it left out, per market, in the same
+// breath as the count on the cover.
 const MARKET_LIST_CAP = 25;
 
 const byMarket: SectionDef = {
   id: 'markets',
   label: 'By market',
-  description: `Every project grouped by market, up to ${MARKET_LIST_CAP} per market, with the remainder counted.`,
+  description: `Each project described, with its filings, grouped by market, up to ${MARKET_LIST_CAP} per market.`,
   build: (ctx) => {
     const groups = new Map<string, Project[]>();
     for (const p of ctx.projects) {
@@ -304,46 +272,113 @@ const byMarket: SectionDef = {
       if (!groups.has(k)) groups.set(k, []);
       groups.get(k)!.push(p);
     }
-    const lines: Line[] = [];
-    const truncated: { market: string; listed: number; total: number }[] = [];
+
+    // Records bucketed once. find() per project was O(projects x records) and
+    // returned only the FIRST match, which is why the old section could show a
+    // project's oldest filing and call it the project.
+    const byProject = new Map<string, SectionContext['records']>();
+    for (const r of ctx.records) {
+      const id = r.project_id ?? '';
+      if (!id) continue;
+      if (!byProject.has(id)) byProject.set(id, []);
+      byProject.get(id)!.push(r);
+    }
+
+    const entries: Entry[] = [];
+    const truncated: { market: string; listed: number; total: number; unreached: number }[] = [];
+    let silent = 0; // in scope, but with no filing inside the period
+    let heldRecords = 0; // filings beyond an entry's own cap
+    let mergedRecords = 0; // the same filing captured twice, folded into one
+
     for (const [market, ps] of [...groups.entries()].sort((a, b) => b[1].length - a[1].length)) {
-      if (ps.length > MARKET_LIST_CAP) {
-        truncated.push({ market, listed: MARKET_LIST_CAP, total: ps.length });
-      }
       // WITHIN A MARKET, MOST SIGNIFICANT FIRST. The cap means this decides
       // WHICH projects a market shows, not merely their order, so ordering by
       // anything else silently drops the important ones.
       ps.sort((a, b) => (b.significance ?? -1) - (a.significance ?? -1));
-      for (const p of ps.slice(0, MARKET_LIST_CAP)) {
-        const rec = ctx.records.find((r) => r.project_id === p.id);
-        lines.push(
-          rec
-            ? lineForRecord(rec, `${market} | ${p.name}: `)
-            : // A project with no record in the period still belongs in a
-              // by-market list, but it has nothing to cite, so it is an
-              // assessment of our own register rather than a record.
-              commentaryLines(`${market} | ${p.name} (${p.stage ?? 'no stage'}), no filing in this period`)[0]
-        );
+
+      const forMarket: Entry[] = [];
+      let considered = 0;
+      for (const p of ps) {
+        if (forMarket.length >= MARKET_LIST_CAP) break;
+        considered++;
+        const built = buildEntry(p, byProject.get(p.id) ?? []);
+        if (!built) {
+          silent++;
+          continue;
+        }
+        heldRecords += built.held;
+        mergedRecords += built.merged;
+        // The market is on the entry's meta line, so the name does not have to
+        // carry it. "Clark County | Heart Hotel / Kulik River: ..." was a line
+        // that named a place twice and a project once.
+        forMarket.push(built.entry);
       }
+      // Truncated only if the cap is what stopped us, and the count is of the
+      // projects never looked at - not of the ones looked at and found silent,
+      // which the note below reports separately and for a different reason.
+      if (considered < ps.length) {
+        truncated.push({ market, listed: forMarket.length, total: ps.length, unreached: ps.length - considered });
+      }
+      entries.push(...forMarket);
     }
-    const held = truncated.reduce((n, t) => n + (t.total - t.listed), 0);
+
+    const notes: string[] = [];
+    if (truncated.length) {
+      const held = truncated.reduce((n, t) => n + t.unreached, 0);
+      notes.push(
+        `${entries.length} of ${ctx.projects.length} projects are described above. ` +
+          `${held} further project${held === 1 ? ' is' : 's are'} in scope and counted on the cover but not described here, ` +
+          `because this section describes at most ${MARKET_LIST_CAP} projects per market: ` +
+          truncated.map((t) => `${t.market} has ${t.total}`).join('; ') +
+          (ctx.sectionIds.includes('appendix')
+            ? '. The appendix below lists every record in scope, including theirs.'
+            : '. Add the appendix section to list every record in scope, including theirs.')
+      );
+    }
+    if (silent) {
+      // STATED, NOT PRINTED AS AN ENTRY. These are the projects the old section
+      // rendered as [ASSESSMENT] lines. They are in the client's scope and they
+      // did nothing in the period, and saying so once in a sentence is both
+      // shorter and more honest than saying it project by project in a label
+      // that claims Philip wrote it.
+      notes.push(
+        `${silent} further project${silent === 1 ? '' : 's'} in scope had no filing captured during ` +
+          `${ctx.periodLabel}, so ${silent === 1 ? 'it is' : 'they are'} not described here. ` +
+          `${silent === 1 ? 'It remains' : 'They remain'} on the register.`
+      );
+    }
+    if (heldRecords) {
+      notes.push(
+        `${heldRecords} further filing${heldRecords === 1 ? '' : 's'} on the projects above ` +
+          `${heldRecords === 1 ? 'is' : 'are'} in scope but not printed, because each project shows its ` +
+          `most recent filings only.`
+      );
+    }
+    if (mergedRecords) {
+      // The counts on the cover come from the record set, so an entry that
+      // prints six lines where the basis counted twelve records has to account
+      // for the other six. Two captures of one filing is our capture artefact -
+      // a bilingual minute, a plan captured page by page - and the client is
+      // told that rather than left to find the arithmetic.
+      notes.push(
+        `${mergedRecords} record${mergedRecords === 1 ? '' : 's'} counted on the cover ` +
+          `${mergedRecords === 1 ? 'is' : 'are'} the same filing captured more than once - a bilingual ` +
+          `minute, or a document captured page by page - and ${mergedRecords === 1 ? 'is' : 'are'} shown ` +
+          `once above.`
+      );
+    }
+
     return withCommentary('markets', ctx, {
       id: 'markets',
       title: 'By market',
-      lede: `Every project in scope, grouped by market, up to ${MARKET_LIST_CAP} per market.`,
-      lines,
-      emptyNote:
-        lines.length === 0
-          ? 'No projects in scope.'
-          : held > 0
-            ? `${lines.length} of ${ctx.projects.length} projects are listed individually above. ` +
-              `${held} further project${held === 1 ? ' is' : 's are'} in scope and counted on the cover but not listed here, ` +
-              `because this section lists at most ${MARKET_LIST_CAP} projects per market: ` +
-              truncated.map((t) => `${t.market} has ${t.total}`).join('; ') +
-              (ctx.sectionIds.includes('appendix')
-                ? '. The appendix below lists every record in scope, including theirs.'
-                : '. Add the appendix section to list every record in scope, including theirs.')
-            : undefined,
+      lede: 'Each project in scope, described from its own filings, grouped by market.',
+      lines: [],
+      entries,
+      emptyNote: entries.length === 0
+        ? `No project in this scope had a filing captured during ${ctx.periodLabel}, so there is nothing to describe.`
+        : notes.length
+          ? notes.join(' ')
+          : undefined,
     });
   },
 };
@@ -383,21 +418,38 @@ const hearings: SectionDef = {
 const watchList: SectionDef = {
   id: 'watchlist',
   label: 'Watch list',
-  description: 'Projects flagged for watching.',
+  description: 'Watched projects that moved in the period, and a count of those that did not.',
   build: (ctx) => {
     const watched = ctx.projects.filter((p) => p.watch);
-    const lines = watched.map((p) => {
+    const lines: Line[] = [];
+    // THE SAME FALLBACK, THE SAME FIX. This section had the second instance of
+    // it: a watched project with no filing in the period was printed as
+    // commentary, so "watched, no filing in this period" - a fact about our own
+    // register - carried Philip's [ASSESSMENT] tag. A watch list is most useful
+    // when it distinguishes the watched things that moved from the watched
+    // things that did not, and it can do that in one counted sentence without
+    // attributing anything to anybody.
+    let quiet = 0;
+    for (const p of watched) {
       const rec = ctx.records.find((r) => r.project_id === p.id);
-      return rec
-        ? lineForRecord(rec, `${p.name}: `)
-        : commentaryLines(`${p.name} (${p.market ?? 'no market'}), watched, no filing in this period`)[0];
-    });
+      if (!rec) {
+        quiet++;
+        continue;
+      }
+      lines.push(lineForRecord(rec, `${p.name}: `));
+    }
     return withCommentary('watchlist', ctx, {
       id: 'watchlist',
       title: 'Watch list',
-      lede: 'Projects being watched in this scope.',
+      lede: 'Projects being watched in this scope, and what they did in the period.',
       lines,
-      emptyNote: lines.length === 0 ? 'No projects in this scope are on the watch list.' : undefined,
+      emptyNote:
+        watched.length === 0
+          ? 'No projects in this scope are on the watch list.'
+          : quiet > 0
+            ? `${quiet} of the ${watched.length} watched project${watched.length === 1 ? '' : 's'} in this scope ` +
+              `had no filing captured during ${ctx.periodLabel}.`
+            : undefined,
     });
   },
 };

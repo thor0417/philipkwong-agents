@@ -42,11 +42,40 @@ function csvCell(v: string): string {
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
+// THE TABULAR FORMATS CARRY THE ENTRIES TOO.
+//
+// A spreadsheet is what gets forwarded, sorted and pasted into a deck, so a
+// section whose content moved from lines into entries must not arrive here as
+// an empty band. Every entry becomes a Project row carrying its description,
+// then one row per filing beneath it - which is also the shape a reader wants
+// in a sheet, since the project name is then filterable.
 function toRows(doc: ReportDocument): string[][] {
-  const rows: string[][] = [['Section', 'Provenance', 'Statement', 'Detail', 'Source']];
+  const rows: string[][] = [['Section', 'Project', 'Provenance', 'Statement', 'Detail', 'Source']];
   for (const sec of doc.sections) {
-    for (const l of sec.lines) rows.push([sec.title, l.provenance, l.text, l.meta ?? '', l.source ?? '']);
-    for (const l of sec.commentary) rows.push([sec.title, l.provenance, l.text, '', '']);
+    for (const l of sec.lines) rows.push([sec.title, '', l.provenance, l.text, l.meta ?? '', l.source ?? '']);
+    for (const e of sec.entries ?? []) {
+      if (e.summary) {
+        rows.push([sec.title, e.name, 'RECORD', e.summary.text, e.meta, e.summary.url]);
+      }
+      if (e.assembled) {
+        // No provenance column value: the assembled sentence is a caption of the
+        // rows beneath it, not a fourth kind of claim. Leaving the cell empty
+        // says that more honestly than borrowing one of the three labels.
+        rows.push([sec.title, e.name, '', e.assembled, e.meta, '']);
+      }
+      for (const r of e.records) {
+        const detail = [
+          r.reference,
+          r.figures.join(' | ') || null,
+          r.players.length ? `Players: ${r.players.map((p) => `${p.name} (${p.role})`).join('; ')}` : null,
+          r.contact,
+        ]
+          .filter(Boolean)
+          .join(' | ');
+        rows.push([sec.title, e.name, r.provenance, `${r.date ? `${r.date}. ` : ''}${r.text}`, detail, r.url]);
+      }
+    }
+    for (const l of sec.commentary) rows.push([sec.title, '', l.provenance, l.text, '', '']);
   }
   return rows;
 }
