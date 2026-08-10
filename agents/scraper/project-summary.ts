@@ -270,6 +270,35 @@ export function deriveSummary(records: SummaryRecord[]): SummaryResult | null {
 }
 
 /**
+ * THE SAME CLEANING, FOR ANYTHING THAT PRINTS A RECORD'S OWN WORDS.
+ *
+ * The report layer prints record text directly, and before this existed it did
+ * its own trimming and produced lines like
+ *
+ *   16. DEVELOPMENT APPLICATION NO. 2026-00022 (DEV2026-00022) GENERAL PLAN
+ *   AMENDMENT TO THE LAND USE ELEMENT ADJUSTMENT NO. 17
+ *
+ * in a client document: an agenda item number that identifies a line on a page,
+ * a case number that describes nothing, and a clerk's block capitals. All three
+ * were already solved here, for the register, and solved better - CASE_PREFIX
+ * handles Clark County's nested parentheticals, deshout leaves a real acronym
+ * alone, and stripScaffolding alternates the two patterns until they stop
+ * matching because the prefixes nest in either order.
+ *
+ * EXPORTED RATHER THAN COPIED. Two implementations of this would drift, and the
+ * one in the client document is the one nobody re-reads. This file has no
+ * imports precisely so that it can be consumed from either package.
+ *
+ * Note what it does NOT do: it does not cut to a sentence and it does not
+ * capitalise. A summary is one sentence by definition; a record line is
+ * whatever the filing sought, and truncating it is the report layer's decision
+ * to make against its own width.
+ */
+export function cleanRecordText(text: string | null | undefined): string {
+  return deshout(stripScaffolding(String(text ?? '')));
+}
+
+/**
  * The prompt for the fallback pass. Exported so the wording lives beside the
  * derivation it backs up rather than inside a script, and so it can be read
  * without running anything.
