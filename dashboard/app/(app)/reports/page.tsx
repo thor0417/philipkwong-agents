@@ -249,6 +249,8 @@ export default function ReportsPage() {
 
   const doc = built.data?.doc;
   const tally = doc ? provenanceTally(doc) : null;
+  // Mirrors assertBasis in lib/report-model, which is what actually refuses.
+  const contradictoryBasis = !!doc && doc.projectCount > 0 && doc.recordCount === 0;
   const hasCommentary = Object.values(commentary).some((v) => v.trim().length > 0);
 
   const available = SECTION_REGISTRY.filter((s) => !sectionIds.includes(s.id));
@@ -720,14 +722,29 @@ export default function ReportsPage() {
           </p>
         )}
 
+        {/* THE BASIS CONTRADICTION, BEFORE THE CLICK.
+            The generate route refuses this document, and refusing after the
+            operator has asked for it is the right backstop but the wrong first
+            line: they still had to ask, wait, and read an error. The condition
+            is visible in the preview counts, so it is said here, with the cause
+            named, and the buttons are disabled. */}
+        {contradictoryBasis && (
+          <p className={styles.error} role="alert" data-testid="basis-refusal">
+            This scope holds {doc?.projectCount} projects and 0 records for {doc?.scope.period}.
+            Every section would read &quot;no filing in this period&quot; under a cover
+            claiming {doc?.projectCount} projects, so this document will not generate.
+            Widen the period, or narrow the scope to match it.
+          </p>
+        )}
+
         <div className={styles.actions}>
-          <button type="button" className={styles.primary} disabled={!doc || busy} data-testid="gen-pdf" onClick={() => generate('pdf')}>
+          <button type="button" className={styles.primary} disabled={!doc || busy || contradictoryBasis} data-testid="gen-pdf" onClick={() => generate('pdf')}>
             {busy ? 'Working...' : 'Generate PDF'}
           </button>
-          <button type="button" className={styles.ghost} disabled={!doc || busy} data-testid="gen-csv" onClick={() => generate('csv')}>
+          <button type="button" className={styles.ghost} disabled={!doc || busy || contradictoryBasis} data-testid="gen-csv" onClick={() => generate('csv')}>
             CSV
           </button>
-          <button type="button" className={styles.ghost} disabled={!doc || busy} data-testid="gen-xlsx" onClick={() => generate('xlsx')}>
+          <button type="button" className={styles.ghost} disabled={!doc || busy || contradictoryBasis} data-testid="gen-xlsx" onClick={() => generate('xlsx')}>
             XLSX
           </button>
         </div>

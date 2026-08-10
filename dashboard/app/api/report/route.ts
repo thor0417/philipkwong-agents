@@ -20,7 +20,15 @@
 import { NextResponse } from 'next/server';
 import ExcelJS from 'exceljs';
 import { renderDocumentPdf } from './doc-pdf';
-import { assertProvenance, basisLine, provenanceTally, ProvenanceError, type ReportDocument } from '@/lib/report-model';
+import {
+  assertBasis,
+  assertProvenance,
+  BasisError,
+  basisLine,
+  provenanceTally,
+  ProvenanceError,
+  type ReportDocument,
+} from '@/lib/report-model';
 import { requireUser } from '@/lib/api-auth';
 import { createClient } from '@supabase/supabase-js';
 
@@ -115,15 +123,21 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Missing document.' }, { status: 400 });
   }
 
-  // THE GATE.
+  // THE GATES. Provenance, then basis. Both refuse rather than repair: a
+  // document that reaches this route is one an operator asked to send, and the
+  // useful answer to "this would be nonsense" is to say so and stop.
   try {
     assertProvenance(body.doc);
+    assertBasis(body.doc);
   } catch (e) {
     if (e instanceof ProvenanceError) {
       return NextResponse.json(
         { error: `Refused: ${e.message}`, kind: 'provenance' },
         { status: 422 }
       );
+    }
+    if (e instanceof BasisError) {
+      return NextResponse.json({ error: `Refused: ${e.message}`, kind: 'basis' }, { status: 422 });
     }
     throw e;
   }

@@ -384,6 +384,43 @@ export function pressLine(text: string, source: string, sourceLabel?: string, me
 
 export class ProvenanceError extends Error {}
 
+/** A document that contradicts itself on its own cover. */
+export class BasisError extends Error {}
+
+/**
+ * REFUSE A DOCUMENT WHOSE BASIS CONTRADICTS ITSELF.
+ *
+ * The report that started this rewrite went out with a cover reading
+ *
+ *   BASIS  229 projects, 0 records
+ *
+ * over sections that each read "no filing in this period". Both halves were
+ * produced correctly: 229 projects matched the scope, and 0 records matched a
+ * period that had collapsed to a single day. The document was internally
+ * consistent with its own inputs and was nonsense as a document, which is a
+ * class of failure no amount of care inside the sections can catch, because
+ * every section was individually right.
+ *
+ * So the check is on the WHOLE document, immediately before rendering, beside
+ * the provenance gate and for the same reason: generation should fail loudly
+ * rather than produce something that looks finished.
+ *
+ * Projects with no records is the only combination refused. The reverse is
+ * impossible (a record in scope belongs to a project in scope), and a document
+ * with neither is a legitimately empty scope, which the sections state honestly
+ * in their empty notes.
+ */
+export function assertBasis(doc: ReportDocument): void {
+  if (doc.projectCount > 0 && doc.recordCount === 0) {
+    throw new BasisError(
+      `This document covers ${doc.projectCount} project${doc.projectCount === 1 ? '' : 's'} ` +
+        `and 0 records for ${doc.scope.period}. Every section would read "no filing in this period" ` +
+        `under a cover claiming ${doc.projectCount} project${doc.projectCount === 1 ? '' : 's'}. ` +
+        `Widen the period, or narrow the scope to match it.`
+    );
+  }
+}
+
 /**
  * THE GATE. Throws unless every line in the document is properly labelled and
  * sourced.
