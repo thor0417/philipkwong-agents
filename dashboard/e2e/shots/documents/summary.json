@@ -8,7 +8,7 @@
   "fullFiles": {
     "pdf": 25339,
     "csv": 10550,
-    "xlsx": 10570
+    "xlsx": 10571
   },
   "deliveryStatus": "Generated XLSX. Delivery recorded.",
   "narrowed": {
@@ -27,6 +27,6 @@
     "prov": "8 record / 7 press / 1 assessment"
   },
   "referralFiles": {
-    "pdf": 13213
+    "pdf": 12863
   }
 }

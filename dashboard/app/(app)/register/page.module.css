@@ -35,6 +35,47 @@
   border-bottom: var(--border-hairline);
 }
 
+.filterBar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+/* ONE ROW PER GROUP, ALWAYS. Three groups that wrap freely grew to five rows
+   and pushed the first project row to y=370 on a 1080px screen - over a third
+   of the viewport spent on filters before any data appeared. Overflow now goes
+   behind a "more" control instead of down the page. */
+.chipRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  flex-wrap: nowrap;
+  overflow: hidden;
+  min-width: 0;
+}
+
+.chipRowLabel {
+  flex: 0 0 auto;
+  width: 62px;
+  color: var(--ink-secondary);
+  font-size: var(--type-caption);
+  text-transform: lowercase;
+}
+
+.chipMore {
+  flex: 0 0 auto;
+  border: var(--border-hairline);
+  border-radius: 2px;
+  background: none;
+  color: var(--ink-secondary);
+  font-size: var(--type-caption);
+  padding: 0 var(--space-8);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.chipMore:hover { color: var(--ink); }
+
 .chips {
   display: flex;
   flex-wrap: wrap;
@@ -115,7 +156,15 @@
      the first attempt they summed to 848px inside a 790px pane and pushed the
      last-activity column off the edge whenever the detail was open, which is
      most of the time. */
-  grid-template-columns: 32px minmax(150px, 1fr) minmax(110px, 180px) 108px 104px 92px;
+  /* SEVEN TRACKS, BECAUSE THE ROW RENDERS SEVEN CELLS.
+     The significance column was added without a track, so every cell after it
+     shifted one place right and the seventh fell into an implicit track: LAST
+     ACTIVITY rendered rotated at the far left, 32px wide, with its values
+     wrapping under the checkbox. Measured at 1920x1080 before the fix, the
+     header read Project at x=260 w=1111 and Last activity at x=216 w=32 -
+     the same x as the checkbox, one row down. */
+  grid-template-columns:
+    32px minmax(220px, 1fr) 52px minmax(140px, 200px) 132px 116px 104px;
   align-items: center;
   gap: var(--space-12);
   padding: 0 var(--space-16);
@@ -249,7 +298,8 @@
    the shared grid so every other view keeps five columns exactly. */
 .trashView .headRow,
 .trashView .row {
-  grid-template-columns: 32px minmax(150px, 1fr) minmax(110px, 180px) 108px 104px 92px auto;
+  grid-template-columns:
+    32px minmax(220px, 1fr) 52px minmax(140px, 200px) 132px 116px 104px auto;
 }
 
 .row .rowAction {
@@ -401,7 +451,10 @@
   color: var(--ink-disabled);
   line-height: 1.4;
   margin: 0 0 var(--space-8);
-  padding: 0 var(--space-8);
+  /* Matches the rail's own items, which use --space-16. At --space-8 this line
+     sat four pixels proud of every label beneath it and read as bleeding off
+     the edge. */
+  padding: 0 var(--space-16);
 }
 .railLegendDim {
   opacity: 0.55;
@@ -702,3 +755,10 @@
 .sigName { color: var(--ink); }
 .sigPts { text-align: right; }
 .sigWhy { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* THE RAIL SCROLLS WITH THE PAGE, NOT INSIDE ITSELF.
+   A second scrollbar inside a 1080px-tall column means the geography tree can
+   be scrolled out of view while the page itself has not moved, and the legend
+   ran to the viewport edge with no gutter. Both are the same cause: the rail
+   was a fixed-height overflow container. */
+.listPane > .filterBar { padding-right: var(--space-16); }

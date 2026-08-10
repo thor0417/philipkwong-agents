@@ -147,6 +147,9 @@ export default function RegisterPage() {
   // built; the register, which is the working surface, could not answer
   // "New York, then Casino/Gaming" at all - so the question had to be asked on
   // the screen that cannot act on the answer.
+  // The filter bar shows one row per group. Everything past the cap goes
+  // behind this rather than down the page.
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [venue, setVenue] = useQueryState('venue', parseAsString);
   const [category, setCategory] = useQueryState('category', parseAsString);
   const [countryParam, setCountryParam] = useQueryState('country', parseAsString);
@@ -554,6 +557,38 @@ export default function RegisterPage() {
         .map(([v, n]) => ({ value: v as string | null, label: v, count: n })),
     ];
   };
+  // A COLLAPSED GROUP STILL SHOWS WHAT IS SELECTED. Slicing the first N would
+  // hide an active chip whenever it sorted low, so the control would show no
+  // filter while a filter was applied. The active chip is always kept.
+  const CHIP_CAP = 5;
+  const visible = (chips: { value: string | null; label: string; count: number }[]) => {
+    if (filtersOpen || chips.length <= CHIP_CAP + 1) return chips;
+    const head = chips.slice(0, CHIP_CAP);
+    const active = chips.find((c) => c.value !== null && !head.includes(c) && isActive(c));
+    return active ? [...head, active] : head;
+  };
+  const more = (chips: { value: string | null; label: string; count: number }[]) => {
+    if (filtersOpen) {
+      return (
+        <button type="button" className={styles.chipMore} onClick={() => setFiltersOpen(false)}>
+          less
+        </button>
+      );
+    }
+    if (chips.length <= CHIP_CAP + 1) return null;
+    return (
+      <button
+        type="button"
+        className={styles.chipMore}
+        onClick={() => setFiltersOpen(true)}
+      >
+        +{chips.length - CHIP_CAP} more
+      </button>
+    );
+  };
+  const isActive = (c: { value: string | null }) =>
+    c.value !== null && (c.value === stage || c.value === venue || c.value === category);
+
   const venueChips = useMemo(
     () => facetChips(venueFacet.data?.counts, venue, 'All venues'),
     [venueFacet.data, venue]
@@ -590,8 +625,10 @@ export default function RegisterPage() {
 
       <div className={`${styles.listPane} ${viewKey === 'trash' ? styles.trashView : ''}`}>
         <div className={styles.listHead}>
-          <div className={styles.chips}>
-            {stageChips.map((c) => (
+          <div className={styles.filterBar}>
+          <div className={styles.chipRow} data-testid="register-stage-chips">
+            <span className={styles.chipRowLabel}>stage</span>
+            {visible(stageChips).map((c) => (
               <button
                 key={c.label}
                 type="button"
@@ -605,9 +642,11 @@ export default function RegisterPage() {
                 <span className={`${styles.chipCount} mono`}>{c.count}</span>
               </button>
             ))}
+            {more(stageChips)}
           </div>
-          <div className={styles.chips} data-testid="register-venue-chips">
-            {venueChips.map((c) => (
+          <div className={styles.chipRow} data-testid="register-venue-chips">
+            <span className={styles.chipRowLabel}>venue</span>
+            {visible(venueChips).map((c) => (
               <button
                 key={`v-${c.label}`}
                 type="button"
@@ -624,9 +663,11 @@ export default function RegisterPage() {
                 <span className={`${styles.chipCount} mono`}>{c.count}</span>
               </button>
             ))}
+            {more(venueChips)}
           </div>
-          <div className={styles.chips} data-testid="register-category-chips">
-            {categoryChips.map((c) => (
+          <div className={styles.chipRow} data-testid="register-category-chips">
+            <span className={styles.chipRowLabel}>category</span>
+            {visible(categoryChips).map((c) => (
               <button
                 key={`c-${c.label}`}
                 type="button"
@@ -643,6 +684,8 @@ export default function RegisterPage() {
                 <span className={`${styles.chipCount} mono`}>{c.count}</span>
               </button>
             ))}
+            {more(categoryChips)}
+          </div>
           </div>
           <input
             className={styles.search}
@@ -757,7 +800,7 @@ export default function RegisterPage() {
         )}
 
         <div className={styles.table} ref={listRef}>
-          <div className={styles.headRow} role="row">
+          <div className={styles.headRow} role="row" data-testid="register-head-row">
             <span />
             {COLUMNS.map((c) => (
               <button
@@ -808,6 +851,7 @@ export default function RegisterPage() {
                 data-row-id={r.id}
                 role="row"
                 tabIndex={-1}
+                data-testid="register-row"
                 className={`${styles.row} ${selected === r.id ? styles.rowSelected : ''}`}
                 onClick={() => void setSelected(r.id)}
               >
@@ -824,7 +868,7 @@ export default function RegisterPage() {
                   className={styles.cellName}
                   title={r.summary ? `${r.name}\n${r.summary}` : r.name}
                 >
-                  <span className={styles.cellNameLine}>
+                  <span className={styles.cellNameLine} data-row-name>
                     {r.watch && (
                       <span className={styles.watchDot} title="Watched" aria-label="Watched" />
                     )}
@@ -832,7 +876,9 @@ export default function RegisterPage() {
                   </span>
                   {/* The name answers "which one". This answers "what is it".
                       Rendered even when null so every row is the same height. */}
-                  <span className={styles.cellSummary}>{r.summary ?? ''}</span>
+                  <span className={styles.cellSummary} data-row-summary>
+                    {r.summary ?? ''}
+                  </span>
                 </span>
                 <span className={`${styles.cell} ${styles.num} mono`} title={significanceTitle(r)}>
                   {r.significance == null ? '--' : Math.round(r.significance)}

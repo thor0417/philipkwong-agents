@@ -27,7 +27,14 @@
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: var(--space-12) 0;
+  /* A GUTTER ON BOTH SIDES. Rail content set its own left padding per element,
+     so anything that forgot - the geography legend does - ran to the viewport
+     edge with no margin at all. The gutter belongs to the container, once,
+     rather than to every child that remembers.
+     scrollbar-gutter reserves the scrollbar's width whether or not it is
+     showing, so the tree does not shift sideways as items expand. */
+  padding: var(--space-12) var(--space-8);
+  scrollbar-gutter: stable;
   display: flex;
   flex-direction: column;
   gap: var(--space-16);
