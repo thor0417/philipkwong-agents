@@ -24,6 +24,7 @@
     "corpus:snapshot": "node --env-file=.env.local --import tsx agents/scraper/corpus-snapshot.ts",
     "verify:urls": "node --env-file=.env.local --import tsx agents/scraper/verify-urls.ts",
     "summaries": "node --env-file=.env.local --import tsx agents/scraper/migrations/backfill-project-summaries.ts",
+    "dismiss:regate": "node --env-file=.env.local --import tsx agents/scraper/migrations/dismiss-regate-classes.ts",
     "dismiss:nyc-mixed-use": "node --env-file=.env.local --import tsx agents/scraper/migrations/dismiss-nyc-mixed-use.ts",
     "rename:instruments": "node --env-file=.env.local --import tsx agents/scraper/migrations/rename-instrument-projects.ts"
   },
