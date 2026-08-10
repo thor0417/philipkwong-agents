@@ -179,6 +179,9 @@ export interface UrlAudit {
   total: number;
   ok: number;
   dead: { url: string; title: string; why: string }[];
+  // Reachability failures, kept apart from dead links on purpose. A blocked URL
+  // is a fact about this runtime; a dead one is a fact about the document.
+  blocked: { url: string; title: string; why: string }[];
   control: string;
 }
 
@@ -234,6 +237,7 @@ export async function auditUrls(sources: string[]): Promise<UrlAudit[]> {
       total: list.length,
       ok: 0,
       dead: [],
+      blocked: [],
       control: controlDesc,
     };
 
@@ -308,8 +312,26 @@ export async function auditUrls(sources: string[]): Promise<UrlAudit[]> {
     for (const r of list) {
       const f = results.get(r.id)!;
       let why = '';
-      if (f.status === 0) why = `unreachable (${f.error})`;
-      else if (f.status >= 400) why = `HTTP ${f.status}`;
+      // BLOCKED IS NOT DEAD, and reporting it as dead repeats the mistake this
+      // file exists to correct. A 403 and a connection failure both mean THIS
+      // RUNTIME could not reach the page; a client with a browser may open it
+      // perfectly. Anaheim's Granicus host stopped serving agendas to
+      // non-browser clients (see the coverage notes) and answered 163 of 179
+      // stored URLs with a transport failure that survived the serial retry.
+      // Counting those as broken links would have told Philip to remove records
+      // whose documents are fine.
+      //
+      // 404 and 410 are the publisher SAYING the document is gone. Those are
+      // dead, and they are the only ones the exit code fails on.
+      if (f.status === 0 || f.status === 403 || f.status === 401 || f.status === 429) {
+        audit.blocked.push({
+          url: r.url,
+          title: r.title ?? '',
+          why: f.status === 0 ? `unreachable (${f.error})` : `HTTP ${f.status}, this runtime is refused`,
+        });
+        continue;
+      }
+      if (f.status >= 400) why = `HTTP ${f.status}`;
       else if (softDead(f)) why = `HTTP ${f.status} but the body is a not-found page`;
       // Identical size to the control is the other soft-404 tell, for hosts
       // whose not-found page carries no recognisable wording.
@@ -327,6 +349,7 @@ async function main(): Promise<void> {
   console.log(sources.length ? `Auditing: ${sources.join(', ')}` : 'Auditing every stored URL');
   const audits = await auditUrls(sources);
   let deadTotal = 0;
+  let blockedTotal = 0;
   let unchecked = 0;
   for (const a of audits) {
     console.log(`\n${a.source}  (${a.host})`);
@@ -340,7 +363,13 @@ async function main(): Promise<void> {
       continue;
     }
     deadTotal += a.dead.length;
-    console.log(`  ${a.total} URLs -> ${a.ok} verified, ${a.dead.length} DEAD`);
+    blockedTotal += a.blocked.length;
+    console.log(
+      `  ${a.total} URLs -> ${a.ok} verified, ${a.dead.length} DEAD, ${a.blocked.length} unreachable from here`
+    );
+    if (a.blocked.length && a.dead.length === 0) {
+      console.log(`     (unreachable is NOT broken: ${a.blocked[0].why})`);
+    }
     for (const d of a.dead.slice(0, 8)) {
       console.log(`     ${d.why}  ${d.title.slice(0, 40)}`);
       console.log(`        ${d.url}`);
