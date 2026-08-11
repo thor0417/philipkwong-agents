@@ -35,6 +35,8 @@
 // codebase does cast at the PostgREST boundary. The gate does not care how a
 // line was constructed.
 
+import type { ProjectParty } from './people';
+
 export const PROVENANCE = ['RECORD', 'PRESS', 'ASSESSMENT'] as const;
 export type Provenance = (typeof PROVENANCE)[number];
 
@@ -208,6 +210,14 @@ export interface Entry {
   summary: { text: string; url: string } | null;
   // SENTENCE TWO: assembled from the record set below it.
   assembled: Assembled | null;
+  // WHO IS INVOLVED, ONCE, BEFORE THE FILINGS. Parties used to be printed inside
+  // every record line, so a six-filing project named its applicant six times and
+  // the reader had to notice a repetition to learn who was behind it. See
+  // lib/people for what a role is allowed to be.
+  people: ProjectParty[];
+  // Set instead of `people` when the records name nobody. An empty heading and a
+  // stated absence are different claims.
+  noPeopleNote: string | null;
   records: EntryRecord[];
 }
 
@@ -481,6 +491,25 @@ export function assertProvenance(doc: ReportDocument): void {
           `Entry "${entry.name}" in section "${section.id}" prints a summary with no filing to cite.`
         );
       }
+      // A NAMED PARTY IS A CLAIM ABOUT A PERSON, so it is held to the record
+      // rule: labelled, and pointing at the filing that names them.
+      for (const party of entry.people) {
+        if (party.provenance !== 'RECORD' && party.provenance !== 'PRESS') {
+          throw new ProvenanceError(
+            `Party "${party.name}" in entry "${entry.name}" is labelled ${String(party.provenance)}.`
+          );
+        }
+        if (!party.sourceUrl) {
+          throw new ProvenanceError(
+            `Party "${party.name}" in entry "${entry.name}" names a person with no record to cite.`
+          );
+        }
+        if (party.roles.length === 0) {
+          throw new ProvenanceError(
+            `Party "${party.name}" in entry "${entry.name}" is named with no role.`
+          );
+        }
+      }
       for (const r of entry.records) {
         if (r.provenance !== 'RECORD' && r.provenance !== 'PRESS') {
           throw new ProvenanceError(
@@ -515,6 +544,7 @@ export function provenanceTally(doc: ReportDocument): Record<Provenance, number>
     for (const l of [...s.lines, ...s.commentary]) out[l.provenance]++;
     for (const e of s.entries ?? []) {
       if (e.summary) out.RECORD++;
+      for (const party of e.people) out[party.provenance]++;
       for (const r of e.records) out[r.provenance]++;
     }
   }
@@ -533,7 +563,7 @@ export function estimatePages(doc: ReportDocument): number {
     // An entry is a heading, a description paragraph, and its records - each of
     // which wraps, and each of which may carry a contact line under it.
     for (const e of s.entries ?? []) {
-      lines += 3 + (e.summary ? 2 : 0);
+      lines += 3 + (e.summary ? 2 : 0) + e.people.length * 3 + (e.noPeopleNote ? 1 : 0);
       for (const r of e.records) lines += 3 + (r.contact ? 1 : 0);
     }
   }

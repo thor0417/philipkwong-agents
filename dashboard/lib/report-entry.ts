@@ -25,6 +25,7 @@
 
 import { cleanRecordText } from '../../agents/scraper/project-summary';
 import type { Project, TimelineRecord } from './projects';
+import { buildParties, distinctRecordParties, noPartiesNote } from './people';
 import {
   assembleSentence,
   isFiling,
@@ -522,6 +523,9 @@ export function buildEntry(
   const shown = ordered.slice(Math.max(0, ordered.length - cap));
 
   const brands = brandCasing(project.name);
+  // Built from the records the entry PRINTS, so the people section and the
+  // filings under it cannot describe different sets.
+  const people = buildParties(project, shown);
   const entryRecords: EntryRecord[] = shown.map((r) => {
     const reference = referenceOf(r);
     const text = actionText(r, reference, brands);
@@ -535,7 +539,12 @@ export function buildEntry(
       // twin: where the pair existed, the English one is what is printed and
       // there is nothing to declare.
       language: isSpanish(r) ? 'Spanish-language record; no English capture of this item' : null,
-      players: playersOf(r, project, isRecord),
+      // ONLY THE PARTIES THIS RECORD DOES NOT SHARE WITH THE PROJECT. The people
+      // section above names everyone once; repeating the same applicant on every
+      // line is precisely what it replaces. What survives here is the case the
+      // July standard prints, where a filing names a party the project's primary
+      // pair does not.
+      players: distinctRecordParties(r, project).map((p) => ({ name: p.name, role: p.role })),
       contact: contactOf(r),
       provenance: isRecord ? 'RECORD' : 'PRESS',
       url: r.url,
@@ -565,6 +574,8 @@ export function buildEntry(
           ? { text: tidy(project.summary), url: project.summary_url }
           : null,
       assembled: assembleSentence(entryRecords),
+      people,
+      noPeopleNote: people.length === 0 ? noPartiesNote(shown) : null,
       records: entryRecords,
     },
     held: ordered.length - shown.length,

@@ -71,6 +71,21 @@ function toRows(doc: ReportDocument): string[][] {
         // says that more honestly than borrowing one of the three labels.
         rows.push([sec.title, e.name, '', e.assembled, e.meta, '']);
       }
+      // Every party once, before the filings, the same order the document uses.
+      for (const party of e.people) {
+        const detail = [
+          party.roles.join('; '),
+          party.firm,
+          party.contact
+            ? [party.contact.email, party.contact.phone].filter(Boolean).join(', ')
+            : 'No phone or email in the record.',
+          party.alsoOn,
+        ]
+          .filter(Boolean)
+          .join(' | ');
+        rows.push([sec.title, e.name, party.provenance, `Party: ${party.name}`, detail, party.sourceUrl]);
+      }
+      if (e.noPeopleNote) rows.push([sec.title, e.name, '', e.noPeopleNote, e.meta, '']);
       for (const r of e.records) {
         const detail = [
           r.reference,

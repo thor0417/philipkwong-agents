@@ -61,6 +61,18 @@ const s = StyleSheet.create({
   // it is a statement about the filings below it, not an aside about them.
   entryAssembled: { fontSize: 9, lineHeight: 1.4, marginBottom: 5 },
 
+  // THE PEOPLE BLOCK. Set between the description and the filings, because that
+  // is the order the question is asked in: what is this, who is behind it, what
+  // have they filed.
+  people: { marginTop: 2, marginBottom: 6, paddingLeft: 8 },
+  peopleHead: { fontSize: 7, letterSpacing: 0.8, color: MUTED, textTransform: 'uppercase', marginBottom: 3 },
+  party: { flexDirection: 'row', marginBottom: 3 },
+  partyTag: { width: 46, fontSize: 6.5, letterSpacing: 0.5, color: MUTED, paddingTop: 1.5 },
+  partyBody: { flex: 1 },
+  partyName: { fontSize: 8.5 },
+  partyDetail: { fontSize: 7.5, color: MUTED },
+  peopleNone: { fontSize: 8, color: MUTED, fontStyle: 'italic', marginBottom: 6, paddingLeft: 8 },
+
   rec: { flexDirection: 'row', marginBottom: 4, paddingLeft: 8 },
   recTag: { width: 46, fontSize: 6.5, letterSpacing: 0.5, color: MUTED, paddingTop: 1.5 },
   recBody: { flex: 1 },
@@ -118,6 +130,34 @@ function EntryBlock({ e }: { e: Entry }) {
         </>
       ) : null}
       {e.assembled ? <Text style={s.entryAssembled}>{e.assembled}</Text> : null}
+
+      {e.people.length > 0 && (
+        <View style={s.people}>
+          <Text style={s.peopleHead}>The people</Text>
+          {e.people.map((party, i) => (
+            <View key={i} style={s.party} wrap={false}>
+              <Text style={s.partyTag}>[{party.provenance}]</Text>
+              <View style={s.partyBody}>
+                <Text style={s.partyName}>
+                  {party.name}
+                  {party.firm ? `, ${party.firm}` : ''}
+                  {` (${party.roles.join('; ')})`}
+                </Text>
+                <Text style={s.partyDetail}>
+                  {party.contact
+                    ? [party.contact.email, party.contact.phone].filter(Boolean).join(', ')
+                    : 'No phone or email in the record.'}
+                </Text>
+                {party.alsoOn ? <Text style={s.partyDetail}>{party.alsoOn}</Text> : null}
+                <Link src={party.sourceUrl} style={s.link}>
+                  {party.sourceLabel}
+                </Link>
+              </View>
+            </View>
+          ))}
+        </View>
+      )}
+      {e.noPeopleNote ? <Text style={s.peopleNone}>{e.noPeopleNote}</Text> : null}
 
       {e.records.map((r, i) => (
         <View key={i} style={s.rec} wrap={false}>

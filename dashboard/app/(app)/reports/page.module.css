@@ -424,3 +424,18 @@
   color: var(--accent);
   border-color: var(--accent);
 }
+
+/* THE PEOPLE BLOCK, at preview scale. Indented under the description because it
+   is part of the entry rather than a section of its own, and headed so the
+   reader knows the names are the project's set and not one filing's. */
+.people {
+  margin: var(--space-4) 0 var(--space-8);
+}
+
+.peopleHead {
+  font-size: 9px;
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+  color: var(--ink-muted);
+  margin: 0 0 var(--space-4);
+}

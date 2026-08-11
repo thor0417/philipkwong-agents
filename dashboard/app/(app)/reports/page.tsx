@@ -899,6 +899,34 @@ export default function ReportsPage() {
                     {e.assembled && (
                       <p className={styles.entryAssembled} data-entry-assembled>{e.assembled}</p>
                     )}
+                    {e.people.length > 0 && (
+                      <div className={styles.people}>
+                        <p className={styles.peopleHead}>The people</p>
+                        {e.people.map((party, i) => (
+                          <div key={i} className={styles.entryRec}>
+                            <span className={styles.tag}>[{party.provenance}]</span>
+                            <span className={styles.entryRecBody}>
+                              <b>{party.name}</b>
+                              {party.firm ? `, ${party.firm}` : ''}
+                              {` (${party.roles.join('; ')})`}
+                              <div className={styles.entryRecDetail}>
+                                {party.contact
+                                  ? [party.contact.email, party.contact.phone].filter(Boolean).join(', ')
+                                  : 'No phone or email in the record.'}
+                              </div>
+                              {party.alsoOn && (
+                                <div className={styles.entryRecDetail}>{party.alsoOn}</div>
+                              )}
+                              <div className={styles.lineSource}>{party.sourceLabel}</div>
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {e.noPeopleNote && (
+                      <p className={styles.entryHeld} data-entry-no-people>{e.noPeopleNote}</p>
+                    )}
+
                     {e.records.map((r, i) => (
                       <div key={i} className={styles.entryRec}>
                         <span className={styles.tag}>[{r.provenance}]</span>
