@@ -166,6 +166,34 @@ export default function ReportsPage() {
   const client = (clients.data ?? []).find((c) => c.id === clientId) ?? null;
   const storedScope = (clientScopes.data ?? [])[0] ?? null;
 
+  // A SCOPE THAT HAS NOT LOADED IS NOT A CLIENT WITHOUT A SCOPE.
+  //
+  // effectiveScope reads `storedScope ?? EMPTY_SCOPE`, and EMPTY_SCOPE means no
+  // constraint on any axis, which means the whole register. So a client whose
+  // scope query is still in flight, or which failed, resolves to EVERY project
+  // in EVERY market, on a cover reading "all covered markets", with nothing on
+  // screen to say the scope is missing rather than absent.
+  //
+  // Demonstrated by blocking the client_scopes request: selecting Simtec, whose
+  // stored scope names 16 markets and 14 venue types, produced 198 projects and
+  // "all covered markets" with no warning. That is a client document covering
+  // fifteen times what the client is owed, and it looks completely normal.
+  //
+  // The three states are now distinct. Pending and error refuse to build at all;
+  // a client that genuinely stores no scope builds, and says so, because that is
+  // a real and legitimate state (JKR is in it) and the reader should know the
+  // document covers everything by default rather than by choice.
+  const scopeState: 'no-client' | 'loading' | 'error' | 'unscoped' | 'scoped' = !clientId
+    ? 'no-client'
+    : clientScopes.isPending
+      ? 'loading'
+      : clientScopes.isError
+        ? 'error'
+        : storedScope
+          ? 'scoped'
+          : 'unscoped';
+  const scopeUnresolved = scopeState === 'loading' || scopeState === 'error';
+
   // THE INHERITED SCOPE, WITH THIS REPORT'S OVERRIDE APPLIED. The override is a
   // narrowing of the client's markets, never a widening: a one-off report may
   // cover less than the retainer, and offering to cover more of it here would
@@ -226,6 +254,10 @@ export default function ReportsPage() {
   const projectChoices = choices.data ?? [];
 
   const built = useQuery({
+    // Not while the scope is unresolved: building would produce, preview and
+    // offer for download a document covering the whole register under this
+    // client's name.
+    enabled: !scopeUnresolved,
     queryKey: [
       'report',
       'build',
@@ -269,6 +301,9 @@ export default function ReportsPage() {
   const tally = doc ? provenanceTally(doc) : null;
   // Mirrors assertBasis in lib/report-model, which is what actually refuses.
   const contradictoryBasis = !!doc && doc.projectCount > 0 && doc.recordCount === 0;
+  // Nothing may be generated while the scope is unknown, for the same reason
+  // nothing is built.
+  const blocked = contradictoryBasis || scopeUnresolved;
   const hasCommentary = Object.values(commentary).some((v) => v.trim().length > 0);
 
   const available = SECTION_REGISTRY.filter((s) => !sectionIds.includes(s.id));
@@ -746,6 +781,32 @@ export default function ReportsPage() {
             line: they still had to ask, wait, and read an error. The condition
             is visible in the preview counts, so it is said here, with the cause
             named, and the buttons are disabled. */}
+        {/* THE SCOPE STATE, SAID OUT LOUD. A client document whose scope did not
+            load must never be previewed or generated: unscoped means the whole
+            register, under that client's name, on a cover claiming "all covered
+            markets". */}
+        {scopeState === 'loading' && (
+          <p className={styles.hint} data-testid="scope-unresolved">
+            Loading this client&apos;s scope. Nothing is built until it is known,
+            because an unloaded scope and a client covered for everything look
+            identical to the generator.
+          </p>
+        )}
+        {scopeState === 'error' && (
+          <p className={styles.error} role="alert" data-testid="scope-unresolved">
+            This client&apos;s stored scope could not be read, so no document can be
+            built for them: {(clientScopes.error as Error)?.message}. Without it
+            the report would cover every project in every market under their name.
+          </p>
+        )}
+        {scopeState === 'unscoped' && (
+          <p className={styles.hint} data-testid="scope-none-stored">
+            {client?.name} has no stored scope, so this document covers the whole
+            register. That is what an empty scope means; set one on Clients to
+            narrow it.
+          </p>
+        )}
+
         {contradictoryBasis && (
           <p className={styles.error} role="alert" data-testid="basis-refusal">
             This scope holds {doc?.projectCount} projects and 0 records for {doc?.scope.period}.
@@ -756,13 +817,13 @@ export default function ReportsPage() {
         )}
 
         <div className={styles.actions}>
-          <button type="button" className={styles.primary} disabled={!doc || busy || contradictoryBasis} data-testid="gen-pdf" onClick={() => generate('pdf')}>
+          <button type="button" className={styles.primary} disabled={!doc || busy || blocked} data-testid="gen-pdf" onClick={() => generate('pdf')}>
             {busy ? 'Working...' : 'Generate PDF'}
           </button>
-          <button type="button" className={styles.ghost} disabled={!doc || busy || contradictoryBasis} data-testid="gen-csv" onClick={() => generate('csv')}>
+          <button type="button" className={styles.ghost} disabled={!doc || busy || blocked} data-testid="gen-csv" onClick={() => generate('csv')}>
             CSV
           </button>
-          <button type="button" className={styles.ghost} disabled={!doc || busy || contradictoryBasis} data-testid="gen-xlsx" onClick={() => generate('xlsx')}>
+          <button type="button" className={styles.ghost} disabled={!doc || busy || blocked} data-testid="gen-xlsx" onClick={() => generate('xlsx')}>
             XLSX
           </button>
         </div>
