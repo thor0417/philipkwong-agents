@@ -64,6 +64,11 @@ export interface ProjectParty {
    * layer actually holds other projects for this party.
    */
   alsoOn: string | null;
+  /**
+   * The other spellings folded into this one, so a merge can be checked rather
+   * than trusted. Empty when nothing was merged.
+   */
+  mergedFrom: string[];
 }
 
 // The roles this can emit, and the column each comes from. Ordered as a reader
@@ -74,6 +79,12 @@ const ROLE_REPRESENTATIVE = 'representative';
 const ROLE_PRESENTER = 'presented by';
 const ROLE_CONTACT = 'contact named in the record';
 const ROLE_ORDER = [ROLE_APPLICANT, ROLE_REPRESENTATIVE, ROLE_PRESENTER, ROLE_CONTACT];
+
+// Words printed in capitals that are not acronyms of two letters. Used only to
+// choose between two spellings of the same name.
+function shoutedWordCount(v: string): number {
+  return v.split(/\s+/).filter((w) => w.length > 2 && w === w.toUpperCase() && /[A-Z]{3}/.test(w)).length;
+}
 
 function tidy(s: string | null | undefined): string {
   return String(s ?? '').replace(/\s+/g, ' ').trim();
@@ -109,6 +120,68 @@ export function cleanPartyName(raw: string | null | undefined): string | null {
 /** Two spellings of one party. Case, punctuation and spacing are not identity. */
 export function normaliseParty(name: string): string {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
+// ---- ONE BODY, SPELLED THREE WAYS -------------------------------------------
+//
+// Metropolitan Park printed seven parties that were three institutions:
+//
+//   Department of Housing Preservation and Development
+//   Housing Preservation and Development
+//   NYC Department of Housing Preservation and Development
+//
+// all one agency, and NYCEDC twice under two spellings. A reader notices the
+// repetition before they notice the content, so the section reads as a list
+// nobody checked rather than as a counterparty map.
+//
+// The qualifiers a government body's name picks up and drops between filings are
+// the whole cause. They are stripped from the FRONT, repeatedly, because they
+// stack: "NYC Department of Housing Preservation and Development" carries two.
+const LEADING_QUALIFIER =
+  /^(?:the |nyc |new york city |city of |county of |town of |village of |borough of |state of |department of |dept of |office of |bureau of |division of |board of )/;
+
+/**
+ * The body a name refers to, with its qualifiers removed.
+ *
+ * Deliberately NOT an acronym expander. "HPD" and "Housing Preservation and
+ * Development" are the same agency to a person and identical to nothing a
+ * machine can check without a lookup table, and a wrong merge here silently
+ * deletes a party from a client document.
+ */
+export function institutionKey(name: string): string {
+  let s = normaliseParty(name);
+  for (let i = 0; i < 4; i++) {
+    const next = s.replace(LEADING_QUALIFIER, '');
+    if (next === s) break;
+    s = next.trim();
+  }
+  return s;
+}
+
+// A NAME THAT LISTS SEVERAL BODIES IS NOT ONE BODY.
+//
+// "New York City Economic Development Corporation, Queens Development Group,
+// LLC, and CFG Stadium Group, LLC" names three parties in one string. Folding it
+// into NYCEDC would delete the other two, which is the one thing a merge must
+// never do. Two or more company markers in a single string means the string is a
+// list, and a list is never merged with anything.
+const COMPANY_SUFFIX_TOKEN = /\b(llc|l\.l\.c|inc|incorporated|ltd|limited|lp|llp|plc|corp|corporation|company)\b/gi;
+
+export function namesSeveralBodies(name: string): boolean {
+  return (name.match(COMPANY_SUFFIX_TOKEN) ?? []).length >= 2;
+}
+
+// Below this a folded key is too generic to be identity. "development" would
+// merge half the register.
+const MIN_KEY_WORDS = 2;
+const MIN_KEY_CHARS = 12;
+
+export function mergeableKey(name: string): string | null {
+  if (namesSeveralBodies(name)) return null;
+  const key = institutionKey(name);
+  if (key.length < MIN_KEY_CHARS) return null;
+  if (key.split(' ').length < MIN_KEY_WORDS) return null;
+  return key;
 }
 
 // A PERSON AND THEIR FIRM, SPLIT ONLY WHERE THE SHAPE IS UNAMBIGUOUS.
@@ -147,6 +220,7 @@ function splitNameAndFirm(full: string): { name: string; firm: string | null } {
 
 interface Accum {
   display: string;
+  mergedFrom: string[];
   roles: Set<string>;
   isFiling: boolean;
   url: string;
@@ -193,6 +267,7 @@ export function buildParties(project: Project, records: ScopedRecord[]): Project
     if (!prior) {
       byKey.set(key, {
         display: cleaned,
+        mergedFrom: [],
         roles: new Set([role]),
         isFiling: filing,
         url: r.url,
@@ -206,6 +281,15 @@ export function buildParties(project: Project, records: ScopedRecord[]): Project
     }
     prior.roles.add(role);
     prior.mentions++;
+    // Two spellings that normalise to one key arrive here, and the first seen
+    // used to keep the display. "ANN Pierce" beat "Ann Pierce" by arriving
+    // first, which is not a reason.
+    if (
+      cleaned.toLowerCase() === prior.display.toLowerCase() &&
+      shoutedWordCount(cleaned) < shoutedWordCount(prior.display)
+    ) {
+      prior.display = cleaned;
+    }
     // A FILING OUTRANKS PRESS as the citation. If any record naming this party
     // is a government filing, that is the one worth pointing the reader at.
     if (filing && !prior.isFiling) {
@@ -250,13 +334,23 @@ export function buildParties(project: Project, records: ScopedRecord[]): Project
     const short = byKey.get(shortKey);
     if (!short || shortKey.split(' ').length < 2) continue;
     const longKey = keys.find(
-      (k) => k !== shortKey && k.length > shortKey.length && k.startsWith(`${shortKey} `)
+      (k) =>
+        k !== shortKey &&
+        k.length > shortKey.length &&
+        k.startsWith(`${shortKey} `) &&
+        // A LIST IS NEVER A LONGER SPELLING OF ITS FIRST MEMBER.
+        // "Anaheim Real Estate Partners, LLC" is a prefix of "Anaheim Real
+        // Estate Partners, LLC, TS Anaheim, LLC and FCD, LLC (OCVIBE)", and
+        // folding the one into the other loses the fact that some filings name
+        // the single applicant and others name all three.
+        !namesSeveralBodies(byKey.get(k)?.display ?? '')
     );
     if (!longKey) continue;
     const long = byKey.get(longKey);
     if (!long) continue;
     for (const role of short.roles) long.roles.add(role);
     long.mentions += short.mentions;
+    long.mergedFrom.push(short.display, ...short.mergedFrom);
     long.email = long.email ?? short.email;
     long.phone = long.phone ?? short.phone;
     if (short.isFiling && !long.isFiling) {
@@ -266,6 +360,55 @@ export function buildParties(project: Project, records: ScopedRecord[]): Project
       long.date = short.date;
     }
     byKey.delete(shortKey);
+  }
+
+  // ---- THE SAME BODY UNDER DIFFERENT QUALIFIERS --------------------------
+  //
+  // Run after the prefix pass, on what survives it. The longest spelling wins
+  // the display, because "NYC Department of Housing Preservation and
+  // Development" is the one a reader can look up, and every folded spelling is
+  // recorded so the merge can be checked.
+  // WHICH SPELLING SURVIVES. The fullest one, but a SHOUTED spelling loses to a
+  // properly cased one of the same length: "ANN Pierce" and "Ann Pierce" are the
+  // same person and only one of them is her name.
+  // CASE ONLY DECIDES BETWEEN CASE-VARIANTS OF THE SAME NAME. Penalising capitals
+  // in general threw away the useful qualifier: "NYC Department of Housing
+  // Preservation and Development" lost to "Department of Housing Preservation
+  // and Development" because NYC reads as shouting. Between two spellings of
+  // DIFFERENT text the fuller one always wins; between "ANN Pierce" and "Ann
+  // Pierce" the properly cased one does.
+  const shoutedWords = (v: string) =>
+    v.split(/\s+/).filter((w) => w.length > 2 && w === w.toUpperCase() && /[A-Z]{3}/.test(w)).length;
+  const betterDisplay = (a: string, b: string): number =>
+    a.toLowerCase() === b.toLowerCase() ? shoutedWords(a) - shoutedWords(b) : b.length - a.length;
+
+  const byInstitution = new Map<string, string>();
+  for (const key of [...byKey.keys()].sort((a, b) =>
+    betterDisplay(byKey.get(a)!.display, byKey.get(b)!.display)
+  )) {
+    const acc = byKey.get(key);
+    if (!acc) continue;
+    const folded = mergeableKey(acc.display);
+    if (!folded) continue;
+    const winnerKey = byInstitution.get(folded);
+    if (winnerKey === undefined) {
+      byInstitution.set(folded, key);
+      continue;
+    }
+    const winner = byKey.get(winnerKey);
+    if (!winner) continue;
+    for (const r of acc.roles) winner.roles.add(r);
+    winner.mentions += acc.mentions;
+    winner.email = winner.email ?? acc.email;
+    winner.phone = winner.phone ?? acc.phone;
+    winner.mergedFrom.push(acc.display, ...acc.mergedFrom);
+    if (acc.isFiling && !winner.isFiling) {
+      winner.isFiling = true;
+      winner.url = acc.url;
+      winner.label = acc.label;
+      winner.date = acc.date;
+    }
+    byKey.delete(key);
   }
 
   const out: ProjectParty[] = [...byKey.values()].map((a) => {
@@ -281,6 +424,7 @@ export function buildParties(project: Project, records: ScopedRecord[]): Project
       mentions: a.mentions,
       contact: a.email || a.phone ? { email: a.email, phone: a.phone } : null,
       alsoOn: null,
+      mergedFrom: [...new Set(a.mergedFrom)],
     };
   });
 

@@ -6,9 +6,9 @@
     "prov": "71 record / 4 press / 6 assessment"
   },
   "fullFiles": {
-    "pdf": 52400,
-    "csv": 24694,
-    "xlsx": 14480
+    "pdf": 52543,
+    "csv": 24935,
+    "xlsx": 14691
   },
   "detail15": {
     "p": "198 projects",
@@ -19,12 +19,12 @@
   "detail30": {
     "p": "198 projects",
     "r": "276 records",
-    "pg": "~17 pages",
-    "prov": "143 record / 11 press / 7 assessment"
+    "pg": "~18 pages",
+    "prov": "144 record / 11 press / 7 assessment"
   },
   "detailFiles": {
-    "at15": 67805,
-    "at30": 95915
+    "at15": 67871,
+    "at30": 96357
   },
   "deliveryStatus": "Generated CSV. Delivery recorded.",
   "narrowed": {
