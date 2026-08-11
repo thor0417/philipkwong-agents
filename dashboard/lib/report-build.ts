@@ -8,7 +8,9 @@
 import { supabase } from './supabase';
 import {
   applyPostFilters,
+  hasRecordFacets,
   projectsHoldingStreams,
+  projectsMatchingRecordFacets,
   resolveScope,
   type ClientScope,
 } from './clients';
@@ -95,7 +97,7 @@ export interface BuiltReport {
 }
 
 export async function buildReport(req: BuildRequest): Promise<BuiltReport> {
-  const { query, postFilters, streams } = resolveScope(req.scope);
+  const { query, postFilters, streams, recordFacets } = resolveScope(req.scope);
 
   const { data: pdata, error: perr } = await applyProjectFilters(
     supabase.from('projects').select(PROJECT_COLUMNS),
@@ -154,6 +156,17 @@ export async function buildReport(req: BuildRequest): Promise<BuiltReport> {
   // trip and this is the smallest the set will get.
   if (streams && projects.length) {
     const keep = await projectsHoldingStreams(projects.map((p) => p.id), streams);
+    projects = projects.filter((p) => keep.has(p.id));
+  }
+
+  // MARKET, VENUE AND CATEGORY, MATCHED AGAINST THE RECORDS. Each is a mode over
+  // a project's records, so filtering the stored column asks whether the
+  // project's most common value matches rather than whether the project has any
+  // record that does. A client scoped to Casino/Gaming was not shown Top Gun Las
+  // Vegas, which is filed as a Family Entertainment Center and whose records
+  // name both Integrated Resort and Casino/Gaming.
+  if (hasRecordFacets(recordFacets) && projects.length) {
+    const keep = await projectsMatchingRecordFacets(projects.map((p) => p.id), recordFacets);
     projects = projects.filter((p) => keep.has(p.id));
   }
 
@@ -362,7 +375,7 @@ export function geographyLabel(scope: ClientScope): string {
 export async function listScopeProjects(
   scope: ClientScope
 ): Promise<{ id: string; name: string; market: string | null }[]> {
-  const { query, postFilters, streams } = resolveScope(scope);
+  const { query, postFilters, streams, recordFacets } = resolveScope(scope);
   const { data, error } = await applyProjectFilters(
     supabase.from('projects').select('id,name,market,venue_type,development_category,stage'),
     { ...query, module: query.module ?? LIVE_PIPELINE_STORAGE_KEY }
@@ -375,6 +388,13 @@ export async function listScopeProjects(
   // picker listing a project the generator then drops is a control that lies.
   if (streams && rows.length) {
     const keep = await projectsHoldingStreams(rows.map((r) => String(r.id)), streams);
+    rows = rows.filter((r) => keep.has(String(r.id)));
+  }
+  // Same record-based match as buildReport, for the same reason: a picker that
+  // offers a different set from the one the generator covers is a control that
+  // lies.
+  if (hasRecordFacets(recordFacets) && rows.length) {
+    const keep = await projectsMatchingRecordFacets(rows.map((r) => String(r.id)), recordFacets);
     rows = rows.filter((r) => keep.has(String(r.id)));
   }
   return rows.map((r) => ({

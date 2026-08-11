@@ -177,3 +177,75 @@ export function useArrivedProjectIds(period: ResolvedPeriod, enabled: boolean) {
     staleTime: 30_000,
   });
 }
+
+// ---- THE REGISTER'S OWN MARKET, VENUE AND CATEGORY FILTERS ------------------
+//
+// Same defect, same fix, on the working surface rather than in a client scope.
+// projects.market, venue_type and development_category are each a mode over the
+// project's records, so filtering the column asks whether the project's most
+// common value matches. Filtering the RECORDS asks whether the project has
+// anything to do with the value, which is what the control means.
+//
+// Resolved to ids and intersected with the period axis by the caller, because a
+// project has to satisfy both.
+export interface FacetProjects {
+  ids: string[];
+  records: number;
+  capped: boolean;
+}
+
+export async function fetchProjectIdsMatchingRecords(facets: {
+  market?: string | null;
+  venue_type?: string | null;
+  development_category?: string | null;
+}): Promise<FacetProjects> {
+  const axes: [string, string][] = [];
+  if (facets.market) axes.push(['market', facets.market]);
+  if (facets.venue_type) axes.push(['venue_type', facets.venue_type]);
+  if (facets.development_category) axes.push(['development_category', facets.development_category]);
+
+  let keep: Set<string> | null = null;
+  let records = 0;
+  let capped = false;
+  for (const [field, value] of axes) {
+    const { data, error } = await supabase
+      .from('leads')
+      .select('project_id')
+      .not('project_id', 'is', null)
+      .neq('status', 'dismissed')
+      // ilike with no wildcards is a whole-string, case-insensitive match. The
+      // register's chips are exact today, but the scope path matches tolerantly
+      // and two paths asking the same question must not use different rules.
+      .ilike(field, value)
+      .limit(RECORD_ID_CAP);
+    if (error) throw new Error(`register ${field} query failed: ${error.message}`);
+    const rows = (data ?? []) as { project_id: string | null }[];
+    records += rows.length;
+    capped = capped || rows.length >= RECORD_ID_CAP;
+    const matched = new Set<string>();
+    for (const r of rows) if (r.project_id) matched.add(r.project_id);
+    // Each axis is ANDed: a project needs a matching record on every constrained
+    // axis, though not necessarily the same record, because a project's venue is
+    // often named on a different filing from the one naming its market.
+    keep = keep === null ? matched : new Set([...keep].filter((id: string) => matched.has(id)));
+  }
+  return { ids: [...(keep ?? new Set<string>())], records, capped };
+}
+
+export function useProjectIdsMatchingRecords(
+  facets: { market?: string | null; venue_type?: string | null; development_category?: string | null },
+  enabled: boolean
+) {
+  return useQuery({
+    queryKey: [
+      'projects',
+      'record-facets',
+      facets.market ?? '',
+      facets.venue_type ?? '',
+      facets.development_category ?? '',
+    ],
+    queryFn: () => fetchProjectIdsMatchingRecords(facets),
+    enabled,
+    staleTime: 30_000,
+  });
+}

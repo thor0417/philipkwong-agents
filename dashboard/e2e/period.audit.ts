@@ -209,9 +209,12 @@ test('a project that only gained a record in the period still arrives in it', as
     timeout: 120_000,
   });
   const projectId = await row.getAttribute('data-row-id');
-  await row.click();
-  await page.keyboard.press('Enter');
-  await page.waitForURL(/\/project\//, { timeout: 60_000 });
+  // Straight to the project page by id. Clicking the row and pressing Enter is
+  // the navigation a person uses and it is covered by referral.audit; here it
+  // is only a way of reaching the page, and under a full suite run the focus it
+  // depends on is not reliably where the keypress needs it.
+  await page.goto(`/project/${projectId}`, { waitUntil: 'domcontentloaded' });
+  await expect(page.locator('[data-fact="first-seen"]')).toBeVisible({ timeout: 60_000 });
 
   const firstSeen = (await page.locator('[data-fact="first-seen"]').textContent())?.trim() ?? '';
   console.log(`${FIXTURE.name}: own first_seen ${firstSeen}, period ${FIXTURE.period}`);

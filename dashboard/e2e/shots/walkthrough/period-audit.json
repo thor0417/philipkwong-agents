@@ -26,7 +26,7 @@
     "summed": 190
   },
   "moved": {
-    "month": 149,
+    "month": 151,
     "weeks": [
       {
         "token": "c:2026-07-01..2026-07-05",
@@ -38,7 +38,7 @@
       },
       {
         "token": "c:2026-07-13..2026-07-19",
-        "count": 7
+        "count": 8
       },
       {
         "token": "c:2026-07-20..2026-07-26",
@@ -46,13 +46,13 @@
       },
       {
         "token": "c:2026-07-27..2026-07-31",
-        "count": 23
+        "count": 24
       }
     ],
-    "summed": 171
+    "summed": 173
   },
   "arrivedJuly": 150,
-  "movedJuly": 149,
-  "allTime": 293,
+  "movedJuly": 151,
+  "allTime": 300,
   "emptyPeriod": 0
 }

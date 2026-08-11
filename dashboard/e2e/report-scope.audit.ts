@@ -78,11 +78,61 @@ test('the three axes the composer used to drop', async ({ page }) => {
     .neq('status', 'dismissed')
     .limit(3000);
   const fold = (v: unknown) => String(v ?? '').trim().replace(/\s+/g, ' ').toLowerCase();
+
+  // MARKET, VENUE AND CATEGORY MATCH ON ANY OF A PROJECT'S RECORDS.
+  //
+  // Each of those project columns is a mode over the project's records, so
+  // matching the column asks whether the project's most common value matches
+  // rather than whether the project has any record that does. That is a
+  // commercial defect, not a cosmetic one: the scope decides what a paying
+  // client is covered for, and Top Gun Las Vegas is filed as a Family
+  // Entertainment Center while its records also name Casino/Gaming.
+  //
+  // So the expected numbers here are computed the way the scope now resolves.
+  // Computing them from the mode column would make this audit agree with the
+  // defect and disagree with the fix.
+  const facetsByProject = new Map<string, { market: Set<string>; venue: Set<string>; category: Set<string> }>();
+  const allIds = (rows ?? []).map((r) => r.id as string);
+  for (let i = 0; i < allIds.length; i += 150) {
+    const { data: recs } = await admin
+      .from('leads')
+      .select('project_id,market,venue_type,development_category')
+      .in('project_id', allIds.slice(i, i + 150))
+      .neq('status', 'dismissed');
+    for (const r of recs ?? []) {
+      const id = r.project_id as string;
+      if (!facetsByProject.has(id)) {
+        facetsByProject.set(id, { market: new Set(), venue: new Set(), category: new Set() });
+      }
+      const f = facetsByProject.get(id)!;
+      if (r.market) f.market.add(fold(r.market));
+      if (r.venue_type) f.venue.add(fold(r.venue_type));
+      if (r.development_category) f.category.add(fold(r.development_category));
+    }
+  }
+  const anyOf = (id: string, key: 'market' | 'venue' | 'category', values: string[]) =>
+    values.length === 0 || values.map(fold).some((v) => facetsByProject.get(id)?.[key].has(v));
+
   // EVERY STORED AXIS, not the two this audit first knew about. Leaving venue
   // out produced an "expected" of 37 against a correct 4 and read as the filter
   // being broken - the audit lying about the code rather than the other way
   // round, which is the more dangerous direction.
   const inScope = (rows ?? []).filter(
+    (r) =>
+      anyOf(r.id as string, 'market', markets) &&
+      (stages.length === 0 || stages.map(fold).includes(fold(r.stage))) &&
+      anyOf(r.id as string, 'venue', venues) &&
+      anyOf(r.id as string, 'category', categories) &&
+      fold(r.stage) !== 'dormant'
+  );
+  console.log(`  database says the stored scope covers ${inScope.length} projects`);
+
+  // AND THE FIX IS ASSERTED, not merely relied on. Matching the records can only
+  // ever find MORE projects than matching the one mode column, because every
+  // project whose mode matches also has a record carrying that value. If these
+  // two are equal for every axis the scope constrains, the record matching is
+  // not doing anything.
+  const byMode = (rows ?? []).filter(
     (r) =>
       (markets.length === 0 || markets.map(fold).includes(fold(r.market))) &&
       (stages.length === 0 || stages.map(fold).includes(fold(r.stage))) &&
@@ -90,7 +140,14 @@ test('the three axes the composer used to drop', async ({ page }) => {
       (categories.length === 0 || categories.map(fold).includes(fold(r.development_category))) &&
       fold(r.stage) !== 'dormant'
   );
-  console.log(`  database says the stored scope covers ${inScope.length} projects`);
+  console.log(
+    `  matching the mode column would cover ${byMode.length}; matching any record covers ` +
+      `${inScope.length} (+${inScope.length - byMode.length})`
+  );
+  expect(
+    inScope.length,
+    'matching any record found FEWER projects than matching the mode column, which is impossible'
+  ).toBeGreaterThanOrEqual(byMode.length);
 
   // Which lanes each in-scope project holds a record in.
   const streamsByProject = new Map<string, Set<string>>();
@@ -158,24 +215,36 @@ test('the three axes the composer used to drop', async ({ page }) => {
     await settled();
   }
 
+  // The per-axis expectations are record-based for the same reason the baseline
+  // is: narrowing by a category now asks whether a project has any record in it.
   const CATEGORY = 'Hospitality/Tourism';
   await narrow(
     'category',
     CATEGORY,
-    inScope.filter((r) => fold(r.development_category) === fold(CATEGORY)).length
+    inScope.filter((r) => anyOf(r.id as string, 'category', [CATEGORY])).length
   );
 
   // The venue chip must come from what the composer offers, which a stored
   // venue constraint narrows to that constraint. Picking the commonest venue
   // among the in-scope projects guarantees the narrowing is a real subset
   // rather than a no-op or an empty one.
+  // Counted over the RECORDS, so the chosen venue is the one the composer will
+  // now actually match the most projects on.
   const venueCounts = new Map<string, number>();
   for (const r of inScope) {
-    if (r.venue_type) venueCounts.set(r.venue_type as string, (venueCounts.get(r.venue_type as string) ?? 0) + 1);
+    for (const v of facetsByProject.get(r.id as string)?.venue ?? []) {
+      venueCounts.set(v, (venueCounts.get(v) ?? 0) + 1);
+    }
   }
-  const VENUE = [...venueCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
+  // facetsByProject holds folded values; the chip is labelled with the canonical
+  // spelling, so map back through the stored scope's own list.
+  const canonicalVenue = new Map(venues.map((v) => [fold(v), v]));
+  const topVenueFolded = [...venueCounts.entries()]
+    .filter(([v]) => canonicalVenue.has(v))
+    .sort((a, b) => b[1] - a[1])[0]?.[0];
+  const VENUE = topVenueFolded ? canonicalVenue.get(topVenueFolded) : undefined;
   expect(VENUE, 'no in-scope project carries a venue type to narrow by').toBeTruthy();
-  await narrow('venue', VENUE!, inScope.filter((r) => fold(r.venue_type) === fold(VENUE)).length);
+  await narrow('venue', VENUE!, inScope.filter((r) => anyOf(r.id as string, 'venue', [VENUE!])).length);
 
   // Both lanes, because they answer different questions: 'intelligence' shows
   // the axis narrowing to a real subset, and 'opportunity' shows it landing on

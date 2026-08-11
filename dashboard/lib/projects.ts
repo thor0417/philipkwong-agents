@@ -134,7 +134,7 @@ export type LooseField =
 
 // `%` and `_` are wildcards to ilike. No market is spelled with one today, but
 // a value that arrives with one must match itself rather than a pattern.
-function likeLiteral(v: string): string {
+export function likeLiteral(v: string): string {
   return v.trim().replace(/\s+/g, ' ').replace(/([\\%_])/g, '\\$1');
 }
 

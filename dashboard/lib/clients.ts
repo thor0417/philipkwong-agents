@@ -17,7 +17,7 @@
 
 import { supabase } from './supabase';
 import { HOSPITALITY_ID, storageKeyFor } from './pipelines';
-import type { LooseField, ProjectQuery } from './projects';
+import { likeLiteral, type LooseField, type ProjectQuery } from './projects';
 
 export interface Client {
   id: string;
@@ -297,6 +297,9 @@ export interface ResolvedScope {
   // Axes the scope leaves unconstrained, so the preview can say "every market"
   // rather than showing a blank.
   unconstrained: string[];
+  // The axes matched against the project's RECORDS rather than against its own
+  // mode column. Resolved by the caller, the same way streams are.
+  recordFacets: RecordFacets;
 }
 
 function nonEmpty(a: string[] | null | undefined): string[] | null {
@@ -355,12 +358,20 @@ export function resolveScope(scope: ClientScope): ResolvedScope {
 
   axis(countries, 'country');
   axis(regions, 'region_state');
-  axis(markets, 'market');
   axis(stages, 'stage');
-  axis(categories, 'development_category');
-  // venue_type has no exact ProjectQuery field, but it is a real column, so a
-  // single venue narrows on the server exactly as a single market does.
-  axis(venues, 'venue_type');
+  // MARKET, VENUE AND CATEGORY ARE NOT FILTERED ON THE PROJECT COLUMN.
+  //
+  // Each is a mode over the project's records, so filtering the column asks
+  // whether the project's most common value matches rather than whether the
+  // project has any record that matches. See projectsMatchingRecordFacets for
+  // the measured cost. They are returned as recordFacets and resolved against
+  // the records by the caller, which is the same shape the stream axis has used
+  // since it was added.
+  //
+  // country, region and stage stay on the project row: region_state showed zero
+  // disagreement across the corpus, and stage is a ladder value the clusterer
+  // computes for the project as a whole rather than a value any single record
+  // carries.
 
   const unconstrained: string[] = [];
   if (!countries) unconstrained.push('country');
@@ -371,7 +382,17 @@ export function resolveScope(scope: ClientScope): ResolvedScope {
   if (!venues) unconstrained.push('venue type');
   if (!streams) unconstrained.push('stream');
 
-  return { query, postFilters, streams, unconstrained };
+  return {
+    query,
+    postFilters,
+    streams,
+    unconstrained,
+    recordFacets: {
+      markets,
+      venue_types: venues,
+      development_categories: categories,
+    },
+  };
 }
 
 /** Apply the post-filters a scope could not push to the server. */
@@ -423,6 +444,97 @@ export async function projectsHoldingStreams(
     for (const r of (data ?? []) as { project_id: string | null }[]) {
       if (r.project_id) keep.add(r.project_id);
     }
+  }
+  return keep;
+}
+
+// ---- MATCHING ON ANY RECORD, NOT ON THE PROJECT'S ONE LABEL -----------------
+//
+// projects.venue_type, development_category and market are each a MODE over the
+// project's records: the clusterer picks the most common value and stores it so
+// a project has one primary label to show. Filtering on that column asks "is
+// this project's most common venue a casino", when the question a scope means is
+// "does this project have anything to do with casinos".
+//
+// Measured on the corpus of 2026-08-11, projects whose records disagree with
+// their own stored label:
+//
+//   venue_type              21 projects
+//   development_category    17 projects
+//   market                   3 projects
+//
+// Top Gun Las Vegas is filed as Family Entertainment Center and its records also
+// name Integrated Resort and Casino/Gaming, so a client scoped to Casino/Gaming
+// did not see it. That is a commercial defect: the scope decides what a paying
+// client is covered for.
+//
+// THE MODE COLUMN STAYS, because a project does need one primary label and every
+// list, entry heading and grouping uses it. What changes is that MATCHING reads
+// the records.
+export interface RecordFacets {
+  markets?: string[] | null;
+  venue_types?: string[] | null;
+  development_categories?: string[] | null;
+}
+
+export function hasRecordFacets(f: RecordFacets): boolean {
+  return !!(f.markets?.length || f.venue_types?.length || f.development_categories?.length);
+}
+
+/**
+ * The subset of `ids` holding at least one live record that matches EVERY
+ * constrained facet.
+ *
+ * Each facet is ANDed and its values are ORed, which is how the scope reads
+ * elsewhere: "Nevada or California" and "casino or theme park" means a project
+ * needs a Nevada-or-California record AND a casino-or-theme-park record. It does
+ * NOT require one single record to satisfy both, because a project's venue is
+ * often named on a different filing from the one that names its market.
+ */
+export async function projectsMatchingRecordFacets(
+  ids: string[],
+  facets: RecordFacets
+): Promise<Set<string>> {
+  const axes: [string, string[]][] = [];
+  if (facets.markets?.length) axes.push(['market', facets.markets]);
+  if (facets.venue_types?.length) axes.push(['venue_type', facets.venue_types]);
+  if (facets.development_categories?.length)
+    axes.push(['development_category', facets.development_categories]);
+
+  let keep = new Set(ids);
+  for (const [field, values] of axes) {
+    const matched = new Set<string>();
+    const pool = [...keep];
+    // CASE-TOLERANT, like the loose filter this replaced.
+    //
+    // The first version used .in(), which is exact, and silently un-fixed the
+    // thing scope-match.audit exists to protect: a scope stored as
+    // ["clark county"] matched nothing at all. Scope values are typed by a
+    // person and normalised for whitespace on the way in but deliberately not
+    // for case, because lower-casing them would store a value that appears
+    // nowhere in the register. Tolerance belongs at the match, which is where
+    // resolveScope always put it.
+    //
+    // PostgREST reads `or` as a comma-separated filter list, so each value is
+    // double-quoted: a market legitimately containing a comma would otherwise
+    // split into two filters.
+    const orFilter = values
+      .map((v) => `${field}.ilike."${likeLiteral(v).replace(/"/g, '\\"')}"`)
+      .join(',');
+    for (let i = 0; i < pool.length; i += ID_CHUNK) {
+      const { data, error } = await supabase
+        .from('leads')
+        .select('project_id')
+        .in('project_id', pool.slice(i, i + ID_CHUNK))
+        .or(orFilter)
+        .neq('status', 'dismissed');
+      if (error) throw new Error(`scope ${field} query failed: ${error.message}`);
+      for (const r of (data ?? []) as { project_id: string | null }[]) {
+        if (r.project_id) matched.add(r.project_id);
+      }
+    }
+    keep = matched;
+    if (keep.size === 0) break;
   }
   return keep;
 }

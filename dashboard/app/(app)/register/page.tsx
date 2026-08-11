@@ -32,7 +32,12 @@ import { useFacet } from '@/lib/use-leads';
 import type { LeadQuery } from '@/lib/query';
 import PeriodSelector from '@/components/PeriodSelector';
 import { BUCKETS, PERIOD_AXES, bucketOf, type BucketMode } from '@/lib/period';
-import { usePeriodState, useArrivedProjectIds, useMovedProjectIds } from '@/lib/use-period';
+import {
+  usePeriodState,
+  useArrivedProjectIds,
+  useMovedProjectIds,
+  useProjectIdsMatchingRecords,
+} from '@/lib/use-period';
 import RegisterRail from './RegisterRail';
 import RegisterDetail from './RegisterDetail';
 import styles from './page.module.css';
@@ -180,6 +185,16 @@ export default function RegisterPage() {
   const moved = useMovedProjectIds(period, axis === 'moved' && period.key !== 'all');
   const arrived = useArrivedProjectIds(period, axis === 'arrived' && period.key !== 'all');
 
+  // MARKET, VENUE AND CATEGORY MATCH ON ANY RECORD, NOT ON THE PROJECT'S LABEL.
+  // Each of those project columns is a mode over the project's records, so
+  // filtering the column asked whether the project's most common value matched.
+  // Measured: 21 projects hold a record naming a venue their own label does not,
+  // 17 a category, 3 a market. Top Gun Las Vegas is filed as a Family
+  // Entertainment Center and its records also name Casino/Gaming.
+  const recordFacetFilter = { market, venue_type: venue, development_category: category };
+  const facetConstrained = !!(market || venue || category);
+  const facetIds = useProjectIdsMatchingRecords(recordFacetFilter, facetConstrained);
+
   const [error, setError] = useState<string | null>(null);
   const [searchDraft, setSearchDraft] = useState(search);
   const [checked, setChecked] = useState<Set<string>>(new Set());
@@ -201,13 +216,16 @@ export default function RegisterPage() {
 
   const country = effectiveCountry(countryParam);
 
+  // market is NOT here: it is a mode over the project's records and is resolved
+  // against them, alongside venue and category. country and region_state stay on
+  // the project row - region_state showed no disagreement anywhere in the
+  // corpus, and country is coarser still.
   const geo = useMemo(
     () => ({
       country,
       region_state: region ?? undefined,
-      market: market ?? undefined,
     }),
-    [country, region, market]
+    [country, region]
   );
 
   // Clearing the country writes the sentinel rather than removing the parameter,
@@ -243,15 +261,29 @@ export default function RegisterPage() {
     return arrived.data ? { ids: arrived.data.ids } : {};
   }, [period, axis, moved.data, arrived.data]);
 
+  // BOTH ID SETS ARE ANDed. A project must satisfy the period and the facets,
+  // and each resolves through the records into its own list, so the two are
+  // intersected here. Neither contributes while its query is in flight, for the
+  // same reason as before: an empty list would read as "nothing matches" rather
+  // than "not known yet".
+  const idFilter: Pick<ProjectQuery, 'ids'> = useMemo(() => {
+    const periodIds = periodFilter.ids;
+    const facets = facetConstrained ? facetIds.data?.ids : undefined;
+    if (periodIds === undefined) return facets ? { ids: facets } : {};
+    if (facets === undefined) return { ids: periodIds };
+    const inFacets = new Set(facets);
+    return { ids: periodIds.filter((id) => inFacets.has(id)) };
+  }, [periodFilter, facetConstrained, facetIds.data]);
+
   const baseQuery: ProjectQuery = useMemo(
     () => ({
       module: LIVE_PIPELINE_STORAGE_KEY,
       ...statusFilter(viewKey),
       stage: stage ?? undefined,
-      venue_type: venue ?? undefined,
-      development_category: category ?? undefined,
+      // venue_type, development_category and market are deliberately absent:
+      // they are resolved against the records into idFilter above.
       ...geo,
-      ...periodFilter,
+      ...idFilter,
       search: search.trim() || undefined,
     }),
     [viewKey, stage, geo, periodFilter, search]
