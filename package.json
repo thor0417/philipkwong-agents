@@ -29,7 +29,8 @@
     "sig:calibrate": "node --env-file=.env.local --import tsx agents/scraper/significance-calibrate.ts",
     "dismiss:regate": "node --env-file=.env.local --import tsx agents/scraper/migrations/dismiss-regate-classes.ts",
     "dismiss:nyc-mixed-use": "node --env-file=.env.local --import tsx agents/scraper/migrations/dismiss-nyc-mixed-use.ts",
-    "rename:instruments": "node --env-file=.env.local --import tsx agents/scraper/migrations/rename-instrument-projects.ts"
+    "rename:instruments": "node --env-file=.env.local --import tsx agents/scraper/migrations/rename-instrument-projects.ts",
+    "contacts:backfill": "node --env-file=.env.local --import tsx agents/scraper/migrations/backfill-contacts.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.20.0",
