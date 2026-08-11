@@ -28,6 +28,7 @@ import {
   type Section,
 } from './report-model';
 import { buildEntry } from './report-entry';
+import type { PartyHistory } from './people';
 
 export interface SectionContext {
   // Every project in scope, after the scope, dormancy, stream and hollowness
@@ -47,6 +48,9 @@ export interface SectionContext {
   // Dropped before scope for having no live record at all.
   excludedHollow: number;
   detailCap: number;
+  // Where each named party appears on OTHER projects, keyed by normalised name.
+  // Empty when the companies layer holds nothing, and nothing is claimed then.
+  partyHistory: Map<string, PartyHistory>;
   // Records attached to those projects, already scoped and period-filtered.
   records: (TimelineRecord & { project_id?: string | null; market?: string | null })[];
   events: EventRow[];
@@ -348,7 +352,7 @@ const byMarket: SectionDef = {
     for (const [, ps] of [...groups.entries()].sort((a, b) => b[1].length - a[1].length)) {
       ps.sort((a, b) => (b.significance ?? -1) - (a.significance ?? -1));
       for (const p of ps) {
-        const built = buildEntry(p, byProject.get(p.id) ?? []);
+        const built = buildEntry(p, byProject.get(p.id) ?? [], { history: ctx.partyHistory });
         // Eligibility was settled before selection, so every detailed project
         // has a filing in the period and this cannot normally fire. It stays
         // because "cannot normally" is not "cannot", and an entry with nothing

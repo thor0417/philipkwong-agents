@@ -25,7 +25,13 @@
 
 import { cleanRecordText } from '../../agents/scraper/project-summary';
 import type { Project, TimelineRecord } from './projects';
-import { buildParties, distinctRecordParties, noPartiesNote } from './people';
+import {
+  buildParties,
+  distinctRecordParties,
+  noPartiesNote,
+  withPartyHistory,
+  type PartyHistory,
+} from './people';
 import {
   assembleSentence,
   isFiling,
@@ -507,7 +513,7 @@ export interface BuiltEntry {
 export function buildEntry(
   project: Project,
   records: ScopedRecord[],
-  opts: { cap?: number } = {}
+  opts: { cap?: number; history?: Map<string, PartyHistory> } = {}
 ): BuiltEntry | null {
   const cap = opts.cap ?? ENTRY_RECORD_CAP;
   const { records: usable, merged } = dedupe(records.filter((r) => !!r.url));
@@ -525,7 +531,9 @@ export function buildEntry(
   const brands = brandCasing(project.name);
   // Built from the records the entry PRINTS, so the people section and the
   // filings under it cannot describe different sets.
-  const people = buildParties(project, shown);
+  const people = opts.history
+    ? withPartyHistory(buildParties(project, shown), opts.history)
+    : buildParties(project, shown);
   const entryRecords: EntryRecord[] = shown.map((r) => {
     const reference = referenceOf(r);
     const text = actionText(r, reference, brands);

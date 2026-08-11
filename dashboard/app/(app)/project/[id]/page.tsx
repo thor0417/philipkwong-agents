@@ -17,6 +17,7 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useProject, useProjectTimeline } from '@/lib/use-projects';
 import { useProjectParties, useRelatedProjects } from '@/lib/use-companies';
+import { useProjectPeople } from '@/lib/use-people';
 import { useProjectHistory } from '@/lib/use-today';
 import styles from './page.module.css';
 
@@ -31,6 +32,7 @@ export default function ProjectPage() {
   const project = useProject(id);
   const timeline = useProjectTimeline(id);
   const parties = useProjectParties(id);
+  const people = useProjectPeople(id);
   const history = useProjectHistory(id);
   const p = project.data;
   const related = useRelatedProjects(id, p?.market ?? null);
@@ -189,22 +191,42 @@ export default function ProjectPage() {
               filed. This is the whole point of capturing companies. */}
           <section className={styles.block}>
             <h2 className={styles.h3}>People</h2>
-            {parties.isPending ? (
+            {/* THE SAME LIST THE DOCUMENT PRINTS. This read the companies table
+                while the report read the records, so the page and the brief
+                could name different people for one project. Both now come from
+                lib/people. The company link is kept where the companies layer
+                knows the party, because following a name to everything it has
+                filed is the whole point of capturing companies. */}
+            {people.isPending ? (
               <p className={styles.dim}>Loading...</p>
-            ) : (parties.data ?? []).length === 0 ? (
-              <p className={styles.dim}>
-                No party has been identified on any record for this project yet.
-              </p>
+            ) : people.note ? (
+              <p className={styles.dim} data-people-none>{people.note}</p>
             ) : (
               <ul className={styles.partyList}>
-                {(parties.data ?? []).map((c) => (
-                  <li key={`${c.id}-${c.role}`} className={styles.party}>
-                    <Link href={`/company/${c.id}`} className={styles.partyName}>
-                      {c.name}
-                    </Link>
-                    <span className={styles.role}>{c.role ?? 'party'}</span>
-                  </li>
-                ))}
+                {people.parties.map((party, i) => {
+                  const company = (parties.data ?? []).find(
+                    (c) => c.name.toLowerCase() === party.name.toLowerCase()
+                  );
+                  return (
+                    <li key={i} className={styles.party} data-party>
+                      {company ? (
+                        <Link href={`/company/${company.id}`} className={styles.partyName}>
+                          {party.name}
+                        </Link>
+                      ) : (
+                        <span className={styles.partyName}>{party.name}</span>
+                      )}
+                      {party.firm && <span className={styles.dim}>{party.firm}</span>}
+                      <span className={styles.role}>{party.roles.join('; ')}</span>
+                      <span className={styles.dim}>
+                        {party.contact
+                          ? [party.contact.email, party.contact.phone].filter(Boolean).join(', ')
+                          : 'No phone or email in the record.'}
+                      </span>
+                      {party.alsoOn && <span className={styles.dim}>{party.alsoOn}</span>}
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </section>

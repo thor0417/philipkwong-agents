@@ -12,9 +12,10 @@
 // The full page (people, documents, related projects, full event history) is one
 // click away and is a different screen.
 
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useProject, useProjectTimeline, useProjectMutations } from '@/lib/use-projects';
+import { useProjectPeople } from '@/lib/use-people';
 import { PROJECT_STAGES } from '@/lib/taxonomy';
 import { projectOverriddenFields } from '@/lib/project-mutations';
 import styles from './page.module.css';
@@ -34,6 +35,7 @@ export default function RegisterDetail({
 }) {
   const project = useProject(id);
   const timeline = useProjectTimeline(id);
+  const people = useProjectPeople(id);
   const { watch, stage, notes, busy } = useProjectMutations({ onError });
 
   const p = project.data;
@@ -155,39 +157,40 @@ export default function RegisterDetail({
         </p>
       )}
 
-      {/* People, with provenance. Applicant and representative are derived by the
-          scraper, so they are labelled as derived rather than presented as fact. */}
+      {/* THE SAME PEOPLE THE DOCUMENT PRINTS.
+          This block read projects.primary_applicant and primary_representative,
+          which are two mode columns, so it could show at most two parties and
+          never a presenter, a contact or a phone number. The report meanwhile
+          built its list from the records. Two answers to one question, and the
+          pane is where the operator decides whether a project is worth a brief.
+          Both now come from lib/people. The corrected/derived provenance is kept
+          for the two columns a person can override. */}
       <section className={styles.detailBlock}>
         <h3 className={styles.blockTitle}>People</h3>
-        {p.primary_applicant || p.primary_representative ? (
-          <dl className={styles.people}>
-            {p.primary_applicant && (
-              <>
-                <dt>Applicant</dt>
-                <dd>
-                  {p.primary_applicant}
-                  <span className={styles.provenance}>
-                    {overridden.includes('primary_applicant') ? 'corrected' : 'derived from records'}
-                  </span>
-                </dd>
-              </>
-            )}
-            {p.primary_representative && (
-              <>
-                <dt>Representative</dt>
-                <dd>
-                  {p.primary_representative}
-                  <span className={styles.provenance}>
-                    {overridden.includes('primary_representative')
-                      ? 'corrected'
-                      : 'derived from records'}
-                  </span>
-                </dd>
-              </>
-            )}
-          </dl>
+        {people.isPending ? (
+          <p className={styles.dim}>Loading...</p>
+        ) : people.note ? (
+          <p className={styles.dim} data-people-none>{people.note}</p>
         ) : (
-          <p className={styles.dim}>No party identified on any record yet.</p>
+          <dl className={styles.people}>
+            {people.parties.map((party, i) => (
+              <Fragment key={i}>
+                <dt>{party.roles.join('; ')}</dt>
+                <dd data-party>
+                  {party.name}
+                  {party.firm ? `, ${party.firm}` : ''}
+                  <span className={styles.provenance}>
+                    {overridden.includes('primary_applicant') && party.roles.includes('applicant')
+                      ? 'corrected'
+                      : party.contact
+                        ? [party.contact.email, party.contact.phone].filter(Boolean).join(', ')
+                        : 'No phone or email in the record.'}
+                  </span>
+                  {party.alsoOn && <span className={styles.provenance}>{party.alsoOn}</span>}
+                </dd>
+              </Fragment>
+            ))}
+          </dl>
         )}
       </section>
 

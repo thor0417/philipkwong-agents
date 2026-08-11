@@ -20,6 +20,7 @@ import type { ResolvedPeriod } from './period';
 import { DEFAULT_SECTION_IDS, sectionById, type SectionContext } from './report-sections';
 import { estimatePages, type ReportDocument } from './report-model';
 import { streamLabel } from './streams';
+import { normaliseParty, type PartyHistory } from './people';
 
 const RECORD_COLUMNS =
   'id,title,url,source,source_type,published_date,deadline,first_seen,date_source,' +
@@ -214,6 +215,14 @@ export async function buildReport(req: BuildRequest): Promise<BuiltReport> {
     events = (data ?? []) as unknown as SectionContext['events'];
   }
 
+  // CROSS-MARKET HISTORY FOR THE PARTIES THE DOCUMENT WILL NAME.
+  //
+  // "Also representative on three Clark County entitlements" is the sentence
+  // that turns a name into a lead, and it can only come from the companies
+  // layer. Fetched once for the whole document rather than per entry, and only
+  // for projects that will actually be described.
+  const partyHistory = await fetchPartyHistoryFor(projects.map((p) => p.id));
+
   const chosen = (req.sectionIds.length ? req.sectionIds : DEFAULT_SECTION_IDS)
     .map(sectionById)
     .filter((s): s is NonNullable<typeof s> => !!s);
@@ -279,6 +288,7 @@ export async function buildReport(req: BuildRequest): Promise<BuiltReport> {
     excludedHollow,
     detailCap,
     records,
+    partyHistory,
     events,
     sectionIds: chosen.map((s) => s.id),
     periodLabel: req.period.label,
@@ -336,6 +346,55 @@ export async function buildReport(req: BuildRequest): Promise<BuiltReport> {
       excludedHollow,
     },
   };
+}
+
+/**
+ * Where each party of these projects appears elsewhere, keyed by normalised
+ * name. Two queries for the whole document: the companies on these projects,
+ * then the OTHER projects those companies are attached to.
+ *
+ * Returns an empty map on any failure rather than throwing. A missing history
+ * costs a sentence; a report that will not generate because the companies table
+ * hiccuped costs the delivery.
+ */
+async function fetchPartyHistoryFor(projectIds: string[]): Promise<Map<string, PartyHistory>> {
+  const out = new Map<string, PartyHistory>();
+  if (projectIds.length === 0) return out;
+  try {
+    const links: { company_id: string; project_id: string; company: { name: string } }[] = [];
+    for (let i = 0; i < projectIds.length; i += ID_CHUNK) {
+      const { data } = await supabase
+        .from('company_projects')
+        .select('company_id,project_id,company:companies!inner(name)')
+        .in('project_id', projectIds.slice(i, i + ID_CHUNK));
+      links.push(...((data ?? []) as unknown as typeof links));
+    }
+    if (links.length === 0) return out;
+    const nameById = new Map(links.map((l) => [l.company_id, l.company?.name ?? '']));
+    const mine = new Set(projectIds);
+    const ids = [...nameById.keys()];
+    for (let i = 0; i < ids.length; i += ID_CHUNK) {
+      const { data } = await supabase
+        .from('company_projects')
+        .select('company_id,project_id,role,project:projects!inner(market)')
+        .in('company_id', ids.slice(i, i + ID_CHUNK));
+      for (const r of (data ?? []) as unknown as {
+        company_id: string;
+        project_id: string;
+        role: string | null;
+        project: { market: string | null };
+      }[]) {
+        if (mine.has(r.project_id) || !r.project) continue;
+        const key = normaliseParty(nameById.get(r.company_id) ?? '');
+        if (!key) continue;
+        if (!out.has(key)) out.set(key, { projects: [] });
+        out.get(key)!.projects.push({ market: r.project.market, role: r.role });
+      }
+    }
+  } catch {
+    return new Map();
+  }
+  return out;
 }
 
 /** The geography a scope covers, as a printable sentence for the cover. */
