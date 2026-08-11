@@ -160,3 +160,75 @@ test('picking one end of a custom range does not collapse it to a day', async ({
     'an end date with no start produced a period beginning on the end date'
   ).not.toBe('2026-07-31');
 });
+
+// A PROJECT WHOSE ONLY ACTIVITY IN A PERIOD IS AN ATTACHED RECORD MUST APPEAR
+// UNDER THAT PERIOD'S ARRIVED FILTER.
+//
+// This is the defect stated as an assertion. Arrived used to read
+// projects.first_seen, a single date written once on insert, so a project first
+// seen in July that gained August filings answered "not August" and vanished
+// from the month. Measured when it was found: Nevada showed 1 project where 7
+// had gained an August record, California 2 where 7 had.
+//
+// THE SUM TEST ABOVE CANNOT CATCH THIS. It only asks that the parts agree with
+// the whole, and the broken filter was perfectly self-consistent - it just
+// answered a different question. Loosening that test to a bound was correct and
+// left the suite unable to detect a regression on its own, which is what this
+// closes.
+//
+// BUILT FROM A REAL PROJECT, and its shape is checked rather than assumed: if
+// the fixture stops having the shape the test needs, it says so and names what
+// to re-pick rather than passing quietly on a project that would pass either
+// way.
+const FIXTURE = {
+  name: 'Heart Hotel / Kulik River',
+  region: 'Nevada',
+  period: 'm:2026-08',
+  monthStart: '2026-08-01',
+};
+
+test('a project that only gained a record in the period still arrives in it', async ({ page }) => {
+  // ---- the fixture's shape: first seen BEFORE the period ---------------------
+  await page.goto(
+    `/register?view=all&country=any&period=all&q=${encodeURIComponent(FIXTURE.name)}`,
+    { waitUntil: 'domcontentloaded' }
+  );
+  const row = page.getByTestId('register-row').first();
+  await expect(row, `fixture project "${FIXTURE.name}" is not on the register any more`).toBeVisible({
+    timeout: 120_000,
+  });
+  const projectId = await row.getAttribute('data-row-id');
+  await row.click();
+  await page.keyboard.press('Enter');
+  await page.waitForURL(/\/project\//, { timeout: 60_000 });
+
+  const firstSeen = (await page.locator('[data-fact="first-seen"]').textContent())?.trim() ?? '';
+  console.log(`${FIXTURE.name}: own first_seen ${firstSeen}, period ${FIXTURE.period}`);
+  expect(
+    firstSeen < FIXTURE.monthStart,
+    `fixture no longer has the shape this test needs: its own first_seen (${firstSeen}) is inside ` +
+      `${FIXTURE.period}, so it would appear under Arrived even with the old first_seen filter. ` +
+      `Re-pick a project whose first_seen predates the period but which gained a record inside it.`
+  ).toBe(true);
+
+  // ---- and it must still arrive in the period --------------------------------
+  const url =
+    `/register?view=all&country=any&axis=arrived&period=${FIXTURE.period}` +
+    `&region=${encodeURIComponent(FIXTURE.region)}`;
+  await page.goto(url, { waitUntil: 'domcontentloaded' });
+  const pager = page.getByTestId('pager-total');
+  await expect(pager).toBeVisible({ timeout: 120_000 });
+  await expect.poll(async () => await pager.getAttribute('data-total'), { timeout: 120_000 }).not.toBeNull();
+
+  const ids = await page
+    .getByTestId('register-row')
+    .evaluateAll((els) => els.map((e) => e.getAttribute('data-row-id')));
+  const resolution = (await page.getByTestId('axis-resolution').textContent())?.trim();
+  console.log(`arrived ${FIXTURE.period} in ${FIXTURE.region}: ${ids.length} rows (${resolution})`);
+
+  expect(
+    ids,
+    `"${FIXTURE.name}" gained a record in ${FIXTURE.period} but does not appear under Arrived for it. ` +
+      `That is the first_seen defect: Arrived is reading the project's own date instead of its records'.`
+  ).toContain(projectId);
+});

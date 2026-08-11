@@ -97,7 +97,13 @@ export default function ProjectPage() {
           </span>
           <span className={styles.fact}>
             <span className={styles.factLabel}>First seen</span>
-            <span className={`${styles.factValue} mono`}>{ymd(p.first_seen)}</span>
+            {/* Addressable because the period audit asserts on it: the whole
+                point of the Arrived fix is that a project's own first_seen and
+                the dates of its records are different things, and a test that
+                cannot read the first one cannot prove the difference. */}
+            <span className={`${styles.factValue} mono`} data-fact="first-seen">
+              {ymd(p.first_seen)}
+            </span>
           </span>
           <span className={styles.fact}>
             <span className={styles.factLabel}>Last activity</span>
