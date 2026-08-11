@@ -113,6 +113,46 @@ export interface ContactHit {
   email: string | null;
   phone: string | null;
   sentence: string;
+  // Where the same record also carries a CONTACT block, the block names the firm
+  // and the office and the labelled sentence usually does not. Storing only the
+  // person there threw away an address the record had printed.
+  blockName?: string;
+}
+
+// The block as the record states it: person, firm, office, in that order, and
+// nothing added. Null where the record printed no block.
+export function blockName(block: ReturnType<typeof extractContactBlock>): string | null {
+  if (!block) return null;
+  return [block.person, block.firm, block.address].filter(Boolean).join(', ');
+}
+
+// Whether the stored name and the block name the same party in a different
+// order. Clark County prints "KAEMPFER CROWELL, JENNIFER LAZOVICH" where the
+// adapter stored "Jennifer Lazovich, Kaempfer Crowell", and neither is a
+// continuation of the other. Every word of the stored name appearing in the
+// block is the test; it is the same party, so the block's address belongs to
+// it. The STORED NAME IS NOT REWRITTEN, only the address is appended.
+export function samePartyReordered(stored: string, person: string, firm: string | null): boolean {
+  const words = (v: string) =>
+    v
+      .toLowerCase()
+      .split(/[^a-z0-9]+/)
+      .filter((w) => w.length >= 3);
+  const mine = words(stored);
+  if (mine.length < 2) return false;
+  const theirs = new Set(words([person, firm].filter(Boolean).join(' ')));
+  return mine.every((w) => theirs.has(w));
+}
+
+// Whether `fuller` is the value already stored with more of the same record
+// after it. Case and spacing are the two readings' formatting, not a difference
+// of party, so neither decides this; anything that is not a continuation is
+// somebody else's reading and is left alone.
+export function completes(stored: string, fuller: string): boolean {
+  const flat = (s: string) => s.toLowerCase().replace(/\s+/g, ' ').trim();
+  const a = flat(stored);
+  const b = flat(fuller);
+  return a.length > 0 && b.length > a.length && b.startsWith(a);
 }
 
 function windowAround(raw: string, needle: string): string {
@@ -196,10 +236,26 @@ const BLOCK_ADDRESS = /,\s*(?=\d+\s+[NSEW]?\.?\s*\w|(?:suite|ste\.?|floor|fl\.?|
  * that organisation: the record says it is the contact, and saying so is not the
  * same as claiming a person.
  */
-export function extractContactBlock(raw: string): { person: string; firm: string | null } | null {
+export function extractContactBlock(
+  raw: string
+): { person: string; firm: string | null; address: string | null; phone: string | null } | null {
   const m = CONTACT_BLOCK.exec(raw);
   if (!m) return null;
-  const block = m[1].split(BLOCK_ADDRESS)[0].replace(/[,;\s]+$/, '').trim();
+  const whole = m[1].replace(/\s+(?:Source document|Document URL)\b[\s\S]*$/i, '').trim();
+  const cut = whole.split(BLOCK_ADDRESS);
+  let block = cut[0].replace(/[,;\s]+$/, '').trim();
+  // "CONTACT: Alan Enzo 862-8400" - the number is a telephone the record
+  // printed, not part of the name. Taken off the name and kept as the record
+  // states it, seven digits and all; nothing supplies a missing area code.
+  const trailingPhone = /\s+(\(?\d{3}\)?[\s.\-]?\d{3}[\s.\-]\d{4}|\d{3}[.\-]\d{4})$/.exec(block);
+  const phone = trailingPhone ? trailingPhone[1].trim() : null;
+  if (trailingPhone) block = block.slice(0, trailingPhone.index).replace(/[,;\s]+$/, '').trim();
+  // THE ADDRESS IS KEPT, VERBATIM. It was split off and thrown away, and an
+  // office address is a contact path in its own right: it is how a letter
+  // reaches the land-use attorney who carried the entitlement, and for most of
+  // these parties it is the ONLY path the record gives. Stored exactly as the
+  // record states it, never completed, corrected or geocoded.
+  const address = cut.length > 1 ? whole.slice(cut[0].length).replace(/^[,;\s]+/, '').trim() : null;
   if (block.length < 4) return null;
 
   // "LENNAR, ATTN: PARKER SIECK" - the addressee is the person, the leading
@@ -207,7 +263,7 @@ export function extractContactBlock(raw: string): { person: string; firm: string
   const attn = ATTN.exec(block);
   if (attn) {
     const firm = block.slice(0, attn.index).replace(/[,;\s]+$/, '').trim();
-    return { person: attn[1].trim(), firm: firm || null };
+    return { person: attn[1].trim(), firm: firm || null, address, phone };
   }
 
   const parts = block.split(',').map((p) => p.trim()).filter(Boolean);
@@ -222,10 +278,10 @@ export function extractContactBlock(raw: string): { person: string; firm: string
     !NOT_A_PERSON_NAME.test(head) &&
     !/\b(llc|inc|ltd|lp|llp|plc|corp|company|group|services|consulting|associates|partners|holdings|academy|school|church|properties|realty|development)\b/i.test(head);
   if (looksPersonal) {
-    return { person: head, firm: parts.slice(1).join(', ') || null };
+    return { person: head, firm: parts.slice(1).join(', ') || null, address, phone };
   }
   // Otherwise the block names an organisation, which is what it says.
-  return { person: block, firm: null };
+  return { person: block, firm: null, address, phone };
 }
 
 async function main(): Promise<void> {
@@ -246,13 +302,17 @@ async function main(): Promise<void> {
   // Blocks that name a contact but carry no email or phone. A name with no way
   // to reach it is still a named party, and the report already prints the
   // honest negative about the detail.
-  const nameOnly: { id: string; source: string; person: string; firm: string | null }[] = [];
+  const nameOnly: { id: string; source: string; person: string; firm: string | null; address: string | null; phone: string | null }[] = [];
   const rejected = new Map<string, number>();
   for (const r of rows) {
     const raw = String(r.raw_content ?? '');
     const hasEmail = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/.test(raw);
     const hasPhone = /\(?\d{3}\)?[\s.\-]?\d{3}[\s.\-]\d{4}/.test(raw);
-    if (!hasEmail && !hasPhone) continue;
+    // A CONTACT block is a named party with an office whether or not the record
+    // prints an email or a phone anywhere. Gating the whole pass on a detail
+    // being present dropped every block in a record that had none.
+    const hasBlock = extractContactBlock(raw) !== null;
+    if (!hasEmail && !hasPhone && !hasBlock) continue;
 
     const already = String(r.contact_email ?? '').trim() || String(r.contact_phone ?? '').trim();
     const protectedFields = overriddenFields(r.manual_overrides);
@@ -265,13 +325,36 @@ async function main(): Promise<void> {
     const block = extractContactBlock(raw);
     const haveName = String(r.contact_name ?? '').trim();
 
+    const verbatim = blockName(block);
+
     if (hit && !already) {
-      hits.push({ id: String(r.id), source: String(r.source), ...hit });
+      hits.push({ id: String(r.id), source: String(r.source), ...hit, blockName: verbatim ?? undefined });
       continue;
     }
-    if (block && !haveName) {
-      nameOnly.push({ id: String(r.id), source: String(r.source), person: block.person, firm: block.firm });
-      continue;
+    if (block && verbatim) {
+      // EXTENDING OUR OWN EARLIER WRITE IS NOT OVERWRITING AN ADAPTER'S.
+      // The first pass stored name and firm and dropped the address. Where the
+      // stored value is the head of the fuller block, this is the same party
+      // with the office added, so it is safe to complete.
+      // The same party in the other order: keep the stored name, add the office.
+      const reordered =
+        !!haveName &&
+        !!block.address &&
+        !completes(haveName, verbatim) &&
+        samePartyReordered(haveName, block.person, block.firm) &&
+        !haveName.includes(block.address);
+      if (!haveName || completes(haveName, verbatim) || reordered) {
+        nameOnly.push({
+          id: String(r.id),
+          source: String(r.source),
+          // A reordered match keeps the name the record already carries.
+          person: reordered ? haveName : block.person,
+          firm: reordered ? null : block.firm,
+          address: block.address,
+          phone: block.phone,
+        });
+        continue;
+      }
     }
     if (already || haveName) {
       rejected.set('already stored', (rejected.get('already stored') ?? 0) + 1);
@@ -308,7 +391,7 @@ async function main(): Promise<void> {
   }
   console.log(`   ${'TOTAL'.padEnd(20)} ${String(nameOnly.length).padStart(3)}`);
   for (const h of nameOnly.slice(0, 12)) {
-    console.log(`      ${h.person}${h.firm ? `  (${h.firm})` : ''}`);
+    console.log(`      ${h.person}${h.firm ? `  (${h.firm})` : ''}${h.address ? `  @ ${h.address}` : ''}${h.phone ? `  tel ${h.phone}` : ''}`);
   }
 
   console.log(`\nEXAMPLES, WITH THE SENTENCE EACH CAME FROM`);
@@ -324,9 +407,16 @@ async function main(): Promise<void> {
   }
   let written = 0;
   for (const h of nameOnly) {
+    const { data: row } = await supabaseAdmin.from('leads').select('contact_phone').eq('id', h.id).single();
+    const storedPhone = String(row?.contact_phone ?? '').trim();
     const { error } = await supabaseAdmin
       .from('leads')
-      .update({ contact_name: h.firm ? `${h.person}, ${h.firm}` : h.person })
+      .update({
+        contact_name: [h.person, h.firm, h.address].filter(Boolean).join(', '),
+        // A telephone the block printed, as it printed it, and only where the
+        // record carries none. A stored number is the adapter's reading.
+        ...(h.phone && !storedPhone ? { contact_phone: h.phone } : {}),
+      })
       .eq('id', h.id);
     if (error) {
       console.error(`   name write failed for ${h.id}: ${error.message}`);
@@ -338,10 +428,15 @@ async function main(): Promise<void> {
     const patch: Record<string, unknown> = {};
     if (h.email) patch.contact_email = h.email;
     if (h.phone) patch.contact_phone = h.phone;
-    // contact_name is only set where the record had none; an existing one is the
-    // adapter's own reading and is not overwritten by this pass.
+    // The block, where the record printed one, because it carries the firm and
+    // the office the labelled sentence does not.
+    const name = h.blockName ?? h.person;
+    // contact_name is only set where the record had none, or where what is
+    // stored is the head of this same value; an existing one is the adapter's
+    // own reading and is not overwritten by this pass.
     const { data: cur } = await supabaseAdmin.from('leads').select('contact_name').eq('id', h.id).single();
-    if (!String(cur?.contact_name ?? '').trim()) patch.contact_name = h.person;
+    const stored = String(cur?.contact_name ?? '').trim();
+    if (!stored || completes(stored, name)) patch.contact_name = name;
     const { error } = await supabaseAdmin.from('leads').update(patch).eq('id', h.id);
     if (error) {
       console.error(`   write failed for ${h.id}: ${error.message}`);
@@ -349,7 +444,9 @@ async function main(): Promise<void> {
     }
     written++;
   }
-  console.log(`\nwritten: ${written} of ${hits.length}`);
+  // Both passes write, so the denominator is both. Counting only the labelled
+  // hits printed "8 of 0" on a run whose work was all contact blocks.
+  console.log(`\nwritten: ${written} of ${hits.length + nameOnly.length}`);
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
