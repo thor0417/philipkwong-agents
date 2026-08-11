@@ -1,18 +1,18 @@
 {
   "today": {
-    "What moved": "01 What moved Stage changes, most advanced destination first. A project reaching construction matters more than one reaching a scheduled hearing, so this is not ordered by time. Nothing changed stage in this window. Stage history only began when event capture shipped, so this section is genuinely thin for now and will ",
-    "What came in": "02 What came in New projects first, then new records on projects you already had. Grouped by project, so six records on one project is one line, not six. NEW PROJECTS 107 1605 Nelson Avenue mixed-use development New York City filed 2026-08-09 240 Nassau Street heritage site New York City stalled 2026-08-09 Rehabilitati",
-    "Needs you": "03 Needs you Each of these is a count and a place to go. 980 Record triage backlog Records still at status new, on Records 9 Watchlist activity Events on projects you watch 107 New projects to review Arrived in this window",
-    "Attention": "04 Attention The machine, not the market. Red only where something is genuinely wrong. SOURCES gli_serper 14d silent 238 records sfwmd 14d silent 25 records govdoc 12d silent 8 records ceqanet 10d silent 9 records clark-tab 10d silent 53 records agenda-portal 10d silent 179 records cftod-pdf 10d silent 26 records RUNS "
+    "What moved": "01 What moved Stage changes, most advanced destination first. A project reaching construction matters more than one reaching a scheduled hearing, so this is not ordered by time. Disneyland Resort approved → under construction Anaheim OCVIBE's 5000-capacity concert hall bridges gap between ... 2026-08-10 Hilton Resorts ",
+    "What came in": "02 What came in New projects first, then new records on projects you already had. Grouped by project, so six records on one project is one line, not six. NEW PROJECTS 134 Desert Inn family entertainment centre Clark County approved 2026-08-10 6360 Sunset Boulevard museum Los Angeles filed 2026-08-10 1900 Brooks Street ",
+    "Needs you": "03 Needs you Each of these is a count and a place to go. 1179 Record triage backlog Records still at status new, on Records 10 Watchlist activity Events on projects you watch 134 New projects to review Arrived in this window",
+    "Attention": "04 Attention The machine, not the market. Red only where something is genuinely wrong. SOURCES sfwmd 14d silent 25 records govdoc 13d silent 7 records agenda-portal 11d silent 179 records cftod-pdf 11d silent 26 records RUNS No failed runs. COST AGAINST CEILING Not instrumented. Nothing in this database records spend p"
   },
   "todayPeriod": {
-    "7d": 127,
-    "30d": 184,
-    "m:2026-07": 144,
+    "7d": 149,
+    "30d": 174,
+    "m:2026-07": 150,
     "m:2026-01": 36
   },
   "records": {
-    "rows": 29,
+    "rows": 52,
     "controls": [
       "Search projects and screens⌘K",
       "Light",
@@ -20,55 +20,55 @@
       "Auto",
       "Sign out",
       "‹Collapse",
-      "Active27",
-      "Archive3",
-      "All11",
-      "Entertainment/Attractions7",
+      "Active63",
+      "Archive21",
+      "All40",
+      "Entertainment/Attractions29",
       "Mixed-Use/Real Estate1",
-      "Hospitality/Tourism3",
-      "All11",
+      "Infrastructure2",
+      "Hospitality/Tourism8",
+      "All40",
       "Aquarium1",
-      "Museum1",
-      "Heritage/Cultural Site5",
-      "Hotel3",
+      "Museum20",
+      "Heritage/Cultural Site8",
+      "Hotel6",
+      "Resort2",
       "Waterfront Development1",
+      "Arena/Stadium2",
       "Export XLSX",
       "Generate Report",
-      "All20",
+      "All56",
+      "Armenia5",
+      "Russia5",
+      "Uganda5",
+      "Kyrgyzstan4",
+      "Rwanda4",
       "Albania3",
+      "Cabo Verde3",
       "Dominica3",
+      "Pakistan3",
+      "United States3",
       "Argentina2",
-      "Cabo Verde2",
+      "South Africa2",
       "Ethiopia1",
       "Finland1",
-      "India1",
-      "Ivory Coast1",
-      "Jamaica1",
-      "Kiribati1",
-      "Kyrgyzstan1",
-      "South Sudan1",
-      "Tajikistan1",
-      "Thailand1",
-      "All time27",
-      "New this week0",
-      "Last 30 days27",
-      "Since27",
-      "All27"
+      "Ghana1",
+      "India1"
     ]
   },
   "register": {
-    "baseline": 260,
+    "baseline": 293,
     "results": [
       {
         "label": "baseline (all, any country)",
         "url": "/register?view=all&country=any",
-        "total": 260,
+        "total": 293,
         "verdict": "UNCHANGED"
       },
       {
         "label": "view=new",
         "url": "/register?view=all&country=any&view=new",
-        "total": 260,
+        "total": 293,
         "verdict": "UNCHANGED"
       },
       {
@@ -92,37 +92,37 @@
       {
         "label": "stage=filed",
         "url": "/register?view=all&country=any&stage=filed",
-        "total": 104,
+        "total": 122,
         "verdict": "changed"
       },
       {
         "label": "stage=approved",
         "url": "/register?view=all&country=any&stage=approved",
-        "total": 39,
+        "total": 40,
         "verdict": "changed"
       },
       {
         "label": "stage=dormant",
         "url": "/register?view=all&country=any&stage=dormant",
-        "total": 89,
+        "total": 101,
         "verdict": "changed"
       },
       {
         "label": "country default (absent)",
         "url": "/register?view=all",
-        "total": 238,
+        "total": 247,
         "verdict": "changed"
       },
       {
         "label": "country=United States",
         "url": "/register?view=all&country=United+States",
-        "total": 238,
+        "total": 247,
         "verdict": "changed"
       },
       {
         "label": "region=Nevada",
         "url": "/register?view=all&country=United+States&region=Nevada",
-        "total": 66,
+        "total": 67,
         "verdict": "changed"
       },
       {
@@ -134,7 +134,7 @@
       {
         "label": "q=resort",
         "url": "/register?view=all&country=any&q=resort",
-        "total": 18,
+        "total": 20,
         "verdict": "changed"
       },
       {
@@ -146,13 +146,13 @@
       {
         "label": "period=m:2026-07 arrived",
         "url": "/register?view=all&country=any&period=m:2026-07&axis=arrived",
-        "total": 144,
+        "total": 150,
         "verdict": "changed"
       },
       {
         "label": "period=m:2026-07 moved",
         "url": "/register?view=all&country=any&period=m:2026-07&axis=moved",
-        "total": 136,
+        "total": 149,
         "verdict": "changed"
       },
       {
@@ -170,31 +170,31 @@
       {
         "label": "bucket=week (must not filter)",
         "url": "/register?view=all&country=any&bucket=week",
-        "total": 260,
+        "total": 293,
         "verdict": "correct (unchanged)"
       },
       {
         "label": "bucket=month (must not filter)",
         "url": "/register?view=all&country=any&bucket=month",
-        "total": 260,
+        "total": 293,
         "verdict": "correct (unchanged)"
       },
       {
         "label": "sort=name (must not filter)",
         "url": "/register?view=all&country=any&sort=name&dir=asc",
-        "total": 260,
+        "total": 293,
         "verdict": "correct (unchanged)"
       },
       {
         "label": "page=2 (must not change total)",
         "url": "/register?view=all&country=any&page=2",
-        "total": 260,
+        "total": 293,
         "verdict": "correct (unchanged)"
       },
       {
         "label": "nonsense param",
         "url": "/register?view=all&country=any&banana=1",
-        "total": 260,
+        "total": 293,
         "verdict": "FAILS OPEN (returns everything)"
       },
       {

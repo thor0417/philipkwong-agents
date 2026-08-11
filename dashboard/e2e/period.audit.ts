@@ -182,6 +182,9 @@ test('picking one end of a custom range does not collapse it to a day', async ({
 // way.
 const FIXTURE = {
   name: 'Heart Hotel / Kulik River',
+  // A short distinctive token: the full name is slower to match and the search
+  // is the slowest step in this test.
+  search: 'Kulik',
   region: 'Nevada',
   period: 'm:2026-08',
   monthStart: '2026-08-01',
@@ -190,9 +193,17 @@ const FIXTURE = {
 test('a project that only gained a record in the period still arrives in it', async ({ page }) => {
   // ---- the fixture's shape: first seen BEFORE the period ---------------------
   await page.goto(
-    `/register?view=all&country=any&period=all&q=${encodeURIComponent(FIXTURE.name)}`,
+    `/register?view=all&country=any&period=all&q=${encodeURIComponent(FIXTURE.search)}`,
     { waitUntil: 'domcontentloaded' }
   );
+  // Wait for the query to settle before looking for the row. Asserting on the
+  // row first races the search against the render, which passes alone and times
+  // out in a full suite run where the server is busy.
+  const searchPager = page.getByTestId('pager-total');
+  await expect(searchPager).toBeVisible({ timeout: 120_000 });
+  await expect
+    .poll(async () => await searchPager.getAttribute('data-total'), { timeout: 120_000 })
+    .not.toBeNull();
   const row = page.getByTestId('register-row').first();
   await expect(row, `fixture project "${FIXTURE.name}" is not on the register any more`).toBeVisible({
     timeout: 120_000,
