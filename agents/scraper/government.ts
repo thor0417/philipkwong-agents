@@ -287,7 +287,16 @@ export interface GovernmentReport {
   deduped: number;
   written: number;
   writeFailed: number;
+  // GATE-ADMITTED per jurisdiction: rows that passed the gate and were sent to
+  // the writer. This is NOT how many rows landed, and reading it as though it
+  // were is what let a run report 409 written for August when it inserted 65.
   perJurisdiction: Record<string, number>;
+  // What actually happened at the database, split. Filled after the write from
+  // the write report's inserted URLs, so they cannot drift from it.
+  insertedPerJurisdiction: Record<string, number>;
+  updatedPerJurisdiction: Record<string, number>;
+  insertedPerSource: Record<string, number>;
+  updatedPerSource: Record<string, number>;
   perVenueType: Record<string, number>;
   perSignalType: Record<string, number>;
   perSourceType: Record<string, number>;
@@ -328,6 +337,10 @@ export async function runGovernmentLane(leads: NormalizedLead[]): Promise<Govern
     written: 0,
     writeFailed: 0,
     perJurisdiction: {},
+    insertedPerJurisdiction: {},
+    updatedPerJurisdiction: {},
+    insertedPerSource: {},
+    updatedPerSource: {},
     perVenueType: {},
     perSignalType: {},
     perSourceType: {},
@@ -345,6 +358,10 @@ export async function runGovernmentLane(leads: NormalizedLead[]): Promise<Govern
   const keptBySource = new Map<string, number>();
 
   const pending: Record<string, unknown>[] = [];
+  // url -> where the row came from, so the write report's inserted URLs can be
+  // attributed. Built here rather than looked up later because `lead` is in
+  // scope here and nothing downstream carries the jurisdiction.
+  const originByUrl = new Map<string, { jurisdiction: string; source: string }>();
   const tags = deduped.length > 0 ? await tagGovernmentBatch(deduped) : [];
   const players = deduped.length > 0 ? await extractPlayersBatch(deduped) : [];
   const noWrite = process.env.GOVERNMENT_NO_WRITE === '1';
@@ -385,6 +402,10 @@ export async function runGovernmentLane(leads: NormalizedLead[]): Promise<Govern
     if (noWrite) continue;
     // Every write goes through the tombstone / override guard.
     pending.push(row);
+    originByUrl.set(String(row.url ?? ''), {
+      jurisdiction: lead.location ?? '(unknown)',
+      source: lead.source ?? '(unknown)',
+    });
   }
 
   // Source-level: catches "fetched records, kept none" (the shape changed and
@@ -400,6 +421,21 @@ export async function runGovernmentLane(leads: NormalizedLead[]): Promise<Govern
     report.written = wr.written;
     report.writeFailed = wr.failed;
     report.write = wr;
+    // ATTRIBUTED FROM THE WRITE REPORT, not from the loop above. The loop counts
+    // what was sent; only the writer knows what was new, because only it saw the
+    // corpus before the run touched it.
+    const insertedSet = new Set(wr.insertedUrls);
+    for (const u of wr.writtenUrls) {
+      const o = originByUrl.get(u);
+      if (!o) continue;
+      if (insertedSet.has(u)) {
+        inc(report.insertedPerJurisdiction, o.jurisdiction);
+        inc(report.insertedPerSource, o.source);
+      } else {
+        inc(report.updatedPerJurisdiction, o.jurisdiction);
+        inc(report.updatedPerSource, o.source);
+      }
+    }
     printWriteReport('Government writes', wr);
   }
   return report;
@@ -427,21 +463,39 @@ function printGovernmentReport(
       (r.writeFailed ? `  (write failures: ${r.writeFailed})` : '') +
       (process.env.GOVERNMENT_NO_WRITE === '1' ? '  (GOVERNMENT_NO_WRITE: no writes)' : '')
   );
-  console.log('Gate telemetry per jurisdiction (fetched / matched / written | dropped: excluded / weak-no-action / no-match):');
+  // INSERTED AND UPDATED, SEPARATELY, PER SOURCE. A lane that fetched thousands
+  // and inserted nothing looks identical to a healthy one on a `written` total.
+  console.log('Writes per source (inserted / updated):');
+  {
+    const sources = new Set<string>([
+      ...Object.keys(r.insertedPerSource),
+      ...Object.keys(r.updatedPerSource),
+    ]);
+    if (sources.size === 0) console.log('    (nothing written)');
+    for (const src of [...sources].sort()) {
+      const ins = r.insertedPerSource[src] ?? 0;
+      const upd = r.updatedPerSource[src] ?? 0;
+      console.log(`    ${src.padEnd(20)} ${String(ins).padStart(5)} inserted / ${String(upd).padStart(5)} updated`);
+    }
+  }
+  console.log('Gate telemetry per jurisdiction (fetched / matched / gate-admitted | inserted / updated | dropped: excluded / weak-no-action / no-match):');
   const jurisdictions = new Set<string>([...Object.keys(stats), ...Object.keys(r.perJurisdiction)]);
   for (const j of [...jurisdictions].sort()) {
     const s = stats[j];
-    const written = r.perJurisdiction[j] ?? 0;
+    const admitted = r.perJurisdiction[j] ?? 0;
+    const ins = r.insertedPerJurisdiction[j] ?? 0;
+    const upd = r.updatedPerJurisdiction[j] ?? 0;
+    const landed = `${ins} inserted / ${upd} updated`;
     if (!s) {
       // A document-source jurisdiction (govdoc): no Legistar gate telemetry.
-      console.log(`    ${j}: ${written} written (document source, gate bypassed)`);
+      console.log(`    ${j}: ${admitted} gate-admitted | ${landed} (document source, gate bypassed)`);
       continue;
     }
     const drops = s.bypassed
       ? 'gate bypassed'
       : `dropped ${s.droppedExcluded} excluded / ${s.droppedWeakNoAction} weak-no-action / ${s.droppedNoMatch} no-match`;
     console.log(
-      `    ${j}: ${s.fetched} fetched / ${s.matched} matched / ${written} written | ${drops}`
+      `    ${j}: ${s.fetched} fetched / ${s.matched} matched / ${admitted} gate-admitted | ${landed} | ${drops}`
     );
   }
   console.log('Per source_type (document type):');

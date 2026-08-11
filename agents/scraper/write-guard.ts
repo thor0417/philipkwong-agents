@@ -57,6 +57,19 @@ export const ENRICHMENT_FIELDS = [
 export interface WriteReport {
   attempted: number;
   written: number;
+  // WRITTEN IS NOT THE SAME AS NEW, and reporting only the total let a run
+  // describe itself as far busier than it was. The government lane reported 409
+  // written for August and inserted 65 rows; the other 344 were updates to rows
+  // already in the corpus. Clark County read as 58 and was 7.
+  //
+  // The distinction costs nothing to compute: loadExisting is already called
+  // below, to find tombstones and overrides, so which URLs were already stored
+  // is known before the first row is written.
+  inserted: number;
+  updated: number;
+  // The URLs that were new this run. Callers group these by source and by
+  // jurisdiction; a count alone cannot be attributed to anything.
+  insertedUrls: string[];
   // Rows not written because the stored row is dismissed (the tombstone).
   skippedDismissed: number;
   // Rows where at least one field was held back by a manual override.
@@ -79,6 +92,9 @@ export function emptyWriteReport(): WriteReport {
   return {
     attempted: 0,
     written: 0,
+    inserted: 0,
+    updated: 0,
+    insertedUrls: [],
     skippedDismissed: 0,
     rowsWithProtectedFields: 0,
     protectedFields: {},
@@ -198,6 +214,15 @@ export async function guardedUpsert(
     }
     report.written++;
     report.writtenUrls.push(url);
+    // The prior row came from loadExisting, which ran before anything was
+    // written, so its absence means this URL was not in the corpus when the run
+    // started. Rows are deduped by URL upstream, so no URL is counted twice.
+    if (prior) {
+      report.updated++;
+    } else {
+      report.inserted++;
+      report.insertedUrls.push(url);
+    }
   }
   return report;
 }
@@ -213,7 +238,8 @@ export async function guardedUpsertOne(
 
 export function printWriteReport(label: string, r: WriteReport): void {
   console.log(
-    `${label}: ${r.written} written of ${r.attempted} attempted | ` +
+    `${label}: ${r.inserted} inserted + ${r.updated} updated = ${r.written} written ` +
+      `of ${r.attempted} attempted | ` +
       `${r.skippedDismissed} skipped as dismissed (tombstone) | ` +
       `${r.rowsWithProtectedFields} rows had a field held back by a manual override` +
       (r.erasuresPrevented ? ` | ${r.erasuresPrevented} enrichment values held back rather than nulled` : '') +
