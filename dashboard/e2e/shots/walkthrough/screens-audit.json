@@ -117,7 +117,7 @@
   {
     "name": "Project detail",
     "url": "/project/c45174d6-aab6-439e-8e4a-cc0304a6c0d3",
-    "ok": false,
+    "ok": true,
     "primary": "h1",
     "rows": null,
     "consoleErrors": [],
@@ -128,7 +128,7 @@
   {
     "name": "Clients detail",
     "url": "/clients",
-    "ok": false,
+    "ok": true,
     "primary": "h1",
     "rows": null,
     "consoleErrors": [],

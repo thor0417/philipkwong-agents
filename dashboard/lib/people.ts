@@ -42,6 +42,13 @@ export interface ProjectParty {
   name: string;
   /** The firm, where the record gives one alongside a personal name. */
   firm: string | null;
+  /**
+   * The office address the record states, verbatim. A contact path in its own
+   * right: for most parties in this corpus it is the ONLY one the filing gives,
+   * and it was previously split off and thrown away. Never completed or
+   * corrected.
+   */
+  address: string | null;
   /** Every role this party holds, in the words the columns use. */
   roles: string[];
   provenance: 'RECORD' | 'PRESS';
@@ -107,6 +114,23 @@ function properCase(name: string): string {
           : w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()
     )
     .join(' ');
+}
+
+/**
+ * The postal address stapled to a party string, verbatim, or null.
+ *
+ * cleanPartyName cuts it off so the NAME is a name; this keeps the other half
+ * rather than discarding it. "NANCY AMUNDSEN, BROWN, BROWN, & PREMSRIRUT, 520
+ * S. 4TH STREET, LAS VEGAS, NV 89101" gives a name, a firm and an office, and
+ * the office is how a letter reaches her.
+ */
+export function addressOf(raw: string | null | undefined): string | null {
+  const s = tidy(raw);
+  if (!s) return null;
+  const parts = s.split(ADDRESS_START);
+  if (parts.length < 2) return null;
+  const address = s.slice(parts[0].length).replace(/^[,;\s]+/, '').trim();
+  return address.length >= 6 ? address : null;
 }
 
 export function cleanPartyName(raw: string | null | undefined): string | null {
@@ -220,6 +244,7 @@ function splitNameAndFirm(full: string): { name: string; firm: string | null } {
 
 interface Accum {
   display: string;
+  address: string | null;
   mergedFrom: string[];
   roles: Set<string>;
   isFiling: boolean;
@@ -267,6 +292,7 @@ export function buildParties(project: Project, records: ScopedRecord[]): Project
     if (!prior) {
       byKey.set(key, {
         display: cleaned,
+        address: addressOf(raw),
         mergedFrom: [],
         roles: new Set([role]),
         isFiling: filing,
@@ -302,6 +328,7 @@ export function buildParties(project: Project, records: ScopedRecord[]): Project
     // must not erase it.
     prior.email = prior.email ?? contact?.email ?? null;
     prior.phone = prior.phone ?? contact?.phone ?? null;
+    prior.address = prior.address ?? addressOf(raw);
   };
 
   for (const r of records) {
@@ -353,6 +380,7 @@ export function buildParties(project: Project, records: ScopedRecord[]): Project
     long.mergedFrom.push(short.display, ...short.mergedFrom);
     long.email = long.email ?? short.email;
     long.phone = long.phone ?? short.phone;
+    long.address = long.address ?? short.address;
     if (short.isFiling && !long.isFiling) {
       long.isFiling = true;
       long.url = short.url;
@@ -401,6 +429,7 @@ export function buildParties(project: Project, records: ScopedRecord[]): Project
     winner.mentions += acc.mentions;
     winner.email = winner.email ?? acc.email;
     winner.phone = winner.phone ?? acc.phone;
+    winner.address = winner.address ?? acc.address;
     winner.mergedFrom.push(acc.display, ...acc.mergedFrom);
     if (acc.isFiling && !winner.isFiling) {
       winner.isFiling = true;
@@ -422,6 +451,7 @@ export function buildParties(project: Project, records: ScopedRecord[]): Project
       sourceLabel: a.label,
       date: a.date,
       mentions: a.mentions,
+      address: a.address,
       contact: a.email || a.phone ? { email: a.email, phone: a.phone } : null,
       alsoOn: null,
       mergedFrom: [...new Set(a.mergedFrom)],

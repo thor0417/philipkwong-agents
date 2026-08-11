@@ -109,8 +109,17 @@ test('every screen renders', async ({ page }) => {
     page.on('console', (m) => m.type() === 'error' && consoleErrors.push(m.text().slice(0, 200)));
     page.on('pageerror', (e) => pageErrors.push(String(e.message).slice(0, 200)));
     await page.goto(url, { waitUntil: 'domcontentloaded' });
-    const visible = await page.locator(primary).first().isVisible().catch(() => false);
-    await page.waitForTimeout(2500);
+    // WAIT FOR THE HEADING, THEN JUDGE IT. isVisible() samples the DOM at the
+    // instant domcontentloaded fires, which is before the client component has
+    // rendered anything, and the 2500ms wait that followed came too late to
+    // help. Both of these screens were reported FAILED while rendering
+    // correctly in the browser.
+    const visible = await page
+      .locator(primary)
+      .first()
+      .waitFor({ state: 'visible', timeout: 20_000 })
+      .then(() => true)
+      .catch(() => false);
     console.log(`${name.padEnd(24)} ${visible ? 'RENDERS' : 'FAILED '} console=${consoleErrors.length} pageerr=${pageErrors.length}`);
     for (const e of [...consoleErrors, ...pageErrors].slice(0, 3)) console.log(`      ${e}`);
     results.push({ name, url, ok: visible, primary, rows: null, consoleErrors, pageErrors, failedRequests: [], notes: [] });

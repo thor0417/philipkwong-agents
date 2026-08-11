@@ -76,6 +76,7 @@ function toRows(doc: ReportDocument): string[][] {
         const detail = [
           party.roles.join('; '),
           party.firm,
+          party.address,
           party.contact
             ? [party.contact.email, party.contact.phone].filter(Boolean).join(', ')
             : 'No phone or email in the record.',

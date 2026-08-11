@@ -186,6 +186,7 @@ export default function RegisterDetail({
                         ? [party.contact.email, party.contact.phone].filter(Boolean).join(', ')
                         : 'No phone or email in the record.'}
                   </span>
+                  {party.address && <span className={styles.provenance}>{party.address}</span>}
                   {party.alsoOn && <span className={styles.provenance}>{party.alsoOn}</span>}
                 </dd>
               </Fragment>

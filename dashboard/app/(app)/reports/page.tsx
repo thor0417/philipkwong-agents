@@ -909,6 +909,9 @@ export default function ReportsPage() {
                               <b>{party.name}</b>
                               {party.firm ? `, ${party.firm}` : ''}
                               {` (${party.roles.join('; ')})`}
+                              {party.address && (
+                                <div className={styles.entryRecDetail}>{party.address}</div>
+                              )}
                               <div className={styles.entryRecDetail}>
                                 {party.contact
                                   ? [party.contact.email, party.contact.phone].filter(Boolean).join(', ')

@@ -218,6 +218,7 @@ export default function ProjectPage() {
                       )}
                       {party.firm && <span className={styles.dim}>{party.firm}</span>}
                       <span className={styles.role}>{party.roles.join('; ')}</span>
+                      {party.address && <span className={styles.dim}>{party.address}</span>}
                       <span className={styles.dim}>
                         {party.contact
                           ? [party.contact.email, party.contact.phone].filter(Boolean).join(', ')

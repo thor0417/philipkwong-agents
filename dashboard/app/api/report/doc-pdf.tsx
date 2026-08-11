@@ -143,6 +143,7 @@ function EntryBlock({ e }: { e: Entry }) {
                   {party.firm ? `, ${party.firm}` : ''}
                   {` (${party.roles.join('; ')})`}
                 </Text>
+                {party.address ? <Text style={s.partyDetail}>{party.address}</Text> : null}
                 <Text style={s.partyDetail}>
                   {party.contact
                     ? [party.contact.email, party.contact.phone].filter(Boolean).join(', ')
