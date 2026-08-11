@@ -197,10 +197,34 @@ test('composer generates three documents', async ({ page }, testInfo) => {
   await page.locator('input').first().fill('Referral brief');
   // ONE PROJECT, not a smaller market. The client stays selected: a referral is
   // still written for someone.
+  //
+  // THE PROJECT IS CHOSEN, NOT TAKEN. This used to grab options[1] and hope.
+  // After the August capture that project had no filing inside the period, so
+  // the composer correctly refused to generate - 1 project and 0 records is the
+  // self-contradictory basis the brief forbids - and the harness failed on a
+  // disabled button, which reads like a broken control rather than a working
+  // guard. A referral brief needs a project with something to cite, so the
+  // harness looks for one.
   const picker = page.getByTestId('report-project');
   const options = await picker.locator('option').all();
-  const first = await options[1].getAttribute('value');
-  await picker.selectOption(first ?? '');
+  let chosen: string | null = null;
+  for (const option of options.slice(1, 12)) {
+    const value = await option.getAttribute('value');
+    if (!value) continue;
+    await picker.selectOption(value);
+    await expect
+      .poll(async () => await page.getByTestId('preview-records-count').textContent(), { timeout: 60_000 })
+      .not.toContain('--');
+    const recs = Number(
+      ((await page.getByTestId('preview-records-count').textContent()) ?? '').replace(/\D/g, '')
+    );
+    if (recs > 0) {
+      chosen = value;
+      console.log(`  referral project: ${(await option.textContent())?.trim()} (${recs} records)`);
+      break;
+    }
+  }
+  expect(chosen, 'no project in this scope has a filing in the period to write a brief about').not.toBeNull();
   // Trim to the two sections a referral needs.
   for (const id of ['moved', 'markets', 'hearings', 'watchlist', 'coverage']) {
     const remove = page.locator(`[data-section="${id}"] button`);
