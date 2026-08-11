@@ -1,0 +1,15 @@
+{
+  "project": {
+    "id": "cbde2ce3-41f2-412b-83ee-2153d1155cc5",
+    "name": "OCVibe"
+  },
+  "url": "http://localhost:3000/reports?project=cbde2ce3-41f2-412b-83ee-2153d1155cc5&mode=referral",
+  "composerSelection": "OCVibe (Anaheim)",
+  "sections": [
+    "cover",
+    "markets",
+    "appendix",
+    "coverage"
+  ],
+  "previewProjects": "1 projects"
+}
