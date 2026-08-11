@@ -1,0 +1,18 @@
+{
+  "register": {
+    "arrived": 167,
+    "resolution": "304 records, 167 projects"
+  },
+  "report": {
+    "scope": 192,
+    "records": 175,
+    "cover": "192 projects, 175 records",
+    "scoping": "This report covers all covered markets for August 2026. It is drawn from 192 projects and 175 captured records. Of those projects, 15 are described in full, selected by significance; 60 further projects are counted but not described; 87 projects filed nothing in this period; and 30 carry no market or region we could resolve. Anything outside that geography or period is not covered here."
+  },
+  "partition": {
+    "described": 15,
+    "counted": 60,
+    "silent": 87,
+    "active": 75
+  }
+}
