@@ -803,6 +803,12 @@ export interface ClusterResult {
   // in its own title (its subject), discarding the ones its body merely scopes.
   citywideRecordsDropped: number;
   omnibusRecordsDropped: number;
+  // Unions refused because the two sides name DIFFERENT targets. See the
+  // guarded union in pass 2.
+  targetCollisionsBlocked: number;
+  // Which pairs, so a refusal can be read rather than counted. Two targets that
+  // collide constantly are a sign the terms overlap and want splitting.
+  targetCollisions: { a: string; b: string; via: string }[];
   // Records naming more than one Development Area, refused as an index of a
   // whole plan rather than a filing about one part of it.
   multiSubareaRecords: number;
@@ -1024,6 +1030,8 @@ export function clusterRecords(
     containerRecords: 0,
     citywideRecordsDropped: 0,
     omnibusRecordsDropped: 0,
+    targetCollisionsBlocked: 0,
+    targetCollisions: [],
     multiSubareaRecords: 0,
     officeAddressesDropped: [],
     namesCorroborated: [],
@@ -1257,8 +1265,62 @@ export function clusterRecords(
       byKey.get(s.key)!.push(i);
     }
   }
-  for (const idxs of byKey.values()) {
-    for (let k = 1; k < idxs.length; k++) uf.union(idxs[0], idxs[k]);
+
+  // GUARDRAIL: TWO DIFFERENT TARGETS ARE TWO DIFFERENT PROJECTS.
+  //
+  // A target is a bypass term that names a specific project. Two records naming
+  // DIFFERENT ones are, by construction, about different projects, and no
+  // amount of shared address, applicant or case root should merge them.
+  //
+  // Without this they merged, and silently: pass 3 names a cluster from the
+  // FIRST target among its members, so a merged cluster simply adopts one name
+  // and the other project stops existing. Measured on the August corpus, the
+  // OCVibe cluster held 28 records of which 5 resolved to the 'Disney / CFTOD'
+  // target - DisneylandForward, and four Walt Disney Parks development-agreement
+  // compliance reviews. They should have formed 'Disneyland Resort', which is
+  // that target's name in Anaheim. Instead Disneyland Resort ceased to exist,
+  // OCVibe absorbed its records and rose to the top of the register on them,
+  // and the backfill's own acceptance test caught it with "Disneyland Resort: no
+  // project".
+  //
+  // The two are genuinely adjacent - both are Anaheim resort-district projects,
+  // they share streets and the city as a party - so the bridging signal is
+  // legitimate on its own terms. What is not legitimate is letting it outrank an
+  // explicit statement of which project each record is about.
+  //
+  // A record with NO target is unconstrained and still joins whichever component
+  // it shares a signal with, exactly as before.
+  const componentTarget = new Map<number, string>();
+  for (let i = 0; i < records.length; i++) {
+    const t = targets[i];
+    if (t) componentTarget.set(i, t.name);
+  }
+  const guardedUnion = (a: number, b: number, via: string): boolean => {
+    const ra = uf.find(a);
+    const rb = uf.find(b);
+    if (ra === rb) return true;
+    const ta = componentTarget.get(ra) ?? null;
+    const tb = componentTarget.get(rb) ?? null;
+    if (ta && tb && ta !== tb) {
+      result.targetCollisionsBlocked++;
+      if (!result.targetCollisions.some((c) => c.a === ta && c.b === tb && c.via === via)) {
+        result.targetCollisions.push({ a: ta, b: tb, via });
+      }
+      return false;
+    }
+    uf.union(a, b);
+    // The surviving root inherits whichever side had a target.
+    const root = uf.find(a);
+    const inherited = ta ?? tb;
+    componentTarget.delete(ra);
+    componentTarget.delete(rb);
+    if (inherited) componentTarget.set(root, inherited);
+    return true;
+  };
+
+  for (const [key, idxs] of byKey.entries()) {
+    const via = key.split(':')[0];
+    for (let k = 1; k < idxs.length; k++) guardedUnion(idxs[0], idxs[k], via);
   }
 
   // Fuzzy entity pass, strictly within a market.
@@ -1271,13 +1333,22 @@ export function clusterRecords(
       const nameA = na.join(':');
       const nameB = nb.join(':');
       if (!entitiesMatchFuzzily(nameA, nameB)) continue;
+      // Guarded for the same reason: a fuzzy name match is the weakest signal
+      // here, and it must not be the one that overrides two explicit targets.
+      // Recorded only when it actually merged, so the fuzzy-merge list stays a
+      // list of merges rather than of attempts.
+      const merged = guardedUnion(
+        byKey.get(entityKeys[a])![0],
+        byKey.get(entityKeys[b])![0],
+        'entity-fuzzy'
+      );
+      if (!merged) continue;
       result.fuzzyMerges.push({
         a: nameA,
         b: nameB,
         similarity: Number(entitySimilarity(nameA, nameB).toFixed(3)),
         market: ma,
       });
-      uf.union(byKey.get(entityKeys[a])![0], byKey.get(entityKeys[b])![0]);
     }
   }
 

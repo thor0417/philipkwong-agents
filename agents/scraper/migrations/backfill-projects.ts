@@ -522,6 +522,10 @@ export function printBackfillReport(
   console.log(`  container records (agenda/calendar/portal pages, no signals): ${cluster.containerRecords}`);
   console.log(`  citywide records narrowed to their own title case root:      ${cluster.citywideRecordsDropped}`);
   console.log(`  records naming more than 3 case roots (an index, not a filing): ${cluster.omnibusRecordsDropped}`);
+  console.log(`  unions refused because the two sides name different targets:  ${cluster.targetCollisionsBlocked}`);
+  for (const c of cluster.targetCollisions) {
+    console.log(`      "${c.a}" x "${c.b}" via ${c.via}`);
+  }
   console.log(
     `  records naming more than one Development Area (an index, not a filing): ${cluster.multiSubareaRecords}`
   );
