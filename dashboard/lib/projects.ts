@@ -78,9 +78,20 @@ export interface ProjectQuery {
   watch?: boolean;
   // Activity window, on last_activity.
   activeFrom?: string;
-  // THE PERIOD, on the ARRIVED axis: projects.first_seen, half-open
-  // [firstSeenFrom, firstSeenTo). See lib/period.ts for why the upper bound is
-  // exclusive and why both are full timestamps.
+  // A WINDOW ON projects.first_seen, AND NOT THE ARRIVED AXIS.
+  //
+  // The register's Arrived axis used these and it was wrong. first_seen is
+  // written once, on insert, as the OLDEST capture date among the project's
+  // records, so the filter asked "was this project's oldest record captured in
+  // this period" - which is a question about when a project entered the corpus,
+  // not about whether anything happened to it. A project first seen in July
+  // that gained eleven August filings answered no and vanished from August.
+  //
+  // Arrived now resolves through the records into `ids`, the same shape Moved
+  // uses for events. These remain because a window on the project's own
+  // first_seen is a legitimate thing to want - "projects that entered the
+  // register this month" - and periodScoped still counts them. They are just
+  // not what "arrived" means.
   firstSeenFrom?: string;
   firstSeenTo?: string;
   // THE PERIOD, on the MOVED axis. project_events lives in another table, so

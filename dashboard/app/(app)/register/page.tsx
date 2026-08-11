@@ -32,7 +32,7 @@ import { useFacet } from '@/lib/use-leads';
 import type { LeadQuery } from '@/lib/query';
 import PeriodSelector from '@/components/PeriodSelector';
 import { BUCKETS, PERIOD_AXES, bucketOf, type BucketMode } from '@/lib/period';
-import { usePeriodState, useMovedProjectIds } from '@/lib/use-period';
+import { usePeriodState, useArrivedProjectIds, useMovedProjectIds } from '@/lib/use-period';
 import RegisterRail from './RegisterRail';
 import RegisterDetail from './RegisterDetail';
 import styles from './page.module.css';
@@ -175,9 +175,10 @@ export default function RegisterPage() {
   const { period, setToken: setPeriod, axis, setAxis } = usePeriodState('all');
   const periodNow = useMemo(() => new Date(), []);
 
-  // The moved axis resolves through project_events, so it is a second query.
-  // Only issued when that axis is selected.
-  const moved = useMovedProjectIds(period, axis === 'moved');
+  // Both axes resolve through a child table, so each is a second query, and
+  // each is only issued when its axis is selected and a period is set.
+  const moved = useMovedProjectIds(period, axis === 'moved' && period.key !== 'all');
+  const arrived = useArrivedProjectIds(period, axis === 'arrived' && period.key !== 'all');
 
   const [error, setError] = useState<string | null>(null);
   const [searchDraft, setSearchDraft] = useState(search);
@@ -216,22 +217,31 @@ export default function RegisterPage() {
     [setCountryParam]
   );
 
-  // THE PERIOD, ON ONE OF TWO AXES.
+  // THE PERIOD, ON ONE OF TWO AXES. BOTH RESOLVE THROUGH A CHILD TABLE.
   //
-  //   ARRIVED  projects.first_seen. When we captured it.
+  //   ARRIVED  a RECORD captured inside the period. When we captured something
+  //            about it.
   //   MOVED    a project_events row inside the period. When something happened
-  //            to it. Resolved to a list of ids, because the events are in
-  //            another table.
+  //            to it.
   //
-  // The moved axis deliberately contributes NOTHING until its query has
-  // answered. Passing `ids: []` while it is in flight would show an empty
-  // register for a moment and read as "nothing moved in July", which is a
-  // different statement from "not known yet".
-  const periodFilter: Pick<ProjectQuery, 'firstSeenFrom' | 'firstSeenTo' | 'ids'> = useMemo(() => {
+  // ARRIVED USED TO READ projects.first_seen AND THAT WAS THE BUG. The column is
+  // written once, on insert, as the oldest capture date among the project's
+  // records, so the filter really asked "was this project's OLDEST record
+  // captured in August". A project first seen in July that gained eleven August
+  // filings answered no. Measured on the August 2026 capture, Nevada showed 1
+  // project where 7 had gained a record, California 2 where 7 had, Tennessee 0
+  // where 2 had - a month in which Clark County captured 81 records and Anaheim
+  // 79 rendered as an almost empty register.
+  //
+  // Neither axis contributes ANYTHING until its query has answered. Passing
+  // `ids: []` while one is in flight would empty the register for a moment and
+  // read as "nothing arrived in August", which is a different statement from
+  // "not known yet".
+  const periodFilter: Pick<ProjectQuery, 'ids'> = useMemo(() => {
     if (period.key === 'all') return {};
     if (axis === 'moved') return moved.data ? { ids: moved.data.ids } : {};
-    return { firstSeenFrom: period.since, firstSeenTo: period.until };
-  }, [period, axis, moved.data]);
+    return arrived.data ? { ids: arrived.data.ids } : {};
+  }, [period, axis, moved.data, arrived.data]);
 
   const baseQuery: ProjectQuery = useMemo(
     () => ({
@@ -747,12 +757,26 @@ export default function RegisterPage() {
             </span>
           )}
 
-          {axis === 'moved' && (
-            <span className={`${styles.dim} mono`}>
+          {axis === 'moved' && period.key !== 'all' && (
+            <span className={`${styles.dim} mono`} data-testid="axis-resolution">
               {moved.isPending
                 ? 'resolving events...'
                 : `${moved.data?.events ?? 0} events, ${moved.data?.ids.length ?? 0} projects`}
               {moved.data?.capped ? ' (CAPPED)' : ''}
+            </span>
+          )}
+
+          {/* The same statement for Arrived. It exists for the same reason the
+              moved one does: the axis resolves through a child table, so the
+              register is showing the result of a query it does not otherwise
+              display, and "6 projects" with no cause behind it is what let the
+              old behaviour go unnoticed. */}
+          {axis === 'arrived' && period.key !== 'all' && (
+            <span className={`${styles.dim} mono`} data-testid="axis-resolution">
+              {arrived.isPending
+                ? 'resolving records...'
+                : `${arrived.data?.records ?? 0} records, ${arrived.data?.ids.length ?? 0} projects`}
+              {arrived.data?.capped ? ' (CAPPED)' : ''}
             </span>
           )}
         </div>

@@ -59,17 +59,34 @@ test('period selection sums', async ({ page }) => {
 
     out[axis] = { month, weeks, summed };
 
-    if (axis === 'arrived') {
-      // ARRIVED IS A PARTITION. Every project has exactly one first_seen, so it
-      // falls in exactly one week, and the weeks must sum to the month exactly.
-      expect(summed, `weeks of July do not sum to July on the ${axis} axis`).toBe(month);
-    } else {
-      // MOVED IS NOT A PARTITION and must not be asserted as one. A project with
-      // events in two different weeks is counted in both, so the sum is greater
-      // than or equal to the month - never less. A sum BELOW the month would
-      // mean a project moved during July and during none of July's weeks, which
-      // is the boundary bug this audit exists to catch.
-      expect(summed, `a project moved in July but in none of July's weeks`).toBeGreaterThanOrEqual(month);
+    // NEITHER AXIS IS A PARTITION ANY MORE, AND THAT IS THE POINT.
+    //
+    // Arrived used to be one: it read projects.first_seen, every project has
+    // exactly one, so the weeks summed to the month exactly and this asserted
+    // equality. That equality was the arithmetic signature of the bug. Reading a
+    // single date per project is what made "arrived in August" mean "this
+    // project's OLDEST record was captured in August", so a project first seen
+    // in July that gained eleven August filings did not arrive in August and
+    // vanished from the month.
+    //
+    // Arrived now means "gained a record captured in this period", resolved
+    // through the records the way Moved resolves through events. A project that
+    // gained records in two different weeks belongs to both, so the sum is
+    // greater than or equal to the month for both axes now.
+    //
+    // WHAT THE ASSERTION STILL CATCHES IS THE THING IT WAS WRITTEN FOR. A sum
+    // BELOW the month means a project fell inside July and inside none of
+    // July's weeks, which is exactly the inclusive-bound and timezone class of
+    // bug this audit exists for. That check is unchanged; only the claim that
+    // the axis partitions is gone, because it is no longer true and asserting it
+    // would pin the defect in place.
+    expect(
+      summed,
+      `a project fell in July but in none of July's weeks on the ${axis} axis`
+    ).toBeGreaterThanOrEqual(month);
+    // And no single week may exceed the month it is inside.
+    for (const w of weeks) {
+      expect(w.count, `${w.token} holds more projects than the whole of July`).toBeLessThanOrEqual(month);
     }
   }
 

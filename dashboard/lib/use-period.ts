@@ -107,3 +107,73 @@ export function useMovedProjectIds(period: ResolvedPeriod, enabled: boolean) {
     staleTime: 30_000,
   });
 }
+
+// A record row carries no module, so the lane is not filterable here the way it
+// is on project_events. The join back to projects does that: an id that is not
+// in the register's own query drops out when the two are ANDed.
+export const RECORD_ID_CAP = 20_000;
+
+export interface ArrivedProjects {
+  ids: string[];
+  records: number;
+  capped: boolean;
+}
+
+/**
+ * THE PROJECTS THAT GAINED A RECORD IN THIS PERIOD.
+ *
+ * ARRIVED USED TO MEAN projects.first_seen, AND THAT IS NOT WHAT ANYONE READS
+ * IT AS. The column is written once, on insert, as the OLDEST capture date
+ * among the project's records - so "arrived in August" was really "this
+ * project's oldest record was captured in August". A project first seen in July
+ * that gained eleven August filings did not arrive in August by that reading and
+ * vanished from the month.
+ *
+ * Measured over the August 2026 capture: 167 projects gained a record captured
+ * in August; 143 had their own first_seen inside it; the filter hid 24. The
+ * totals understate it badly, because New York City is almost entirely new
+ * projects (117 of its 120 are both) and it dominates the sum. Everywhere with
+ * an established register was wrong by most of its activity:
+ *
+ *   Nevada      7 projects gained an August record, the register showed 1
+ *   California  7 gained, showed 2
+ *   Tennessee   2 gained, showed 0
+ *
+ * which is how a month in which Clark County captured 81 records, Anaheim 79 and
+ * Las Vegas 75 displayed as a nearly empty register.
+ *
+ * So Arrived resolves through the records, the same shape the Moved axis uses
+ * for events: ask which projects hold a record captured inside the period, and
+ * filter on those ids. The alternative - a stored "last_record_added" column -
+ * is a second denormalised date to keep true, and this corpus already has one
+ * date column that quietly meant something other than its name.
+ */
+export async function fetchArrivedProjectIds(period: ResolvedPeriod): Promise<ArrivedProjects> {
+  let q = supabase
+    .from('leads')
+    .select('project_id')
+    .not('project_id', 'is', null)
+    // A dismissed record is not activity. It is the same rule the register's
+    // own counts use, and without it a month of dismissals reads as a busy one.
+    .neq('status', 'dismissed')
+    .limit(RECORD_ID_CAP);
+  if (period.since) q = q.gte('first_seen', period.since);
+  // Exclusive, matching lib/period.ts.
+  if (period.until) q = q.lt('first_seen', period.until);
+
+  const { data, error } = await q;
+  if (error) throw new Error(`arrived-projects query failed: ${error.message}`);
+  const rows = (data ?? []) as { project_id: string | null }[];
+  const ids = new Set<string>();
+  for (const r of rows) if (r.project_id) ids.add(r.project_id);
+  return { ids: [...ids], records: rows.length, capped: rows.length >= RECORD_ID_CAP };
+}
+
+export function useArrivedProjectIds(period: ResolvedPeriod, enabled: boolean) {
+  return useQuery({
+    queryKey: ['projects', 'arrived', period.since ?? '', period.until ?? ''],
+    queryFn: () => fetchArrivedProjectIds(period),
+    enabled,
+    staleTime: 30_000,
+  });
+}
