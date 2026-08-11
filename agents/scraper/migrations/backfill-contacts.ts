@@ -164,6 +164,70 @@ export function extractContact(raw: string): Omit<ContactHit, 'id' | 'source'> |
   return { person, email, phone, sentence: windowAround(raw, email ?? phone ?? '') };
 }
 
+// ---- THE CLARK COUNTY CONTACT BLOCK -----------------------------------------
+//
+// A second shape entirely, and the most valuable one in the corpus. Clark County
+// prints a full contact block on its zoning items:
+//
+//   CONTACT: NANCY AMUNDSEN, BROWN, BROWN, & PREMSRIRUT, 520 S. 4TH STREET,
+//   LAS VEGAS, NV 89101
+//   CONTACT: LENNAR, ATTN: PARKER SIECK, 6385 S. RAINBOW BOULEVARD, SUITE 300
+//   CONTACT: HOLLAND & HART LLP, 5470 KIETZKE LANE #100, RENO, NV 89511
+//
+// 29 of the 32 labelled blocks in Legistar are Clark County and 15 carry no
+// stored contact at all. These are the land-use attorneys and consultants who
+// carried the entitlement, which is the warm door into a project, and they were
+// being dropped for two reasons that have nothing to do with whether they are
+// real: the block is in block capitals, and it carries a postal address rather
+// than an email, so the person-plus-detail extractor above refuses it.
+//
+// A NAME WITH NO EMAIL IS STILL A NAMED CONTACT. The honest negative on the
+// contact detail is already printed by the report; refusing the NAME as well
+// throws away the party because we cannot phone them.
+const CONTACT_BLOCK = /CONTACT:\s*([^\n\r]{4,160})/i;
+const ATTN = /\bATTN:?\s*([A-Z][A-Za-z'\-]+(?:\s+[A-Z][A-Za-z'\-]+){1,2})/i;
+// Where the postal address starts. Same rule the report layer uses.
+const BLOCK_ADDRESS = /,\s*(?=\d+\s+[NSEW]?\.?\s*\w|(?:suite|ste\.?|floor|fl\.?|p\.?o\.?\s*box|#)\b)/i;
+
+/**
+ * The party a "CONTACT:" block names, with the firm where it gives one.
+ *
+ * Returns the block's own words. A block naming only an organisation returns
+ * that organisation: the record says it is the contact, and saying so is not the
+ * same as claiming a person.
+ */
+export function extractContactBlock(raw: string): { person: string; firm: string | null } | null {
+  const m = CONTACT_BLOCK.exec(raw);
+  if (!m) return null;
+  const block = m[1].split(BLOCK_ADDRESS)[0].replace(/[,;\s]+$/, '').trim();
+  if (block.length < 4) return null;
+
+  // "LENNAR, ATTN: PARKER SIECK" - the addressee is the person, the leading
+  // segment is the firm.
+  const attn = ATTN.exec(block);
+  if (attn) {
+    const firm = block.slice(0, attn.index).replace(/[,;\s]+$/, '').trim();
+    return { person: attn[1].trim(), firm: firm || null };
+  }
+
+  const parts = block.split(',').map((p) => p.trim()).filter(Boolean);
+  if (parts.length === 0) return null;
+  const head = parts[0];
+  const words = head.split(/\s+/);
+  // A personal name: two or three words, no company marker. Checked against the
+  // shape rather than the case, because the whole block is capitalised.
+  const looksPersonal =
+    words.length >= 2 &&
+    words.length <= 3 &&
+    !NOT_A_PERSON_NAME.test(head) &&
+    !/\b(llc|inc|ltd|lp|llp|plc|corp|company|group|services|consulting|associates|partners|holdings|academy|school|church|properties|realty|development)\b/i.test(head);
+  if (looksPersonal) {
+    return { person: head, firm: parts.slice(1).join(', ') || null };
+  }
+  // Otherwise the block names an organisation, which is what it says.
+  return { person: block, firm: null };
+}
+
 async function main(): Promise<void> {
   const rows: Record<string, unknown>[] = [];
   for (let f = 0; ; f += 500) {
@@ -179,6 +243,10 @@ async function main(): Promise<void> {
   console.log(`records scanned: ${rows.length}`);
 
   const hits: ContactHit[] = [];
+  // Blocks that name a contact but carry no email or phone. A name with no way
+  // to reach it is still a named party, and the report already prints the
+  // honest negative about the detail.
+  const nameOnly: { id: string; source: string; person: string; firm: string | null }[] = [];
   const rejected = new Map<string, number>();
   for (const r of rows) {
     const raw = String(r.raw_content ?? '');
@@ -194,18 +262,25 @@ async function main(): Promise<void> {
     }
 
     const hit = extractContact(raw);
-    if (!hit) {
-      rejected.set(
-        'no contact attributed to a named person',
-        (rejected.get('no contact attributed to a named person') ?? 0) + 1
-      );
+    const block = extractContactBlock(raw);
+    const haveName = String(r.contact_name ?? '').trim();
+
+    if (hit && !already) {
+      hits.push({ id: String(r.id), source: String(r.source), ...hit });
       continue;
     }
-    if (already) {
+    if (block && !haveName) {
+      nameOnly.push({ id: String(r.id), source: String(r.source), person: block.person, firm: block.firm });
+      continue;
+    }
+    if (already || haveName) {
       rejected.set('already stored', (rejected.get('already stored') ?? 0) + 1);
       continue;
     }
-    hits.push({ id: String(r.id), source: String(r.source), ...hit });
+    rejected.set(
+      'no contact attributed to a named person',
+      (rejected.get('no contact attributed to a named person') ?? 0) + 1
+    );
   }
 
   const bySource = new Map<string, { email: number; phone: number }>();
@@ -225,6 +300,17 @@ async function main(): Promise<void> {
     console.log(`   ${String(n).padStart(4)}  ${why}`);
   }
 
+  const nameBySource = new Map<string, number>();
+  for (const h of nameOnly) nameBySource.set(h.source, (nameBySource.get(h.source) ?? 0) + 1);
+  console.log(`\nCONTACT NAMES GAINED FROM A "CONTACT:" BLOCK (no email or phone in it)`);
+  for (const [src, n] of [...nameBySource.entries()].sort((a, b) => b[1] - a[1])) {
+    console.log(`   ${src.padEnd(20)} ${String(n).padStart(3)}`);
+  }
+  console.log(`   ${'TOTAL'.padEnd(20)} ${String(nameOnly.length).padStart(3)}`);
+  for (const h of nameOnly.slice(0, 12)) {
+    console.log(`      ${h.person}${h.firm ? `  (${h.firm})` : ''}`);
+  }
+
   console.log(`\nEXAMPLES, WITH THE SENTENCE EACH CAME FROM`);
   for (const h of hits.slice(0, 12)) {
     console.log(`\n   [${h.source}] ${h.person}`);
@@ -237,6 +323,17 @@ async function main(): Promise<void> {
     return;
   }
   let written = 0;
+  for (const h of nameOnly) {
+    const { error } = await supabaseAdmin
+      .from('leads')
+      .update({ contact_name: h.firm ? `${h.person}, ${h.firm}` : h.person })
+      .eq('id', h.id);
+    if (error) {
+      console.error(`   name write failed for ${h.id}: ${error.message}`);
+      continue;
+    }
+    written++;
+  }
   for (const h of hits) {
     const patch: Record<string, unknown> = {};
     if (h.email) patch.contact_email = h.email;
