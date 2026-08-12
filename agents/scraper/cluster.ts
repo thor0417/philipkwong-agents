@@ -870,10 +870,27 @@ interface Signal {
   reason: Exclude<ClusterReason, 'manual'>;
 }
 
-// The best available date for a record: the source deadline, else the published
-// date, else when we first saw it. Used for last_activity and liveness only.
+// The best available date for a record: the source deadline, else the date the
+// source published it. Used for last_activity, ordering and liveness.
+//
+// A CAPTURE TIME IS NOT A PUBLICATION DATE, so first_seen is NOT a fallback
+// here any more. It used to be, and the effect was that a record the source
+// gave no date for became the freshest thing on its project the moment we
+// fetched it. A dateless LinkedIn post captured on 2026-08-10 outranked six
+// dated news stories about a county approval published on 2026-07-21, and the
+// project reported its last activity as the post.
+//
+// Null means the record cannot say when it happened. Liveness already handles
+// that honestly: a project whose records are all undated is reported live with
+// reason 'undated' and badged DATE UNKNOWN, never quietly dated to the scrape.
 export function bestDate(r: ClusterRecord): string | null {
-  return r.deadline ?? r.published_date ?? r.first_seen ?? null;
+  return r.deadline ?? r.published_date ?? null;
+}
+
+// When we captured it. A real fact, but about US and not about the record, so
+// it is never allowed to stand in for a publication date.
+export function captureDate(r: ClusterRecord): string | null {
+  return r.first_seen ?? null;
 }
 
 // ---- Naming -----------------------------------------------------------------

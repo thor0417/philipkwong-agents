@@ -129,6 +129,74 @@ export async function attachOnWrite(writtenUrls: string[]): Promise<AttachReport
   return out;
 }
 
+// ---- THE INBOX SWEEP -------------------------------------------------------
+//
+// attachOnWrite only ever REPORTS on the URLs its own run wrote. The reconcile
+// underneath it is corpus-wide, so in principle nothing is left behind - but
+// only if some lane calls it. A lane that writes and never calls it (the GLI
+// standalone entrypoint did exactly this until today) leaves records with a
+// null project_id that NO subsequent run will mention, because no later run
+// wrote their URLs.
+//
+// So this sweeps by state rather than by provenance: every record with a null
+// project_id, whichever run wrote it, however long ago. It reports the residue
+// too, because a record that carries no signal at all is a legitimate Inbox
+// resident and must not be confused with an orphan.
+export interface SweepReport {
+  unattachedBefore: number;
+  unattachedAfter: number;
+  attached: number;
+  projectsCreated: number;
+  projectsUpdated: number;
+  skipped: string | null;
+}
+
+async function countUnattached(): Promise<number> {
+  const { count } = await supabaseAdmin
+    .from('leads')
+    .select('id', { count: 'exact', head: true })
+    .eq('module', 'gli')
+    .neq('status', 'dismissed')
+    .is('project_id', null);
+  return count ?? 0;
+}
+
+export async function sweepInbox(): Promise<SweepReport> {
+  const empty: SweepReport = {
+    unattachedBefore: 0,
+    unattachedAfter: 0,
+    attached: 0,
+    projectsCreated: 0,
+    projectsUpdated: 0,
+    skipped: null,
+  };
+  if (process.env.PROJECTS_NO_ATTACH === '1') return { ...empty, skipped: 'PROJECTS_NO_ATTACH=1' };
+  if (process.env.PROJECTS_NO_WRITE === '1') return { ...empty, skipped: 'PROJECTS_NO_WRITE=1' };
+  const before = await countUnattached();
+  const { report } = await runBackfill();
+  const after = await countUnattached();
+  return {
+    unattachedBefore: before,
+    unattachedAfter: after,
+    attached: before - after,
+    projectsCreated: report.projectsCreated,
+    projectsUpdated: report.projectsUpdated,
+    skipped: null,
+  };
+}
+
+export function printSweepReport(r: SweepReport): void {
+  if (r.skipped) {
+    console.log(`Inbox sweep: skipped (${r.skipped}).`);
+    return;
+  }
+  console.log(
+    `Inbox sweep: ${r.unattachedBefore} records had no project | ` +
+      `${r.attached} attached | ${r.unattachedAfter} remain (no signal to cluster on)`
+  );
+  console.log(`  projects: ${r.projectsCreated} created, ${r.projectsUpdated} updated`);
+}
+
 export function printAttachReport(label: string, r: AttachReport): void {
   if (r.skipped) {
     console.log(`${label} project attachment: skipped (${r.skipped}).`);

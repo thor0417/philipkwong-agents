@@ -49,6 +49,7 @@ import { selectAllPaged } from './page-select';
 import { resetParseReports, printParseReports, allParseReports } from './sources/schemas';
 import { RunTimer } from './logger';
 import { recordSourceRun, reportRunHealth, resetSourceRuns } from './health';
+import { attachOnWrite, printAttachReport } from './project-attach';
 import { subDays } from 'date-fns';
 
 // Does a column exist on `leads`? Probed once and cached, so a migration that
@@ -998,6 +999,11 @@ async function main(): Promise<void> {
   printGliReport(report);
   if (process.env.GLI_NO_WRITE !== '1') {
     await reportRunHealth('intelligence', { fetched: report.fetched, written: report.written });
+    // ATTACH, AS government.ts AND opportunity.ts ALREADY DO. This lane was the
+    // only one of the three whose standalone entrypoint wrote records and left
+    // every one of them orphaned, silently: a run reported "167 written" while
+    // none of them reached a project, and nothing downstream noticed.
+    printAttachReport('GLI', await attachOnWrite(report.writtenUrls));
   } else {
     resetSourceRuns();
   }
