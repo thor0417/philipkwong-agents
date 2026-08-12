@@ -52,6 +52,29 @@ export interface TargetDef {
   // Blanketing it as weak cost six records the July report places in the
   // project, which is why the distinction is drawn here instead.
   districtTerms?: string[];
+  // CLUSTERING ONLY. Terms that name a PLACE CONTAINING MANY PROJECTS: a zoning
+  // district, a corridor, a neighbourhood, or a venue that hosts unrelated
+  // business. They ADMIT a record, because development in the district is worth
+  // capturing, but they can NEVER claim project identity, because the district
+  // is not the project.
+  //
+  // This is the third and last of the three weakenings, and the distinction
+  // between them is the whole point:
+  //
+  //   weakForClustering  'russell road'      neither claims nor admits. A street
+  //                                          is not evidence of anything.
+  //   districtTerms      'platinum triangle' claims normally, refused only where
+  //                                          the record is city-wide process.
+  //   districtWide       'hudson yards'      admits always, claims never.
+  //
+  // 'hudson yards' is the case that proved it necessary. It is the Special
+  // Hudson Yards District, and it matched 19 records covering at least 15
+  // separate buildings: the Port Authority Bus Terminal, Brookfield's Manhattan
+  // West, 70 Hudson Yards on the EASTERN rail yard, an HPD affordable housing
+  // site, and eleven others, all filed under one project at significance 80.
+  // Making it weakForClustering would have stopped the false merge and also
+  // stopped capturing the district, which is the opposite of what we want.
+  districtWide?: string[];
 }
 
 // ORDER IS PRECEDENCE for clustering (targets.ts is the first clustering rule).
@@ -158,6 +181,8 @@ export const TARGETS: TargetDef[] = [
     name: 'Hudson Yards / Western Rail Yard',
     bypass: ['western rail yard', 'wry tenant', 'hudson yards'],
     searchOnly: ['related companies', 'oxford properties'],
+    // The district, not the project. See districtWide above.
+    districtWide: ['hudson yards'],
   },
   {
     // Madison Square Garden's special permit is the recurring entitlement that
@@ -215,6 +240,11 @@ export const TARGETS: TargetDef[] = [
     name: 'OCVibe',
     bypass: ['ocvibe', 'oc vibe', 'ocv!be', 'honda center', 'anaheim real properties'],
     searchOnly: ['douglas park'],
+    // The arena is OCVibe's anchor, and a record naming it is worth capturing,
+    // but the building hosts business that is not the development: the Games
+    // Agreement with the LA28 Olympic organising committee joined OCVibe on
+    // 'honda center' and nothing else.
+    districtWide: ['honda center'],
   },
   {
     // SPLIT OUT OF THE OCVibe TARGET (clustering brief, Part C). 'platinum
@@ -297,9 +327,12 @@ export function bestTargetForClustering(
   if (hits.length === 0) return null;
   const weakByTarget = new Map(TARGETS.map((t) => [t.name, new Set(t.weakForClustering ?? [])]));
   const districtByTarget = new Map(TARGETS.map((t) => [t.name, new Set(t.districtTerms ?? [])]));
+  const wideByTarget = new Map(TARGETS.map((t) => [t.name, new Set(t.districtWide ?? [])]));
   const counts = new Map<string, Set<string>>();
   for (const h of hits) {
     if (weakByTarget.get(h.target)?.has(h.term)) continue;
+    // A district term never establishes identity, whatever the record is about.
+    if (wideByTarget.get(h.target)?.has(h.term)) continue;
     if (opts.fiscalOrBallot && districtByTarget.get(h.target)?.has(h.term)) continue;
     if (!counts.has(h.target)) counts.set(h.target, new Set());
     counts.get(h.target)!.add(h.term);
