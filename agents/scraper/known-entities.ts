@@ -121,7 +121,20 @@ export function lastEntityReport(): EntityIndexReport | null {
 export async function loadKnownEntities(): Promise<EntityIndexReport> {
   const { data: projectData, error } = await supabaseAdmin
     .from('projects')
-    .select('id,name,market,primary_applicant,primary_representative');
+    .select('id,name,market,primary_applicant,primary_representative')
+    // RULE 3: A DISMISSED PROJECT LENDS NO AUTHORITY.
+    //
+    // The index was built from every project row, so a project already judged
+    // out of the vertical went on admitting further records for the same party.
+    // The corpus recruited for itself: measured, 4 records were admitted by an
+    // entity only a dismissable project carried, in a closed loop two matters
+    // wide that never reached a second generation.
+    //
+    // The carve-out falls out of this for free. Hilton Resorts is REAL AND
+    // BADLY NAMED, not noise, so it is not dismissed, so its entity survives
+    // and UC-26-0373's monorail permit keeps its way in. Only a project
+    // actually judged out of the vertical loses its entity.
+    .neq('status', 'dismissed');
   if (error) {
     console.warn(`Known entities: project read failed (${error.message}); bypass disabled this run.`);
     index = new Map();
@@ -226,14 +239,19 @@ export async function loadKnownEntities(): Promise<EntityIndexReport> {
     const markets = new Set<string>([p.market ?? '', ...rows.map((l) => l.location ?? '')].filter(Boolean));
     for (const m of markets) {
       add(p.primary_applicant, m, p.name, 'project');
-      add(p.primary_representative, m, p.name, 'project');
+      // RULE 1: THE REPRESENTATIVE IS NOT THE PROJECT.
+      // A land-use attorney appears on everybody's filings. 'greenberg
+      // traurig', carried by Arisa Realty Co. X, admitted three unrelated
+      // Board of Standards and Appeals hearings. Same lesson as Nancy
+      // Amundsen in the people module: a representative identifies who
+      // presented a matter, never which matter it is.
+      // add(p.primary_representative, ...) deliberately removed.
     }
     for (const l of rows) {
       const m = l.location ?? p.market ?? '';
       // presented_by is deliberately absent, for the reason cluster.ts gives: it
       // names the staff member who read the item out, which is the city.
       add(l.applicant, m, p.name, 'applicant');
-      add(l.representative, m, p.name, 'representative');
     }
   }
 
@@ -271,7 +289,31 @@ export function knownEntityHit(text: string, market: string | null | undefined):
   if (!list || list.length === 0) return null;
   const folded = fold(text);
   for (const e of list) {
-    if (folded.includes(e.entity)) return e;
+    if (!folded.includes(e.entity)) continue;
+    // RULE 2: A STREET IS WHERE A PROJECT IS, NOT WHICH PROJECT IT IS.
+    //
+    // 'desert inn' is a real entity, the Desert Inn family entertainment
+    // centre, and also a Las Vegas arterial. It admitted seven records,
+    // among them a daycare and an office/warehouse waiver, both of which say
+    // only that they are north of DESERT INN ROAD. This is russell road
+    // living in the entity index instead of in targets.ts.
+    //
+    // Refused per OCCURRENCE, not per entity: the entity keeps working where
+    // it names a party, and fails only where every mention is a road.
+    if (readsAsStreet(folded, e.entity)) continue;
+    return e;
   }
   return null;
+}
+
+// Does EVERY occurrence of `entity` sit immediately before a road word? One
+// occurrence naming a party is enough to keep the hit.
+const ROAD_WORD =
+  'road|rd|street|st|avenue|ave|boulevard|blvd|drive|dr|lane|ln|parkway|pkwy|highway|hwy|way|circle|court|ct|place|pl|trail|terrace';
+export function readsAsStreet(folded: string, entity: string): boolean {
+  const esc = entity.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const asStreet = (folded.match(new RegExp(`${esc}\\s+(?:${ROAD_WORD})\\b`, 'g')) ?? []).length;
+  if (asStreet === 0) return false;
+  const total = folded.split(entity).length - 1;
+  return asStreet >= total;
 }
