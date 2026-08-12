@@ -584,6 +584,30 @@ export function venueReadableText(text: string): string {
   return out;
 }
 
+// WHAT THE CLASSIFIER SAID BEFORE THE BOILERPLATE WAS NEUTRALISED.
+//
+// Used for exactly one question, by the reclassify migration: did this
+// record's STORED venue type depend on a phrase we now blank? The migration
+// passes the stored value as a hint so a record whose text names no venue
+// keeps what it has, which is right in general and wrong for these: the
+// stored value IS the bug, so the hint reinstates it.
+//
+// Not for classifying anything. Nothing may call this to decide what a record
+// is; it only describes what we used to think.
+export function venueTypeBeforeNeutralising(raw: string): VenueType | null {
+  const text = raw.replace(PLAN_NAME, ' ');
+  for (const rule of VENUE_RULES) {
+    if (rule.keywords.some((k) => hasWord(text, k))) return rule.venue;
+  }
+  return null;
+}
+
+// True when the stored value is supported ONLY by neutralised boilerplate.
+export function venueDependsOnBorrowedContext(raw: string, stored: string | null): boolean {
+  if (!stored) return false;
+  return venueTypeBeforeNeutralising(raw) === stored && classifyVenueType(raw) !== stored;
+}
+
 export function classifyVenueType(raw: string, hint?: string | null): VenueType | null {
   const text = venueReadableText(raw);
   for (const rule of VENUE_RULES) {

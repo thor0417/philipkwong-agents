@@ -98,6 +98,11 @@ export function projectRow(
     module,
     project_key: c.project_key,
     name: c.name,
+    // Which rule produced the name. Computed on every run since naming was
+    // written and dropped here every time, so all 319 projects reported null
+    // and the register could not tell "OCVibe" from a cleaned agenda line.
+    // Migration 032.
+    name_source: c.name_source,
     country: c.country,
     region_state: c.region_state,
     market: c.market,

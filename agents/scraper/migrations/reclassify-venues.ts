@@ -25,7 +25,11 @@
 // APPLY=1 to write.
 
 import { supabaseAdmin } from '../../../lib/supabase-admin';
-import { categoryForVenue, classifyVenueType } from '../../../lib/taxonomy';
+import {
+  categoryForVenue,
+  classifyVenueType,
+  venueDependsOnBorrowedContext,
+} from '../../../lib/taxonomy';
 
 const APPLY = process.env.APPLY === '1';
 
@@ -126,7 +130,19 @@ async function main(): Promise<void> {
     // Passing null instead was measured: it wipes Integrated Resort (14 -> 0)
     // and Family Entertainment Center (8 -> 0) - classifications the model made
     // by reading records that never contain the phrase.
-    const venue = classifyVenueType(`${l.title ?? ''} ${l.raw_content ?? ''}`, l.venue_type);
+    // THE HINT IS SUSPENDED WHERE THE STORED VALUE IS THE BUG.
+    //
+    // The hint exists so a record whose text names no venue keeps what it has,
+    // because re-deriving from silence destroys information. That reasoning
+    // fails for one class: a value the PREVIOUS classifier produced from
+    // boilerplate we have since neutralised. There the stored value is not
+    // information to preserve, it is the defect, and the hint reinstates it.
+    //
+    // Narrow on purpose. Passing null for everything was measured and wipes
+    // Integrated Resort 14 -> 0 and Family Entertainment Center 8 -> 0.
+    const text = `${l.title ?? ''} ${l.raw_content ?? ''}`;
+    const hint = venueDependsOnBorrowedContext(text, l.venue_type) ? null : l.venue_type;
+    const venue = classifyVenueType(text, hint);
     next.set(l.id, { venue, cat: categoryForVenue(venue) });
   }
 

@@ -261,6 +261,13 @@ export async function runBackfill(): Promise<{
       }
     }
     if (noWrite) continue;
+    // MIGRATION 032 IS PHILIP'S TO RUN, so the clusterer must work either side
+    // of it. Reported once rather than silently, because a run that quietly
+    // dropped name_source would look exactly like a run that stored it, which
+    // is how the field came to be missing for 319 projects in the first place.
+    if (!(await projectsHaveNameSource())) {
+      delete row.name_source;
+    }
     const { error } = await supabaseAdmin
       .from('projects')
       .upsert(row, { onConflict: 'module,project_key' });
@@ -629,6 +636,21 @@ export function printBackfillReport(
   console.log(`  Projects carrying a future milestone (next_milestone set): ${withMilestone}`);
   console.log('=======================================\n');
   return allPass;
+}
+
+// Does projects.name_source exist? Probed once per process. See migration 032.
+let nameSourceColumn: boolean | null = null;
+async function projectsHaveNameSource(): Promise<boolean> {
+  if (nameSourceColumn !== null) return nameSourceColumn;
+  const { error } = await supabaseAdmin.from('projects').select('name_source').limit(1);
+  nameSourceColumn = !error;
+  if (!nameSourceColumn) {
+    console.warn(
+      '  projects.name_source does not exist (migration 032 not run); writing without it. '
+        + 'The register cannot show how confident a name is until it is run.'
+    );
+  }
+  return nameSourceColumn;
 }
 
 async function main(): Promise<void> {
