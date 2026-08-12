@@ -71,6 +71,22 @@ entitlement layer is captured but frozen.**
 | 6 Special regulators | **PARTIAL** | `nyc-city-record` | BSA, Landmarks, City Planning Commission and FCRC hearing notices |
 | 4, 5, 7, 8 | **NONE** | - | as everywhere |
 
+> **STATE THIS IN ANY COVERAGE CLAIM FOR NEW YORK CITY.** Layer 1 being NONE is
+> not a formality. A City Council approval reaches us only if the City Record
+> happens to publish a notice we match, and it frequently does not.
+>
+> The measured instance, 2026-08-12: the Council approved the Western Rail Yard
+> financing in June 2025, roughly $2bn for the platform, and **we hold no record
+> of it**. Our newest Western Rail Yard record is the CEQR text of 2025-05-30,
+> which still describes the withdrawn Wynn gaming facility. June 2025 produced
+> 12 NYC government records across all three sources and none concerned Hudson
+> Yards. The project's current brand, "Hudson Yards West", appears in **zero of
+> 1,695 corpus records**.
+>
+> So for New York City we can say what was filed and what was reviewed. **We
+> cannot say what was approved.** Any claim of New York coverage that does not
+> carry that sentence is overstating what this system knows.
+
 **What we have:** 330 records and 178 projects, up from 5 press records.
 
 | source | dataset | fetched | written | freshness (probed 2026-08-09) |
