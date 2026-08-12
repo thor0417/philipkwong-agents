@@ -207,6 +207,13 @@ export const TARGETS: TargetDef[] = [
     // failed project and still names the site in both press and filings.
     name: 'Heart Hotel / Kulik River',
     bypass: [
+      // The commercial brand, and it was absent. Our number-two project was
+      // reachable only through 'skyvue', the name of the PREVIOUS failed
+      // project on the same parcel. 'heart hotel' returns 0 records today and
+      // 'heart-shaped' returns 2, both press on this project, so the phrase
+      // the press actually uses is the hyphenated one. Both are here.
+      'heart hotel',
+      'heart-shaped',
       'kulik river capital',
       'kulik river',
       // 'eli applebaum', not the bare surname. Once the watch terms became live
@@ -226,7 +233,8 @@ export const TARGETS: TargetDef[] = [
       'premsrirut',
       'vs-26-0218',
     ],
-    searchOnly: ['heart hotel', 'high desert', 'steelman partners', 'sky restaurant'],
+    // 'heart hotel' moved to bypass above: searchOnly terms are never queried.
+    searchOnly: ['high desert', 'steelman partners', 'sky restaurant'],
   },
   {
     // Corridor anchors near the Top Gun parcel (4815 S Las Vegas Blvd at Russell
@@ -287,6 +295,9 @@ export const TARGETS: TargetDef[] = [
       'South Florida': 'Walt Disney World area permits (SFWMD)',
     },
     bypass: [
+      // The district's own acronym, and it was not a term. 11 records already
+      // carry it, every one reached through other vocabulary.
+      'cftod',
       'walt disney',
       'disney parks',
       'wdpr',

@@ -1,5 +1,12 @@
 // Serper search source (GLI Tier 3 intelligence lane).
 //
+// THREE PASSES: CURATED TRADE PRESS, WATCH TERMS, AND MARKETS.
+//
+// The market pass is the newest and the one the lane was missing entirely: 22
+// sector queries named no place at all, so only 12% of 490 records touched any
+// market the government lane covers, and two of the twelve had never been
+// mentioned once. See MARKET PASS below.
+//
 // CURATED TRADE PRESS, PLUS AN EXPLICIT WATCH-TERM PASS. The sector queries run
 // curated-domain-only (below); the named targets in targets.ts run unrestricted
 // and are exempt from the curated check (see WATCH-TERM PASS). This replaces the
@@ -38,7 +45,7 @@ const ENDPOINT = 'https://google.serper.dev/search';
 
 // Hard ceiling on searches issued per run. The batch size is grown until the
 // planned search count sits under this; it also backstops the run loop.
-const MAX_SEARCHES_PER_RUN = 120;
+export const MAX_SEARCHES_PER_RUN = 160;
 
 // Recency window (days). Every query is date-restricted to this window via Serper
 // tbs, and every result is gated on its published date downstream (gli.ts).
@@ -169,6 +176,61 @@ export function watchQueries(): string[] {
   return out;
 }
 
+// ---- MARKET PASS -----------------------------------------------------------
+//
+// THE LANE KNEW EVERY SECTOR NOUN AND NOT ONE PLACE. Its 22 sector queries are
+// "theme park development", "casino development", "tourism master plan" and so
+// on, with no city, state or country in any of them, so geography arrived only
+// as a side effect of which curated outlet Google happened to rank. Measured
+// over 490 records: 59 of them (12%) mention any of the twelve markets the
+// government lane covers, and Oakland and Yonkers/Westchester have never been
+// mentioned once.
+//
+// So each covered market gets ONE unrestricted query pairing the place with the
+// leisure and development nouns. Unrestricted, like the watch pass and for the
+// same reason: local development news is not published on Gulf construction
+// trade sites, and gating it on the curated list is what made the lane blind in
+// the first place.
+//
+// Twelve searches. The whole fix costs about two cents a run.
+const MARKET_NOUNS = [
+  'casino',
+  '"theme park"',
+  'resort',
+  'arena',
+  'stadium',
+  '"entertainment district"',
+  '"mixed-use development"',
+  'waterpark',
+  'museum',
+  '"visitor attraction"',
+];
+
+// The twelve markets the government lane covers, named as the press names them
+// rather than as our jurisdiction labels do.
+export const COVERED_MARKETS = [
+  'New York City',
+  'Las Vegas',
+  'Clark County Nevada',
+  'Anaheim California',
+  'Orlando Florida',
+  'Miami Florida',
+  'Nashville Tennessee',
+  'Phoenix Arizona',
+  'San Antonio Texas',
+  'Oakland California',
+  'Yonkers New York',
+  'South Florida',
+];
+
+const MARKET_ENABLED = process.env.SERPER_MARKET_PASS !== '0';
+
+export function marketQueries(): string[] {
+  if (!MARKET_ENABLED) return [];
+  const nouns = MARKET_NOUNS.join(' OR ');
+  return COVERED_MARKETS.map((m) => `"${m}" (${nouns}) ${WATCH_EXCLUSIONS}`);
+}
+
 export interface WatchStats {
   searches: number;
   results: number;
@@ -178,6 +240,15 @@ export interface WatchStats {
   hostsOffCurated: Record<string, number>;
 }
 let lastWatch: WatchStats = { searches: 0, results: 0, offCurated: 0, hostsOffCurated: {} };
+
+export interface MarketStats {
+  searches: number;
+  results: number;
+}
+let lastMarket: MarketStats = { searches: 0, results: 0 };
+export function lastMarketStats(): MarketStats {
+  return lastMarket;
+}
 export function lastWatchStats(): WatchStats {
   return lastWatch;
 }
@@ -343,12 +414,19 @@ export async function scrapeSerper(queries: string[]): Promise<NormalizedLead[]>
   const tbs = tbsRecency(RECENCY_WINDOW_DAYS);
 
   // Plan: every term against every curated-domain batch (site:a OR site:b ...).
-  const plan: string[] = [];
+  // The term and the batch are carried alongside the issued string, because a
+  // site:-batched query puts ten domains in competition inside one search and a
+  // term's yield is not separable from the batch it ran in.
+  const plan: { q: string; term: string; scope: string }[] = [];
   for (const term of queries) {
-    for (const batch of batches) {
+    batches.forEach((batch, i) => {
       const sites = batch.map((d) => `site:${d}`).join(' OR ');
-      plan.push(`${term} (${sites})`);
-    }
+      plan.push({
+        q: `${term} (${sites})`,
+        term,
+        scope: `sector:batch ${i + 1}/${batches.length}`,
+      });
+    });
   }
 
   const byUrl = new Map<string, NormalizedLead>();
@@ -396,6 +474,8 @@ export async function scrapeSerper(queries: string[]): Promise<NormalizedLead[]>
           published_date: parseSerperDate(item.date),
           value_estimate: null,
           source: 'gli_serper',
+          query_term: wq,
+          query_scope: `watch:group ${lastWatch.searches}/${watchQueries().length}`,
         });
       }
     }
@@ -403,6 +483,41 @@ export async function scrapeSerper(queries: string[]): Promise<NormalizedLead[]>
       `Serper watch-term pass: ${lastWatch.searches} searches over ${watchTerms().length} watch terms -> ` +
         `${lastWatch.results} results, ${lastWatch.offCurated} of them off the curated list ` +
         `(${JSON.stringify(lastWatch.hostsOffCurated)}).`
+    );
+  }
+
+  // MARKET PASS, second. After the watch terms because a named target is a
+  // stronger signal than a place, and before the curated sector plan because
+  // the sector plan is the pass that gets cut when the ceiling bites.
+  lastMarket = { searches: 0, results: 0 };
+  for (const mq of marketQueries()) {
+    if (searches >= MAX_SEARCHES_PER_RUN) break;
+    searches++;
+    lastMarket.searches++;
+    const items = await runQuery(mq, tbs);
+    for (const item of items) {
+      if (!item.title || !item.link) continue;
+      if (byUrl.has(item.link)) continue;
+      lastMarket.results++;
+      byUrl.set(item.link, {
+        title: item.title,
+        url: item.link,
+        raw_content: buildContent(item),
+        company: null,
+        location: null,
+        deadline: null,
+        published_date: parseSerperDate(item.date),
+        value_estimate: null,
+        source: 'gli_serper',
+        query_term: mq,
+        query_scope: `market:${COVERED_MARKETS[lastMarket.searches - 1]}`,
+      });
+    }
+  }
+  if (lastMarket.searches > 0) {
+    console.log(
+      `Serper market pass: ${lastMarket.searches} unrestricted searches over ${COVERED_MARKETS.length} ` +
+        `covered markets -> ${lastMarket.results} results.`
     );
   }
 
@@ -415,7 +530,7 @@ export async function scrapeSerper(queries: string[]): Promise<NormalizedLead[]>
       break;
     }
     searches++;
-    const items = await runQuery(q, tbs);
+    const items = await runQuery(q.q, tbs);
     for (const item of items) {
       if (!item.title || !item.link) continue;
       if (!isCuratedUrl(item.link)) continue;
@@ -430,6 +545,8 @@ export async function scrapeSerper(queries: string[]): Promise<NormalizedLead[]>
         published_date: parseSerperDate(item.date),
         value_estimate: null,
         source: 'gli_serper',
+        query_term: q.term,
+        query_scope: q.scope,
       });
     }
   }

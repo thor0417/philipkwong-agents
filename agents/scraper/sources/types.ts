@@ -44,6 +44,13 @@ export interface NormalizedLead {
   action_sought?: string | null;
   primary_document_url?: string | null;
   has_primary_document?: boolean;
+  // SEARCH PROVENANCE (search lanes only). Which query returned this record and
+  // which pass and slice issued it. Without these no term can be retired for
+  // producing nothing or defended for producing something: measured over 490
+  // intelligence records, the only split recoverable after the fact was
+  // sector-vs-watch, and only because the sector pass is site-restricted.
+  query_term?: string | null;
+  query_scope?: string | null;
 }
 
 // Track B: registry leads. Entities licensed to physically handle fuel.

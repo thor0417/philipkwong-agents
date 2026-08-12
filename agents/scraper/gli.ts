@@ -26,8 +26,14 @@ import {
 } from './pipelines';
 import { parseRunScope, describeScope, scopeIncludesSource } from './run-scope';
 import { supabaseAdmin } from '../../lib/supabase-admin';
+
 import type { NormalizedLead } from './sources/types';
-import { scrapeSerper, lastSerperSearchCount, RECENCY_WINDOW_DAYS } from './sources/serper';
+import {
+  scrapeSerper,
+  lastSerperSearchCount,
+  RECENCY_WINDOW_DAYS,
+  MAX_SEARCHES_PER_RUN,
+} from './sources/serper';
 import { primeClientWatchTerms } from './client-watch-terms';
 import { gliQueries } from './profiles';
 import { normalizeCompany } from './cross-reference';
@@ -44,6 +50,20 @@ import { resetParseReports, printParseReports, allParseReports } from './sources
 import { RunTimer } from './logger';
 import { recordSourceRun, reportRunHealth, resetSourceRuns } from './health';
 import { subDays } from 'date-fns';
+
+// Does a column exist on `leads`? Probed once and cached, so a migration that
+// is Philip's to run cannot break the lane in the meantime. Asking PostgREST
+// for the column is cheaper and more truthful than reading a schema table: if
+// the select succeeds the column is writable.
+const columnProbe = new Map<string, boolean>();
+async function columnExists(column: string): Promise<boolean> {
+  const cached = columnProbe.get(column);
+  if (cached !== undefined) return cached;
+  const { error } = await supabaseAdmin.from('leads').select(column).limit(1);
+  const ok = !error;
+  columnProbe.set(column, ok);
+  return ok;
+}
 
 const MODEL = 'claude-haiku-4-5-20251001';
 // The pipeline this lane writes to, resolved from the registry rather than
@@ -819,10 +839,27 @@ export async function runGliLane(rawLeads: NormalizedLead[]): Promise<GliReport>
         contact_name: c.contact_name,
         contact_email: c.contact_email,
         contact_phone: c.contact_phone,
+        // Which search produced this record. See migration 031.
+        query_term: lead.query_term ?? null,
+        query_scope: lead.query_scope ?? null,
       }
     );
   }
   if (pendingWrites.length > 0) {
+    // MIGRATION 031 IS PHILIP'S TO RUN, so the lane must work either side of it.
+    // Probed once, and the strip is reported rather than silent: a run that
+    // quietly dropped the provenance would look exactly like a run that stored
+    // it, which is the failure this whole column exists to end.
+    if (!(await columnExists('query_term'))) {
+      console.warn(
+        'GLI: leads.query_term does not exist (migration 031 not run); ' +
+          'writing without search provenance. Per-query yield stays unmeasurable until it is run.'
+      );
+      for (const row of pendingWrites) {
+        delete row.query_term;
+        delete row.query_scope;
+      }
+    }
     const wr = await guardedUpsert(pendingWrites, emptyWriteReport());
     report.written = wr.written;
     report.writeFailed = wr.failed;
@@ -857,7 +894,7 @@ export function printGliReport(r: GliReport): void {
     order.filter((k) => (m[k] ?? 0) > 0).map((k) => `${k}: ${m[k]}`).join(' | ') || '(none)';
 
   console.log('\n========== GLI LANE REPORT ==========');
-  console.log(`Serper searches this run:     ${r.searches}  (ceiling 120)`);
+  console.log(`Serper searches this run:     ${r.searches}  (ceiling ${MAX_SEARCHES_PER_RUN})`);
   console.log(`Fetched from Serper:          ${r.fetched}`);
   console.log(`After URL dedup:              ${r.urlDeduped}`);
   console.log(`Dropped as junk (low-quality):${r.droppedJunk}`);
