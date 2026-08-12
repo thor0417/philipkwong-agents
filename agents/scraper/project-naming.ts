@@ -594,11 +594,39 @@ export function disambiguateNames(projects: NameCollisionInput[]): Disambiguatio
   return out;
 }
 
+// DOES ANY RECORD ACTUALLY SAY THIS WORD?
+//
+// The venue phrase is derived from venue_type, and venue_type is derived from a
+// KEYWORD, which need not be the phrase itself. VENUE_RULES maps 'motel' to
+// Hotel, so a Motel 6 filing became the project "Motel 6 hotel": a word the
+// record never uses, welded to the applicant's own name.
+//
+// Nine projects carried a venue word no record supports, and the range inside
+// them is why this is a naming rule and not a classification one:
+//
+//   Motel 6 hotel                    redundant. The record says motel.
+//   Queens Future casino             true of the project, absent from THESE records.
+//   Sandra Erikson Real Estate arena a broker's name with 'arena' attached,
+//                                    supported by nothing at all.
+//
+// The venue TYPE is left alone in every case: it was derived from a keyword the
+// record does contain, and it is a classification rather than a claim about
+// what the thing is called. Only the NAME is corrected, because a name is read
+// as the project's own words.
+function venueSupported(records: ClusterRecord[], venue: string): boolean {
+  const needle = venue.toLowerCase();
+  return records.some((r) =>
+    `${r.title ?? ''} ${r.raw_content ?? ''}`.toLowerCase().includes(needle)
+  );
+}
+
 export function deriveProjectName(ctx: NamingContext): ProjectName {
   // 1. TARGET.
   if (ctx.targetName) return { name: ctx.targetName, source: 'target' };
 
-  const venue = venuePhrase(ctx.venueType);
+  const phrase = venuePhrase(ctx.venueType);
+  // A venue word enters a name only when a record uses that word.
+  const venue = phrase && venueSupported(ctx.records, phrase) ? phrase : null;
 
   // 2. APPLICANT + venue.
   const applicant = modeOf(ctx.records.map((r) => cleanApplicant(r.applicant)));
