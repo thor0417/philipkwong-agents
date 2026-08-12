@@ -283,6 +283,55 @@ export function mostAdvancedStage(stages: LadderStage[]): LadderStage {
   return stages.reduce((best, s) => (stageRank(s) > stageRank(best) ? s : best), 'filed' as LadderStage);
 }
 
+// Above this rung, a stage has to be earned twice over. See ADVANCED_NEEDS_PROOF.
+export const HIGHEST_UNPROVEN_STAGE: LadderStage = 'approved';
+
+// WHAT A RECORD HAS TO BE, for its advanced stage to count.
+export interface StageEvidence {
+  stage: LadderStage;
+  // Did this record join the project on its SITE or its CASE FAMILY, rather
+  // than on a shared target term? A target says two records are about the same
+  // watched thing; a site or a case number says they are about the same
+  // MATTER, which is the question a stage answers.
+  attributed: boolean;
+}
+
+// A STAGE ABOVE 'approved' MUST BE ATTRIBUTED OR CORROBORATED.
+//
+// Manhattan West Phase 4 raised the whole Hudson Yards project to 'under
+// construction' on the phrase 'substantial completion', and Manhattan West is
+// Brookfield's building, four blocks from the Western Rail Yard. Two records of
+// twenty-two carried the stage; neither was the project. OCVibe is the same
+// shape and worse: one record in twenty, on our highest-scoring project.
+//
+// The two ways a record earns it:
+//
+//   ATTRIBUTED   it joined on the project's own site or case family, so it is
+//                about this matter and not merely near it;
+//   CORROBORATED two records say the same thing, so one borrowed record cannot
+//                move the project on its own.
+//
+// A single-record project is exempt: with no neighbours there is nothing to
+// borrow from, and the record IS the project.
+//
+// Anything refused falls back to the most advanced stage that does pass, which
+// is never lower than what the unproven records would have supported anyway.
+export function provenStage(evidence: StageEvidence[]): {
+  stage: LadderStage;
+  refused: LadderStage | null;
+} {
+  const all = mostAdvancedStage(evidence.map((e) => e.stage));
+  if (evidence.length <= 1) return { stage: all, refused: null };
+  const bar = stageRank(HIGHEST_UNPROVEN_STAGE);
+  const counts = new Map<LadderStage, number>();
+  for (const e of evidence) counts.set(e.stage, (counts.get(e.stage) ?? 0) + 1);
+  const proven = evidence.filter(
+    (e) => stageRank(e.stage) <= bar || e.attributed || (counts.get(e.stage) ?? 0) >= 2
+  );
+  const stage = mostAdvancedStage(proven.map((e) => e.stage));
+  return { stage, refused: stageRank(stage) < stageRank(all) ? all : null };
+}
+
 export interface StageInput {
   // The ladder stage of every record attached to the project.
   recordStages: LadderStage[];

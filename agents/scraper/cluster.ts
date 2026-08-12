@@ -54,9 +54,11 @@ import {
 import {
   deriveProjectStage,
   hasStallMarker,
+  provenStage,
   recordStage,
   type LadderStage,
   type ProjectStage,
+  type StageEvidence,
 } from '../../lib/taxonomy';
 
 // ---- The record shape the engine consumes -----------------------------------
@@ -813,6 +815,10 @@ export interface ClusterResult {
   // whole plan rather than a filing about one part of it.
   multiSubareaRecords: number;
   officeAddressesDropped: { key: string; records: number; market: string }[];
+  // Stages refused for want of attribution or corroboration. Reported, never
+  // silent: a project that IS under construction and cannot prove it here is a
+  // capture gap we want to see, not a number to quietly lower.
+  stageRefusals: { project: string; claimed: LadderStage; taken: LadderStage; records: number }[];
   // Extracted project names that at least two records shared, so the name became
   // a usable signal. Reported so every name-based merge is inspectable.
   namesCorroborated: { key: string; records: number }[];
@@ -1034,6 +1040,7 @@ export function clusterRecords(
     targetCollisions: [],
     multiSubareaRecords: 0,
     officeAddressesDropped: [],
+    stageRefusals: [],
     namesCorroborated: [],
     namesUncorroborated: 0,
     crossStreamAttached: [],
@@ -1065,7 +1072,14 @@ export function clusterRecords(
 
     // 1. Target term. A non-perMarket target is one project wherever it appears;
     // a portfolio target clusters per market.
-    const target = bestTargetForClustering(text, { fiscalOrBallot: isFiscalOrBallotRecord(r) });
+    // A citywide record names every district it scopes and is about none of
+    // them, exactly as a budget does. That was already true when the case-family
+    // signal was narrowed for these records; the district term was left claiming
+    // them because the July report was hand-built and filed them that way.
+    const target = bestTargetForClustering(text, {
+      fiscalOrBallot: isFiscalOrBallotRecord(r) || isCitywideRecord(r),
+      title: r.title,
+    });
     targets.push(target);
     if (target) {
       const key = target.perMarket
@@ -1388,13 +1402,23 @@ export function clusterRecords(
 
     // Stage: most advanced ladder signal across all records, with a stall read
     // off the most recent record and dormancy read off the heartbeat.
-    const recordStages: LadderStage[] = recs.map((r) => recordStage(recordText(r), r.source_type));
+    // A record is ATTRIBUTED when it joined on this project's own site or case
+    // family. Those are the two signals that say "same matter"; target and
+    // entity say "same watched thing" and "same company", neither of which
+    // makes a construction notice about THIS building.
+    const evidence: StageEvidence[] = members.map((m) => ({
+      stage: recordStage(recordText(m.record), m.record.source_type),
+      attributed: m.reason === 'case-family' || m.reason === 'site',
+    }));
+    const proven = provenStage(evidence);
     const dated = [...recs].sort((a, b) => (bestDate(b) ?? '').localeCompare(bestDate(a) ?? ''));
     const latest = dated[0];
     const liveness = projectLiveness(recs, now, livenessMonths);
     result.livenessReasons[liveness.reason] = (result.livenessReasons[liveness.reason] ?? 0) + 1;
+    // provenStage has already applied the ladder; deriveProjectStage still owns
+    // the stalled/dormant precedence over it.
     const stage = deriveProjectStage({
-      recordStages,
+      recordStages: [proven.stage],
       latestRecordStalled: hasStallMarker(recordText(latest)),
       live: liveness.live,
     });
@@ -1434,6 +1458,15 @@ export function clusterRecords(
         siteKeys(r).filter((s) => !suppressed.has(`site:${marketKey(r)}:${s}`))
       ),
     });
+
+    if (proven.refused) {
+      result.stageRefusals.push({
+        project: named.name,
+        claimed: proven.refused,
+        taken: proven.stage,
+        records: recs.length,
+      });
+    }
 
     const sig = significanceOf({
       stage,

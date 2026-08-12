@@ -180,7 +180,10 @@ export const TARGETS: TargetDef[] = [
   {
     name: 'Hudson Yards / Western Rail Yard',
     bypass: ['western rail yard', 'wry tenant', 'hudson yards'],
-    searchOnly: ['related companies', 'oxford properties'],
+    // 'hudson yards west' is the brand the current project carries and the one
+    // the press uses; the filings never say it, so it can only ever arrive
+    // through search. Zero records in the corpus contain the phrase.
+    searchOnly: ['related companies', 'oxford properties', 'hudson yards west'],
     // The district, not the project. See districtWide above.
     districtWide: ['hudson yards'],
   },
@@ -317,6 +320,15 @@ export interface ClusteringTargetOptions {
   // The record's subject is city-wide fiscal or electoral process, so district
   // terms in it name where a rule applies, not what the record is about.
   fiscalOrBallot?: boolean;
+  // The record's own title, when it has one. A TERM IN THE TITLE OUTRANKS A TERM
+  // IN THE BODY, whatever the counts say.
+  //
+  // The CEQAnet record titled "DisneylandForward Project" matched 'ocvibe' once
+  // in its body (as a cumulative project in the EIR) and 'disneylandforward'
+  // once. One term each, so the tie broke on declaration order in this file, and
+  // OCVibe is declared before Disney. A record whose title names the project is
+  // not ambiguous; only our arithmetic was.
+  title?: string | null;
 }
 
 export function bestTargetForClustering(
@@ -328,15 +340,25 @@ export function bestTargetForClustering(
   const weakByTarget = new Map(TARGETS.map((t) => [t.name, new Set(t.weakForClustering ?? [])]));
   const districtByTarget = new Map(TARGETS.map((t) => [t.name, new Set(t.districtTerms ?? [])]));
   const wideByTarget = new Map(TARGETS.map((t) => [t.name, new Set(t.districtWide ?? [])]));
-  const counts = new Map<string, Set<string>>();
-  for (const h of hits) {
-    if (weakByTarget.get(h.target)?.has(h.term)) continue;
-    // A district term never establishes identity, whatever the record is about.
-    if (wideByTarget.get(h.target)?.has(h.term)) continue;
-    if (opts.fiscalOrBallot && districtByTarget.get(h.target)?.has(h.term)) continue;
-    if (!counts.has(h.target)) counts.set(h.target, new Set());
-    counts.get(h.target)!.add(h.term);
-  }
+
+  const tally = (hs: TargetHit[]): Map<string, Set<string>> => {
+    const counts = new Map<string, Set<string>>();
+    for (const h of hs) {
+      if (weakByTarget.get(h.target)?.has(h.term)) continue;
+      // A district term never establishes identity, whatever the record is about.
+      if (wideByTarget.get(h.target)?.has(h.term)) continue;
+      if (opts.fiscalOrBallot && districtByTarget.get(h.target)?.has(h.term)) continue;
+      if (!counts.has(h.target)) counts.set(h.target, new Set());
+      counts.get(h.target)!.add(h.term);
+    }
+    return counts;
+  };
+
+  // The title first. Only if no target survives in the title does the body
+  // decide, so a body mention can never outvote the record's own subject.
+  const titleCounts = opts.title ? tally(strongBypassHits(opts.title)) : new Map();
+  const counts = titleCounts.size > 0 ? titleCounts : tally(hits);
+
   let best: TargetDef | null = null;
   let bestCount = 0;
   for (const t of TARGETS) {

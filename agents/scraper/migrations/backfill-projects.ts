@@ -529,6 +529,12 @@ export function printBackfillReport(
   console.log(
     `  records naming more than one Development Area (an index, not a filing): ${cluster.multiSubareaRecords}`
   );
+  console.log(
+    `  stages refused for want of attribution or corroboration:      ${cluster.stageRefusals.length}`
+  );
+  for (const s of cluster.stageRefusals) {
+    console.log(`      ${s.claimed} -> ${s.taken}  (${s.records} records)  ${s.project}`);
+  }
   console.log('  office addresses dropped (an address on many unrelated filings):');
   if (!cluster.officeAddressesDropped.length) console.log('    (none)');
   for (const a of cluster.officeAddressesDropped) {
