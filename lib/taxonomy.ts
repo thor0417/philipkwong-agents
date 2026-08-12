@@ -863,6 +863,69 @@ export function isDetachedResidential(text: string): boolean {
 // 332 live government records. Each is listed with the rows it removes in the
 // commit that added it; there are six, not the larger number the audit
 // estimated, and the gap is deliberate - see below.
+// ---- OUT OF THE VERTICAL, CONDITIONALLY ------------------------------------
+//
+// A daycare, a school, a church, a medical office, self-storage, a car wash, a
+// warehouse, a petrol station, a mast, a trash enclosure: NONE of these is ever
+// hospitality or entertainment, in any market, in any jurisdiction.
+//
+// WHY THIS IS NOT IN GOV_GATE_EXCLUSIONS. Those fire before everything and beat
+// a STRONG term, and that is exactly wrong here, because these words appear
+// inside real leisure filings all the time. Measured over the live corpus, a
+// blunt version of this list would have destroyed:
+//
+//   CFTOD 2045 Comprehensive Plan - theme park provisions      ['daycare']
+//   Public Hearing concerning Bally's Hotel and Casino at
+//     Ferry Point Park                                         ['school']
+//   Kingsbridge Armory Redevelopment Public Hearing            ['school']
+//   UC-26-0128 MARINA ESTATES, LLC: USE PERMIT for retail      ['warehouse']
+//   City of Orlando Growth Management Plan                     ['traffic signal']
+//
+// 54 records match one of these terms and 28 of them are saved by a leisure
+// noun, so more than half of a blunt rule's kills would have been wrong.
+//
+// SO IT IS CONDITIONAL, and the condition is the rule Philip set: an exclusion
+// is conclusive only when nothing hospitality-shaped is in the record. It is
+// checked AFTER strong, which is what makes that true, and BEFORE weak+action,
+// so a daycare with 'mixed use' and 'use permit' can no longer be admitted on
+// borrowed entitlement vocabulary.
+export const GOV_GATE_OUT_OF_VERTICAL = [
+  // Childcare and education.
+  'day care', 'daycare', 'child care', 'childcare', 'preschool', 'nursery school',
+  'elementary school', 'middle school', 'high school', 'charter school', 'school district',
+  // Worship.
+  'place of worship', 'religious assembly', 'synagogue', 'mosque',
+  // Medical.
+  'medical office', 'dental office', 'urgent care', 'dialysis', 'nursing home',
+  'assisted living',
+  // Storage, vehicles, fuel.
+  'self-storage', 'self storage', 'mini-storage', 'mini storage',
+  'car wash', 'carwash', 'auto repair', 'automotive repair', 'body shop',
+  'car dealership', 'gas station', 'service station',
+  // Industrial.
+  'distribution center', 'industrial park', 'manufacturing facility',
+  // Routine municipal works.
+  'trash enclosure', 'refuse enclosure', 'sewer main', 'water main', 'street light',
+  // Telecoms.
+  'wireless communication facility', 'cell tower', 'telecommunications tower', 'monopole',
+] as const;
+//
+// NOT HERE, DELIBERATELY:
+//   'church'    6 records match and 5 carry a leisure noun. The one that does
+//               not is a mixed-use rezoning, already caught elsewhere.
+//   'warehouse' 24 records match and 16 carry a leisure noun, the worst ratio
+//               in the set. Back-of-house is part of a resort.
+//   'academy'   matches BLESS-ED DAY ACADEMY and also any 'Academy of Music'.
+//   'street name change'
+//               DROPPED. It fired on two records, both SC-26-0136 FLAMINGO LV
+//               OPERATING CO., a live casino operator. Excluding a filing on a
+//               real hospitality property because of the INSTRUMENT sets a
+//               precedent that costs real coverage later. If those two records
+//               should not be a project, the transaction penalty and the
+//               re-gate decide that, not an exclusion.
+//   'hospital'  a hospital is out of the vertical, but 'hospitality' is not,
+//               and hasWord on a stem is not worth the risk here.
+
 export const GOV_GATE_EXCLUSIONS = [
   'adult entertainment', 'proclamation', 'appointment', 'reappointment',
   'employment agreement', 'personnel', 'retirement', 'condolence', 'commendation',
@@ -1030,6 +1093,7 @@ export type GateReason =
   | 'weak+action'
   | 'deal'
   | 'excluded'
+  | 'out-of-vertical'
   | 'weak-without-action'
   | 'deal-detached-residential'
   | 'residential-mixed-use'
@@ -1042,6 +1106,7 @@ export interface GateVerdict {
   actionHits: string[];
   dealHits: string[];
   exclusionHits: string[];
+  outOfVerticalHits: string[];
 }
 
 // Two-tier gate verdict for a government record's combined text. Exclusions win
@@ -1098,13 +1163,18 @@ export function governmentGate(raw: string, market?: string | null): GateVerdict
   const actionHits = GOV_GATE_ACTION.filter((t) => hasWord(text, t));
   const dealHits = GOV_GATE_DEAL.filter((t) => hasWord(text, t));
   const exclusionHits = GOV_GATE_EXCLUSIONS.filter((t) => hasWord(text, t));
-  const hits = { strongHits, weakHits, actionHits, dealHits, exclusionHits };
+  const outOfVerticalHits = GOV_GATE_OUT_OF_VERTICAL.filter((t) => hasWord(text, t));
+  const hits = { strongHits, weakHits, actionHits, dealHits, exclusionHits, outOfVerticalHits };
 
   if (exclusionHits.length > 0) {
     return { matched: false, reason: 'excluded', ...hits };
   }
   if (strongHits.length > 0) {
     return { matched: true, reason: 'strong', ...hits };
+  }
+  // Out of the vertical, and no leisure noun anywhere to argue otherwise.
+  if (outOfVerticalHits.length > 0) {
+    return { matched: false, reason: 'out-of-vertical', ...hits };
   }
   if (isResidentialMixedUse(text, [...strongHits], [...weakHits], market)) {
     return { matched: false, reason: 'residential-mixed-use', ...hits };
