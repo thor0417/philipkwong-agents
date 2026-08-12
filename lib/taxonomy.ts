@@ -566,8 +566,22 @@ const PLAN_NAME = new RegExp(
 );
 
 /** The text a venue rule reads, with plan names blanked. */
+// A ZONING DISTRICT IS NOT A VENUE TYPE EITHER.
+//
+// BORROWED_CONTEXT has neutralised "CR (Commercial Resort) Zone" FOR THE GATE
+// since it was written, and the gate has been right about these records all
+// along: Buona Vita's daycare filing is correctly a no-match. But the VENUE
+// CLASSIFIER never saw that list, so the same boilerplate that could not admit
+// a record could still classify it, and a use permit for a daycare and a school
+// with a trash-enclosure waiver was stored as venue_type Resort - which is then
+// what names the project "Buona Vita resort".
+//
+// Two readers of one corpus disagreeing about the same words is the defect.
+// They now read the same neutralised text.
 export function venueReadableText(text: string): string {
-  return text.replace(PLAN_NAME, ' ');
+  let out = text.replace(PLAN_NAME, ' ');
+  for (const re of BORROWED_CONTEXT) out = out.replace(re, ' ');
+  return out;
 }
 
 export function classifyVenueType(raw: string, hint?: string | null): VenueType | null {
