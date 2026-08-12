@@ -73,7 +73,7 @@
 // this work came from assumed it did, having measured it as 8 rows.
 
 import type { NormalizedLead } from './types';
-import { gateDecide } from '../gate-decide';
+import { gateDecide, admissionLabel } from '../gate-decide';
 import { bypassHits } from '../targets';
 import { NycZapRowSchema, parseRecords, type NycZapRowParsed } from './schemas';
 import { sodaFetchAll, sodaScalar, soqlTimestamp } from './socrata';
@@ -334,7 +334,7 @@ export async function scrapeNycZap(): Promise<NormalizedLead[]> {
         r.project_status ? `Project status: ${r.project_status}` : '',
         r.public_status ? `Public status: ${r.public_status}` : '',
         column ? `Record date taken from: ${column}` : 'Record date: (none published)',
-        `Gate: ${decision.bypass ? 'bypass' : decision.reason}`,
+        `Gate: ${admissionLabel(decision)}`,
         hits.length ? `Target-term hits: ${hits.join(', ')}` : '',
         `Project page: ${url}`,
       ]

@@ -12,7 +12,7 @@ import { createHash } from 'node:crypto';
 import type { NormalizedLead } from './types';
 import type { SourceType } from '../../../lib/taxonomy';
 import { bypassHits, bypassesGate } from '../targets';
-import { gateDecide } from '../gate-decide';
+import { gateDecide, admissionLabel } from '../gate-decide';
 import { fetchPdfPages } from './pdf-agenda';
 import { GranicusMeetingSchema, parseRecords } from './schemas';
 
@@ -255,8 +255,6 @@ export function leadsFromAgendaText(meeting: MeetingRef, text: string): Normaliz
       bypass_text: it.text,
       bypass_mode: 'all',
     });
-    const verdict = decision.verdict;
-    const bypass = decision.bypass;
     if (!decision.admitted) continue;
     const hitLine = targetHitLine(it.subject);
     const lead: NormalizedLead = {
@@ -268,7 +266,7 @@ export function leadsFromAgendaText(meeting: MeetingRef, text: string): Normaliz
         `Meeting date: ${meeting.dateIso ?? '(unknown)'}`,
         `Source type: ${meeting.sourceType}`,
         `Agenda: ${meeting.agendaUrl} (item ${it.num})`,
-        `Gate: ${bypass ? 'bypass' : verdict.reason}`,
+        `Gate: ${admissionLabel(decision)}`,
         hitLine,
         `\n--- item text ---\n${it.text}`,
       ]

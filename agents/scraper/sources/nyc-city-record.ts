@@ -61,7 +61,7 @@
 // special case.
 
 import type { NormalizedLead } from './types';
-import { gateDecide } from '../gate-decide';
+import { gateDecide, admissionLabel } from '../gate-decide';
 import { bypassHits } from '../targets';
 import { NycCityRecordRowSchema, parseRecords, type NycCityRecordRowParsed } from './schemas';
 import { sodaFetchAll, sodaScalar, soqlTimestamp } from './socrata';
@@ -330,7 +330,7 @@ export async function scrapeNycCityRecord(): Promise<NormalizedLead[]> {
         r.vendor_name ? `Vendor / counterparty: ${r.vendor_name}` : '',
         r.contact_name ? `Contact: ${r.contact_name}` : '',
         description ? `Notice: ${description}` : '',
-        `Gate: ${decision.bypass ? 'bypass' : decision.reason}`,
+        `Gate: ${admissionLabel(decision)}`,
         hits.length ? `Target-term hits: ${hits.join(', ')}` : '',
         doc ? `Notice document: ${doc}` : '',
         `Notice page: ${url}`,

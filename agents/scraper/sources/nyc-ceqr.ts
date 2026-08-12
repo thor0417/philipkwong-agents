@@ -55,7 +55,7 @@
 // market, so they are excluded rather than folded into New York City.
 
 import type { NormalizedLead } from './types';
-import { gateDecide } from '../gate-decide';
+import { gateDecide, admissionLabel } from '../gate-decide';
 import { bypassHits } from '../targets';
 import {
   NycCeqrProjectSchema,
@@ -434,7 +434,7 @@ export async function scrapeNycCeqr(): Promise<NormalizedLead[]> {
         crossRef
           ? `Cross-referenced to a ZAP / ULURP application on CEQR number ${ceqr}`
           : 'No matching ZAP / ULURP application found for this CEQR number',
-        `Gate: ${decision.bypass ? 'bypass' : decision.reason}`,
+        `Gate: ${admissionLabel(decision)}`,
         hits.length ? `Target-term hits: ${hits.join(', ')}` : '',
         `Project page (NYC Open Data, filtered to this CEQR number): ${url}`,
         `Agency page (CEQR Access, currently dead - serves Page Not Found): ${r.url}`,

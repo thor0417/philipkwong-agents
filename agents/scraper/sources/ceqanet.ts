@@ -11,7 +11,7 @@
 
 import type { NormalizedLead } from './types';
 import { bypassHits } from '../targets';
-import { gateDecide } from '../gate-decide';
+import { gateDecide, admissionLabel } from '../gate-decide';
 import { CeqanetRowSchema, parseRecords } from './schemas';
 
 const UA = 'Mozilla/5.0 (compatible; philipkwong-agents/1.0 +scraper)';
@@ -200,12 +200,10 @@ export async function scrapeCeqanet(): Promise<NormalizedLead[]> {
         gate_text: gateText,
         bypass_mode: 'all',
       });
-      const verdict = decision.verdict;
-      const bypass = decision.bypass;
       if (!decision.admitted) continue;
       if (seen.has(url)) continue;
       seen.add(url);
-      if (bypass) ceqaStats.bypassHits++;
+      if (decision.bypass) ceqaStats.bypassHits++;
       const hitLine = targetHitLine(gateText);
       const iso = r.date && !Number.isNaN(Date.parse(r.date)) ? new Date(r.date).toISOString() : null;
       leads.push({
@@ -218,7 +216,7 @@ export async function scrapeCeqanet(): Promise<NormalizedLead[]> {
           `Lead agency: ${r.agency}`,
           `Received: ${r.date || '(unknown)'}`,
           `Query: ${q.label}`,
-          `Gate: ${bypass ? 'bypass' : verdict.reason}`,
+          `Gate: ${admissionLabel(decision)}`,
           hitLine,
           `Project page: ${url}`,
         ]

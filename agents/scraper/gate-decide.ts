@@ -130,6 +130,39 @@ export interface GateDecision {
 // loaded once per run before the adapters. An unloaded index makes the entity
 // bypass inert rather than wrong, which is the safe default for any caller that
 // does not want to consult the register.
+// THE ONE TRUE ADMISSION LABEL.
+//
+// Every adapter wrote its own provenance line as
+//
+//     `Gate: ${bypass ? 'bypass' : verdict.reason}`
+//
+// which knows about exactly two of the five ways a record is admitted. A record
+// admitted on the known-entity rule, or because its jurisdiction is itself the
+// signal, printed the VERDICT instead - and the verdict for such a record is
+// usually a rejection. So the corpus contains records whose own text says
+//
+//     Gate: no-match
+//
+// while they were deliberately admitted. 15 of them, and reading one of those
+// lines is what made it look as though the gate could reject a record and store
+// it anyway. It cannot. It was telling the truth about the verdict and saying
+// nothing about the decision.
+//
+// One function, so no adapter can invent a sixth spelling.
+export function admissionLabel(d: GateDecision, hits?: string): string {
+  if (!d.admitted) return `not-admitted (${d.verdict.reason})`;
+  switch (d.reason) {
+    case 'bypass':
+      return hits ? `bypass (${hits})` : 'bypass';
+    case 'known-entity':
+      return `known-entity (${d.entity?.entity ?? '?'} <- ${d.entity?.projectName ?? '?'})`;
+    case 'single-purpose':
+      return 'single-purpose jurisdiction';
+    default:
+      return d.reason;
+  }
+}
+
 export function decide(c: GateCandidate): GateDecision {
   // The market is passed because one rule is calibrated per market. Every other
   // rule ignores it, and a candidate whose market is unknown gets the global

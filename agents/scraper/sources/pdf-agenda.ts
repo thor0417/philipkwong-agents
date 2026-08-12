@@ -14,7 +14,7 @@ import pdfParse from 'pdf-parse/lib/pdf-parse.js';
 import type { NormalizedLead } from './types';
 import { CFTOD_PDF_SOURCES, type GovDoc } from './govdocs';
 import { strongBypassHits, strongBypassesGate } from '../targets';
-import { gateDecide } from '../gate-decide';
+import { gateDecide, admissionLabel } from '../gate-decide';
 import { recordSourceRun } from '../health';
 
 const UA = 'philipkwong-agents/1.0 (+scraper)';
@@ -249,8 +249,6 @@ function itemsFromPacket(doc: GovDoc, pages: string[]): NormalizedLead[] {
       bypass_mode: 'strong',
       single_purpose: !isInternalAdmin(it.title),
     });
-    const verdict = decision.verdict;
-    const bypass = decision.bypass;
     // CFTOD IS A SINGLE-PURPOSE DISTRICT, so the jurisdiction itself is the
     // signal. This is the same rule legistar.ts already applies through
     // `bypassGate`, and it is what the keyword gate cannot express.
@@ -284,7 +282,7 @@ function itemsFromPacket(doc: GovDoc, pages: string[]): NormalizedLead[] {
       `Meeting date: ${doc.docDate ?? '(unknown)'}`,
       `Item title: ${it.title.replace(/\s+/g, ' ').trim()}`,
       `Page reference: ${pageLabel} of the agenda packet (${doc.url})`,
-      `Gate: ${bypass ? 'bypass (' + hitLine.replace('Target-term hits: ', '') + ')' : verdict.reason}`,
+      `Gate: ${admissionLabel(decision, hitLine.replace('Target-term hits: ', ''))}`,
       hitLine,
       body ? `\n--- item text (excerpt) ---\n${body}` : '\n(item backup not separately located; captured from the agenda listing)',
     ]
