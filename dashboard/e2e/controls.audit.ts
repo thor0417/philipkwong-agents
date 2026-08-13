@@ -98,19 +98,39 @@ test('controls do what they say', async ({ page }) => {
     ['nonsense param', `${B}&banana=1`],
     ['nonsense stage value', `${B}&stage=notastage`],
     ['nonsense market value', '/register?view=all&country=United+States&market=Atlantis'],
+    // The other two record-matched axes, which this audit never measured. Venue
+    // and category reached the register on 10 August and were never listed here,
+    // so a broken one had nowhere to show up.
+    ['nonsense venue value', `${B}&venue=Notavenue`],
+    ['nonsense category value', `${B}&category=Notacategory`],
+    ['venue=Hotel', `${B}&venue=Hotel`],
+    ['category=Hospitality/Tourism', `${B}&category=${encodeURIComponent('Hospitality/Tourism')}`],
+    // L2 and L3 adjacent in the table, because the number that matters is the
+    // difference between them and it took a person comparing two rows by eye to
+    // see that there was not one.
+    ['region=California (L2)', '/register?view=all&country=United+States&region=California'],
+    [
+      'market=Anaheim (L3, must be < L2)',
+      '/register?view=all&country=United+States&region=California&market=Anaheim',
+    ],
   ];
 
   console.log('\n===== REGISTER CONTROLS =====');
   const registerResults: { label: string; url: string; total: number; verdict: string }[] = [];
+  const byLabel = new Map<string, number>();
   for (const [label, url] of cases) {
     const t = await total(url);
     let verdict = t === baseline ? 'UNCHANGED' : 'changed';
     if (/must not/.test(label)) verdict = t === baseline ? 'correct (unchanged)' : 'FILTERS WHEN IT SHOULD NOT';
     if (/nonsense/.test(label)) verdict = t === baseline ? 'FAILS OPEN (returns everything)' : t === 0 ? 'fails closed (0)' : `partial (${t})`;
     registerResults.push({ label, url, total: t, verdict });
+    byLabel.set(label, t);
     console.log(`  ${label.padEnd(32)} ${String(t).padStart(5)}   ${verdict}`);
   }
   out.register = { baseline, results: registerResults };
+
+  // The expectations over these numbers run at the very END of this file, after
+  // the artifact is written. See the note there.
 
   // ---- KEYBOARD: the non-destructive keys ----------------------------------
   console.log('\n===== KEYBOARD =====');
@@ -159,8 +179,51 @@ test('controls do what they say', async ({ page }) => {
   console.log(`  options: ${JSON.stringify(options)}`);
   console.log(`  Simtec entries: ${simtecs}`);
   out.reportsClientOptions = options;
-  expect(simtecs, 'the client dropdown still shows duplicates').toBe(1);
 
+  // ---- THE ARTIFACT IS WRITTEN BEFORE ANYTHING IS JUDGED. ------------------
+  //
+  // It used to be written last, so a failing run produced no file at all - and
+  // the run where the numbers matter most is the failing one. Measuring and
+  // judging are separate jobs and the file belongs to the first of them.
   mkdirSync('e2e/shots/walkthrough', { recursive: true });
   writeFileSync('e2e/shots/walkthrough/controls-audit.json', JSON.stringify(out, null, 2));
+
+  // ---- THE VERDICTS ARE NOW ASSERTIONS. ------------------------------------
+  //
+  // THIS FILE PRINTED THE REGRESSION AND PASSED. `market=Atlantis` was recorded
+  // as "partial (254)" - a market that does not exist returning every project in
+  // the United States - and "partial" is a word, not a test, so the run was
+  // green. `region=Nevada 71` and `market=Las Vegas 71` sat four lines apart in
+  // the same output and nothing compared them.
+  //
+  // A verdict string is a description. What a description is for is being read,
+  // and nobody read it. These are the same statements as expectations.
+  expect(simtecs, 'the client dropdown still shows duplicates').toBe(1);
+
+  for (const label of [
+    'nonsense stage value',
+    'nonsense market value',
+    'nonsense venue value',
+    'nonsense category value',
+  ]) {
+    expect(
+      byLabel.get(label),
+      `${label} did not fail closed; a value nothing matches must return the empty set, never the parent's rows`
+    ).toBe(0);
+  }
+
+  const l2 = byLabel.get('region=California (L2)') ?? 0;
+  const l3 = byLabel.get('market=Anaheim (L3, must be < L2)') ?? 0;
+  expect(l2, 'California returned nothing, so the L2/L3 comparison proves nothing').toBeGreaterThan(0);
+  expect(l3, 'Anaheim returned nothing').toBeGreaterThan(0);
+  expect(
+    l3,
+    `Anaheim returned ${l3} and California returned ${l2}: the market filter is answering its parent's question`
+  ).toBeLessThan(l2);
+
+  for (const label of ['venue=Hotel', 'category=Hospitality/Tourism']) {
+    const t = byLabel.get(label) ?? 0;
+    expect(t, `${label} returned nothing`).toBeGreaterThan(0);
+    expect(t, `${label} returned the whole register, so it is not filtering`).toBeLessThan(baseline);
+  }
 });

@@ -11,6 +11,7 @@ import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useQueryState, parseAsString } from 'nuqs';
 import { supabase } from './supabase';
+import { likeLiteral } from './projects';
 import { LIVE_PIPELINE_STORAGE_KEY } from './pipelines';
 import { useLastVisit } from './use-today';
 import {
@@ -216,7 +217,12 @@ export async function fetchProjectIdsMatchingRecords(facets: {
       // ilike with no wildcards is a whole-string, case-insensitive match. The
       // register's chips are exact today, but the scope path matches tolerantly
       // and two paths asking the same question must not use different rules.
-      .ilike(field, value)
+      //
+      // likeLiteral, for the same reason it is on the scope path: `%` and `_`
+      // are wildcards to ilike, so a value carrying one would match a PATTERN
+      // rather than itself and quietly widen the filter. No venue or market is
+      // spelled with one today; a filter is not the place to depend on that.
+      .ilike(field, likeLiteral(value))
       .limit(RECORD_ID_CAP);
     if (error) throw new Error(`register ${field} query failed: ${error.message}`);
     const rows = (data ?? []) as { project_id: string | null }[];

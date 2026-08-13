@@ -1,15 +1,15 @@
 {
   "today": {
     "What moved": "01 What moved Stage changes, most advanced destination first. A project reaching construction matters more than one reaching a scheduled hearing, so this is not ordered by time. Disneyland Resort approved → under construction Anaheim OCVIBE's 5000-capacity concert hall bridges gap between ... 2026-08-10 Hilton Resorts ",
-    "What came in": "02 What came in New projects first, then new records on projects you already had. Grouped by project, so six records on one project is one line, not six. NEW PROJECTS 141 01 Beach Channel Drive New York City operating 2026-08-11 194 Brighton Avenue New York City stalled 2026-08-11 15 Borden Avenue New York City dormant",
-    "Needs you": "03 Needs you Each of these is a count and a place to go. 1189 Record triage backlog Records still at status new, on Records 8 Watchlist activity Events on projects you watch 141 New projects to review Arrived in this window",
-    "Attention": "04 Attention The machine, not the market. Red only where something is genuinely wrong. SOURCES sfwmd 15d silent 25 records govdoc 13d silent 4 records agenda-portal 11d silent 179 records cftod-pdf 11d silent 26 records RUNS No failed runs. COST AGAINST CEILING Not instrumented. Nothing in this database records spend p"
+    "What came in": "02 What came in New projects first, then new records on projects you already had. Grouped by project, so six records on one project is one line, not six. NEW PROJECTS 115 858 Glenferrie Road hotel Melbourne filed 2026-08-12 Disney / CFTOD ((unknown market)) (2026-07-11) -- filed 2026-08-12 Las Vegas corridor anchors La",
+    "Needs you": "03 Needs you Each of these is a count and a place to go. 1167 Record triage backlog Records still at status new, on Records 2 Watchlist activity Events on projects you watch 115 New projects to review Arrived in this window",
+    "Attention": "04 Attention The machine, not the market. Red only where something is genuinely wrong. SOURCES sfwmd 17d silent 25 records govdoc 15d silent 2 records agenda-portal 14d silent 161 records cftod-pdf 14d silent 14 records RUNS No failed runs. COST AGAINST CEILING Not instrumented. Nothing in this database records spend p"
   },
   "todayPeriod": {
-    "7d": 156,
-    "30d": 172,
-    "m:2026-07": 151,
-    "m:2026-01": 37
+    "7d": 128,
+    "30d": 168,
+    "m:2026-07": 145,
+    "m:2026-01": 33
   },
   "records": {
     "rows": 52,
@@ -57,18 +57,18 @@
     ]
   },
   "register": {
-    "baseline": 300,
+    "baseline": 267,
     "results": [
       {
         "label": "baseline (all, any country)",
         "url": "/register?view=all&country=any",
-        "total": 300,
+        "total": 267,
         "verdict": "UNCHANGED"
       },
       {
         "label": "view=new",
         "url": "/register?view=all&country=any&view=new",
-        "total": 300,
+        "total": 267,
         "verdict": "UNCHANGED"
       },
       {
@@ -92,49 +92,49 @@
       {
         "label": "stage=filed",
         "url": "/register?view=all&country=any&stage=filed",
-        "total": 124,
+        "total": 116,
         "verdict": "changed"
       },
       {
         "label": "stage=approved",
         "url": "/register?view=all&country=any&stage=approved",
-        "total": 42,
+        "total": 40,
         "verdict": "changed"
       },
       {
         "label": "stage=dormant",
         "url": "/register?view=all&country=any&stage=dormant",
-        "total": 102,
+        "total": 91,
         "verdict": "changed"
       },
       {
         "label": "country default (absent)",
         "url": "/register?view=all",
-        "total": 254,
+        "total": 217,
         "verdict": "changed"
       },
       {
         "label": "country=United States",
         "url": "/register?view=all&country=United+States",
-        "total": 254,
+        "total": 217,
         "verdict": "changed"
       },
       {
         "label": "region=Nevada",
         "url": "/register?view=all&country=United+States&region=Nevada",
-        "total": 71,
+        "total": 59,
         "verdict": "changed"
       },
       {
         "label": "market=Las Vegas",
         "url": "/register?view=all&country=United+States&region=Nevada&market=Las+Vegas",
-        "total": 71,
+        "total": 33,
         "verdict": "changed"
       },
       {
         "label": "q=resort",
         "url": "/register?view=all&country=any&q=resort",
-        "total": 20,
+        "total": 16,
         "verdict": "changed"
       },
       {
@@ -146,13 +146,13 @@
       {
         "label": "period=m:2026-07 arrived",
         "url": "/register?view=all&country=any&period=m:2026-07&axis=arrived",
-        "total": 150,
+        "total": 144,
         "verdict": "changed"
       },
       {
         "label": "period=m:2026-07 moved",
         "url": "/register?view=all&country=any&period=m:2026-07&axis=moved",
-        "total": 151,
+        "total": 144,
         "verdict": "changed"
       },
       {
@@ -170,31 +170,31 @@
       {
         "label": "bucket=week (must not filter)",
         "url": "/register?view=all&country=any&bucket=week",
-        "total": 300,
+        "total": 267,
         "verdict": "correct (unchanged)"
       },
       {
         "label": "bucket=month (must not filter)",
         "url": "/register?view=all&country=any&bucket=month",
-        "total": 300,
+        "total": 267,
         "verdict": "correct (unchanged)"
       },
       {
         "label": "sort=name (must not filter)",
         "url": "/register?view=all&country=any&sort=name&dir=asc",
-        "total": 300,
+        "total": 267,
         "verdict": "correct (unchanged)"
       },
       {
         "label": "page=2 (must not change total)",
         "url": "/register?view=all&country=any&page=2",
-        "total": 300,
+        "total": 267,
         "verdict": "correct (unchanged)"
       },
       {
         "label": "nonsense param",
         "url": "/register?view=all&country=any&banana=1",
-        "total": 300,
+        "total": 267,
         "verdict": "FAILS OPEN (returns everything)"
       },
       {
@@ -206,8 +206,44 @@
       {
         "label": "nonsense market value",
         "url": "/register?view=all&country=United+States&market=Atlantis",
-        "total": 254,
-        "verdict": "partial (254)"
+        "total": 0,
+        "verdict": "fails closed (0)"
+      },
+      {
+        "label": "nonsense venue value",
+        "url": "/register?view=all&country=any&venue=Notavenue",
+        "total": 0,
+        "verdict": "fails closed (0)"
+      },
+      {
+        "label": "nonsense category value",
+        "url": "/register?view=all&country=any&category=Notacategory",
+        "total": 0,
+        "verdict": "fails closed (0)"
+      },
+      {
+        "label": "venue=Hotel",
+        "url": "/register?view=all&country=any&venue=Hotel",
+        "total": 36,
+        "verdict": "changed"
+      },
+      {
+        "label": "category=Hospitality/Tourism",
+        "url": "/register?view=all&country=any&category=Hospitality%2FTourism",
+        "total": 80,
+        "verdict": "changed"
+      },
+      {
+        "label": "region=California (L2)",
+        "url": "/register?view=all&country=United+States&region=California",
+        "total": 27,
+        "verdict": "changed"
+      },
+      {
+        "label": "market=Anaheim (L3, must be < L2)",
+        "url": "/register?view=all&country=United+States&region=California&market=Anaheim",
+        "total": 19,
+        "verdict": "changed"
       }
     ]
   },

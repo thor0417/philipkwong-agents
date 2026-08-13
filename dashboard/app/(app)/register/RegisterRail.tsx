@@ -122,6 +122,7 @@ export default function RegisterRail({
               <div key={c.value}>
                 <button
                   type="button"
+                  data-country={c.value}
                   className={`${styles.railItem} ${open && !geo.region_state ? styles.railItemActive : ''}`}
                   onClick={() => onGeo(open ? {} : { country: c.value })}
                 >
@@ -136,6 +137,7 @@ export default function RegisterRail({
                       <div key={r.value}>
                         <button
                           type="button"
+                          data-region={r.value}
                           className={`${styles.railItem} ${styles.railL2} ${
                             rOpen && !geo.market ? styles.railItemActive : ''
                           }`}
@@ -156,6 +158,17 @@ export default function RegisterRail({
                             <button
                               key={m.value}
                               type="button"
+                              // The node's own two numbers, as values rather
+                              // than as rendered text. filters.audit reads
+                              // data-projects to report, per market, the gap
+                              // between what this rail counts (projects.market,
+                              // the mode column) and what clicking it returns
+                              // (any record naming the market). That gap is a
+                              // decision to be taken with the numbers in hand,
+                              // so the numbers have to be readable.
+                              data-market={m.value}
+                              data-projects={m.count}
+                              data-records={m.records}
                               className={`${styles.railItem} ${styles.railL3} ${
                                 geo.market === m.value ? styles.railItemActive : ''
                               }`}

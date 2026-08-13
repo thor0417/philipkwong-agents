@@ -4,7 +4,7 @@
     "url": "/today",
     "ok": true,
     "primary": "h1",
-    "rows": 156,
+    "rows": 128,
     "consoleErrors": [],
     "pageErrors": [],
     "failedRequests": [],
@@ -116,7 +116,7 @@
   },
   {
     "name": "Project detail",
-    "url": "/project/c45174d6-aab6-439e-8e4a-cc0304a6c0d3",
+    "url": "/project/2bc81605-e639-4a95-8353-026bd7808b23",
     "ok": true,
     "primary": "h1",
     "rows": null,

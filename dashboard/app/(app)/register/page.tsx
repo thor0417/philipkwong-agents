@@ -195,6 +195,30 @@ export default function RegisterPage() {
   const facetConstrained = !!(market || venue || category);
   const facetIds = useProjectIdsMatchingRecords(recordFacetFilter, facetConstrained);
 
+  // A CONSTRAINED FACET THAT HAS NOT ANSWERED IS NOT AN ABSENT ONE, and every
+  // query on this screen waits for it rather than running unfiltered.
+  //
+  // The period axes may contribute nothing while they resolve, because their
+  // failure mode is showing MORE than the period holds and the register is
+  // still the register. A facet's failure mode is the opposite and is worse: a
+  // list narrowed to Anaheim that renders every project in California is a
+  // control that shows the operator projects they excluded, and it is the same
+  // set a client scope would have shipped. So the list, the counts and the
+  // chips are held until the ids exist.
+  //
+  // isPending, not `!isSuccess`: an ERRORED facet query is not pending, it has
+  // answered with nothing, and `?? []` below turns that into the empty set.
+  // Holding on error instead would freeze the register on whatever was last on
+  // screen with no number and no explanation.
+  const facetsPending = facetConstrained && facetIds.isPending;
+  const facetsReady = !facetsPending;
+  const facetError =
+    facetConstrained && facetIds.error
+      ? `The venue, category or market filter could not be resolved (${
+          (facetIds.error as Error).message
+        }). Showing no projects rather than all of them.`
+      : null;
+
   const [error, setError] = useState<string | null>(null);
   const [searchDraft, setSearchDraft] = useState(search);
   const [checked, setChecked] = useState<Set<string>>(new Set());
@@ -263,14 +287,25 @@ export default function RegisterPage() {
 
   // BOTH ID SETS ARE ANDed. A project must satisfy the period and the facets,
   // and each resolves through the records into its own list, so the two are
-  // intersected here. Neither contributes while its query is in flight, for the
-  // same reason as before: an empty list would read as "nothing matches" rather
-  // than "not known yet".
+  // intersected here.
+  //
+  // THE FACET AXIS FAILS CLOSED: `?? []`, never `undefined`. A constrained
+  // facet contributes a list even when that list is empty, so a value no record
+  // carries returns nothing rather than everything.
+  //
+  // This is the direction that matters. `market=Atlantis` used to return all
+  // 254 projects in the United States - the parent set, in full, under a filter
+  // naming a market that does not exist - and the same shape is what a client
+  // scope narrowed to one market would have shipped. An unresolvable facet
+  // matching nothing is a visibly empty register; an unresolvable facet matching
+  // everything is a document covering projects the client was never sold.
+  //
+  // The period axis keeps the opposite rule and the comment above says why.
   const idFilter: Pick<ProjectQuery, 'ids'> = useMemo(() => {
     const periodIds = periodFilter.ids;
-    const facets = facetConstrained ? facetIds.data?.ids : undefined;
-    if (periodIds === undefined) return facets ? { ids: facets } : {};
-    if (facets === undefined) return { ids: periodIds };
+    const facets = facetConstrained ? (facetIds.data?.ids ?? []) : undefined;
+    if (facets === undefined) return periodIds === undefined ? {} : { ids: periodIds };
+    if (periodIds === undefined) return { ids: facets };
     const inFacets = new Set(facets);
     return { ids: periodIds.filter((id) => inFacets.has(id)) };
   }, [periodFilter, facetConstrained, facetIds.data]);
@@ -286,7 +321,26 @@ export default function RegisterPage() {
       ...idFilter,
       search: search.trim() || undefined,
     }),
-    [viewKey, stage, geo, periodFilter, search]
+    // idFilter, NOT periodFilter. THE MISSING ENTRY HERE WAS THE WHOLE BUG.
+    //
+    // Every query on this screen is keyed on the CONTENTS of this object
+    // (projectKeys.list runs it through `stable()`), so an object this memo
+    // declines to rebuild is a query key that does not change, which is a cache
+    // hit, which is no refetch. Venue, category and market each reached the URL,
+    // reached React state, reached their record query and reached idFilter - and
+    // then stopped here, one line short of the query, because the array did not
+    // name the value that had changed.
+    //
+    // Measured while it was wrong: market=Las Vegas under Nevada returned 71,
+    // which is Nevada; L3 Anaheim returned 27, which is California; and
+    // market=Atlantis returned the entire United States. The list was answering
+    // the parent question every time.
+    //
+    // periodFilter is deliberately gone rather than kept alongside: it is now
+    // read only THROUGH idFilter, which lists it in its own deps. Naming both
+    // would leave two ways for this to drift apart again, and the one that was
+    // named is the one that was not being used.
+    [viewKey, stage, geo, idFilter, search]
   );
 
   // BUCKETING OWNS THE SORT WHILE IT IS ON.
@@ -312,7 +366,12 @@ export default function RegisterPage() {
     [baseQuery, effectiveSort, sortDir, page]
   );
 
-  const list = useProjectPage(listQuery);
+  // EVERY QUERY BELOW IS HELD UNTIL THE FACET IDS EXIST. Without the gate each
+  // one would fire twice on every chip click - once against the empty id list
+  // while the records are being read, once against the real one - and the first
+  // answer of that pair is a screen of zeroes. Eleven queries, two round trips
+  // each, and a register that blinks empty on the way to the right answer.
+  const list = useProjectPage(listQuery, facetsReady);
   const rows = list.data?.rows ?? [];
   const total = list.data?.total ?? 0;
   const pageCount = list.data?.pageCount ?? 1;
@@ -326,23 +385,40 @@ export default function RegisterPage() {
     watch: undefined,
   };
   const counts: Record<ViewKey, number | undefined> = {
-    new: useProjectCount({ ...withoutStatus, status: 'new' }).data,
-    watchlist: useProjectCount({ ...withoutStatus, excludeStatus: 'dismissed', watch: true }).data,
-    client_ready: useProjectCount({ ...withoutStatus, status: 'client_ready' }).data,
-    all: useProjectCount({ ...withoutStatus, excludeStatus: 'dismissed' }).data,
-    trash: useProjectCount({ ...withoutStatus, status: 'dismissed' }).data,
+    new: useProjectCount({ ...withoutStatus, status: 'new' }, facetsReady).data,
+    watchlist: useProjectCount(
+      { ...withoutStatus, excludeStatus: 'dismissed', watch: true },
+      facetsReady
+    ).data,
+    client_ready: useProjectCount({ ...withoutStatus, status: 'client_ready' }, facetsReady).data,
+    all: useProjectCount({ ...withoutStatus, excludeStatus: 'dismissed' }, facetsReady).data,
+    trash: useProjectCount({ ...withoutStatus, status: 'dismissed' }, facetsReady).data,
   };
 
   // Stage facets exclude the stage filter, so a chip's count equals what
   // clicking it shows.
-  const stageFacet = useProjectFacet({ ...baseQuery, stage: undefined }, 'stage');
+  const stageFacet = useProjectFacet({ ...baseQuery, stage: undefined }, 'stage', facetsReady);
   // Each facet excludes its OWN filter and honours every other, so a chip's
-  // count is exactly what clicking it shows. Counts come from the indexed
-  // count query, never from loading rows.
-  const venueFacet = useProjectFacet({ ...baseQuery, venue_type: undefined }, 'venue_type');
+  // count is exactly what clicking it shows.
+  //
+  // THAT IS NO LONGER LITERALLY TRUE ON THESE THREE AXES AND IT IS DELIBERATE.
+  // A chip counts projects by their venue_type COLUMN, which is a mode over the
+  // project's records; the list now matches ANY record. So a chip reads at or
+  // below the total clicking it produces - Hotel 29 against a list of 34 - and
+  // the direction is guaranteed, since every project whose mode matches also
+  // holds a record carrying that value. filters.audit asserts that direction and
+  // prints the gap per value. Left as it stands pending Philip's decision on
+  // which of the two numbers a chip should show; both are filtered, which is the
+  // part that was broken.
+  const venueFacet = useProjectFacet(
+    { ...baseQuery, venue_type: undefined },
+    'venue_type',
+    facetsReady
+  );
   const categoryFacet = useProjectFacet(
     { ...baseQuery, development_category: undefined },
-    'development_category'
+    'development_category',
+    facetsReady
   );
   const geoBase: ProjectQuery = {
     ...baseQuery,
@@ -350,12 +426,16 @@ export default function RegisterPage() {
     region_state: undefined,
     market: undefined,
   };
-  const countryFacet = useProjectFacet(geoBase, 'country');
-  const regionFacet = useProjectFacet({ ...geoBase, country: geo.country }, 'region_state', !!geo.country);
+  const countryFacet = useProjectFacet(geoBase, 'country', facetsReady);
+  const regionFacet = useProjectFacet(
+    { ...geoBase, country: geo.country },
+    'region_state',
+    facetsReady && !!geo.country
+  );
   const marketFacet = useProjectFacet(
     { ...geoBase, country: geo.country, region_state: geo.region_state },
     'market',
-    !!geo.country && !!geo.region_state
+    facetsReady && !!geo.country && !!geo.region_state
   );
 
   // TWO NUMBERS PER NODE: projects, and the records behind them.
@@ -813,12 +893,20 @@ export default function RegisterPage() {
           )}
         </div>
 
-        {error && (
-          <div className={styles.error} role="alert">
-            {error}
-            <button type="button" onClick={() => setError(null)}>
-              Dismiss
-            </button>
+        {/* A FACET THAT COULD NOT BE RESOLVED SAYS SO. Failing closed is only
+            honest if the empty register is explained: without this the operator
+            sees "No projects" under a venue chip and reads it as an answer about
+            the corpus rather than about a query that never came back. Not
+            dismissable, because it describes a live condition rather than an
+            event. */}
+        {(error || facetError) && (
+          <div className={styles.error} role="alert" data-testid="register-error">
+            {error ?? facetError}
+            {error && (
+              <button type="button" onClick={() => setError(null)}>
+                Dismiss
+              </button>
+            )}
           </div>
         )}
 
@@ -966,11 +1054,22 @@ export default function RegisterPage() {
           {/* data-total carries the server's exact count as a value rather than
               as prose. The filtering audit reads it, and parsing "1-50 of 184 |
               648 ms rows" out of a sentence is the kind of thing that silently
-              starts matching the wrong element. */}
+              starts matching the wrong element.
+
+              THE ATTRIBUTE IS ABSENT UNTIL THE NUMBER IS FINAL, and the gate is
+              three conditions rather than one. isPending alone was false while
+              placeholderData held the PREVIOUS filter's page on screen, so an
+              audit that clicked a chip and read the attribute measured the
+              filter it had just navigated away from and reported it as the new
+              one. A measuring instrument that returns the old value on demand
+              cannot catch a control that does nothing - the two look identical.
+              Settled, or no number at all. */}
           <span
             className={`${styles.dim} mono`}
             data-testid="pager-total"
-            {...(list.isPending ? {} : { 'data-total': total })}
+            {...(facetsPending || list.isPending || list.isPlaceholderData
+              ? {}
+              : { 'data-total': total })}
           >
             {total === 0
               ? 'No projects'

@@ -22,6 +22,60 @@ type Row = {
   changed: string;
 };
 
+type Page = import('@playwright/test').Page;
+
+/**
+ * EVERY PROJECT ID A FILTER RETURNS, walked across its pages.
+ *
+ * A COUNT IS NOT A SET, and comparing counts is what let the regression
+ * through: L3 Anaheim returned 27 and L2 California returned 27, both "changed"
+ * against a global baseline of 267, and the two numbers being the same number
+ * meant nothing to an audit that only ever looked at one of them at a time.
+ * Anaheim is inside California, so its rows must be a subset of California's
+ * rows - and a subset is a statement about ids, not about totals.
+ */
+async function idsFor(page: Page, url: string): Promise<Set<string>> {
+  const total = await totalFor(page, url);
+  const pages = Math.max(1, Math.ceil(total / 50));
+  const ids = new Set<string>();
+  for (let p = 1; p <= pages; p++) {
+    if (p > 1) await totalFor(page, `${url}&page=${p}`);
+    const onPage = await page
+      .locator('[data-row-id]')
+      .evaluateAll((els) => els.map((e) => e.getAttribute('data-row-id') ?? ''));
+    for (const id of onPage) if (id) ids.add(id);
+  }
+  return ids;
+}
+
+/** Ids in the child that its parent does not hold. Empty means "is a subset". */
+function escapees(child: Set<string>, parent: Set<string>): string[] {
+  return [...child].filter((id) => !parent.has(id));
+}
+
+/**
+ * The chips rendered for an axis, with the count each one prints.
+ *
+ * The count is read off the END OF THE BUTTON'S TEXT rather than out of a class
+ * name. Selecting on `[class*="chipCount"]` matched nothing and every chip came
+ * back as zero, which this audit would have reported as "no venue chip has any
+ * projects" - a broken instrument describing itself as a finding, which is the
+ * failure the stage chips already taught this file once. A chip renders its
+ * label and then its number, so the number is the trailing digits.
+ */
+async function chipsOf(
+  page: Page,
+  attr: 'venue' | 'category'
+): Promise<{ value: string; count: number; text: string }[]> {
+  const raw = await page.locator(`[data-${attr}]`).evaluateAll((els, a: string) =>
+    els.map((e) => {
+      const text = (e.textContent ?? '').replace(/\s+/g, ' ').trim();
+      const m = text.match(/(\d+)$/);
+      return { value: e.getAttribute(`data-${a}`) ?? '', count: m ? Number(m[1]) : 0, text };
+    }), attr);
+  return raw.filter((c) => c.value && c.value !== 'all');
+}
+
 async function totalFor(page: import('@playwright/test').Page, url: string): Promise<number> {
   await page.goto(url, { waitUntil: 'domcontentloaded' });
   const pager = page.getByTestId('pager-total');
@@ -38,6 +92,7 @@ async function totalFor(page: import('@playwright/test').Page, url: string): Pro
 }
 
 test('register filtering audit', async ({ page }) => {
+  test.setTimeout(900_000);
   const results: Row[] = [];
   // THE BASELINE IS THE CLEARED REGISTER, not the default one. The Register now
   // opens on the United States, so '/register?view=all' is itself a filtered
@@ -167,13 +222,361 @@ test('register filtering audit', async ({ page }) => {
   console.log(`${'Sort by name (control)'.padEnd(34)} ${String(baseline).padStart(5)} -> ${String(sorted).padStart(5)}`);
   expect(sorted, 'sorting changed the result count, so it is filtering').toBe(baseline);
 
+  // ---- THE HIERARCHY. A NARROWER FILTER RETURNS A STRICT SUBSET. ------------
+  //
+  // THIS IS THE ASSERTION THE AUDIT DID NOT HAVE, and its absence is why a
+  // regression that broke the market filter entirely was recorded here as
+  // sixteen rows of "changed" and shipped.
+  //
+  // Every row above compares one filter against the GLOBAL baseline. That
+  // catches a filter that does nothing at all. It cannot catch a filter that
+  // does its PARENT's job: L3 Anaheim returning all 27 of California is not the
+  // baseline's 267, so it read as "changed" and passed, while the register was
+  // showing an operator every project in the state under a filter naming one
+  // city. The relationship that means something is between a level and the
+  // level above it, and it has to be checked on ids rather than on counts.
+  // MEASURE EVERYTHING, THEN JUDGE, AND WRITE THE ARTIFACT IN BETWEEN.
+  //
+  // Assertions used to sit inside these loops, so the first failure ended the
+  // run and no artifact was written at all - the one moment the numbers are
+  // most worth having is the moment the old shape threw them away. Every
+  // measurement below is collected, the artifact is written, and the
+  // expectations run last against what was collected.
+  const hierarchy: {
+    chain: string;
+    region: string;
+    market: string;
+    levels: { label: string; url: string; size: number }[];
+    l1: number;
+    l2: number;
+    l3: number;
+    l2Escapees: number;
+    l3Escapees: number;
+    verdict: string;
+  }[] = [];
+
+  console.log('\n===== GEOGRAPHY HIERARCHY =====');
+  const l1Url = '/register?view=all&country=United+States';
+  const l1 = await idsFor(page, l1Url);
+
+  for (const region of ['California', 'Nevada']) {
+    const l2Url = `${l1Url}&region=${encodeURIComponent(region)}`;
+    // The market is read off the rail rather than hardcoded, so the audit
+    // cannot test a market the corpus no longer holds and call the resulting
+    // equality a pass.
+    await page.goto(l2Url, { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('[data-market]').first()).toBeVisible({ timeout: 120_000 });
+    const marketNodes = await page
+      .locator('[data-market]')
+      .evaluateAll((els) =>
+        els.map((e) => ({
+          value: e.getAttribute('data-market') ?? '',
+          projects: Number(e.getAttribute('data-projects') ?? '0'),
+        }))
+      );
+    const top = marketNodes.filter((m) => m.projects > 0).sort((a, b) => b.projects - a.projects)[0];
+    expect(top, `${region} rail offered no market with projects`).toBeTruthy();
+
+    const l2 = await idsFor(page, l2Url);
+    const l3Url = `${l2Url}&market=${encodeURIComponent(top.value)}`;
+    const l3 = await idsFor(page, l3Url);
+
+    const l2Escapees = escapees(l2, l1);
+    const l3Escapees = escapees(l3, l2);
+    console.log(
+      `  ${region.padEnd(12)} L1 ${l1.size} > L2 ${l2.size} > L3 ${l3.size} (${top.value})`
+    );
+
+    hierarchy.push({
+      chain: `United States > ${region} > ${top.value}`,
+      region,
+      market: top.value,
+      levels: [
+        { label: 'L1 United States', url: l1Url, size: l1.size },
+        { label: `L2 ${region}`, url: l2Url, size: l2.size },
+        { label: `L3 ${top.value}`, url: l3Url, size: l3.size },
+      ],
+      l1: l1.size,
+      l2: l2.size,
+      l3: l3.size,
+      l2Escapees: l2Escapees.length,
+      l3Escapees: l3Escapees.length,
+      verdict:
+        l3.size === l2.size
+          ? 'L3 EQUALS L2: the market filter is not being applied'
+          : l3Escapees.length || l2Escapees.length
+            ? 'NOT A SUBSET'
+            : 'strict subset at every level',
+    });
+  }
+
+  // ---- A VALUE NOTHING MATCHES RETURNS NOTHING. ----------------------------
+  //
+  // FAILING OPEN IS THE DANGEROUS DIRECTION and it is the one this axis failed
+  // in. market=Atlantis returned all 254 projects in the United States: a filter
+  // naming a market that does not exist, answering with the parent set in full.
+  // The same shape reaches a client as a scope narrowed to one market and a
+  // document covering every project under their name.
+  //
+  // Zero is the only acceptable answer. An empty register is visibly empty; a
+  // register that quietly widened is not visibly anything.
+  console.log('\n===== UNMATCHED VALUES MUST RETURN ZERO =====');
+  const unmatched: { axis: string; url: string; total: number }[] = [];
+  for (const [axis, param] of [
+    ['market', 'market=Atlantis'],
+    ['venue', 'venue=Notavenue'],
+    ['category', 'category=Notacategory'],
+  ] as const) {
+    const url = `/register?view=all&country=United+States&${param}`;
+    const t = await totalFor(page, url);
+    console.log(`  ${axis.padEnd(10)} ${param.padEnd(26)} -> ${t}`);
+    unmatched.push({ axis, url, total: t });
+  }
+
+  // ---- VENUE AND CATEGORY, THE SAME WAY. -----------------------------------
+  //
+  // Both were added to the register on 10 August and neither was ever measured
+  // here. They were broken on the click path from the day they landed and fully
+  // broken from the day the record match landed, and no row in this file would
+  // have said so.
+  //
+  // THE CHIP COUNT AND THE TOTAL ARE ALLOWED TO DISAGREE, IN ONE DIRECTION. A
+  // chip counts projects whose venue_type COLUMN matches - a mode over the
+  // project's records - while the list matches any record. So the total is at
+  // or above the chip, never below it, because every project whose mode matches
+  // also holds a record carrying the value. The gap is printed per value: it is
+  // the number Philip is deciding the chip's meaning with.
+  console.log('\n===== VENUE AND CATEGORY =====');
+  const axisRows: {
+    axis: string;
+    value: string;
+    chipCount: number;
+    total: number;
+    gap: number;
+    escapees: number;
+  }[] = [];
+  const baselineIds = await idsFor(page, BASE);
+
+  for (const attr of ['venue', 'category'] as const) {
+    await totalFor(page, BASE);
+    // WAIT FOR MORE THAN ONE CHIP, not for the first one.
+    //
+    // "All venues" is rendered from an empty facet result, so it exists on the
+    // first paint while the facet query is still in flight. Waiting for it and
+    // then reading the row returned exactly one chip, counting zero, and this
+    // audit reported "no venue chip has any projects" - the instrument's own
+    // race described as a finding about the corpus. The real chips arrive with
+    // the facet answer, so the wait is for the second one.
+    await expect
+      .poll(async () => await page.locator(`[data-${attr}]`).count(), { timeout: 120_000 })
+      .toBeGreaterThan(1);
+    const chips = (await chipsOf(page, attr)).filter((c) => c.count > 0).slice(0, 3);
+    expect(chips.length, `no ${attr} chips with a count rendered`).toBeGreaterThan(0);
+
+    for (const chip of chips) {
+      const url = `${BASE}&${attr}=${encodeURIComponent(chip.value)}`;
+      const ids = await idsFor(page, url);
+      const out = escapees(ids, baselineIds);
+      console.log(
+        `  ${attr.padEnd(9)} ${chip.value.padEnd(30)} chip ${String(chip.count).padStart(4)} -> list ${String(
+          ids.size
+        ).padStart(4)}  gap ${ids.size - chip.count >= 0 ? '+' : ''}${ids.size - chip.count}`
+      );
+      axisRows.push({
+        axis: attr,
+        value: chip.value,
+        chipCount: chip.count,
+        total: ids.size,
+        gap: ids.size - chip.count,
+        escapees: out.length,
+      });
+    }
+  }
+
   mkdirSync('e2e/shots/walkthrough', { recursive: true });
   writeFileSync(
     'e2e/shots/walkthrough/filter-audit.json',
     JSON.stringify(
-      { baseline, defaultGeography: defaulted, clearedGeography: cleared, results, sortControl: sorted },
+      {
+        baseline,
+        defaultGeography: defaulted,
+        clearedGeography: cleared,
+        results,
+        sortControl: sorted,
+        hierarchy,
+        unmatched,
+        venueAndCategory: axisRows,
+      },
       null,
       2
     )
   );
+
+  // ---- NOW JUDGE WHAT WAS MEASURED. ----------------------------------------
+  for (const h of hierarchy) {
+    expect(
+      h.l2Escapees,
+      `${h.region} returned ${h.l2Escapees} projects the United States does not hold`
+    ).toBe(0);
+    expect(
+      h.l3Escapees,
+      `${h.market} returned ${h.l3Escapees} projects ${h.region} does not hold`
+    ).toBe(0);
+    expect(h.l2, `${h.region} is not strictly narrower than the United States`).toBeLessThan(h.l1);
+    // THE ONE THAT WOULD HAVE CAUGHT IT. Equality here is the whole regression:
+    // the market filter contributed nothing and the list answered the region.
+    expect(
+      h.l3,
+      `market=${h.market} returned exactly ${h.region}'s ${h.l2} projects, so the market filter is not being applied`
+    ).toBeLessThan(h.l2);
+    expect(h.l3, `market=${h.market} returned nothing at all`).toBeGreaterThan(0);
+  }
+
+  for (const u of unmatched) {
+    expect(
+      u.total,
+      `${u.url} returned ${u.total} projects; an unresolvable ${u.axis} must return the empty set, not the parent's rows`
+    ).toBe(0);
+  }
+
+  for (const r of axisRows) {
+    expect(r.total, `${r.axis}=${r.value} returned nothing`).toBeGreaterThan(0);
+    expect(
+      r.total,
+      `${r.axis}=${r.value} returned all ${baseline} projects, the whole unfiltered register, so the filter is not being applied`
+    ).toBeLessThan(baseline);
+    expect(
+      r.escapees,
+      `${r.axis}=${r.value} returned ${r.escapees} projects the unfiltered register does not hold`
+    ).toBe(0);
+    // Direction, not equality. Below the chip would mean the record match is
+    // finding FEWER projects than the mode column, which is impossible.
+    expect(
+      r.total,
+      `${r.axis}=${r.value} returned ${r.total}, below its chip's ${r.chipCount}; matching any record cannot find fewer projects than matching the mode column`
+    ).toBeGreaterThanOrEqual(r.chipCount);
+  }
+});
+
+// ---- CLICKING A CHIP MUST REQUERY. -----------------------------------------
+//
+// EVERY ROW ABOVE ARRIVES BY URL, AND THAT IS THE GAP THIS TEST CLOSES.
+// `page.goto` mounts the screen with the filter already in hand, so the query
+// is built once, correctly, from state that never changes afterwards. It cannot
+// tell you what happens when an operator CLICKS - which is how the register is
+// actually used, and which is where all three axes were dead.
+//
+// The failure was one missing entry in a useMemo dependency array. The filter
+// reached the URL, reached React state, reached its own record query and
+// reached the id list; the object those ids are spread into was simply never
+// rebuilt, so the query key never changed, so react-query served the previous
+// answer from cache and no request was issued at all. Everything looked applied
+// except the rows.
+//
+// So this measures the two things a URL test cannot: that a request goes out,
+// and that the number lands where arriving by URL says it should.
+test('clicking a filter chip requeries the list', async ({ page }) => {
+  test.setTimeout(600_000);
+
+  const axes: { axis: string; from: string; attr: string; pick: 'chip' | 'market' }[] = [
+    { axis: 'venue', from: '/register?view=all&country=any', attr: 'venue', pick: 'chip' },
+    { axis: 'category', from: '/register?view=all&country=any', attr: 'category', pick: 'chip' },
+    {
+      axis: 'market',
+      from: '/register?view=all&country=United+States&region=California',
+      attr: 'market',
+      pick: 'market',
+    },
+  ];
+
+  const rows: {
+    axis: string;
+    value: string;
+    before: number;
+    expected: number;
+    afterClick: number;
+    requests: number;
+  }[] = [];
+
+  console.log('\n===== CLICK, NOT NAVIGATE =====');
+  for (const a of axes) {
+    await page.goto(a.from, { waitUntil: 'domcontentloaded' });
+    const pager = page.getByTestId('pager-total');
+    await expect(pager).toBeVisible({ timeout: 120_000 });
+    await expect.poll(async () => await pager.getAttribute('data-total'), { timeout: 120_000 }).not.toBeNull();
+    const before = Number(await pager.getAttribute('data-total'));
+
+    // A real value, taken off the screen the click will happen on.
+    const candidates = await page
+      .locator(`[data-${a.attr}]`)
+      .evaluateAll((els, attr: string) =>
+        els
+          .map((e) => ({
+            value: e.getAttribute(`data-${attr}`) ?? '',
+            projects: Number(e.getAttribute('data-projects') ?? '1'),
+          }))
+          .filter((c) => c.value && c.value !== 'all' && c.projects > 0),
+        a.attr
+      );
+    expect(candidates.length, `no ${a.axis} control rendered to click`).toBeGreaterThan(0);
+    const value = candidates[0].value;
+
+    // What arriving by URL says this filter is worth. Measured first, so the
+    // click has a number to be wrong against.
+    const byUrl = await totalFor(page, `${a.from}&${a.axis}=${encodeURIComponent(value)}`);
+    // Back to the unfiltered screen, and click it this time.
+    await page.goto(a.from, { waitUntil: 'domcontentloaded' });
+    await expect(pager).toBeVisible({ timeout: 120_000 });
+    await expect.poll(async () => await pager.getAttribute('data-total'), { timeout: 120_000 }).not.toBeNull();
+
+    let requests = 0;
+    const count = (r: { url(): string }) => {
+      if (r.url().includes('/rest/v1/projects')) requests++;
+    };
+    page.on('request', count);
+    await page.locator(`[data-${a.attr}="${value}"]`).first().click();
+
+    // The URL must carry it, and then the list must catch up to it.
+    await expect
+      .poll(async () => new URL(page.url()).searchParams.get(a.axis), { timeout: 30_000 })
+      .toBe(value);
+    let landed = -1;
+    try {
+      await expect
+        .poll(async () => Number(await pager.getAttribute('data-total')), { timeout: 60_000 })
+        .toBe(byUrl);
+      landed = byUrl;
+    } catch {
+      landed = Number(await pager.getAttribute('data-total'));
+    }
+    page.off('request', count);
+
+    console.log(
+      `  ${a.axis.padEnd(9)} ${value.padEnd(26)} ${before} --click--> ${landed} (by url ${byUrl}), ${requests} project queries`
+    );
+    rows.push({ axis: a.axis, value, before, expected: byUrl, afterClick: landed, requests });
+  }
+
+  mkdirSync('e2e/shots/walkthrough', { recursive: true });
+  writeFileSync('e2e/shots/walkthrough/filter-click-audit.json', JSON.stringify({ rows }, null, 2));
+
+  // ---- JUDGE LAST, so a failing axis still leaves the other two measured. ---
+  for (const r of rows) {
+    // If the by-URL number equals the unfiltered one the axis is already dead on
+    // the URL path, and there is nothing left for the click to be wrong about.
+    // That is a finding, not a bad fixture: measured against the code this test
+    // was written for, venue=Museum by URL returned all 267 projects.
+    expect(
+      r.expected,
+      `${r.axis}=${r.value} by URL returns ${r.expected}, exactly what no filter returns: the axis is not applied even by URL`
+    ).not.toBe(r.before);
+    expect(
+      r.requests,
+      `clicking the ${r.axis} control issued no project query at all: the query key did not change, so react-query answered from cache`
+    ).toBeGreaterThan(0);
+    expect(
+      r.afterClick,
+      `clicking ${r.axis}=${r.value} left the list showing ${r.afterClick}; the same filter by URL returns ${r.expected}`
+    ).toBe(r.expected);
+  }
 });

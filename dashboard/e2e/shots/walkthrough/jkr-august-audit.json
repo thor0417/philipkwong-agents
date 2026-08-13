@@ -1,18 +1,18 @@
 {
   "register": {
-    "arrived": 174,
-    "resolution": "316 records, 174 projects"
+    "arrived": 148,
+    "resolution": "259 records, 148 projects"
   },
   "report": {
-    "scope": 198,
-    "records": 185,
-    "cover": "198 projects, 185 records",
-    "scoping": "This report covers all covered markets for August 2026. It is drawn from 198 projects and 185 captured records. Of those projects, 15 are described in full, selected by significance; 66 further projects are counted but not described; 87 projects filed nothing in this period; and 30 carry no market or region we could resolve. Anything outside that geography or period is not covered here."
+    "scope": 176,
+    "records": 148,
+    "cover": "176 projects, 148 records",
+    "scoping": "This report covers all covered markets for August 2026. It is drawn from 176 projects and 148 captured records. Of those projects, 15 are described in full, selected by significance; 48 further projects are counted but not described; 80 projects filed nothing in this period; and 33 carry no market or region we could resolve. Anything outside that geography or period is not covered here."
   },
   "partition": {
     "described": 15,
-    "counted": 66,
-    "silent": 87,
-    "active": 81
+    "counted": 48,
+    "silent": 80,
+    "active": 63
   }
 }

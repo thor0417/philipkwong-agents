@@ -1,0 +1,28 @@
+{
+  "rows": [
+    {
+      "axis": "venue",
+      "value": "Museum",
+      "before": 267,
+      "expected": 38,
+      "afterClick": 38,
+      "requests": 11
+    },
+    {
+      "axis": "category",
+      "value": "Entertainment/Attractions",
+      "before": 267,
+      "expected": 86,
+      "afterClick": 86,
+      "requests": 11
+    },
+    {
+      "axis": "market",
+      "value": "Anaheim",
+      "before": 27,
+      "expected": 19,
+      "afterClick": 19,
+      "requests": 13
+    }
+  ]
+}
