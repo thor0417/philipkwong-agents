@@ -37,9 +37,16 @@ const ID_CHUNK = 150;
 // is a document a person reads; one citing 5,000 records is not a report.
 export const RECORD_CAP = 1500;
 export const PROJECT_CAP = 2000;
-// Stage changes read per chunk of projects. Stated in the coverage note when it
-// binds, for the same reason the other two are.
-export const EVENT_CAP = 500;
+// Events read per chunk of projects. A RUNAWAY GUARD, NOT A PRODUCT DECISION,
+// and at 500 it was neither: measured after the chunk-loop fix, the default
+// whole-register document read 500 of the 1,054 events its projects hold, so
+// the coverage note printed "What moved is not a complete list" on every
+// document generated. A limit that binds on the ordinary case is a limit set
+// wrong.
+//
+// 2,000 is above everything this corpus holds and still bounds a pathological
+// read. It is stated in the coverage note if it ever binds, like the other two.
+export const EVENT_CAP = 2000;
 
 // HOW MANY PROJECTS A DOCUMENT DESCRIBES IN FULL.
 //
