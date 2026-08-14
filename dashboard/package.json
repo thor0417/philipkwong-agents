@@ -9,7 +9,8 @@
     "typecheck": "tsc --noEmit",
     "shots": "playwright test",
     "clean": "node -e \"require('fs').rmSync('.next',{recursive:true,force:true})\"",
-    "verify": "npm run typecheck && npm run build && npm run clean && npm run shots"
+    "verify": "npm run typecheck && npm run build && npm run clean && npm run shots",
+    "audit:exclusions": "node --env-file=../.env.local --env-file=.env.local --import tsx scripts/exclusion-audit.ts"
   },
   "dependencies": {
     "@react-pdf/renderer": "^3.4.5",

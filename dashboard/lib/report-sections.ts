@@ -52,6 +52,12 @@ export interface SectionContext {
   unplacedProjects: Project[];
   // Dropped before scope for having no live record at all.
   excludedHollow: number;
+  // EXCLUDED BECAUSE WE CANNOT NAME THEM. name_source 'title' is a cleaned
+  // agenda line, not a name anything published. Held as the PROJECTS rather
+  // than a count, so the coverage note can say which markets were thinned -
+  // "nothing is silently absent" means the reader can see where the gap is,
+  // not merely that there is one.
+  provisionalExcluded: Project[];
   detailCap: number;
   // THE ENTRIES, BUILT ONCE, IN SIGNIFICANCE ORDER, WITH THEIR MARKET AS group.
   //
@@ -207,6 +213,17 @@ const cover: SectionDef = {
             ? `${ctx.excludedHollow} project${ctx.excludedHollow === 1 ? '' : 's'} whose every record has been dismissed ` +
               `${ctx.excludedHollow === 1 ? 'is' : 'are'} excluded entirely, because ${ctx.excludedHollow === 1 ? 'it has' : 'they have'} ` +
               `no filing to cite. `
+            : '') +
+          // ON THE COVER AS WELL AS IN THE COVERAGE NOTE. The project count
+          // above is the count AFTER this exclusion, so a reader who never
+          // reaches the coverage note would otherwise have no way to know the
+          // scope was larger than the document. The coverage note carries the
+          // reason and the markets; the cover carries the number, next to the
+          // other numbers it has to reconcile with.
+          (ctx.provisionalExcluded.length
+            ? `A further ${ctx.provisionalExcluded.length} project${ctx.provisionalExcluded.length === 1 ? '' : 's'} in this ` +
+              `geography ${ctx.provisionalExcluded.length === 1 ? 'is' : 'are'} excluded because our capture holds no ` +
+              `published name for ${ctx.provisionalExcluded.length === 1 ? 'it' : 'them'}; the coverage note says where. `
             : '') +
           `Anything outside that geography or period is not covered here.`
       ),
@@ -669,6 +686,30 @@ const coverage: SectionDef = {
             `in scope ${ctx.undetailedProjects.length === 1 ? 'is' : 'are'} counted but not described.`
           : 'Every project in scope is described.')
     );
+    // WHAT WE COULD NOT NAME, COUNTED AND LOCATED.
+    //
+    // The one sentence that stands in for the projects this document refuses to
+    // print. It carries the count, the reason and the markets, because a reader
+    // who is told only a number cannot tell whether the gap is in the market
+    // they care about.
+    if (ctx.provisionalExcluded.length) {
+      const n = ctx.provisionalExcluded.length;
+      const byMarket = new Map<string, number>();
+      for (const p of ctx.provisionalExcluded) {
+        const m = p.market ?? p.region_state ?? 'no resolved market';
+        byMarket.set(m, (byMarket.get(m) ?? 0) + 1);
+      }
+      const named = [...byMarket.entries()]
+        .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+        .map(([m, c]) => `${m} (${c})`);
+      notes.push(
+        `${n} project${n === 1 ? '' : 's'} in scope ${n === 1 ? 'is' : 'are'} not named in this ` +
+          `document because our capture holds no published name for ${n === 1 ? 'it' : 'them'} - ` +
+          `only the agenda line the matter was filed under, which is the instrument rather than ` +
+          `the project. ${n === 1 ? 'It is' : 'They are'} on the register and can be named by hand. ` +
+          `By market: ${named.join(', ')}.`
+      );
+    }
     // A CATEGORY WITH NOTHING DESCRIBED IS NAMED, ONCE, HERE.
     //
     // The category sections print only where there is an entry to print, so a

@@ -19,6 +19,7 @@ import { LIVE_PIPELINE_STORAGE_KEY } from './pipelines';
 import type { ResolvedPeriod } from './period';
 import { DEFAULT_SECTION_IDS, sectionById, type SectionContext } from './report-sections';
 import { estimatePages, type Entry, type ReportDocument } from './report-model';
+import { isProvisionalName } from './taxonomy';
 import { buildEntry } from './report-entry';
 import { streamLabel } from './streams';
 import { normaliseParty, type PartyHistory } from './people';
@@ -63,6 +64,11 @@ export interface BuildRequest {
   watchlistOnly: boolean;
   includeDormant: boolean;
   includeContext: boolean;
+  // OFF BY DEFAULT, and the default is the point. A document may only name a
+  // project whose name something published. See the block in buildReport.
+  // Exposed at all so an INTERNAL document can be generated with them, which is
+  // a different question from what a client is sent.
+  includeProvisionalNames?: boolean;
   geographyLabel: string;
   // HOW MANY PROJECTS THE DOCUMENT DESCRIBES IN FULL. The rest are counted.
   // See DETAIL_CAP_DEFAULT for why this is a number a person chooses.
@@ -95,6 +101,8 @@ export interface BuiltReport {
     silent: number;
     unplaced: number;
     excludedHollow: number;
+    // Excluded because their name is a cleaned agenda line rather than a name.
+    provisionalNames: number;
   };
 }
 
@@ -136,9 +144,34 @@ export async function buildReport(req: BuildRequest): Promise<BuiltReport> {
   // recount pass (agents/scraper/project-recount.ts skips dismissed), so this
   // is a filter on a number the pipeline already computes rather than a second
   // definition of the same thing. verify-curation reports drift on it.
-  const beforeHollow = projects.length;
+  const hollow = projects.filter((p) => (p.record_count ?? 0) <= 0);
   projects = projects.filter((p) => (p.record_count ?? 0) > 0);
-  const excludedHollow = beforeHollow - projects.length;
+
+  // COUNTED FOR THIS GEOGRAPHY, NOT FOR THE REGISTER.
+  //
+  // The count was `before - after` at this point, which is every hollow project
+  // in the pipeline: a Nashville report stated "2 projects whose every record
+  // has been dismissed are excluded", and both were in Yonkers and Oakland.
+  //
+  // It cannot be fixed by moving this filter below the market match, because
+  // the market match runs against a project's RECORDS and a hollow project has
+  // none - it would be dropped there and the count would silently read zero,
+  // which is the same failure wearing the opposite sign.
+  //
+  // So the count is narrowed using the hollow project's OWN stored geography.
+  // That is the only evidence left about where it was: its records are gone.
+  const geo = [
+    ...(req.scope.markets ?? []),
+    ...(req.scope.regions ?? []),
+    ...(req.scope.countries ?? []),
+  ].map((v) => v.toLowerCase());
+  const excludedHollow = geo.length
+    ? hollow.filter((p) =>
+        geo.includes(String(p.market ?? '').toLowerCase()) ||
+        geo.includes(String(p.region_state ?? '').toLowerCase()) ||
+        geo.includes(String(p.country ?? '').toLowerCase())
+      ).length
+    : hollow.length;
 
   // THE STREAM AXIS, APPLIED TO PROJECTS AS WELL AS TO RECORDS.
   //
@@ -171,6 +204,49 @@ export async function buildReport(req: BuildRequest): Promise<BuiltReport> {
     const keep = await projectsMatchingRecordFacets(projects.map((p) => p.id), recordFacets);
     projects = projects.filter((p) => keep.has(p.id));
   }
+
+  // A PROVISIONAL NAME DOES NOT REACH A CLIENT DOCUMENT, AND IS NOT HEDGED
+  // EITHER.
+  //
+  // name_source 'title' means the name was assembled from an agenda line: it is
+  // the instrument the council was handed, not what the thing is called. There
+  // are three ways to handle that and only one of them is honest.
+  //
+  //   PRINT IT PLAINLY   the client reads "possible action to approve the Third
+  //                      Amendment to Lease and Operating Agreement" as the name
+  //                      of a project, which is false.
+  //   PRINT IT HEDGED    the client reads "Provisional: ..." and learns that our
+  //                      system was unsure. That is a fact about us, not about
+  //                      the project, and it belongs in no document we send.
+  //   LEAVE IT OUT       and say how many were left out, and why.
+  //
+  // The third. The register still shows every one of them and marks the source,
+  // because internally the question "which of these do we not have a name for"
+  // is exactly the question worth asking.
+  //
+  // LAST OF THE PROJECT FILTERS, AFTER THE MARKET AND CATEGORY MATCH, AND THAT
+  // ORDER IS THE WHOLE CORRECTNESS OF THE COUNT.
+  //
+  // It ran before them, so the number the document printed was the number
+  // excluded from the WHOLE REGISTER: a Clark County report stated 32 when 3 of
+  // its own projects were affected, and a Nashville report stated 32 over a
+  // scope of 9. A document stating a count that is not about itself is the
+  // exact failure this rule was added to prevent, one level up. Found by
+  // dashboard/scripts/exclusion-audit, which is why that harness exists.
+  //
+  // COUNTED PER MARKET, because the coverage note names the markets it thinned.
+  // Nothing is silently absent: every project removed here is in the sentence
+  // the coverage note prints.
+  const provisionalExcluded: Project[] = [];
+  if (!req.includeProvisionalNames) {
+    const keep: Project[] = [];
+    for (const p of projects) {
+      if (isProvisionalName(p.name_source)) provisionalExcluded.push(p);
+      else keep.push(p);
+    }
+    projects = keep;
+  }
+
 
   const ids = projects.map((p) => p.id);
   let records: (TimelineRecord & { project_id?: string | null; market?: string | null })[] = [];
@@ -346,6 +422,7 @@ export async function buildReport(req: BuildRequest): Promise<BuiltReport> {
     silentProjects: silent,
     unplacedProjects: unplaced,
     excludedHollow,
+    provisionalExcluded,
     detailCap,
     entries,
     heldRecords,
@@ -413,6 +490,7 @@ export async function buildReport(req: BuildRequest): Promise<BuiltReport> {
       silent: silent.length,
       unplaced: unplaced.length,
       excludedHollow,
+      provisionalNames: provisionalExcluded.length,
     },
   };
 }

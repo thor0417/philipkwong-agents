@@ -22,6 +22,10 @@ export const PROJECT_COLUMNS = [
   // every register row and every detail header, which is exactly why it is a
   // stored column rather than something recomputed per render.
   'summary', 'summary_source', 'summary_url',
+  // WHICH RULE PRODUCED THE NAME. Read by the register, which marks it, and by
+  // the report, which uses it to decide whether the project may be named to a
+  // client at all. See isProvisionalName in agents/scraper/project-naming.
+  'name_source',
   // The ranking and its breakdown. Read on every register row, so stored
   // rather than recomputed per render - same reason as summary.
   'significance', 'significance_detail', 'significance_computed_at',
@@ -58,6 +62,10 @@ export interface Project {
   // summary they can cite, so this is what decides whether the sentence is
   // allowed into a client document at all.
   summary_url: string | null;
+  // 'target' | 'source' | 'programme' | 'applicant' | 'site' | 'title'. Only
+  // 'title' is provisional: it is a cleaned agenda line rather than a name
+  // anything published. Null on a row that predates migration 032.
+  name_source: string | null;
   significance: number | null;
   // Each signal's contribution, so the score is explainable at the point of
   // use rather than in a document nobody opens.

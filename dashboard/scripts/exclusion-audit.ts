@@ -1,0 +1,230 @@
+// WHAT EVERY DOCUMENT LOSES, AND WHETHER IT SAYS SO.
+//
+//   node --env-file=.env.local --env-file=dashboard/.env.local \
+//     --import tsx dashboard/scripts/exclusion-audit.ts
+//
+// The condition on every exclusion rule in this system is that nothing is
+// silently absent: if a document withholds a project, the document states the
+// count and the reason. That is a property of the generated document, so it is
+// checked by generating documents and reading them, not by reading the code.
+//
+// For each scope it reports, per market, how many projects the document loses to
+// each rule, and then ASSERTS that every excluded project is accounted for in
+// the document's own text. A rule whose count never reaches the page is a silent
+// exclusion and fails the run.
+
+import { createClient } from '@supabase/supabase-js';
+import { supabase } from '../lib/supabase';
+import { fetchClients, fetchAllScopes, type ClientScope } from '../lib/clients';
+import { buildReport, DETAIL_CAP_DEFAULT, geographyLabel } from '../lib/report-build';
+import { resolvePeriod } from '../lib/period';
+import { DEFAULT_SECTION_IDS } from '../lib/report-sections';
+import { renderDocumentText } from '../lib/report-text';
+import { HOSPITALITY_ID } from '../lib/pipelines';
+import { isProvisionalName } from '../lib/taxonomy';
+import { applyProjectFilters, PROJECT_COLUMNS, type Project } from '../lib/projects';
+import {
+  applyPostFilters,
+  hasRecordFacets,
+  projectsHoldingStreams,
+  projectsMatchingRecordFacets,
+  resolveScope,
+} from '../lib/clients';
+import { LIVE_PIPELINE_STORAGE_KEY } from '../lib/pipelines';
+
+const DETAIL = Number(process.env.AUDIT_DETAIL ?? 60);
+
+async function signIn(): Promise<string> {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!serviceKey) throw new Error('SUPABASE_SERVICE_ROLE_KEY missing (root .env.local).');
+  const admin = createClient(url, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } });
+  const { data: users, error } = await admin.auth.admin.listUsers({ page: 1, perPage: 1 });
+  if (error) throw new Error(`listUsers: ${error.message}`);
+  const email = users.users[0]?.email;
+  if (!email) throw new Error('no account to read as');
+  const { data: link, error: lerr } = await admin.auth.admin.generateLink({ type: 'magiclink', email });
+  if (lerr) throw new Error(`generateLink: ${lerr.message}`);
+  const { error: verr } = await supabase.auth.verifyOtp({ token_hash: link.properties!.hashed_token!, type: 'email' });
+  if (verr) throw new Error(`verifyOtp: ${verr.message}`);
+  return email;
+}
+
+function emptyScope(over: Partial<ClientScope> = {}): ClientScope {
+  return {
+    id: 'ad-hoc', client_id: 'ad-hoc', pipeline_id: HOSPITALITY_ID,
+    countries: null, regions: null, markets: null, streams: null,
+    development_categories: null, venue_types: null, stages: null,
+    watch_terms: null, notes: null, created_at: null, ...over,
+  };
+}
+
+const place = (p: Project) => p.market ?? p.region_state ?? '(no market)';
+
+/**
+ * Every project the scope query returns BEFORE any document rule runs.
+ *
+ * The report's own counts are computed after its filters, so they cannot say
+ * what the scope held to begin with. This asks the same query with none of the
+ * document rules applied, which is the only way to see what each rule removed.
+ */
+async function scopeTotal(scope: ClientScope): Promise<Project[]> {
+  const { query, postFilters, streams, recordFacets } = resolveScope(scope);
+  const { data, error } = await applyProjectFilters(
+    supabase.from('projects').select(PROJECT_COLUMNS),
+    { ...query, module: query.module ?? LIVE_PIPELINE_STORAGE_KEY }
+  ).limit(2000);
+  if (error) throw new Error(error.message);
+  let rows = applyPostFilters(
+    (data ?? []) as unknown as Record<string, unknown>[],
+    postFilters
+  ) as unknown as Project[];
+  // THE SAME TWO RECORD-KEYED FILTERS buildReport applies. Market, venue and
+  // category are matched against a project's RECORDS rather than its stored
+  // column, so a baseline that skips them is the whole register and the audit
+  // reports the whole register's dormant projects against a one-market scope.
+  if (streams && rows.length) {
+    const keep = await projectsHoldingStreams(rows.map((r) => r.id), streams);
+    rows = rows.filter((r) => keep.has(r.id));
+  }
+  if (hasRecordFacets(recordFacets) && rows.length) {
+    const keep = await projectsMatchingRecordFacets(rows.map((r) => r.id), recordFacets);
+    rows = rows.filter((r) => keep.has(r.id));
+  }
+  return rows;
+}
+
+interface Case { label: string; scope: ClientScope; clientName?: string | null }
+
+async function main(): Promise<void> {
+  await signIn();
+  const clients = await fetchClients();
+  const scopes = await fetchAllScopes();
+  const client = clients.find((c) => c.status === 'active');
+  const clientScope = client ? scopes.find((s) => s.client_id === client.id) : undefined;
+
+  const cases: Case[] = [
+    { label: 'whole register', scope: emptyScope() },
+    { label: 'market = Clark County', scope: emptyScope({ markets: ['Clark County'] }) },
+    { label: 'market = New York City', scope: emptyScope({ markets: ['New York City'] }) },
+    { label: 'market = Nashville', scope: emptyScope({ markets: ['Nashville'] }) },
+    { label: 'category = Hospitality/Tourism', scope: emptyScope({ development_categories: ['Hospitality/Tourism'] }) },
+  ];
+  if (clientScope && client) cases.push({ label: `client = ${client.name}`, scope: clientScope, clientName: client.name });
+
+  let failures = 0;
+
+  for (const c of cases) {
+    const before = await scopeTotal(c.scope);
+    const built = await buildReport({
+      scope: c.scope,
+      period: resolvePeriod('all', new Date()),
+      sectionIds: DEFAULT_SECTION_IDS,
+      commentary: {},
+      detailCap: DETAIL,
+      title: 'audit',
+      brandName: 'JKR & Associates',
+      addressee: 'audit',
+      clientName: c.clientName ?? null,
+      watchlistOnly: false,
+      includeDormant: false,
+      includeContext: false,
+      geographyLabel: geographyLabel(c.scope),
+    });
+    const text = renderDocumentText(built.doc);
+
+    // Reconstruct what each rule removed, from the same predicates the builder
+    // uses, so the audit and the document cannot disagree about the reason.
+    const dormant = before.filter((p) => p.stage === 'dormant');
+    const live = before.filter((p) => p.stage !== 'dormant');
+    const hollow = live.filter((p) => (p.record_count ?? 0) <= 0);
+    const withRecords = live.filter((p) => (p.record_count ?? 0) > 0);
+    const provisional = withRecords.filter((p) => isProvisionalName(p.name_source));
+
+    console.log('='.repeat(78));
+    console.log(`${c.label}    scope holds ${before.length} projects, document covers ${built.selection.inScope}`);
+    console.log('='.repeat(78));
+
+    const rules: { name: string; lost: Project[]; stated: number }[] = [
+      { name: 'dormant', lost: dormant, stated: 0 },
+      { name: 'hollow (every record dismissed)', lost: hollow, stated: built.selection.excludedHollow },
+      { name: 'provisional name', lost: provisional, stated: built.selection.provisionalNames },
+    ];
+    for (const r of rules) {
+      if (r.lost.length === 0) continue;
+      const byMarket = new Map<string, number>();
+      for (const p of r.lost) byMarket.set(place(p), (byMarket.get(place(p)) ?? 0) + 1);
+      console.log(`\n  ${r.name}: ${r.lost.length} projects lost`);
+      for (const [m, n] of [...byMarket.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))) {
+        console.log(`      ${String(n).padStart(4)}  ${m}`);
+      }
+    }
+
+    // ---- THE ASSERTION: every rule that removed something says so ----------
+    console.log('\n  DOES THE DOCUMENT SAY SO?');
+    const checks: { rule: string; lost: number; found: boolean; needle: string }[] = [
+      {
+        rule: 'dormant',
+        lost: dormant.length,
+        needle: 'Dormant projects are excluded',
+        found: text.includes('Dormant projects are excluded'),
+      },
+      {
+        rule: 'hollow',
+        lost: hollow.length,
+        needle: 'holds no live record',
+        found: /holds? no live record/.test(text),
+      },
+      {
+        rule: 'provisional name',
+        lost: provisional.length,
+        needle: 'no published name',
+        found: text.includes('no published name'),
+      },
+      {
+        rule: 'below the detail cap',
+        lost: built.selection.counted,
+        needle: 'counted but not described',
+        found: text.includes('counted but not described'),
+      },
+      {
+        rule: 'no filing in the period',
+        lost: built.selection.silent,
+        needle: 'had no filing captured',
+        found: text.includes('had no filing captured'),
+      },
+      {
+        rule: 'unplaced',
+        lost: built.selection.unplaced,
+        needle: 'no market or region',
+        found: text.includes('no market or region'),
+      },
+    ];
+    for (const k of checks) {
+      if (k.lost === 0) {
+        console.log(`    n/a       ${k.rule}: nothing lost`);
+        continue;
+      }
+      const ok = k.found;
+      if (!ok) failures++;
+      console.log(`    ${ok ? 'STATED  ' : 'SILENT !'}  ${k.rule}: ${k.lost} lost, document ${ok ? 'says so' : 'DOES NOT SAY SO'}`);
+    }
+
+    // The count in the document must be the count the rule removed.
+    if (provisional.length !== built.selection.provisionalNames) {
+      failures++;
+      console.log(`    MISMATCH  provisional: audit counts ${provisional.length}, document states ${built.selection.provisionalNames}`);
+    }
+    console.log('');
+  }
+
+  console.log(failures === 0
+    ? 'PASS: every rule that removed a project from a document is stated in that document.'
+    : `FAIL: ${failures} silent or mismatched exclusions.`);
+  if (failures > 0) process.exitCode = 1;
+}
+
+main().catch((e) => {
+  console.error(e);
+  process.exit(1);
+});

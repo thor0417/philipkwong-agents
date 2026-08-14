@@ -51,22 +51,16 @@
 
 import type { ClusterRecord } from './cluster';
 
-// 'source' and 'programme' were added after measuring the 118 title-sourced
-// names. See SOURCE_PUBLISHES_PROJECT_NAME and programmeName below: both read a
-// name the RECORD publishes as a name, which is stronger evidence than an
-// applicant field and far stronger than a cleaned agenda line. Splitting them
-// out of 'title' is what makes "provisional" mean something: what remains under
-// 'title' really is an agenda line, and a document can mark it as such.
-export type NameSource = 'target' | 'source' | 'programme' | 'applicant' | 'site' | 'title';
-
-// A NAME WE DERIVED FROM AN AGENDA LINE IS PROVISIONAL. Every other rule reads a
-// name something asserted as a name; only 'title' assembles one out of a
-// sentence that was written to instruct a council. Exported so the register, the
-// report and the referral brief all mark the same set, rather than each deciding
-// for itself what it is willing to print plainly.
-export function isProvisionalName(source: NameSource | string | null | undefined): boolean {
-  return source === 'title' || source == null;
-}
+// THE VOCABULARY AND THE PROVISIONAL TEST LIVE IN lib/taxonomy, beside the other
+// closed vocabularies, because three layers read them and only one writes them:
+// the clusterer writes name_source, the register marks it, and a client document
+// filters on it. A predicate that decides what a client is allowed to be told
+// must have exactly one definition.
+//
+// Re-exported here because this is the module that PRODUCES the value, and a
+// reader of the naming rules should not have to go looking for the type.
+export { isProvisionalName, type NameSource } from '../../lib/taxonomy';
+import type { NameSource } from '../../lib/taxonomy';
 
 export interface ProjectName {
   name: string;

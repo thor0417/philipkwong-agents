@@ -14,6 +14,7 @@
 
 import { Fragment, useEffect, useState } from 'react';
 import Link from 'next/link';
+import { isProvisionalName } from '@/lib/taxonomy';
 import { useProject, useProjectTimeline, useProjectMutations } from '@/lib/use-projects';
 import { useProjectPeople } from '@/lib/use-people';
 import { PROJECT_STAGES } from '@/lib/taxonomy';
@@ -66,6 +67,20 @@ export default function RegisterDetail({
       <div className={styles.detailHead}>
         <div className={styles.detailIdent}>
           <h2 className={styles.detailName}>{p.name}</h2>
+          {/* WHERE THE NAME CAME FROM, MARKED, AND ONLY WHEN IT MATTERS.
+              A client document refuses to print a project whose name is a
+              cleaned agenda line - see isProvisionalName - so internally this
+              is the question worth asking: which of these do we not have a
+              name for? Marked here rather than hidden, because the register is
+              where naming one by hand is done. Every other source is silent:
+              a label on every row is not a label. */}
+          {isProvisionalName(p.name_source) && (
+            <p className={styles.nameSource} data-testid="name-provisional">
+              Name taken from the agenda line, not a published name. Projects
+              named this way are left out of client documents; rename by hand to
+              include this one.
+            </p>
+          )}
           {/* LABELLED BY PROVENANCE, for the same reason the report labels
               [RECORD] and [ASSESSMENT]: a derived line is the filing's own
               words and can be quoted to a client, a generated line is a

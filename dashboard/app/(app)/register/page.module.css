@@ -496,6 +496,19 @@
 /* The provenance rides with the sentence rather than sitting in a legend
    somewhere else on the page, because the question it answers ("can I quote
    this?") is asked at the moment the sentence is read. */
+/* WHERE THE NAME CAME FROM, when the answer is "an agenda line". Set as a
+   warning rather than as metadata: this is the one project state that changes
+   what a client document is allowed to contain, and the fix is a rename the
+   operator makes right here. */
+.nameSource {
+  margin: var(--space-4) 0 var(--space-8);
+  padding-left: var(--space-8);
+  font-size: var(--type-caption);
+  line-height: 1.45;
+  color: var(--ink-secondary);
+  border-left: 2px solid var(--accent);
+}
+
 .summarySource {
   display: block;
   margin-top: var(--space-4);

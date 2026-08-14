@@ -62,6 +62,34 @@ export const DEVELOPMENT_CATEGORIES = [
 
 export type DevelopmentCategory = (typeof DEVELOPMENT_CATEGORIES)[number];
 
+// ---- WHICH RULE NAMED A PROJECT, AND WHICH NAMES MAY BE SHOWN TO A CLIENT ----
+//
+// A closed vocabulary read by the clusterer that writes it, the register that
+// marks it and the report that filters on it, so it lives here with the other
+// closed vocabularies rather than in any one of them.
+//
+// ONLY 'title' IS PROVISIONAL. Every other rule reads a name something asserted
+// AS a name - a target term, a source's project-name column, a funding
+// programme, an applicant field, an address. 'title' assembles one out of a
+// sentence written to instruct a council, and no amount of cleaning makes that
+// the project's name.
+export const NAME_SOURCES = ['target', 'source', 'programme', 'applicant', 'site', 'title'] as const;
+export type NameSource = (typeof NAME_SOURCES)[number];
+
+/**
+ * True when the name was assembled from an agenda line rather than read.
+ *
+ * THE ONE DEFINITION. The register marks these and shows them; a client
+ * document excludes them and counts them. Both behaviours are downstream of
+ * this predicate, so they cannot come apart.
+ *
+ * Null counts as provisional: a row predating migration 032 has no recorded
+ * rule, and "we do not know how this was named" is not a claim to print.
+ */
+export function isProvisionalName(source: string | null | undefined): boolean {
+  return source === 'title' || source == null;
+}
+
 // ---- WHICH CATEGORIES A PIPELINE'S DOCUMENTS ARE SECTIONED BY ----------------
 //
 // THE REPORT'S SECTION LIST IS THIS LIST, READ AT BUILD TIME. It is not typed
