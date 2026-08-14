@@ -37,6 +37,9 @@ const ID_CHUNK = 150;
 // is a document a person reads; one citing 5,000 records is not a report.
 export const RECORD_CAP = 1500;
 export const PROJECT_CAP = 2000;
+// Stage changes read per chunk of projects. Stated in the coverage note when it
+// binds, for the same reason the other two are.
+export const EVENT_CAP = 500;
 
 // HOW MANY PROJECTS A DOCUMENT DESCRIBES IN FULL.
 //
@@ -271,9 +274,17 @@ export async function buildReport(req: BuildRequest): Promise<BuiltReport> {
   }
   records = records.slice(0, RECORD_CAP);
 
-  // Events in the period, for What moved. Scoped to the projects in hand.
+  // Events in the period, for What moved.
+  //
+  // EVERY PROJECT, NOT THE FIRST 150. This read was `.in('project_id',
+  // ids.slice(0, ID_CHUNK))` - one chunk, never a loop - so a scope holding
+  // more projects than the chunk size silently lost the stage changes of all
+  // the rest. It has not bitten yet only because the register is 142 projects
+  // and the chunk is 150; at 151 a client would have been shown a "What moved"
+  // section missing a market, with nothing on the page to suggest it.
   let events: SectionContext['events'] = [];
-  if (ids.length) {
+  let eventsCapped = false;
+  for (let i = 0; i < ids.length; i += ID_CHUNK) {
     let eq = supabase
       .from('project_events')
       .select(
@@ -282,14 +293,16 @@ export async function buildReport(req: BuildRequest): Promise<BuiltReport> {
           'lead:leads!project_events_lead_id_fkey(id,title,url,source)'
       )
       .eq('module', LIVE_PIPELINE_STORAGE_KEY)
-      .in('project_id', ids.slice(0, ID_CHUNK))
+      .in('project_id', ids.slice(i, i + ID_CHUNK))
       .order('occurred_at', { ascending: false })
-      .limit(500);
+      .limit(EVENT_CAP);
     if (req.period.since) eq = eq.gte('occurred_at', req.period.since);
     if (req.period.until) eq = eq.lt('occurred_at', req.period.until);
     const { data, error } = await eq;
     if (error) throw new Error(`report events query failed: ${error.message}`);
-    events = (data ?? []) as unknown as SectionContext['events'];
+    const rows = (data ?? []) as unknown as SectionContext['events'];
+    if (rows.length >= EVENT_CAP) eventsCapped = true;
+    events.push(...rows);
   }
 
   // CROSS-MARKET HISTORY FOR THE PARTIES THE DOCUMENT WILL NAME.
@@ -298,7 +311,9 @@ export async function buildReport(req: BuildRequest): Promise<BuiltReport> {
   // that turns a name into a lead, and it can only come from the companies
   // layer. Fetched once for the whole document rather than per entry, and only
   // for projects that will actually be described.
-  const partyHistory = await fetchPartyHistoryFor(projects.map((p) => p.id));
+  const { history: partyHistory, failed: partyHistoryFailed } = await fetchPartyHistoryFor(
+    projects.map((p) => p.id)
+  );
 
   const chosen = (req.sectionIds.length ? req.sectionIds : DEFAULT_SECTION_IDS)
     .map(sectionById)
@@ -416,6 +431,22 @@ export async function buildReport(req: BuildRequest): Promise<BuiltReport> {
   }
 
   const ctx: SectionContext = {
+    // THE CAPS, ON THE CONTEXT, SO A SECTION CAN SAY THEY BOUND.
+    //
+    // `capped` was computed and returned to the CALLER, where the composer and
+    // the audit script printed it - and the document did not. A report that
+    // cites 1,500 of 2,300 records and says nothing is the failure this whole
+    // provenance layer exists to prevent, and it was one query away from
+    // happening. See the coverage note.
+    caps: {
+      projects: (pdata ?? []).length >= PROJECT_CAP,
+      projectCap: PROJECT_CAP,
+      records: records.length >= RECORD_CAP,
+      recordCap: RECORD_CAP,
+      events: eventsCapped,
+      eventCap: EVENT_CAP,
+      partyHistoryFailed,
+    },
     projects,
     detailedProjects,
     undetailedProjects,
@@ -504,9 +535,11 @@ export async function buildReport(req: BuildRequest): Promise<BuiltReport> {
  * costs a sentence; a report that will not generate because the companies table
  * hiccuped costs the delivery.
  */
-async function fetchPartyHistoryFor(projectIds: string[]): Promise<Map<string, PartyHistory>> {
+async function fetchPartyHistoryFor(
+  projectIds: string[]
+): Promise<{ history: Map<string, PartyHistory>; failed: boolean }> {
   const out = new Map<string, PartyHistory>();
-  if (projectIds.length === 0) return out;
+  if (projectIds.length === 0) return { history: out, failed: false };
   try {
     const links: { company_id: string; project_id: string; company: { name: string } }[] = [];
     for (let i = 0; i < projectIds.length; i += ID_CHUNK) {
@@ -516,7 +549,7 @@ async function fetchPartyHistoryFor(projectIds: string[]): Promise<Map<string, P
         .in('project_id', projectIds.slice(i, i + ID_CHUNK));
       links.push(...((data ?? []) as unknown as typeof links));
     }
-    if (links.length === 0) return out;
+    if (links.length === 0) return { history: out, failed: false };
     const nameById = new Map(links.map((l) => [l.company_id, l.company?.name ?? '']));
     const mine = new Set(projectIds);
     const ids = [...nameById.keys()];
@@ -539,9 +572,13 @@ async function fetchPartyHistoryFor(projectIds: string[]): Promise<Map<string, P
       }
     }
   } catch {
-    return new Map();
+    // SWALLOWED, BUT NO LONGER SILENT. A missing history costs a sentence and a
+    // report that will not generate costs the delivery, so the catch stays -
+    // but the document now says the cross-market history was unavailable rather
+    // than printing entries that simply never mention it.
+    return { history: new Map(), failed: true };
   }
-  return out;
+  return { history: out, failed: false };
 }
 
 /** The geography a scope covers, as a printable sentence for the cover. */

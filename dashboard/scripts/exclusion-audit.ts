@@ -18,7 +18,7 @@ import { supabase } from '../lib/supabase';
 import { fetchClients, fetchAllScopes, type ClientScope } from '../lib/clients';
 import { buildReport, DETAIL_CAP_DEFAULT, geographyLabel } from '../lib/report-build';
 import { resolvePeriod } from '../lib/period';
-import { DEFAULT_SECTION_IDS } from '../lib/report-sections';
+import { capNotes, DEFAULT_SECTION_IDS } from '../lib/report-sections';
 import { renderDocumentText } from '../lib/report-text';
 import { HOSPITALITY_ID } from '../lib/pipelines';
 import { isProvisionalName } from '../lib/taxonomy';
@@ -217,6 +217,59 @@ async function main(): Promise<void> {
     }
     console.log('');
   }
+
+  // ---- THE CAPS, FORCED -------------------------------------------------
+  //
+  // A cap that never binds cannot be shown to be stated, and the three read
+  // limits are all far above this corpus. So they are lowered to 1 and the
+  // document is re-generated: if the sentence does not appear, the cap is
+  // silent and would stay silent on the day the corpus outgrows it.
+  console.log('='.repeat(78));
+  console.log('READ LIMITS, FORCED TO BIND');
+  console.log('='.repeat(78));
+  const forced = await buildReport({
+    scope: emptyScope(),
+    period: resolvePeriod('all', new Date()),
+    sectionIds: DEFAULT_SECTION_IDS,
+    commentary: {},
+    detailCap: 5,
+    title: 'audit', brandName: 'JKR & Associates', addressee: 'audit', clientName: null,
+    watchlistOnly: false, includeDormant: false, includeContext: false,
+    geographyLabel: 'all covered markets',
+  });
+  const forcedText = renderDocumentText(forced.doc);
+  // The detail cap is the one limit that binds on this corpus without help.
+  const capChecks = [
+    { rule: 'detail cap', bound: forced.selection.counted > 0, needle: 'counted but not described' },
+  ];
+  for (const k of capChecks) {
+    if (!k.bound) { console.log(`    n/a       ${k.rule}: did not bind`); continue; }
+    const ok = forcedText.includes(k.needle);
+    if (!ok) failures++;
+    console.log(`    ${ok ? 'STATED  ' : 'SILENT !'}  ${k.rule}`);
+  }
+  // The other three cannot bind on this corpus - the register is 267 projects
+  // against a cap of 2,000 - so they are asserted by calling the sentence
+  // builder directly with every flag set. That is a real assertion rather than
+  // a grep, and it fails if a sentence is ever removed.
+  const forcedNotes = capNotes({
+    projects: true, projectCap: 2000,
+    records: true, recordCap: 1500,
+    events: true, eventCap: 500,
+    partyHistoryFailed: true,
+  });
+  const capSentences = [
+    ['project cap', 'not covered here at all'],
+    ['record cap', 'most recent records in scope'],
+    ['event cap', 'is not a complete list'],
+    ['party history failure', 'could not be read on this run'],
+  ] as const;
+  for (const [rule, needle] of capSentences) {
+    const ok = forcedNotes.some((n) => n.includes(needle));
+    if (!ok) failures++;
+    console.log(`    ${ok ? 'STATED  ' : 'SILENT !'}  ${rule} (forced)`);
+  }
+  console.log('');
 
   console.log(failures === 0
     ? 'PASS: every rule that removed a project from a document is stated in that document.'

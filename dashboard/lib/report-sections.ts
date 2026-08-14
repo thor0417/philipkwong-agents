@@ -52,6 +52,18 @@ export interface SectionContext {
   unplacedProjects: Project[];
   // Dropped before scope for having no live record at all.
   excludedHollow: number;
+  // THE READ LIMITS, AND WHETHER EACH ONE BOUND. A cap that binds and is not
+  // stated is a document covering less than its scope claims, which is the one
+  // failure this layer exists to prevent. See the coverage note.
+  caps: {
+    projects: boolean;
+    projectCap: number;
+    records: boolean;
+    recordCap: number;
+    events: boolean;
+    eventCap: number;
+    partyHistoryFailed: boolean;
+  };
   // EXCLUDED BECAUSE WE CANNOT NAME THEM. name_source 'title' is a cleaned
   // agenda line, not a name anything published. Held as the PROJECTS rather
   // than a count, so the coverage note can say which markets were thinned -
@@ -171,6 +183,51 @@ export interface SectionDef {
 
 function withCommentary(id: string, ctx: SectionContext, section: Omit<Section, 'commentary'>): Section {
   return { ...section, commentary: commentaryLines(ctx.commentary[id]) };
+}
+
+
+/**
+ * WHAT EACH READ LIMIT SAYS WHEN IT BINDS.
+ *
+ * A function rather than four inline branches, because the audit harness has to
+ * be able to assert on the sentences without the corpus being large enough to
+ * trigger them. dashboard/scripts/exclusion-audit calls this with every flag
+ * set; if a sentence is ever deleted, that run fails rather than a future
+ * client receiving a document that quietly covers part of its own scope.
+ *
+ * Each is a HARD ceiling on what was fetched, so the document is describing
+ * part of its scope and has to say which part is missing rather than which part
+ * is present.
+ */
+export function capNotes(caps: SectionContext['caps']): string[] {
+  const out: string[] = [];
+  if (caps.projects) {
+    out.push(
+      `This scope matched at least ${caps.projectCap} projects, which is the most this document ` +
+        `reads. Projects beyond that limit are not covered here at all, and are not included in ` +
+        `any count above. Narrow the geography or the period to see them.`
+    );
+  }
+  if (caps.records) {
+    out.push(
+      `This document cites the ${caps.recordCap} most recent records in scope, which is the most ` +
+        `it reads. Older filings on the projects above exist and are not shown or counted.`
+    );
+  }
+  if (caps.events) {
+    out.push(
+      `More than ${caps.eventCap} project events fell inside this period, which is the most this ` +
+        `document reads. "What moved" shows the most recent of them and is not a complete list.`
+    );
+  }
+  if (caps.partyHistoryFailed) {
+    out.push(
+      `Cross-market history for the parties named above could not be read on this run, so no entry ` +
+        `says where else a party appears. That is our failure to read it, not a statement that they ` +
+        `appear nowhere else.`
+    );
+  }
+  return out;
 }
 
 // ---- 1. COVER ----------------------------------------------------------------
@@ -686,6 +743,7 @@ const coverage: SectionDef = {
             `in scope ${ctx.undetailedProjects.length === 1 ? 'is' : 'are'} counted but not described.`
           : 'Every project in scope is described.')
     );
+    notes.push(...capNotes(ctx.caps));
     // WHAT WE COULD NOT NAME, COUNTED AND LOCATED.
     //
     // The one sentence that stands in for the projects this document refuses to
