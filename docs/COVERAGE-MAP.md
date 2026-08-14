@@ -42,9 +42,9 @@ is layers 1 and 2 with some of 3.
 | Anaheim | California | FULL | FULL | PARTIAL | `agenda-portal`, `ceqanet` |
 | Phoenix | Arizona | FULL | FULL | NONE | `legistar` (phoenix) |
 | Nashville | Tennessee | FULL | FULL | NONE | `legistar` (nashville) |
-| San Antonio | Texas | FULL | FULL | NONE | `legistar` (sanantonio) |
+| San Antonio | Texas | **DEAD FEED** | **DEAD FEED** | NONE | `legistar` (sanantonio) - frozen 2021 |
 | Oakland | California | FULL | FULL | PARTIAL | `legistar` (oakland), `ceqanet` |
-| Miami-Dade County | Florida | FULL | FULL | NONE | `legistar` (miamidade) |
+| Miami-Dade County | Florida | **DEAD FEED** | **DEAD FEED** | NONE | `legistar` (miamidade) - frozen 2018 |
 | South Florida | Florida | NONE | PARTIAL | NONE | `sfwmd` (water permits, layer 4) |
 | Central Florida Tourism Oversight District | Florida | FULL | FULL | NONE | `cftod-pdf` |
 | New York City | New York | NONE | **STALE** | FULL | `nyc-zap`, `nyc-ceqr`, `nyc-city-record` |
@@ -275,6 +275,117 @@ the single largest known gap in the downstate picture.
 
 ---
 
+## Two markets are claiming coverage on a dead feed, measured 2026-08-14
+
+Miami-Dade and San Antonio are on the covered-markets table above and both are
+**frozen**. Nothing in the system would have said so: `source_health` holds one
+row, so no lane has run history and the zero-write alarm can only tell a source
+that fetched nothing from one that kept nothing. Neither of these fetched
+nothing. They fetched a snapshot, correctly, every time.
+
+Measured by asking the Legistar Web API for the newest matter in each configured
+jurisdiction:
+
+| client | newest matter | matters in last 12m | newest event | verdict |
+|---|---|---:|---|---|
+| clark | 2026-08-12 | 1000+ | 2026-08-19 | live |
+| nashville | 2026-08-11 | 1000+ | 2026-08-18 | live |
+| oakland | 2026-08-12 | 909 | 2026-08-25 | live |
+| westchestercountyny | 2026-07-29 | 555 | 2026-08-31 | live |
+| phoenix | 2026-08-03 | 1000+ | 2026-07-02 | live |
+| yonkersny | 2026-06-12 | 274 | 2026-09-09 | live |
+| **sanantonio** | **2021-09-24** | **0** | 2021-09-30 | **DEAD - 4 years 10 months** |
+| **miamidade** | **2018-06-15** | **0** | 2018-06-19 | **DEAD - 8 years 2 months** |
+
+Six of eight are live. Two are not, and they are the two nobody had reason to
+look at.
+
+### Miami-Dade County - CAPTURED, FROZEN AT 2018
+
+**What we can say.** We hold **9 records**, 6 live and 3 dismissed. Every one
+comes from a matter introduced **2016-06-01**, with published dates spanning
+2016-05-31 to 2018-06-18. They were first seen on 2026-07-23 and 2026-07-30,
+which is when our scraper found them, not when anything happened.
+
+Three projects sit on them, and each is one matter stored twice under two URL
+shapes (`gateway.aspx?M=l&ID=N` and `Legislation.aspx#matter-N`):
+
+| project | records | last activity |
+|---|---:|---|
+| 36 Street hotel (the Aloft Airport Hotel plat) | 2 | 2018-05-07 |
+| Gold Coast Railroad Museum | 2 | 2018-06-18 |
+| Adler 13th Floor Douglas Station | 2 | 2018-05-07 |
+
+**Zero records come from a matter introduced after 2018.**
+
+**What we cannot say.** Anything about Miami-Dade County after June 2018. Not
+what was filed, not what was heard, not what was approved. The three projects
+above are real filings and are eight years old; presenting them in a document
+dated 2026 without this note would be the same failure as an unstated cap, one
+layer further back.
+
+**The county has not stopped publishing.** It publishes through its own system
+at `www.miamidade.gov/govaction/` ("Miami-Dade County - Legislative
+Information"), which is live and links to an agenda list. What is dead is the
+**Legistar Web API**, which is a separately licensed product: the county appears
+to have stopped it while keeping its own portal. The Legistar portal shell at
+`miamidade.legistar.com/Calendar.aspx` still answers, but its initial HTML
+carries **zero meeting rows** where Nashville's carries 91.
+
+So this is not an abandoned jurisdiction. It is an abandoned FEED, and the data
+exists somewhere we do not read.
+
+### San Antonio, TX - CAPTURED, FROZEN AT 2021
+
+**What we can say.** 25 records, 22 live, from matters introduced between
+2021-08-12 and 2021-09-15. Three projects, every one last active in September
+2021: Weston Urban (8 records), Encore Multifamily (2), and the Historic Market
+Square capital-improvements funding agreement (2).
+
+**What we cannot say.** Anything about San Antonio after September 2021. Weston
+Urban's master economic incentive agreement is a real deal and a five-year-old
+one.
+
+**Where it went.** `sanantonio.primegov.com/api/meeting/search` answers **403
+from Cloudflare** - a 403 means the host exists and is bot-protected, unlike the
+404s every other platform returns. San Antonio moved to **PrimeGov**, which is
+the platform Las Vegas already uses through `agenda-portal`. That makes San
+Antonio the more recoverable of the two, subject to the Cloudflare block.
+
+### What this means for a client scope
+
+A scope naming Miami-Dade or San Antonio matches projects, and those projects
+have citable filings with links that resolve. The report will generate and every
+statement in it will be true. **It will also be describing 2018 and 2021.** The
+period filter does not save this: `first_seen` is 2026, so a "this month" report
+can surface an eight-year-old plat as though it arrived.
+
+Neither market should be sold as covered until its live feed is read. Both
+should be described as **captured and frozen**, with the freeze date stated.
+
+### Why nothing caught it
+
+The zero-write alarm answers "did this source produce anything?" and both
+sources produce. What it cannot answer is "is what it produces still moving?",
+because that needs run history, and `source_health` has one row in it. This is
+the gap the migration was meant to close and has not, because the table only
+fills when real lane runs write to it.
+
+Until then, staleness has to be asked of the SOURCE, the way this note asks it.
+One cheap request per jurisdiction, and it is the check that would have caught
+both of these years ago:
+
+```
+npm run verify:staleness
+```
+
+`agents/scraper/verify-staleness.ts` asks every configured Legistar client for
+its newest matter and its matter count over the last twelve months, and exits
+non-zero when any configured jurisdiction is more than twelve months behind. It
+reads nothing from our database and writes nothing anywhere.
+
+---
+
 ## Central Florida and Miami, probed 2026-08-14 - ALL FIVE NEED ADAPTER WORK
 
 Florida coverage today is **Disney only**: CFTOD governs Walt Disney World and
@@ -346,6 +457,62 @@ Florida is Disney-only today and stays Disney-only until one of these adapters
 is built. Orange County is where Universal Epic Universe, the convention centre
 and the I-Drive corridor file, and it is the one with **no identified platform
 at all** - so it is the highest value and the least tractable of the five.
+
+---
+
+### Costed, for after Brief N
+
+Three items, in the order I would do them. None is started; none should be
+started before Brief N.
+
+**1. Generalise the Granicus adapter out of Anaheim, so City of Miami becomes a
+config row.** `sources/agenda-portal.ts` supports Granicus for Anaheim
+specifically: `ANAHEIM_VIEWPUBLISHER` is a constant, `parseAnaheimMeetings`
+hard-codes the body names `City Council|Planning Commission`, and the entry
+point is `scrapeAnaheimAgendas`. The work is turning those three into a
+configured list - a ViewPublisher URL, a body-name pattern, a since-date - so
+that Miami is two lines the way a Legistar market is.
+
+*Blocker to resolve first, and it may be the whole job.* Miami's 313
+`AgendaViewer.php?view_id=1&clip_id=N` links all fail to fetch from this runtime
+with a transport error, while the listing page itself fetches fine. That is the
+same class as the Anaheim host-blocking already on record, where Granicus
+stopped serving agendas inline and only two of four hosts stayed reachable.
+Establish whether Miami's agenda documents are reachable at all before costing
+the rest.
+
+*Pays for:* City of Miami, where Miami hospitality actually files, and Miami
+Beach if its Granicus view ever carries anything. It also makes the next
+Granicus market free.
+
+**2. A NovusAgenda adapter for Orlando, using the existing `fetchPdfPages`
+path.** `orlando.novusagenda.com` is live and real. Two pieces of work:
+
+- the listing is ASP.NET WebForms and every link on it is a `WebResource.axd`
+  postback, so the meeting list needs to be driven rather than parsed;
+- the agendas come back as PDF from `DisplayAgendaPDF.ashx?MeetingID=N`. Run
+  through the HTML text extractor they are stream noise, and the gate correctly
+  rejected all six extracted items as `no-match`. `fetchPdfPages` already exists
+  and is the right path, so this half is plumbing rather than research.
+
+*Pays for:* the I-Drive hotel corridor and the convention-centre district inside
+the city limits. If Simtec's North American arm is in Orlando, this is the one
+with a named client behind it.
+
+**3. Orange County, FL - UNRESOLVED, not pending.** This is not a queued task
+with a known shape. No platform has been identified: not Legistar (7 code
+variants, all HTTP 500), not Granicus, PrimeGov, IQM2, CivicClerk, CivicWeb or
+NovusAgenda, and `apps.ocfl.net/agenda/` returns the same 7,420-byte shell for
+every path, which means a JavaScript application with no readable listing.
+
+It is simultaneously **the highest-value jurisdiction in Florida** - Universal
+Epic Universe, the Orange County Convention Center and the I-Drive corridor all
+file here - and the one with no known route in. The next step is research, not
+implementation: find what `apps.ocfl.net/agenda/` actually calls, or establish
+that it needs a headless browser, which would put it in the same class as MERX
+and make it a Playwright decision rather than an adapter decision.
+
+Do not schedule this as adapter work. Schedule an hour of research and re-decide.
 
 ---
 

@@ -40,7 +40,8 @@
     "verify:alarms": "node --env-file=.env.local --import tsx agents/scraper/verify-alarms.ts",
     "verify:naming": "node --env-file=.env.local --import tsx agents/scraper/verify-naming.ts",
     "dismiss:governance": "node --env-file=.env.local --import tsx agents/scraper/migrations/dismiss-governance-instruments.ts",
-    "retag:golf": "node --env-file=.env.local --import tsx agents/scraper/migrations/retag-golf-and-lodging.ts"
+    "retag:golf": "node --env-file=.env.local --import tsx agents/scraper/migrations/retag-golf-and-lodging.ts",
+    "verify:staleness": "node --import tsx agents/scraper/verify-staleness.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.20.0",
