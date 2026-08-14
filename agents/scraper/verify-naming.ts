@@ -22,6 +22,7 @@
 import { pathToFileURL } from 'node:url';
 import { clusterRecords, type ClusterRecord } from './cluster';
 import { projectRow } from './project-write';
+import { cleanProjectTitle } from './project-naming';
 
 let pass = 0;
 let fail = 0;
@@ -158,12 +159,24 @@ function main(): void {
   );
   for (const p of collide.projects) console.log(`  ${p.name}`);
   check('each resolution is its own project', collide.projects.length, 3);
-  check('all three were renamed', collide.namesDisambiguated.length, 3);
+  // THESE THREE ASSERTIONS WERE STALE AND THE SUITE HAS BEEN RED SINCE.
+  //
+  // They were written against the behaviour BEFORE instrumentSubject: all six
+  // Nashville tax-increment resolutions cleaned to the same 77 characters of
+  // opening clause, and the disambiguation pass appended each one's resolution
+  // number to tell them apart. instrumentSubject then made the collision
+  // impossible - each resolution is now named after the redevelopment plan it
+  // funds - so the pass has nothing to disambiguate and correctly reports zero.
+  //
+  // The suite kept asserting the old strings, which is a test claiming a fix
+  // did not happen. What matters is unchanged and is asserted below: three
+  // resolutions, three distinct names, nothing left colliding.
+  check('the disambiguation pass has nothing to do', collide.namesDisambiguated.length, 0);
   check('and no two names are equal', new Set(collide.projects.map((p) => p.name)).size, 3);
   check(
-    'the suffix is the resolution number',
-    [...collide.projects.map((p) => p.name)].sort()[0],
-    'approving the activities and improvements eligible for tax (RS2026-2078)'
+    'because each is named after its own redevelopment plan',
+    [...collide.projects.map((p) => p.name)].sort(),
+    ['Arts Center Redevelopment Plan', 'Bordeaux Redevelopment Plan', 'Skyline Redevelopment Plan']
   );
   check('nothing is left colliding', collide.namesStillColliding, 0);
 
@@ -173,11 +186,7 @@ function main(): void {
     now: Date.parse('2026-08-03T00:00:00Z'),
   });
   check('a unique name keeps its shape', alone.namesDisambiguated.length, 0);
-  check(
-    'and is the plain cleaned title',
-    alone.projects[0].name,
-    'approving the activities and improvements eligible for tax increment financing'
-  );
+  check('and is the instrument subject', alone.projects[0].name, 'Arts Center Redevelopment Plan');
 
   // AND A HAND-NAMED PROJECT IS STILL NEVER RENAMED. The disambiguation pass
   // runs inside the clusterer, upstream of the gate, so it cannot reach a
@@ -196,6 +205,168 @@ function main(): void {
     manual_overrides: { name: true },
   });
   check('a hand-named project is not disambiguated either', 'name' in heldToo.row, false);
+
+  // ---- WHERE A NAME COMES FROM, after the provisional-name pass ------------
+  //
+  // Each block below is one of the rules that took the provisional count from
+  // 118 to 39. They are asserted on the ENGINE rather than on the helper
+  // functions, because the question is not whether the helper works: it is
+  // whether the helper is reached, in the right order, ahead of the applicant
+  // and site rules that used to win.
+  console.log('\n===== WHERE A NAME COMES FROM =====\n');
+
+  // A SOURCE THAT PUBLISHES A PROJECT-NAME COLUMN OUTRANKS THE APPLICANT FIELD.
+  // nyc-zap and nyc-ceqr read r.project_name; sfwmd reads a.PROJECT_NAME. An
+  // applicant is who filed, and this is what the thing is called.
+  const zap = nameOf([
+    rec({
+      market: 'New York City',
+      source: 'nyc-zap',
+      url: 'https://zap-api.planning.nyc.gov/projects/2024M0123',
+      title: 'Museum of Chinese in America',
+      applicant: 'Fulcrum Properties, LLC',
+      raw_content: 'ULURP application for the Museum of Chinese in America.',
+      venue_type: 'Museum',
+    }),
+  ]);
+  console.log(`  ${zap.source}: ${zap.name}`);
+  check('a ZAP project name beats the applicant', zap, {
+    name: 'Museum of Chinese in America',
+    source: 'source',
+  });
+
+  // AND THE PERMIT NUMBER THE ADAPTER APPENDED COMES OFF.
+  const permit = nameOf([
+    rec({
+      market: 'Lake Buena Vista',
+      source: 'sfwmd',
+      url: 'https://sfwmd.gov/permit/231002-40619',
+      title: "Disney's Fort Wilderness Cabin Improvements (231002-40619_48-109793-P)",
+      applicant: 'Scott Justice',
+      raw_content: 'Environmental resource permit application.',
+      venue_type: null,
+    }),
+  ]);
+  console.log(`  ${permit.source}: ${permit.name}`);
+  check('the appended permit number is not part of the name', permit, {
+    name: "Disney's Fort Wilderness Cabin Improvements",
+    source: 'source',
+  });
+
+  // A TENDER IS NAMED AFTER THE PROGRAMME IT FUNDS, NOT AFTER THE ROLE IT HIRES.
+  // "Senior Credit Officer" was a project name in the register.
+  const tender = nameOf([
+    rec({
+      market: null,
+      country: 'Lebanon',
+      source: 'worldbank',
+      stream: 'opportunity',
+      url: 'https://projects.worldbank.org/notice/OP00345678',
+      title: 'Senior Credit Officer',
+      applicant: null,
+      venue_type: null,
+      raw_content:
+        'Notice: Senior Credit Officer\nType: Request for Expression of Interest\n' +
+        'Project: Lebanon Green Agrifood Transformation for Economic Recovery (GATE) [P180334]\n' +
+        'Country: Lebanon\n',
+    }),
+  ]);
+  console.log(`  ${tender.source}: ${tender.name}`);
+  check('a tender is named after its programme', tender, {
+    name: 'Lebanon Green Agrifood Transformation for Economic Recovery (GATE)',
+    source: 'programme',
+  });
+
+  // AN INSTRUMENT LABEL AND A COUNCIL DISTRICT ARE NOT PART OF A NAME.
+  //
+  // Through the engine, because the interesting part is the ORDER: the record
+  // does carry an applicant, and it is the applicant field that clusters these
+  // two Phoenix records into one project. cleanApplicant refuses "Fire N Ice
+  // Arena" - it carries no organisation marker - so the title rule is reached,
+  // which is exactly the production shape.
+  const liquor = nameOf([
+    rec({
+      market: 'Phoenix',
+      source: 'legistar',
+      url: 'https://phoenix.legistar.com/gateway.aspx?M=l&ID=99001',
+      title: 'Liquor License - Fire N Ice Arena - District 2',
+      applicant: 'Fire N Ice Arena',
+      venue_type: 'Arena/Stadium',
+      raw_content: 'Government record (Legistar Matter): Jurisdiction: Phoenix, AZ Type: Liquor License',
+    }),
+  ]);
+  console.log(`  ${liquor.source}: ${liquor.name}`);
+  check('the instrument and the district come off', liquor.name, 'Fire N Ice Arena');
+
+  // A CLERK'S FIELD BLOCK IS CUT AT ITS FIRST FIELD. The Subject line is the
+  // matter's name; From: is who filed it.
+  //
+  // Asserted on cleanProjectTitle rather than through the engine: this is a
+  // cleaning rule with no ordering in it, and the Oakland matter clusters on a
+  // case number whose rule is not what is under test here.
+  const block = cleanProjectTitle(
+    'Subject: \t2026 Miscellaneous Planning Code Amendments\n' +
+      'From: \t\tPlanning And Building Department\n' +
+      'Recommendation: Adopt An Ordinance As Recommended By The Planning Commission'
+  );
+  console.log(`  cleaned: ${block}`);
+  check('a field block is cut at its first field', block, '2026 Miscellaneous Planning Code Amendments');
+
+  // A CLERK'S FILING CODE IN FRONT OF A NAME COMES OFF; AN INITIALISM DOES NOT.
+  console.log(`  cleaned: ${cleanProjectTitle('CBA-RP02A-3248-Ice Casino Improvements II')}`);
+  check(
+    'a bond-act account code is not a name',
+    cleanProjectTitle('CBA-RP02A-3248-Ice Casino Improvements II'),
+    'Ice Casino Improvements II'
+  );
+  check(
+    'but a digitless initialism is left alone',
+    cleanProjectTitle('RKO Keith Theater Redevelopment- 135-35 Northern Boulevard'),
+    'RKO Keith Theater Redevelopment- 135-35 Northern Boulevard'
+  );
+
+  // A NAME THAT ALREADY SAYS WHAT IT IS DOES NOT SAY IT TWICE. This one is not
+  // about the provisional set at all: it fixed four applicant-named projects
+  // that read "Plaza Hotel & Casino casino" and "Gold Coast Railroad Museum
+  // museum".
+  const twice = nameOf([
+    rec({
+      market: 'Las Vegas',
+      url: 'https://lasvegas.primegov.com/Portal/Meeting?meetingTemplateId=99003#item-1',
+      title: 'Special use permit for a casino at the Plaza Hotel & Casino',
+      applicant: 'Plaza Hotel & Casino, LLC',
+      venue_type: 'Casino/Gaming',
+      raw_content: 'A special use permit request for gaming at the Plaza Hotel & Casino.',
+    }),
+  ]);
+  console.log(`  ${twice.source}: ${twice.name}`);
+  check('the venue word is not repeated', twice.name, 'Plaza Hotel & Casino');
+
+  // AND A NAME MUST NOT DEPEND ON QUERY ORDER. Two records, one date, two
+  // titles: the same name whichever way round they arrive.
+  const sameDay = (): ClusterRecord[] => [
+    rec({
+      url: 'https://clark.legistar.com/gateway.aspx?M=l&ID=99010',
+      title: 'DR-26-0236-REFRIGERATION SUPPLIES DISTRIBUTOR: DESIGN REVIEW for a proposed office building',
+      applicant: 'REFRIGERATION SUPPLIES DISTRIBUTOR',
+      venue_type: null,
+      published_date: '2026-06-16',
+      raw_content: 'Government record: Clark County design review.',
+    }),
+    rec({
+      url: 'https://clark.legistar.com/gateway.aspx?M=l&ID=99011',
+      title: 'VS-26-0237-REFRIGERATION SUPPLIES DISTRIBUTOR: VACATE AND ABANDON a portion of a right-of-way',
+      applicant: 'REFRIGERATION SUPPLIES DISTRIBUTOR',
+      venue_type: null,
+      published_date: '2026-06-16',
+      raw_content: 'Government record: Clark County vacation.',
+    }),
+  ];
+  const forward = nameOf(sameDay());
+  const backward = nameOf(sameDay().reverse());
+  console.log(`  forward:  ${forward.name}`);
+  console.log(`  reversed: ${backward.name}`);
+  check('record order does not change the name', forward.name, backward.name);
 
   console.log(`\n${pass} passed, ${fail} failed`);
   if (fail > 0) process.exitCode = 1;

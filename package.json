@@ -34,7 +34,9 @@
     "owner:backfill": "node --env-file=.env.local --import tsx agents/scraper/migrations/backfill-owner.ts",
     "projects:sweep": "node --env-file=.env.local --import tsx agents/scraper/sweep-inbox.ts",
     "dismiss:unadmitted": "node --env-file=.env.local --import tsx agents/scraper/migrations/dismiss-unadmitted-projects.ts",
-    "park:compliance": "node --env-file=.env.local --import tsx agents/scraper/migrations/park-compliance-and-dismiss.ts"
+    "park:compliance": "node --env-file=.env.local --import tsx agents/scraper/migrations/park-compliance-and-dismiss.ts",
+    "names:audit": "node --env-file=.env.local --import tsx agents/scraper/name-audit.ts",
+    "rename:provisional": "node --env-file=.env.local --import tsx agents/scraper/migrations/rename-provisional-projects.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.20.0",

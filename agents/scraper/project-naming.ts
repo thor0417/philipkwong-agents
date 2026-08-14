@@ -13,27 +13,60 @@
 // Location: The proposed use would occu..." is a perfectly good agenda line and
 // a useless project name.
 //
-// FOUR SOURCES, IN PRIORITY ORDER. The first that yields a usable name wins, and
+// SIX SOURCES, IN PRIORITY ORDER. The first that yields a usable name wins, and
 // which one fired is returned alongside the name so the register can show its
 // own confidence rather than presenting a guess as a fact.
 //
 //   1. TARGET      a named project is already named. "OCVibe", "Heart Hotel /
 //                  Kulik River". Nothing beats this.
-//   2. APPLICANT   the party plus what they are building: "Kulik River Capital
+//   2. SOURCE      a name the SOURCE publishes as a name, from an adapter that
+//                  reads a project-name column: nyc-zap, nyc-ceqr, sfwmd.
+//                  "Port Authority Bus Terminal Replacement". No better name
+//                  exists, because this is the one New York uses.
+//   3. PROGRAMME   the funding programme a procurement notice belongs to, read
+//                  off the record's own "Project:" line. A tender title names a
+//                  piece of work ("Senior Credit Officer"); the programme names
+//                  the thing.
+//   4. APPLICANT   the party plus what they are building: "Kulik River Capital
 //                  resort hotel". This is how the business actually refers to a
 //                  matter, and the applicant is a field a filing asserts rather
 //                  than prose we interpreted.
-//   3. SITE        the address plus what is being built, for the filings that
+//   5. SITE        the address plus what is being built, for the filings that
 //                  name no party: "1715 South Douglass Road hotel".
-//   4. TITLE       the cleaned title, as a last resort, following the rules
-//                  below. Still a fallback, but a legible one.
+//   6. TITLE       the cleaned title, as a last resort, following the rules
+//                  below. Still a fallback, but a legible one - and the ONLY
+//                  one isProvisionalName treats as provisional.
 //
 // The point of the order is that the last resort is genuinely last. It was
 // previously the only rule.
+//
+// SOURCE AND PROGRAMME WERE ADDED BY MEASUREMENT, NOT BY DESIGN. 118 of 267
+// projects reported name_source 'title', and the register, the report and the
+// referral brief were all about to start marking every one of them as
+// provisional. Reading the adapters showed that 45 were not agenda lines at all
+// but published project names, and another 36 were procurement notices whose
+// programme is named on the same record. Rules 2 and 3 took the provisional
+// count from 118 to 39, and every name they produce is a string the record
+// already contains.
 
 import type { ClusterRecord } from './cluster';
 
-export type NameSource = 'target' | 'applicant' | 'site' | 'title';
+// 'source' and 'programme' were added after measuring the 118 title-sourced
+// names. See SOURCE_PUBLISHES_PROJECT_NAME and programmeName below: both read a
+// name the RECORD publishes as a name, which is stronger evidence than an
+// applicant field and far stronger than a cleaned agenda line. Splitting them
+// out of 'title' is what makes "provisional" mean something: what remains under
+// 'title' really is an agenda line, and a document can mark it as such.
+export type NameSource = 'target' | 'source' | 'programme' | 'applicant' | 'site' | 'title';
+
+// A NAME WE DERIVED FROM AN AGENDA LINE IS PROVISIONAL. Every other rule reads a
+// name something asserted as a name; only 'title' assembles one out of a
+// sentence that was written to instruct a council. Exported so the register, the
+// report and the referral brief all mark the same set, rather than each deciding
+// for itself what it is willing to print plainly.
+export function isProvisionalName(source: NameSource | string | null | undefined): boolean {
+  return source === 'title' || source == null;
+}
 
 export interface ProjectName {
   name: string;
@@ -149,14 +182,105 @@ const LEAD_STRIP: RegExp[] = [
   /^\s*on\s+the\s+basis\s+of\s+the\s+evidence\s+submitted\s+by\s*/i,
   /^\s*[A-Z]{2,4}-\d{2}-\d{3,6}(?:\s*\([^)]*\))?\s*[-:]\s*/i,   // "UC-26-0219-"
   /^\s*\d{2}-\d{3,6}(?:-[A-Z]{2,5}\d?)?\s*[-:]\s*/i,            // "25-0530-SDR1 - "
+  // A CLERK'S OWN FILING CODE, in front of the name it refers to. Westchester
+  // files capital items as "CBA-RP02A-3248-Ice Casino Improvements II": a bond
+  // act, an account code, a project number, and only then the project.
+  //
+  // THE GUARDS ARE WHAT MAKE THIS SAFE, and each is load-bearing:
+  //   every token is upper-case letters and digits only, so a word cannot be
+  //     eaten - "MGM-GRAND BALLY'S" is upper-case but the strip needs a hyphen
+  //     chain of two or more tokens AND a further hyphen before a word, which
+  //     that title does not have;
+  //   at least one token must contain a DIGIT, which is what separates a
+  //     reference from an initialism - "RKO Keith Theater Redevelopment" and
+  //     "SPARC Kips Bay" carry no digit and are untouched;
+  //   the run must be followed by a hyphen and a LETTER, so a bare code with
+  //     nothing after it is left alone rather than deleted entirely.
+  /^\s*(?=[A-Z\d-]*\d)[A-Z\d]{2,8}(?:-[A-Z\d]{2,8}){1,3}\s*[-–—]\s*(?=[A-Za-z])/,
   /^\s*[-:,.–—]\s*/,
 ];
 
 // Trailing chrome: a dangling connective or punctuation left by truncation.
 const TRAIL_STRIP = /[\s,;:.–—-]+$|\s+(?:and|or|the|of|for|to|in|on|at|with|by|a|an)$/i;
 
+// A FIELD BLOCK IS NOT A TITLE, AND ITS FIRST FIELD IS THE NAME.
+//
+// Oakland's Legistar matters arrive with the clerk's whole form in the title
+// column, newlines and tab stops intact:
+//
+//   Subject: \t2026 Miscellaneous Planning Code Amendments
+//   From: \t\tPlanning And Building Department
+//   Recommendation: Adopt An Ordinance As Recommended By The Planning Commission...
+//
+// Collapsing that to one line and cutting it at 80 characters produced "2026
+// Miscellaneous Planning Code Amendments From: Planning And Building", which
+// names the matter correctly and then names the department that filed it,
+// because the line break that separated them is gone. The Subject field is the
+// matter's own name and the rest is provenance, so the block is cut at the
+// second field rather than run together.
+//
+// Applied BEFORE whitespace is collapsed, because the newline is the only thing
+// that marks where the field ends.
+const FIELD_BLOCK = /^\s*Subject\s*:[ \t]*([\s\S]*?)(?:\r?\n\s*(?:From|Recommendation|Body|Sponsors?|Attachments?|Title)\s*:|\r?\n\s*\r?\n|$)/i;
+
+function subjectOfFieldBlock(raw: string): string | null {
+  const m = FIELD_BLOCK.exec(raw);
+  if (!m) return null;
+  const subject = m[1].replace(/\s+/g, ' ').trim();
+  return subject.length >= 8 ? subject : null;
+}
+
+// AN INSTRUMENT LABEL IN FRONT OF A REAL NAME.
+//
+// Phoenix files every alcohol application as "Liquor License - <the venue> -
+// District 2", so the register showed "Liquor License - Fire N Ice Arena -
+// District 2" for a project whose name the record states in the middle. The
+// instrument is already the stage and the district is already the market; what
+// is left between them is the venue, which is the only part that names a thing.
+//
+// LEAD, not anywhere: a label appearing mid-title is part of a sentence and
+// cutting there would invent a phrase the record does not contain.
+const INSTRUMENT_LABEL =
+  /^\s*(?:add[-\s]?on|consent|discussion|presentation)?\s*[-–—]?\s*(?:liquor\s+license|license\s+application|bond\s+act(?:\s*\([^)]*\))?|special\s+event\s+permit|use\s+permit\s+application)\s*[-–—:]\s*/i;
+
+// A leading meeting-management label with nothing instrument-like after it:
+// "ADD-ON - Tohono O'odham Nation Tribal 2025 Gaming Grants".
+const AGENDA_LABEL = /^\s*(?:add[-\s]?on|addendum|late\s+item|revised|amended)\s*[-–—:]\s*/i;
+
+// A council district or a citywide marker, at the END. Phoenix appends one to
+// every item; it says which councillor's ward the item sits in, which the market
+// column already carries and a project name never should.
+const DISTRICT_SUFFIX = /\s*[-–—]\s*(?:district\s+\d+|citywide|all\s+districts|out\s+of\s+city)\s*$/i;
+
+// A FILING REFERENCE IN BRACKETS AT THE END.
+//
+// SFWMD builds its title as "<PROJECT_NAME> (<permit number>)", so the project
+// name is complete and then carries a permit number nobody reads as part of a
+// name: "Disney's Fort Wilderness Cabin Improvements (231002-40619_48-109793-P)".
+// The reference is not lost - it is on the record line in every document, which
+// is where a reader looks a filing up.
+//
+// Only a bracketed run that is ALL reference characters is removed. "(Fka -
+// Disney Animal Kingdom Lodge)" and "(ERY, DIB & Office Chair Certs)" contain
+// words, so they survive: a parenthetical that says something is part of the
+// name.
+const REFERENCE_SUFFIX = /\s*\((?=[^)]*\d)[A-Za-z0-9][A-Za-z0-9._\/-]*\)\s*$/;
+
+// A bare case or ordinance number in brackets, of the shape a clerk assigns.
+// Separate from REFERENCE_SUFFIX because it carries a word ("Ordinance S-52900")
+// and would otherwise be kept by the all-reference-characters test above.
+const ORDINANCE_SUFFIX =
+  /\s*\((?:ordinance|resolution|bill|file|case|item)\s+(?:no\.?\s*)?[A-Z]?[-\d][A-Za-z0-9.\/-]*\)\s*$/i;
+
 export function cleanProjectTitle(raw: string): string {
-  let t = String(raw ?? '').replace(/\s+/g, ' ').trim();
+  const source = String(raw ?? '');
+  let t = (subjectOfFieldBlock(source) ?? source).replace(/\s+/g, ' ').trim();
+  t = t.replace(INSTRUMENT_LABEL, '').replace(AGENDA_LABEL, '');
+  for (let pass = 0; pass < 3; pass++) {
+    const before = t;
+    t = t.replace(DISTRICT_SUFFIX, '').replace(ORDINANCE_SUFFIX, '').replace(REFERENCE_SUFFIX, '');
+    if (t === before) break;
+  }
   // Drop a trailing ellipsis BEFORE anything else, so the length rules below are
   // applied to the real text rather than to a marker of earlier truncation.
   t = t.replace(/\s*(?:\.{3,}|…)\s*$/, '').trim();
@@ -361,7 +485,7 @@ const GENERIC_APPLICANT =
 // stripping is what erases the evidence: "Weston Urban, LLC" is an organisation
 // and "Weston Urban" alone would not look like one.
 const ORGANISATION_MARKER =
-  /\b(llc|l\.l\.c|llp|lp|l\.p|inc|incorporated|ltd|limited|corp|corporation|co|company|plc|partnership|partners|trust|holdings|group|associates|properties|development|developments|enterprises|capital|ventures|investments|bank|club|church|association|foundation|society|institute|university|college|hotels?|resorts?|casino|entertainment|realty|estates?|builders|construction|management|international)\b/i;
+  /\b(llc|l\.l\.c|llp|lp|l\.p|inc|incorporated|ltd|limited|corp|corporation|co|company|plc|partnership|partners|trust|holdings|group|associates|properties|development|developments|enterprises|capital|ventures|investments|bank|club|church|association|foundation|society|institute|university|college|hotels?|resorts?|casino|entertainment|realty|estates?|builders|construction|management|international|center|centre|museum)\b/i;
 
 // Tidy a raw applicant string into something printable: drop the legal suffix
 // noise a filing stacks on, drop a co-applicant list after the first party, and
@@ -400,6 +524,84 @@ export function cleanApplicant(raw: string | null | undefined): string | null {
   return fixShouting(s);
 }
 
+// ---- A name the source publishes AS a name -------------------------------------
+//
+// THE LARGEST GROUP OF "PROVISIONAL" NAMES WAS NOT PROVISIONAL AT ALL.
+//
+// 118 projects report name_source 'title', which the register and this file both
+// treat as "a cleaned agenda line". Measured against the adapters, 45 of them
+// are nothing of the kind:
+//
+//   nyc-zap     title = r.project_name ?? r.project_id     (sources/nyc-zap)
+//   nyc-ceqr    title = r.project_name ?? r.ceqr           (sources/nyc-ceqr)
+//   sfwmd       title = `${a.PROJECT_NAME} (${permitNo})`  (sources/sfwmd)
+//
+// Those adapters read a PROJECT NAME COLUMN. "Port Authority Bus Terminal
+// Replacement", "Noguchi Museum Campus", "Domino Sugar Rezoning" and "Disney's
+// Fort Wilderness Cabin Improvements" are not agenda lines that cleaned up well;
+// they are the names New York and the water district publish for those projects,
+// and there is no better name in existence.
+//
+// So the rule is a statement about the ADAPTER, not a guess about the data. It
+// is a set of source ids in this repository, each of which can be checked by
+// reading the file named beside it, and it is the reason 'title' can now be
+// printed as provisional without libelling 45 correct names.
+//
+// A SOURCE ONLY QUALIFIES IF ITS FALLBACK IS ALSO A NAME. All three fall back to
+// an identifier (project_id, ceqr number, a permit number with a generic
+// prefix), which reads as a reference rather than as a claim about what a thing
+// is called, and cleanProjectTitle already trims the appended permit number.
+const SOURCE_PUBLISHES_PROJECT_NAME = new Set(['nyc-zap', 'nyc-ceqr', 'sfwmd']);
+
+export function sourcePublishesProjectName(source: string | null | undefined): boolean {
+  return SOURCE_PUBLISHES_PROJECT_NAME.has(String(source ?? '').trim().toLowerCase());
+}
+
+// ---- The programme a tender belongs to ------------------------------------------
+//
+// A DEVELOPMENT-BANK TENDER TITLE NAMES A PIECE OF WORK, NOT A PROJECT.
+//
+// "Senior Credit Officer", "General Procurement Notice", "Consultancy service for
+// feasibility study of Kirehe District Hospital" - 35 projects in the register
+// are named after a procurement notice, and several of them are job adverts. The
+// notice is real and the title is its own, but the THING it belongs to is named
+// on the same record, in a published field:
+//
+//   Project: Green, Resilient and Transformational Tourism Development Project
+//            (GREAT-TDP) [P180337]
+//
+// The clusterer already reads that line - it is the `proj:` site key, which is
+// what grouped these records into one project in the first place - and then
+// cleanAddress discards it, because cleanAddress only handles `addr:`. So the
+// project is assembled from the programme and then named after whichever of its
+// tenders happened to be filed first.
+//
+// THE BANK'S PROJECT ID IS DROPPED FROM THE NAME. "[P180337]" is a reference, and
+// it sits on every record line in the document where a reader would use it.
+const PROGRAMME_LINE = /^[ \t]*Project:[ \t]*(.+)$/gim;
+
+export function programmeName(records: ClusterRecord[]): string | null {
+  const seen: string[] = [];
+  for (const r of records) {
+    const text = `${r.title ?? ''}\n${r.raw_content ?? ''}`;
+    const re = new RegExp(PROGRAMME_LINE.source, PROGRAMME_LINE.flags);
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(text)) !== null) {
+      const bare = m[1]
+        .replace(/\[[A-Z]?\d[\w-]*\]\s*$/i, '')
+        .replace(/^[A-Z]?\d[\w-]*\s*[-–—]\s*/, '')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .replace(/[.,;:]+$/, '');
+      // A bank reference on its own is not a name, and neither is a single word.
+      if (bare.length >= 12 && /\s/.test(bare)) seen.push(bare);
+    }
+  }
+  const best = modeOf(seen);
+  if (!best) return null;
+  return cutAtWord(fixShouting(best), MAX_NAME);
+}
+
 // ---- Sites --------------------------------------------------------------------
 
 // A street address, printable. Takes the record's own site keys so the naming
@@ -423,6 +625,59 @@ export interface NamingContext {
   siteKeysByRecord: string[][];
 }
 
+// AN ADDRESS THE RECORDS DO NOT AGREE ON IS STILL DECIDED BY RECORD ORDER, AND
+// THAT IS REPORTED RATHER THAN FIXED.
+//
+// A New York Board of Standards and Appeals hearing notice lists every matter on
+// that day's calendar, so one record contributes 22 Reade Street, 81 Rockaway
+// Blvd, 65 Rockaway Blvd and 98 Montague Street, and the project's own 1220
+// Fifth Avenue comes from the other record. Every candidate has a count of one,
+// so modeOf returns whichever it met first, and four of the five candidates are
+// somebody else's building.
+//
+// THREE TIEBREAKS WERE MEASURED AGAINST THE WHOLE REGISTER AND ALL THREE WERE
+// WORSE, which is why the code below is unchanged:
+//
+//   the project's own project_key   4 renames, 1 better. project_key is itself
+//                                   the alphabetically smallest of the project's
+//                                   signals, so it is not evidence: it turned
+//                                   "47 Avenue" into "47 Ave" and "3591 East
+//                                   Bonanza Road" into "1535 North Eastern
+//                                   Avenue".
+//   alphabetical                    5 renames, 0 better. It added "1475 South
+//                                   State College Boulevard" to "12 To The Beach
+//                                   Boulevard".
+//   the earliest record's address   the earliest record is usually the calendar
+//                                   notice, which is the one carrying strangers.
+//
+// The defect is upstream: a calendar notice listing eight unrelated matters
+// should not contribute eight sites to one of them. That belongs to the
+// nyc-city-record adapter, not to the naming rule, and a naming rule that
+// renames four projects wrongly to make one right is a worse trade than the
+// instability it removes.
+
+// OLDEST FIRST, AND THEN BY URL.
+//
+// A NAME MUST NOT DEPEND ON WHICH RECORD THE DATABASE HANDED BACK FIRST. The
+// sort was on date alone, and Clark County files a vacate-and-abandon and a
+// design review for the same applicant on the same day: whichever of the two
+// arrived first in the query result named the project, so the register showed
+// "REFRIGERATION SUPPLIES DISTRIBUTOR: DESIGN REVIEW for a proposed" on one run
+// and "...: VACATE AND ABANDON a portion" on the next, with nothing about the
+// project having changed. The same instability moved a press-named project
+// between two headlines published the same day.
+//
+// The url is the tiebreak because it is unique per record and stable across
+// runs, which are the only two properties a tiebreak needs. It carries no
+// meaning and is not supposed to: the point is that the answer stops moving.
+export function orderedForNaming<T extends ClusterRecord>(records: T[]): T[] {
+  return [...records].sort((a, b) => {
+    const da = a.published_date ?? a.deadline ?? a.first_seen ?? '';
+    const db = b.published_date ?? b.deadline ?? b.first_seen ?? '';
+    return String(da).localeCompare(String(db)) || String(a.url ?? '').localeCompare(String(b.url ?? ''));
+  });
+}
+
 function modeOf(values: (string | null | undefined)[]): string | null {
   const counts = new Map<string, number>();
   for (const v of values) if (v) counts.set(v, (counts.get(v) ?? 0) + 1);
@@ -444,8 +699,40 @@ function modeOf(values: (string | null | undefined)[]): string | null {
 // part that says what the project IS. Measured: "World Buddhism Association
 // Headquarters & MGM-GRAND BALLY'S integrated resort" came back as "...
 // integrated", a name ending mid-phrase in an adjective.
+// A NAME THAT ALREADY SAYS WHAT IT IS DOES NOT SAY IT TWICE.
+//
+// The venue phrase exists to turn a bare applicant or address into something a
+// reader can place: "Kulik River Capital resort hotel", "1715 South Douglass
+// Road hotel". When the base is already a venue's own name the suffix is pure
+// noise, and it is the kind of noise that reads as a bug rather than as a
+// clumsy name: "Neon Museum museum", "Children's Museum of Phoenix museum",
+// "National Lighthouse Museum museum".
+//
+// instrumentSubject already refused the suffix for exactly this reason, but it
+// refused it for one rule only, so the same three words came back through the
+// applicant rule. The test belongs where the join happens.
+//
+// Matched on the phrase's HEAD NOUN appearing anywhere in the base, not only at
+// its end. The first version tested the end only, which left "Children's Museum
+// of Phoenix museum": the noun is in the middle because the place follows it,
+// which is how half of these institutions are named.
+//
+// The head noun is the last word of the phrase - "integrated resort" and
+// "resort" are both about a resort - so one test covers every phrase that means
+// the same thing. A base already containing that word has said it; a base that
+// does not still gets the suffix, which is what keeps "Kulik River Capital
+// resort hotel" and "1715 South Douglass Road hotel" working.
+function endsWithVenue(base: string, venue: string): boolean {
+  const words = venue.toLowerCase().split(/\s+/);
+  const head = words[words.length - 1];
+  return new RegExp(`\\b${head}\\b`, 'i').test(base);
+}
+
 function withVenue(base: string, venue: string | null): string {
   const clean = base.replace(/\s+/g, ' ').trim();
+  if (venue && endsWithVenue(clean, venue)) {
+    return clean.length > MAX_NAME ? cutAtWord(clean, MAX_NAME) : clean;
+  }
   if (!venue) return clean.length > MAX_NAME ? cutAtWord(clean, MAX_NAME) : clean;
   const room = MAX_NAME - venue.length - 1;
   const head = clean.length > room ? cutAtWord(clean, Math.max(20, room)) : clean;
@@ -624,26 +911,40 @@ export function deriveProjectName(ctx: NamingContext): ProjectName {
   // 1. TARGET.
   if (ctx.targetName) return { name: ctx.targetName, source: 'target' };
 
+  const sorted = orderedForNaming(ctx.records);
+
+  // 2. A NAME THE SOURCE PUBLISHES AS A NAME.
+  //
+  // Above the applicant, because an applicant field says who filed and this says
+  // what the thing is called. Read from the EARLIEST qualifying record for the
+  // same reason the title rule reads the earliest one: it is the record that
+  // states the matter rather than referring back to it.
+  for (const r of sorted) {
+    if (!sourcePublishesProjectName(r.source)) continue;
+    const published = cleanProjectTitle(r.title ?? '');
+    if (published.length >= 8) return { name: published, source: 'source' };
+  }
+
+  // 3. THE PROGRAMME A TENDER BELONGS TO.
+  const programme = programmeName(ctx.records);
+  if (programme) return { name: programme, source: 'programme' };
+
   const phrase = venuePhrase(ctx.venueType);
   // A venue word enters a name only when a record uses that word.
   const venue = phrase && venueSupported(ctx.records, phrase) ? phrase : null;
 
-  // 2. APPLICANT + venue.
+  // 4. APPLICANT + venue.
   const applicant = modeOf(ctx.records.map((r) => cleanApplicant(r.applicant)));
   if (applicant) return { name: withVenue(applicant, venue), source: 'applicant' };
 
-  // 3. SITE + venue.
+  // 5. SITE + venue. The project's own keyed address first; the mode over its
+  // records' addresses only when it is not keyed on one.
   const address = modeOf(ctx.siteKeysByRecord.flat().map(cleanAddress));
   if (address) return { name: withVenue(address, venue), source: 'site' };
 
-  // 4. CLEANED TITLE. The earliest record states what the matter is; later ones
+  // 6. CLEANED TITLE. The earliest record states what the matter is; later ones
   // only reference it. Fall through to the next record if cleaning leaves too
   // little to be a name.
-  const sorted = [...ctx.records].sort((a, b) => {
-    const da = a.published_date ?? a.deadline ?? a.first_seen ?? '';
-    const db = b.published_date ?? b.deadline ?? b.first_seen ?? '';
-    return String(da).localeCompare(String(db));
-  });
   for (const r of sorted) {
     const cleaned = cleanProjectTitle(r.title ?? '');
     if (cleaned.length < 12) continue;
