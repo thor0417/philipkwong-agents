@@ -310,11 +310,25 @@ export async function buildReport(req: BuildRequest): Promise<BuiltReport> {
       (b.significance ?? -1) - (a.significance ?? -1) ||
       a.name.localeCompare(b.name)
   );
+  // A REFERRAL BRIEF SHOWS EVERY FILING IT HAS.
+  //
+  // The per-entry cap exists so that one busy project cannot consume a market
+  // report; a referral brief IS one project, so the cap is the wrong rule
+  // applied to the right code. Measured on Heart Hotel: 23 records in scope, 8
+  // printed, and the 15 the cap dropped included TM-26-500056 - one of the two
+  // entitlement filings the July brief cites by name. A brief whose cover says
+  // 23 records and whose record provenance shows one filing is a document that
+  // contradicts itself on its own first page.
+  const entryCap = req.projectId ? RECORD_CAP : undefined;
+
   const entries: Entry[] = [];
   let heldRecords = 0;
   let mergedRecords = 0;
   for (const p of grouped) {
-    const built = buildEntry(p, recordsByProject.get(p.id) ?? [], { history: partyHistory });
+    const built = buildEntry(p, recordsByProject.get(p.id) ?? [], {
+      history: partyHistory,
+      cap: entryCap,
+    });
     // Eligibility was settled before selection, so every detailed project has a
     // filing in the period and this cannot normally fire. It stays because
     // "cannot normally" is not "cannot", and an entry with nothing to cite must

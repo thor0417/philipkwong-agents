@@ -148,6 +148,22 @@ export default function RegisterDetail({
         <Link href={`/project/${p.id}`} className={styles.fullPage}>
           Open full page
         </Link>
+
+        {/* THE SAME ACTION AS THE PROJECT PAGE, FROM THE PANE WHERE THE PROJECT
+            IS ACTUALLY FOUND. The register is where Philip reads the row and
+            decides it is worth a brief; without this, acting on that decision
+            meant opening the full page to reach a link, or hand-editing a URL.
+            Identical target and identical reasoning: it carries the project and
+            the referral section set, and it is a LINK rather than a generate
+            button because a referral is Philip's assessment plus the record and
+            the assessment is written in the composer. */}
+        <Link
+          href={`/reports?project=${encodeURIComponent(p.id)}&mode=referral`}
+          className={styles.fullPage}
+          data-testid="register-referral-brief"
+        >
+          Generate referral brief
+        </Link>
       </div>
 
       {overridden.length > 0 && (

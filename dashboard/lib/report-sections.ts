@@ -19,13 +19,17 @@ import type { Project } from './projects';
 import type { TimelineRecord } from './projects';
 import type { EventRow } from './project-event-queries';
 import {
+  absenceSentence,
+  captureSentence,
   commentaryLines,
   isFiling,
   pressLine,
+  reconcileSentence,
   recordLine,
   type Entry,
   type Line,
   type Section,
+  type Subsection,
 } from './report-model';
 import { buildEntry, recordSentence } from './report-entry';
 import { categoriesForPipeline } from './taxonomy';
@@ -754,6 +758,207 @@ const coverage: SectionDef = {
   },
 };
 
+
+// ---- THE REFERRAL BRIEF -------------------------------------------------------
+//
+// A REFERRAL IS A DIFFERENT DOCUMENT, NOT A SHORTER REPORT. It is about one
+// matter, written to be forwarded to somebody who will act on that matter, so
+// the sections answering "what else is going on" are noise and the sections
+// answering "what do we actually know, and how do you know we know it" are the
+// whole point.
+//
+// THE STRUCTURE IS THE JULY BRIEF'S, section for section:
+//
+//   The project      what it is, then Record provenance (our captured filings)
+//                    as its own subsection, then what the press reports, then
+//                    the reconciliation of the two, then what the record does
+//                    not say.
+//   The people       every party the filings name, with the way to reach them
+//                    or the statement that there is not one.
+//   The opportunity  Philip's commentary. Omitted entirely when he has written
+//                    none.
+//   Status and risk  the same.
+//
+// THE LAST RULE IS THE ONE THAT MATTERS. "A fabricated assessment under his
+// name has been shipped once and removed." These two sections are the only
+// place in any document where a judgement belongs, and they are built from
+// ctx.commentary and from nothing else - there is no fallback, no derived
+// sentence, and no default text. A build that finds no commentary returns an
+// empty array, which buildReport flattens away, so the heading does not appear
+// at all rather than appearing over a machine's paraphrase.
+
+/** The single project a referral is about, or null when the scope is not one. */
+function soleEntry(ctx: SectionContext): Entry | null {
+  return ctx.entries.length === 1 ? ctx.entries[0] : null;
+}
+
+function recordLineFor(r: Entry['records'][number]): Line {
+  // A SOURCE THAT ALREADY ENDED ITS SENTENCE DOES NOT NEED OUR FULL STOP. Press
+  // headlines arrive visibly truncated - "Love is coming to the Las Vegas Strip
+  // in the shape of ..." - and appending a period produced "....", which reads
+  // as a transcription fault rather than as the source running on.
+  const stop = /[.!?…]$/.test(r.text) ? '' : '.';
+  const bits = [
+    r.date ?? 'no date in the record',
+    r.reference ? ` ${r.reference}.` : '.',
+    ` ${r.text}${stop}`,
+    r.figures.length ? ` ${r.figures.join(', ')}.` : '',
+    r.players.length
+      ? ` Players: ${r.players.map((p) => `${p.name} (${p.role})`).join('; ')}.`
+      : '',
+    r.contact ? ` ${r.contact}` : '',
+    r.language ? ` [${r.language}]` : '',
+  ];
+  const text = bits.join('').replace(/\s+/g, ' ').trim();
+  return r.provenance === 'RECORD'
+    ? recordLine(text, r.url, r.sourceLabel)
+    : pressLine(text, r.url, r.sourceLabel);
+}
+
+const referralProject: SectionDef = {
+  id: 'referral-project',
+  label: 'The project (referral)',
+  description:
+    'One project: what it is, the captured filings as their own subsection, what the press reports, and what the record does not say.',
+  build: (ctx) => {
+    const e = soleEntry(ctx);
+    if (!e) {
+      return withCommentary('referral-project', ctx, {
+        id: 'referral-project',
+        title: 'The project',
+        lede: 'A referral brief describes one matter.',
+        lines: [],
+        emptyNote:
+          ctx.entries.length === 0
+            ? 'No project in this scope has a filing in the period, so there is nothing to describe.'
+            : `This scope holds ${ctx.entries.length} projects. A referral brief is about one ` +
+              `matter; choose a single project in the composer.`,
+      });
+    }
+
+    const filings = e.records.filter((r) => r.provenance === 'RECORD');
+    const press = e.records.filter((r) => r.provenance === 'PRESS');
+
+    const subsections: Subsection[] = [];
+    subsections.push({
+      title: 'Record provenance (our captured filings)',
+      lines: filings.map(recordLineFor),
+      emptyNote:
+        filings.length === 0
+          ? 'We hold no captured filing for this project. Everything below is press-sourced.'
+          : undefined,
+    });
+    if (press.length) {
+      subsections.push({
+        title: 'Reported beyond our record (press)',
+        lines: press.map(recordLineFor),
+      });
+    }
+
+    // THE SUMMARY IS THE ONLY PROSE, AND IT IS A QUOTATION. Same rule as
+    // everywhere else: a derived summary carries the link to the filing it was
+    // taken from, and a generated one does not reach a client document at all.
+    const lines: Line[] = e.summary
+      ? [recordLine(e.summary.text, e.summary.url, 'quoted from the filing')]
+      : [];
+
+    const derived = [
+      e.assembled,
+      reconcileSentence(e.records),
+      // The cover counts the records in scope and this section prints the ones
+      // that survived deduping. Where those differ, say so.
+      captureSentence(ctx.records.length, e.records.length, ctx.mergedRecords),
+      absenceSentence(e.records, e.people),
+    ].filter((d): d is NonNullable<typeof d> => !!d);
+
+    return withCommentary('referral-project', ctx, {
+      id: 'referral-project',
+      title: 'The project',
+      lede: e.meta ? `${e.name}. ${e.meta}.` : e.name,
+      lines,
+      derived,
+      subsections,
+    });
+  },
+};
+
+const referralPeople: SectionDef = {
+  id: 'referral-people',
+  label: 'The people (referral)',
+  description:
+    'Every party the filings name, with a way to reach them or the statement that there is none.',
+  build: (ctx) => {
+    const e = soleEntry(ctx);
+    const people = e?.people ?? [];
+    const lines: Line[] = people.map((party) => {
+      // JOINED WITH SENTENCE PUNCTUATION, not with spaces. Run together, a
+      // party read "Brown, Brown, & Premsrirut 520 S. 4th Street, Las Vegas, NV
+      // 89101 No phone or email in the record." - three separate facts with
+      // nothing between them, in the section a reader of a referral studies
+      // hardest.
+      const detail = [
+        party.firm,
+        party.address,
+        party.contact?.email || party.contact?.phone
+          ? [party.contact?.email, party.contact?.phone].filter(Boolean).join(', ')
+          : 'No phone or email in the record',
+        party.alsoOn,
+      ]
+        .filter(Boolean)
+        .map((part) => String(part).replace(/[.\s]+$/, ''))
+        .join('. ');
+      const text = `${party.name} - ${party.roles.join(', ')}. ${detail}.`
+        .replace(/\s+/g, ' ')
+        .trim();
+      // A party's provenance is already RECORD or PRESS by type, and it already
+      // carries the record that names them. Both are required by the gate.
+      return party.provenance === 'RECORD'
+        ? recordLine(text, party.sourceUrl, party.sourceLabel)
+        : pressLine(text, party.sourceUrl, party.sourceLabel);
+    });
+    return withCommentary('referral-people', ctx, {
+      id: 'referral-people',
+      title: 'The people',
+      lede: 'Every party our filings name, and how the record says to reach them.',
+      lines,
+      emptyNote: lines.length === 0 ? (e?.noPeopleNote ?? 'No project selected.') : undefined,
+    });
+  },
+};
+
+/**
+ * A COMMENTARY-ONLY SECTION, WHICH DOES NOT EXIST WHEN THERE IS NO COMMENTARY.
+ *
+ * Returning an empty array rather than an empty section is the whole mechanism:
+ * buildReport flattens, so the heading is absent from the document. There is
+ * deliberately no lede, no empty note and no default sentence, because every one
+ * of those would be text under Philip's name that Philip did not write.
+ */
+function assessmentSection(id: string, title: string, description: string): SectionDef {
+  return {
+    id,
+    label: title,
+    description,
+    build: (ctx) => {
+      const lines = commentaryLines(ctx.commentary[id]);
+      if (lines.length === 0) return [];
+      return { id, title, lines: [], commentary: lines };
+    },
+  };
+}
+
+const referralOpportunity = assessmentSection(
+  'referral-opportunity',
+  'The opportunity',
+  "Philip's read on why this matter is worth a referral. Omitted entirely when empty."
+);
+
+const referralRisk = assessmentSection(
+  'referral-risk',
+  'Status and risk',
+  "Philip's read on what is still ahead of this project. Omitted entirely when empty."
+);
+
 export const SECTION_REGISTRY: SectionDef[] = [
   cover,
   whatMoved,
@@ -765,20 +970,25 @@ export const SECTION_REGISTRY: SectionDef[] = [
   remainder,
   appendix,
   coverage,
+  referralProject,
+  referralPeople,
+  referralOpportunity,
+  referralRisk,
 ];
 
-// A REFERRAL BRIEF IS A DIFFERENT DOCUMENT, so it starts from a different set.
+// THE REFERRAL BRIEF, IN THE JULY ORDER. See the section definitions above.
 //
-// It is about one matter, for someone who will act on that matter, so the
-// sections that answer "what else is going on" are noise: nothing moved but
-// this, there is no market to survey, and a watch list of one is not a list.
-// What is left is the cover, the entry itself, and the complete record set
-// behind it, which is what a person receiving a referral checks first.
-//
-// Part 4 of the brief rebuilds this document to the Heart Hotel standard, at
-// which point this array becomes that structure. Until then it is the honest
-// subset of the sections that exist.
-export const REFERRAL_SECTION_IDS = ['cover', 'categories', 'appendix', 'coverage'];
+// The two assessment sections are in the set on purpose, even though they
+// usually render nothing: their presence in the composer's section list is what
+// puts a commentary box in front of Philip for each of them. A section he
+// cannot see is a section he will not write.
+export const REFERRAL_SECTION_IDS = [
+  'cover',
+  'referral-project',
+  'referral-people',
+  'referral-opportunity',
+  'referral-risk',
+];
 
 // THE ORDER THE BRIEF SPECIFIES, and it is the order of the array.
 //

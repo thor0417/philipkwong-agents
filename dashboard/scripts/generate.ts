@@ -93,6 +93,7 @@ interface Resolved {
   addressee: string;
   brandName: string;
   projectId: string | null;
+  projectName?: string | null;
 }
 
 async function resolveTarget(): Promise<Resolved> {
@@ -148,7 +149,7 @@ async function resolveTarget(): Promise<Resolved> {
     const candidates = await listScopeProjects(base.scope);
     const hit = candidates.find((p) => p.name.toLowerCase().includes(value.toLowerCase()));
     if (!hit) throw new Error(`no project matching "${value}" in scope`);
-    return { ...base, label: `project ${hit.name}`, projectId: hit.id };
+    return { ...base, label: `project ${hit.name}`, projectId: hit.id, projectName: hit.name };
   }
   throw new Error(`unknown scope "${target}"`);
 }
@@ -170,7 +171,10 @@ async function main(): Promise<void> {
     watchlistOnly: false,
     includeDormant: false,
     includeContext: false,
-    geographyLabel: geographyLabel(t.scope),
+    // THE SAME LABEL THE COMPOSER PASSES. A referral brief covers one project,
+    // and a cover reading "all covered markets" over a single-matter document
+    // claims coverage the document does not have.
+    geographyLabel: t.projectId ? t.projectName ?? 'one project' : geographyLabel(t.scope),
     projectId: t.projectId,
   });
 

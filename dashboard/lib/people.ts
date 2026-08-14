@@ -103,11 +103,33 @@ function tidy(s: string | null | undefined): string {
 // postal detail, not a party.
 const ADDRESS_START = /,\s*(?=\d+\s+[NSEW]?\.?\s*\w|(?:suite|ste\.?|floor|fl\.?|p\.?o\.?\s*box)\b)/i;
 
+// A SHORT ALL-CAPS TOKEN IS NOT AUTOMATICALLY AN ABBREVIATION.
+//
+// The test was "three letters or fewer", which is right for NV and LLC and
+// wrong for LAS: "520 S. 4TH STREET, LAS VEGAS, NV 89101" came back as "520 S.
+// 4th Street, LAS Vegas, NV 89101", shouting one word in the middle of an
+// otherwise clean address.
+//
+// The scraper solved this once already (project-naming/looksLikeAbbreviation)
+// and the rule that worked there works here: a word has a vowel and an
+// initialism usually does not. The allowlist holds the handful of real
+// abbreviations that do carry one, so INC and USA are not title-cased into
+// words.
+const VOWELLED_ABBREVIATIONS = new Set(['INC', 'USA', 'LLC', 'LTD', 'DBA', 'EIR', 'APN', 'AVE']);
+
+function isAbbreviation(w: string): boolean {
+  if (w !== w.toUpperCase() || !/^[A-Z.&]+$/.test(w)) return false;
+  const bare = w.replace(/[^A-Z]/g, '');
+  if (bare.length <= 2) return true;
+  if (VOWELLED_ABBREVIATIONS.has(bare)) return true;
+  return bare.length <= 5 && !/[AEIOUY]/.test(bare);
+}
+
 function properCase(name: string): string {
   return name
     .split(' ')
     .map((w) =>
-      w.length <= 3 && w === w.toUpperCase() && /^[A-Z.&]+$/.test(w)
+      isAbbreviation(w)
         ? w
         : /^[A-Z][a-z]/.test(w)
           ? w
@@ -130,7 +152,18 @@ export function addressOf(raw: string | null | undefined): string | null {
   const parts = s.split(ADDRESS_START);
   if (parts.length < 2) return null;
   const address = s.slice(parts[0].length).replace(/^[,;\s]+/, '').trim();
-  return address.length >= 6 ? address : null;
+  if (address.length < 6) return null;
+  // DESHOUTED, LIKE EVERY OTHER PARTY FIELD, and for the same reason: Clark
+  // County files "520 S. 4TH STREET, LAS VEGAS, NV 89101" and a client document
+  // that shouts a street address at the reader looks like nobody read it. The
+  // same properCase the party NAME goes through, applied only when the source
+  // shouted - a correctly-cased address is left exactly as written.
+  //
+  // This is not the "verbatim, never completed or corrected" rule bending. That
+  // rule is about not inventing a missing suite number or fixing a postcode we
+  // think is wrong. Nothing here changes a character of content: NV stays NV,
+  // 4TH becomes 4th, and no component is added or removed.
+  return address === address.toUpperCase() ? properCase(address) : address;
 }
 
 export function cleanPartyName(raw: string | null | undefined): string | null {

@@ -331,6 +331,131 @@ export function assembleSentence(records: EntryRecord[]): Assembled | null {
   return `${ASSEMBLED_OPENER} ${counted}${span}.` as Assembled;
 }
 
+// A HEADING INSIDE A SECTION, with its own lines.
+//
+// The July referral brief puts "Record provenance (our captured filings)" and
+// the press-reported programme under one "The Project" heading, and a reader
+// uses that split to tell what we can show from what somebody published. A
+// section with one flat line list cannot express it, and splitting them into
+// two top-level sections would lose the fact that they describe one project.
+//
+// Subsections carry LINES ONLY. They are a heading over evidence, not a second
+// place an entry can live, which keeps the provenance gate's job unchanged: it
+// walks lines and it walks entries, and a subsection is lines.
+export interface Subsection {
+  title: string;
+  lines: Line[];
+  // Stated rather than omitted, exactly as a section's emptyNote is.
+  emptyNote?: string;
+}
+
+// ---- TWO MORE DERIVED SENTENCES, FOR THE REFERRAL BRIEF ----------------------
+//
+// Both open with their own fixed phrase, checked by the gate for the same
+// reason assembleSentence's opener is checked: a sentence that attributes
+// itself to the record set cannot be misread as a market judgement.
+
+const RECONCILE_OPENER = 'Our filing record';
+const ABSENCE_OPENER = 'What the record does not say';
+const CAPTURE_OPENER = 'Of the';
+
+export const DERIVED_OPENERS = [
+  ASSEMBLED_OPENER,
+  RECONCILE_OPENER,
+  ABSENCE_OPENER,
+  CAPTURE_OPENER,
+];
+
+/**
+ * THE COVER SAYS 23 AND THE PAGE SHOWS 21. ACCOUNT FOR THE OTHER TWO.
+ *
+ * The basis line counts the records in scope; the brief prints the records that
+ * survived deduping. A reader who counts - and the reader of a referral brief
+ * is exactly the reader who counts - finds two missing and no explanation, in a
+ * document whose whole argument is that its evidence can be checked.
+ *
+ * Null when the two numbers agree, which is the common case and needs no
+ * sentence.
+ */
+export function captureSentence(captured: number, shown: number, merged: number): Assembled | null {
+  if (captured <= shown) return null;
+  const gap = captured - shown;
+  const other = `the other ${gap === 1 ? 'one' : gap}`;
+  const tail =
+    merged >= gap
+      ? `${other} ${gap === 1 ? 'is' : 'are'} the same filing captured more than once - a bilingual ` +
+        `minute, or a document captured page by page - and ${gap === 1 ? 'is' : 'are'} shown once`
+      : merged > 0
+        ? `${merged} of ${other} ${merged === 1 ? 'is' : 'are'} the same filing captured more than ` +
+          `once and ${merged === 1 ? 'is' : 'are'} shown once`
+        : `${other} ${gap === 1 ? 'is' : 'are'} not printed`;
+  return `${CAPTURE_OPENER} ${captured} records captured for this project, ${shown} are printed above; ${tail}.` as Assembled;
+}
+
+/**
+ * RECORD AGAINST PRESS, RECONCILED, WHERE BOTH EXIST.
+ *
+ * The July brief does this in a paragraph and it is what makes the rest
+ * credible: the reader is told which half of the document they could go and
+ * verify and which half they could not. Null when the project has only one kind
+ * of evidence, because there is then nothing to reconcile and a sentence saying
+ * so would be padding.
+ *
+ * It states the SHAPE of the two sets and refuses to characterise their
+ * agreement. "The press describes the same project" is a judgement; "these are
+ * the filings, those are the reports, and the filings are what we can show" is
+ * a fact about our own evidence.
+ */
+export function reconcileSentence(records: EntryRecord[]): Assembled | null {
+  const filings = records.filter((r) => r.provenance === 'RECORD');
+  const press = records.filter((r) => r.provenance === 'PRESS');
+  if (filings.length === 0 || press.length === 0) return null;
+  const span = (rs: EntryRecord[]) => {
+    const dated = rs.map((r) => r.date).filter((d): d is string => !!d).sort();
+    if (dated.length === 0) return '';
+    const [a, b] = [dated[0], dated[dated.length - 1]];
+    return a === b ? ` dated ${a}` : ` dated between ${a} and ${b}`;
+  };
+  return (`${RECONCILE_OPENER} for this project is ${filings.length} captured ` +
+    `filing${filings.length === 1 ? '' : 's'}${span(filings)}. The ${press.length} press ` +
+    `report${press.length === 1 ? '' : 's'}${span(press)} listed here ${press.length === 1 ? 'is' : 'are'} ` +
+    `beyond that record and ${press.length === 1 ? 'is' : 'are'} attributed to ${press.length === 1 ? 'its' : 'their'} ` +
+    `publisher. Where the two differ, the filings are what we can show.`) as Assembled;
+}
+
+/**
+ * THE HONEST NEGATIVE, AT DOCUMENT LEVEL.
+ *
+ * "No representative named, no action posted, no phone or email in the record.
+ * That is what makes the rest credible." Each clause is a check against the
+ * data the brief is built from, and a clause is only emitted when the absence
+ * is real - a document that lists absences it does not have is as misleading as
+ * one that hides them.
+ *
+ * Null when the records leave nothing to declare, which is a good outcome and
+ * not a reason to print a sentence about it.
+ */
+export function absenceSentence(records: EntryRecord[], people: ProjectParty[]): Assembled | null {
+  const clauses: string[] = [];
+  if (!people.some((p) => p.roles.some((r) => /represent/i.test(r)))) {
+    clauses.push('no filing names a representative');
+  }
+  if (!people.some((p) => p.contact?.email || p.contact?.phone)) {
+    clauses.push('no party carries a phone number or an email address');
+  }
+  if (!records.some((r) => r.contact)) clauses.push('no filing names a contact');
+  const undated = records.filter((r) => !r.date).length;
+  if (undated) {
+    clauses.push(
+      `${undated} of the ${records.length} captured item${records.length === 1 ? '' : 's'} carries no date`
+    );
+  }
+  if (clauses.length === 0) return null;
+  const last = clauses.pop()!;
+  const list = clauses.length ? `${clauses.join(', ')} and ${last}` : last;
+  return `${ABSENCE_OPENER}: ${list}.` as Assembled;
+}
+
 export interface Section {
   id: string;
   title: string;
@@ -341,6 +466,18 @@ export interface Section {
   // A section that describes projects rather than listing lines carries entries
   // instead. Both are rendered; a section normally uses one or the other.
   entries?: Entry[];
+  // Headed groups of lines, rendered after `lines`. See Subsection.
+  subsections?: Subsection[];
+  // SENTENCES DERIVED MECHANICALLY FROM THE RECORD SET, printed unlabelled.
+  //
+  // The same idea as an entry's `assembled` and the same branded type, so the
+  // only values that can appear here are ones a producer in this file built out
+  // of records. A referral brief needs two of them that an entry has no place
+  // for: the reconciliation of our filings against the press, and the statement
+  // of what the records do not say. Both are facts about the set rather than
+  // claims about the world, which is why they are neither RECORD nor
+  // ASSESSMENT - and why they cannot be typed by hand.
+  derived?: Assembled[];
   // Philip's commentary on this section. Always ASSESSMENT; see below.
   commentary: Line[];
   // Set when a section had nothing to say. Rendered as an explicit statement
@@ -452,7 +589,28 @@ export function assertBasis(doc: ReportDocument): void {
 export function assertProvenance(doc: ReportDocument): void {
   const valid = new Set<string>(PROVENANCE);
   for (const section of doc.sections) {
-    const all = [...section.lines, ...section.commentary];
+    // SUBSECTION LINES ARE SECTION LINES. They are rendered in the same
+    // document under a smaller heading, so an unlabelled line inside one is the
+    // same defect and has to fail the same way. Folded in here rather than
+    // checked separately, so a future kind of grouping cannot be added without
+    // the gate seeing it.
+    const all = [
+      ...section.lines,
+      ...(section.subsections ?? []).flatMap((sub) => sub.lines),
+      ...section.commentary,
+    ];
+    // A DERIVED SENTENCE MUST ATTRIBUTE ITSELF. Same rule the entry's assembled
+    // sentence is held to, in the same place, because a section-level derived
+    // sentence is printed unlabelled and would otherwise be the one line in the
+    // document with no provenance and no opener saying where it came from.
+    for (const d of section.derived ?? []) {
+      if (!DERIVED_OPENERS.some((o) => d.startsWith(o))) {
+        throw new ProvenanceError(
+          `Derived sentence in section "${section.id}" does not attribute itself to the record ` +
+            `set: ${JSON.stringify(d).slice(0, 120)}`
+        );
+      }
+    }
     for (const line of all) {
       if (!valid.has(line.provenance as string)) {
         throw new ProvenanceError(
@@ -551,7 +709,12 @@ export function assertProvenance(doc: ReportDocument): void {
 export function provenanceTally(doc: ReportDocument): Record<Provenance, number> {
   const out: Record<Provenance, number> = { RECORD: 0, PRESS: 0, ASSESSMENT: 0 };
   for (const s of doc.sections) {
-    for (const l of [...s.lines, ...s.commentary]) out[l.provenance]++;
+    const lines = [
+      ...s.lines,
+      ...(s.subsections ?? []).flatMap((sub) => sub.lines),
+      ...s.commentary,
+    ];
+    for (const l of lines) out[l.provenance]++;
     for (const e of s.entries ?? []) {
       if (e.summary) out.RECORD++;
       for (const party of e.people) out[party.provenance]++;
@@ -570,6 +733,10 @@ export function estimatePages(doc: ReportDocument): number {
   let lines = 6; // the cover
   for (const s of doc.sections) {
     lines += 3 + s.lines.length * 2 + s.commentary.length * 2 + (s.emptyNote ? 1 : 0);
+    lines += (s.derived ?? []).length * 3;
+    for (const sub of s.subsections ?? []) {
+      lines += 2 + sub.lines.length * 2 + (sub.emptyNote ? 1 : 0);
+    }
     // An entry is a heading, a description paragraph, and its records - each of
     // which wraps, and each of which may carry a contact line under it.
     for (const e of s.entries ?? []) {

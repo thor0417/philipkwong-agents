@@ -67,6 +67,14 @@ function sectionText(sec: Section): string {
   out.push(`## ${sec.title}`);
   if (sec.lede) out.push(`_${sec.lede}_`);
   for (const l of sec.lines) out.push(lineText(l));
+  for (const d of sec.derived ?? []) out.push(`
+  ${d}`);
+  for (const sub of sec.subsections ?? []) {
+    out.push('');
+    out.push(`#### ${sub.title}`);
+    for (const l of sub.lines) out.push(lineText(l));
+    if (sub.emptyNote) out.push(`  ${sub.emptyNote}`);
+  }
   let lastGroup: string | null | undefined;
   for (const e of sec.entries ?? []) {
     if (e.group && e.group !== lastGroup) out.push(`\n### ${e.group}`);

@@ -78,6 +78,15 @@ const s = StyleSheet.create({
   // it is a statement about the filings below it, not an aside about them.
   entryAssembled: { fontSize: 9, lineHeight: 1.4, marginBottom: 5 },
 
+  // A DERIVED SENTENCE AT SECTION LEVEL. Same face as the assembled sentence
+  // inside an entry, because it is the same kind of statement: a fact about the
+  // record set, printed unlabelled because it is neither a filing nor a
+  // judgement. See report-model/DERIVED_OPENERS.
+  derived: { fontSize: 9, lineHeight: 1.45, marginTop: 4, marginBottom: 4 },
+
+  // A HEADING INSIDE A SECTION: "Record provenance (our captured filings)".
+  subTitle: { fontSize: 9, marginTop: 10, marginBottom: 4 },
+
   // THE PEOPLE BLOCK. Set between the description and the filings, because that
   // is the order the question is asked in: what is this, who is behind it, what
   // have they filed.
@@ -262,6 +271,20 @@ function DocBody({ doc }: { doc: ReportDocument }) {
             {sec.lede ? <Text style={s.lede}>{sec.lede}</Text> : null}
             {sec.lines.map((l, i) => (
               <LineRow key={i} l={l} />
+            ))}
+            {(sec.derived ?? []).map((d, i) => (
+              <Text key={`d${i}`} style={s.derived}>
+                {d}
+              </Text>
+            ))}
+            {(sec.subsections ?? []).map((sub, i) => (
+              <View key={`s${i}`}>
+                <Text style={s.subTitle}>{sub.title}</Text>
+                {sub.lines.map((l, j) => (
+                  <LineRow key={j} l={l} />
+                ))}
+                {sub.emptyNote ? <Text style={s.empty}>{sub.emptyNote}</Text> : null}
+              </View>
             ))}
             {/* GEOGRAPHY AS A SUBHEADING, PRINTED ONLY WHEN IT CHANGES. The
                 entries arrive already ordered by market, so a heading per
