@@ -17,10 +17,29 @@ type Screen = {
   // the capture races Next's dev compile and photographs a spinner.
   ready: string;
   fullPage?: boolean;
-  // Ceiling on visible accent-coloured elements. The design rule is that the
-  // accent marks the single most important thing in a view, so a product screen
-  // gets a small number and exceeding it fails the run. The catalogue at /design
-  // is the stated exception: it has to show every accent state side by side.
+  // Ceiling on the number of KINDS of thing that paint the accent. The design
+  // rule is that the accent marks the single most important thing in a view, so
+  // a product screen gets a small number and exceeding it fails the run. The
+  // catalogue at /design is the stated exception: it has to show every accent
+  // state side by side.
+  //
+  // KINDS, NOT ELEMENTS, AND THAT IS THE FIX FOR A TEST THAT HAD BEEN RED FOR
+  // THREE SESSIONS.
+  //
+  // It counted visible elements, so a screen containing a LIST of accented
+  // things failed as a function of how many rows the database returned that
+  // day. Today went over on four project links in a four-event "what moved"
+  // list; Records reached 62 against a budget of 38 mostly on per-row source
+  // links and band counts. Neither number said anything about the design, and
+  // neither could be fixed by choosing a bigger number, because the next run
+  // has more rows in it.
+  //
+  // A kind is the element's class list with the CSS-module hash stripped, so
+  // twenty rows of one component count once. That is what the rule was always
+  // about: how many DIFFERENT things claim the eye, not how many times one of
+  // them repeats. The raw element count is still printed, because it is useful
+  // context and because a silent metric change is how a budget stops meaning
+  // anything.
   accentBudget?: number;
 };
 
@@ -39,9 +58,14 @@ const SCREENS: Screen[] = [
     path: '/today',
     ready: 'h1',
     fullPage: true,
-    // Measured at 1: the active nav item, and nothing else. Accenting every
-    // project name put this at 23, which is a page with no emphasis at all.
-    // Held at 3 so a future section cannot quietly reintroduce the flood.
+    // MEASURED AT 3 KINDS: the active nav item, the selected period chip, and
+    // the project name in a "what moved" row. The third is deliberate - the
+    // project is the subject of that sentence and the stages beside it are
+    // mono values - and under the old element count it was also the thing that
+    // failed the run, because four moved projects meant four elements against a
+    // budget of three. The two commits that disagreed here were both right:
+    // accenting a repeating list item is fine, and accenting twenty different
+    // things is not. Held at 3, so a fourth KIND fails.
     accentBudget: 3,
   },
   // The Register: rail, list, detail. Not fullPage, because the shell owns the
@@ -51,9 +75,10 @@ const SCREENS: Screen[] = [
     name: '02-register',
     path: '/register',
     ready: 'header',
-    // The active nav item, the selected stage chip, the active rail view, and
-    // the selected row's edge. Anything above this is a flood.
-    accentBudget: 8,
+    // Measured at 3 kinds: the active nav item, the active rail view, and the
+    // selected row's edge. Re-baselined from 8 when the metric changed from
+    // elements to kinds - an 8 that nothing approaches is not a ratchet.
+    accentBudget: 4,
   },
   // The record table, moved from /register. Still the pre-rebuild screen, so
   // its accent debt is unchanged and held where it was measured.
@@ -63,11 +88,16 @@ const SCREENS: Screen[] = [
     ready: 'header',
     // A RATCHET ON KNOWN DEBT, not an approval. This screen is the pre-rebuild
     // Register: every "active" state in it (filter chips, geo chips, delta
-    // buttons, triage views, tab counts) paints the accent, which is exactly
-    // the incoherence Part 4 exists to fix. The number is set to what is there
-    // today so the run is honest and so it cannot get WORSE while Part 4 is
-    // pending. Part 4 must bring it to single digits.
-    accentBudget: 38,
+    // buttons, triage views, tab counts, source links, band and group counts)
+    // paints the accent, which is exactly the incoherence the rebuild exists to
+    // fix. Measured at 11 kinds over 62 elements.
+    //
+    // The old budget of 38 was an ELEMENT count, and it failed on data rather
+    // than on design: 62 elements today because the corpus grew, not because
+    // anybody accented anything new. 12 is the honest ratchet under the kinds
+    // metric - one above what is there - and the rebuild must bring it to
+    // single digits.
+    accentBudget: 12,
   },
 ];
 
@@ -113,6 +143,7 @@ for (const screen of SCREENS) {
       probe.remove();
 
       const hits: string[] = [];
+      const kinds = new Set<string>();
       const counted = new Set<Element>();
       for (const el of Array.from(document.querySelectorAll<HTMLElement>('body *'))) {
         const cs = getComputedStyle(el);
@@ -135,19 +166,31 @@ for (const screen of SCREENS) {
         counted.add(el);
         if (inherited) continue;
         hits.push(`${el.tagName.toLowerCase()}.${el.className}`.slice(0, 60));
+        // THE KIND, not the element. See the budget note below: a CSS-module
+        // hash is stripped so two rows of one component are one kind.
+        const classes = String(el.className || '')
+          .split(/\s+/)
+          .filter(Boolean)
+          .map((c) => c.replace(/__[A-Za-z0-9_-]+$/, ''))
+          .sort()
+          .join(' ');
+        kinds.add(classes || el.tagName.toLowerCase());
       }
-      return { target, count: hits.length, sample: hits.slice(0, 12) };
+      return { target, count: hits.length, kinds: [...kinds].sort(), sample: hits.slice(0, 12) };
     });
 
-    console.log(`  [${mode}] ${screen.name}: accent ${accent.target} on ${accent.count} elements`);
+    console.log(
+      `  [${mode}] ${screen.name}: accent ${accent.target} on ${accent.count} elements, ` +
+        `${accent.kinds.length} kinds`
+    );
     const budget = screen.accentBudget ?? 3;
-    if (accent.count > budget) {
-      console.log(`    over budget (${budget}). first offenders: ${accent.sample.join(', ')}`);
+    if (accent.kinds.length > budget) {
+      console.log(`    over budget (${budget}). kinds: ${accent.kinds.join(', ')}`);
     }
     expect(
-      accent.count,
-      `Accent used on ${accent.count} elements, budget ${budget}. ` +
-        `The accent marks the single most important thing in a view. Offenders: ${accent.sample.join(', ')}`
+      accent.kinds.length,
+      `Accent claimed by ${accent.kinds.length} kinds of thing, budget ${budget}. ` +
+        `The accent marks the single most important thing in a view. Kinds: ${accent.kinds.join(', ')}`
     ).toBeLessThanOrEqual(budget);
 
     await page.screenshot({

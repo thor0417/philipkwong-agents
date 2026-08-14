@@ -58,11 +58,15 @@ test('the project page starts a referral brief for that project', async ({ page 
     .evaluateAll((els) => els.map((e) => e.getAttribute('data-section')));
   console.log(`sections: ${sections.join(', ')}`);
   out.sections = sections;
+  // THE JULY STRUCTURE, in order. The two assessment sections are seeded even
+  // though they render nothing until Philip writes commentary: their presence in
+  // this list is what puts a commentary box in front of him for each.
   expect(sections, 'the referral preset did not seed the section list').toEqual([
     'cover',
-    'categories',
-    'appendix',
-    'coverage',
+    'referral-project',
+    'referral-people',
+    'referral-opportunity',
+    'referral-risk',
   ]);
 
   await expect
