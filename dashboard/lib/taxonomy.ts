@@ -29,6 +29,14 @@ export const VENUE_TYPES = [
   'Resort',
   'Integrated Resort',
   'Casino/Gaming',
+  // A GOLF RESORT IS SQUARELY IN THE VERTICAL, and the taxonomy had no value
+  // for it, so four projects whose records unambiguously name a golf course -
+  // Desert Pines, Disney's Magnolia, Southern Highlands, and the exclusive
+  // negotiation agreement for Desert Pines - classified as NULL and appeared in
+  // the report's "no resolved category" section. Added properly rather than
+  // routed into Resort, which would have made a municipal course indistinguish-
+  // able from an integrated resort in the one column a client scope filters on.
+  'Golf/Resort Course',
   'Convention/Expo',
   // Urban and Development
   'Smart City',
@@ -131,6 +139,7 @@ export const VENUE_TO_CATEGORY: Record<VenueType, DevelopmentCategory> = {
   Resort: 'Hospitality/Tourism',
   'Integrated Resort': 'Hospitality/Tourism',
   'Casino/Gaming': 'Hospitality/Tourism',
+  'Golf/Resort Course': 'Hospitality/Tourism',
   'Convention/Expo': 'Hospitality/Tourism',
   'Smart City': 'Smart City/Urban',
   'Master-Planned Community': 'Smart City/Urban',

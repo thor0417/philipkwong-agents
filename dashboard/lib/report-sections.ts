@@ -83,6 +83,10 @@ export interface SectionContext {
   // item captured twice. Document-level facts, stated in the coverage note.
   heldRecords: number;
   mergedRecords: number;
+  // Projects described above whose stored one-line summary is a model's
+  // reading rather than a quotation, and is therefore not printed. See
+  // capNotes: a withheld sentence is absence and is counted like any other.
+  withheldSummaries: number;
   // Which pipeline this document is for. The category section list is read from
   // the taxonomy keyed on it.
   pipelineId: string;
@@ -199,8 +203,17 @@ function withCommentary(id: string, ctx: SectionContext, section: Omit<Section, 
  * part of its scope and has to say which part is missing rather than which part
  * is present.
  */
-export function capNotes(caps: SectionContext['caps']): string[] {
+export function capNotes(caps: SectionContext['caps'], withheldSummaries = 0): string[] {
   const out: string[] = [];
+  if (withheldSummaries) {
+    out.push(
+      `${withheldSummaries} project${withheldSummaries === 1 ? '' : 's'} described above ` +
+        `${withheldSummaries === 1 ? 'has' : 'have'} a one-line description on our register that is ` +
+        `not printed here. Those lines were written by a model reading the filings rather than ` +
+        `quoted from one, so there is no document to cite for them and they are not offered as ` +
+        `Philip's assessment either. The filings under each entry are unaffected.`
+    );
+  }
   if (caps.projects) {
     out.push(
       `This scope matched at least ${caps.projectCap} projects, which is the most this document ` +
@@ -743,7 +756,7 @@ const coverage: SectionDef = {
             `in scope ${ctx.undetailedProjects.length === 1 ? 'is' : 'are'} counted but not described.`
           : 'Every project in scope is described.')
     );
-    notes.push(...capNotes(ctx.caps));
+    notes.push(...capNotes(ctx.caps, ctx.withheldSummaries));
     // WHAT WE COULD NOT NAME, COUNTED AND LOCATED.
     //
     // The one sentence that stands in for the projects this document refuses to

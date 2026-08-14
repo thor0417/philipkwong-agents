@@ -213,8 +213,8 @@
       "axis": "venue",
       "value": "Museum",
       "chipCount": 35,
-      "total": 38,
-      "gap": 3,
+      "total": 37,
+      "gap": 2,
       "escapees": 0
     },
     {
@@ -237,8 +237,8 @@
       "axis": "category",
       "value": "Entertainment/Attractions",
       "chipCount": 82,
-      "total": 86,
-      "gap": 4,
+      "total": 84,
+      "gap": 2,
       "escapees": 0
     },
     {

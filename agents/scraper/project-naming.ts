@@ -435,6 +435,7 @@ const VENUE_PHRASE: Record<string, string> = {
   'Theme Park': 'theme park',
   Hotel: 'hotel',
   'Casino/Gaming': 'casino',
+  'Golf/Resort Course': 'golf course',
   Waterpark: 'waterpark',
   'Heritage/Cultural Site': 'heritage site',
   'Family Entertainment Center': 'family entertainment centre',

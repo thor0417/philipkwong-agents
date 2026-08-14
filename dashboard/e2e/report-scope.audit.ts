@@ -15,6 +15,7 @@
 // with the page; it never writes a scope.
 
 import { test, expect } from '@playwright/test';
+import { isProvisionalName } from '../lib/taxonomy';
 import { streamLabel } from '../lib/streams';
 import { createClient } from '@supabase/supabase-js';
 import { readFileSync, existsSync, writeFileSync, mkdirSync } from 'node:fs';
@@ -73,7 +74,7 @@ test('the three axes the composer used to drop', async ({ page }) => {
   // excludes dormant projects by default.
   const { data: rows } = await admin
     .from('projects')
-    .select('id,market,stage,development_category,venue_type')
+    .select('id,market,stage,development_category,venue_type,record_count,name_source')
     .eq('module', 'gli')
     .neq('status', 'dismissed')
     .limit(3000);
@@ -123,7 +124,15 @@ test('the three axes the composer used to drop', async ({ page }) => {
       (stages.length === 0 || stages.map(fold).includes(fold(r.stage))) &&
       anyOf(r.id as string, 'venue', venues) &&
       anyOf(r.id as string, 'category', categories) &&
-      fold(r.stage) !== 'dormant'
+      fold(r.stage) !== 'dormant' &&
+      // THE TWO RULES THE COMPOSER APPLIES AND THIS QUERY DID NOT. A hollow
+      // project has nothing to cite and a project with no published name is
+      // excluded from every client document - both stated in the coverage note,
+      // both invisible to a raw scope query. Applied here so the audit keeps
+      // testing whether the SCOPE leaks rather than re-discovering two rules it
+      // is not about.
+      (r.record_count ?? 0) > 0 &&
+      !isProvisionalName(r.name_source as string | null)
   );
   console.log(`  database says the stored scope covers ${inScope.length} projects`);
 
@@ -138,7 +147,14 @@ test('the three axes the composer used to drop', async ({ page }) => {
       (stages.length === 0 || stages.map(fold).includes(fold(r.stage))) &&
       (venues.length === 0 || venues.map(fold).includes(fold(r.venue_type))) &&
       (categories.length === 0 || categories.map(fold).includes(fold(r.development_category))) &&
-      fold(r.stage) !== 'dormant'
+      fold(r.stage) !== 'dormant' &&
+      // THE SAME TWO DOCUMENT RULES as inScope above. This comparison is about
+      // ONE thing - whether matching a project's records finds more than
+      // matching its mode column - so both sides must differ in that and in
+      // nothing else. Leaving them off here made the mode side larger and the
+      // assertion failed on an inequality that was never about facets.
+      (r.record_count ?? 0) > 0 &&
+      !isProvisionalName(r.name_source as string | null)
   );
   console.log(
     `  matching the mode column would cover ${byMode.length}; matching any record covers ` +

@@ -252,22 +252,114 @@ async function main(): Promise<void> {
   // against a cap of 2,000 - so they are asserted by calling the sentence
   // builder directly with every flag set. That is a real assertion rather than
   // a grep, and it fails if a sentence is ever removed.
-  const forcedNotes = capNotes({
-    projects: true, projectCap: 2000,
-    records: true, recordCap: 1500,
-    events: true, eventCap: 500,
-    partyHistoryFailed: true,
-  });
+  const forcedNotes = capNotes(
+    {
+      projects: true, projectCap: 2000,
+      records: true, recordCap: 1500,
+      events: true, eventCap: 500,
+      partyHistoryFailed: true,
+    },
+    1
+  );
   const capSentences = [
     ['project cap', 'not covered here at all'],
     ['record cap', 'most recent records in scope'],
     ['event cap', 'is not a complete list'],
     ['party history failure', 'could not be read on this run'],
+    ['withheld summary', 'not printed here'],
   ] as const;
   for (const [rule, needle] of capSentences) {
     const ok = forcedNotes.some((n) => n.includes(needle));
     if (!ok) failures++;
     console.log(`    ${ok ? 'STATED  ' : 'SILENT !'}  ${rule} (forced)`);
+  }
+  console.log('');
+
+  // ---- THE EVENT READ, PAST THE CHUNK BOUNDARY --------------------------
+  //
+  // The bug: project events were read with a single `.in('project_id',
+  // ids.slice(0, ID_CHUNK))` and no loop, so a scope holding more projects than
+  // the chunk size silently lost the stage changes of every project past the
+  // 150th. It was invisible only because the register is smaller than the
+  // chunk, which is precisely why it needs a test that is NOT.
+  //
+  // So the document is built with dormant AND provisional-named projects
+  // included - the widest scope the builder can produce - to get past 150, and
+  // every event the database holds for those projects is required to be in it.
+  console.log('='.repeat(78));
+  console.log('EVENT READ PAST THE 150-PROJECT CHUNK BOUNDARY');
+  console.log('='.repeat(78));
+  const wide = await buildReport({
+    scope: emptyScope(),
+    period: resolvePeriod('all', new Date()),
+    sectionIds: DEFAULT_SECTION_IDS,
+    commentary: {},
+    detailCap: 1,
+    title: 'audit', brandName: 'JKR & Associates', addressee: 'audit', clientName: null,
+    watchlistOnly: false,
+    includeDormant: true,
+    includeProvisionalNames: true,
+    includeContext: false,
+    geographyLabel: 'all covered markets',
+  });
+  const wideIds = wide.projects.map((p) => p.id);
+  console.log(`  document covers ${wideIds.length} projects (chunk size is 150)`);
+  if (wideIds.length <= 150) {
+    failures++;
+    console.log('    INCONCLUSIVE ! the widest scope is under the chunk size, so this proves nothing');
+  }
+
+  // Every event the database holds for those projects, read in chunks that are
+  // deliberately a different size from the builder's, so the two cannot share a
+  // paging mistake.
+  const expected = new Set<string>();
+  for (let i = 0; i < wideIds.length; i += 40) {
+    const { data, error } = await supabase
+      .from('project_events')
+      .select('id')
+      .eq('module', LIVE_PIPELINE_STORAGE_KEY)
+      .in('project_id', wideIds.slice(i, i + 40));
+    if (error) throw new Error(`event check failed: ${error.message}`);
+    for (const r of (data ?? []) as { id: string }[]) expected.add(r.id);
+  }
+  const got = new Set(wide.events.map((e) => e.id));
+  const missing = [...expected].filter((id) => !got.has(id));
+  console.log(`  events in the database for those projects : ${expected.size}`);
+  console.log(`  events the document actually read         : ${got.size}`);
+
+  // The projects whose events would have been lost by the old single-chunk read.
+  const pastChunk = new Set(wideIds.slice(150));
+  const pastChunkEvents = wide.events.filter((e) => e.project?.id && pastChunk.has(e.project.id));
+  console.log(`  projects past the 150th                   : ${pastChunk.size}`);
+  console.log(`  events belonging to those projects        : ${pastChunkEvents.length}`);
+
+  // MISSING IS ONLY A FAILURE IF IT IS UNSTATED. The event read is capped per
+  // chunk, and a cap that binds and says so is the correct behaviour - that is
+  // the whole rule. What must never happen is events going missing with a
+  // silent page.
+  const wideText = renderDocumentText(wide.doc);
+  const capStated = wideText.includes('is not a complete list');
+  if (missing.length === 0) {
+    console.log('    COMPLETE  every event the database holds for these projects reached the document');
+  } else if (capStated) {
+    console.log(
+      `    STATED    ${missing.length} events beyond the per-chunk cap are absent, and the coverage ` +
+        `note says "What moved" is not a complete list`
+    );
+  } else {
+    failures++;
+    console.log(`    SILENT !  ${missing.length} events are absent and the document does not say so`);
+  }
+  // AND THE CHUNK BUG ITSELF: the projects past the 150th must have contributed
+  // events. Under the single-chunk read this number was zero by construction.
+  if (pastChunkEvents.length === 0) {
+    failures++;
+    console.log('    SILENT !  no event from any project past the 150th reached the document');
+  } else {
+    console.log(
+      `    PAST 150  ${pastChunkEvents.length} events from ${pastChunk.size} projects past the chunk ` +
+        `boundary reached the document; under the single-chunk read this was zero by construction`
+    );
   }
   console.log('');
 

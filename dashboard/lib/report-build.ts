@@ -93,6 +93,12 @@ export interface BuiltReport {
   // not the report, and the two can differ for exactly the reasons an audit
   // exists to catch.
   projects: Project[];
+  // THE EVENTS THE DOCUMENT WAS BUILT FROM, returned for the same reason
+  // `projects` is: so an audit can check the document against its own inputs
+  // rather than against a separately-derived set. The event read is the one
+  // place in this file that silently lost data - a single chunk with no loop -
+  // and a bug that cannot be observed from outside cannot be regression-tested.
+  events: SectionContext['events'];
   // WHAT THE SELECTION DID, in numbers, so the composer and the audit harness
   // can assert on it without re-deriving it. Reported on the cover as well:
   // every project in scope is in exactly one of detailed, counted or silent,
@@ -415,6 +421,16 @@ export async function buildReport(req: BuildRequest): Promise<BuiltReport> {
   const entries: Entry[] = [];
   let heldRecords = 0;
   let mergedRecords = 0;
+  // A WITHHELD SENTENCE IS ABSENCE TOO.
+  //
+  // A project carrying a GENERATED summary - a model's reading of several
+  // filings, quoted by no document - has that sentence withheld from its entry,
+  // because it cannot be RECORD (nothing says it), cannot be PRESS (nobody
+  // published it) and would be a machine's paraphrase under Philip's name if it
+  // were ASSESSMENT. That reasoning is unchanged. What was wrong was saying
+  // nothing: the reader saw an entry with no description and no way to tell
+  // "we have nothing" from "we have something we may not print".
+  let withheldSummaries = 0;
   for (const p of grouped) {
     const built = buildEntry(p, recordsByProject.get(p.id) ?? [], {
       history: partyHistory,
@@ -427,6 +443,7 @@ export async function buildReport(req: BuildRequest): Promise<BuiltReport> {
     if (!built) continue;
     heldRecords += built.held;
     mergedRecords += built.merged;
+    if (!built.entry.summary && p.summary && p.summary_source !== 'derived') withheldSummaries++;
     entries.push({ ...built.entry, group: placeOf(p) || null });
   }
 
@@ -458,6 +475,7 @@ export async function buildReport(req: BuildRequest): Promise<BuiltReport> {
     entries,
     heldRecords,
     mergedRecords,
+    withheldSummaries,
     pipelineId: req.scope.pipeline_id,
     records,
     partyHistory,
@@ -514,6 +532,7 @@ export async function buildReport(req: BuildRequest): Promise<BuiltReport> {
     pages: estimatePages(doc),
     capped: { projects: (pdata ?? []).length >= PROJECT_CAP, records: records.length >= RECORD_CAP },
     projects,
+    events,
     selection: {
       inScope: projects.length,
       detailed: detailedProjects.length,

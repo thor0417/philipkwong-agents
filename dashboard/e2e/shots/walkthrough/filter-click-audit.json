@@ -4,16 +4,16 @@
       "axis": "venue",
       "value": "Museum",
       "before": 267,
-      "expected": 38,
-      "afterClick": 38,
+      "expected": 37,
+      "afterClick": 37,
       "requests": 11
     },
     {
       "axis": "category",
       "value": "Entertainment/Attractions",
       "before": 267,
-      "expected": 86,
-      "afterClick": 86,
+      "expected": 84,
+      "afterClick": 84,
       "requests": 11
     },
     {

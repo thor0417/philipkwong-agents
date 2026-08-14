@@ -18,6 +18,7 @@
 // refuses to build one at all when the scope cannot be read.
 
 import { test, expect } from '@playwright/test';
+import { isProvisionalName } from '../lib/taxonomy';
 import { createClient } from '@supabase/supabase-js';
 import { writeFileSync, mkdirSync, readFileSync, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -113,7 +114,7 @@ test('a scoped client sees nothing outside their scope', async ({ page }) => {
   // a preview capped at a page and the claim is about the document.
   const { data: projects } = await admin
     .from('projects')
-    .select('id,name,market,region_state,country,stage,venue_type,development_category,record_count')
+    .select('id,name,market,region_state,country,stage,venue_type,development_category,record_count,name_source')
     .eq('module', 'gli')
     .neq('status', 'dismissed')
     .limit(3000);
@@ -150,6 +151,13 @@ test('a scoped client sees nothing outside their scope', async ({ page }) => {
       anyOf(p.id as string, 'category', categories) &&
       fold(p.stage) !== 'dormant' &&
       (p.record_count ?? 0) > 0
+      // A PROJECT WITH NO PUBLISHED NAME IS IN SCOPE AND NOT IN THE DOCUMENT.
+      // isProvisionalName excludes it from every client-facing document, and
+      // the coverage note states the count - so the composer legitimately shows
+      // fewer projects than the scope holds. Subtracted here rather than
+      // ignored, so this audit still fails if the SCOPE leaks while remaining
+      // correct about the exclusion.
+      && !isProvisionalName(p.name_source as string | null)
   );
   console.log(`database says the scope covers ${inScope.length} projects`);
   expect(shown, 'the composer and the database disagree about this scope').toBe(inScope.length);

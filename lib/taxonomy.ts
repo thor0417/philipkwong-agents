@@ -30,6 +30,14 @@ export const VENUE_TYPES = [
   'Resort',
   'Integrated Resort',
   'Casino/Gaming',
+  // A GOLF RESORT IS SQUARELY IN THE VERTICAL, and the taxonomy had no value
+  // for it, so four projects whose records unambiguously name a golf course -
+  // Desert Pines, Disney's Magnolia, Southern Highlands, and the exclusive
+  // negotiation agreement for Desert Pines - classified as NULL and appeared in
+  // the report's "no resolved category" section. Added properly rather than
+  // routed into Resort, which would have made a municipal course indistinguish-
+  // able from an integrated resort in the one column a client scope filters on.
+  'Golf/Resort Course',
   'Convention/Expo',
   // Urban and Development
   'Smart City',
@@ -132,6 +140,7 @@ export const VENUE_TO_CATEGORY: Record<VenueType, DevelopmentCategory> = {
   Resort: 'Hospitality/Tourism',
   'Integrated Resort': 'Hospitality/Tourism',
   'Casino/Gaming': 'Hospitality/Tourism',
+  'Golf/Resort Course': 'Hospitality/Tourism',
   'Convention/Expo': 'Hospitality/Tourism',
   'Smart City': 'Smart City/Urban',
   'Master-Planned Community': 'Smart City/Urban',
@@ -482,12 +491,36 @@ const VENUE_RULES: { venue: VenueType; keywords: string[] }[] = [
   // Entertainment District" is an Entertainment District, not Downtown
   // Redevelopment), so it is ordered before Convention/Expo and the urban block.
   { venue: 'Entertainment District', keywords: ['entertainment district', 'entertainment complex'] },
+  // GOLF, ON COMPOUND PHRASES ONLY, and placed above Resort.
+  //
+  // Bare 'golf' was measured and rejected: 27 records fire on it against 16 for
+  // the compounds, and the extra 11 are a Saudi press item about a PIF-backed
+  // operator, a 0.67-acre Anaheim development application and a Hollywood
+  // rezoning - a passing mention in each. This is the same discipline that
+  // stripped Entertainment Destination back to compound phrases: a word that
+  // appears near a project is not a statement that the project is one.
+  //
+  // ABOVE Resort so a golf resort reads as a golf resort, and below every
+  // specific venue above it so the CFTOD comprehensive plan stays a Theme Park
+  // and Bally's Bronx stays Casino/Gaming - both of which name a course in
+  // passing and were measured as at risk if this rule led.
+  //
+  // 'driving range' was tested and dropped: it fires on nothing this corpus
+  // holds, and a term that fires on nothing is dead weight.
   { venue: 'Resort', keywords: ['resort'] },
+  { venue: 'Golf/Resort Course', keywords: ['golf course', 'golf club', 'golf resort', 'golf links'] },
   // 'motel' was simply missing. Two SFWMD permits ("Motel 6, Disney World",
   // "Disney West Motel") sat unclassified because the rule knew 'hotel' and
   // 'lodging' but not the third word for the same thing. This is a gap, not a
   // new venue type: they are Hotels.
-  { venue: 'Hotel', keywords: ['hotel', 'motel', 'lodging', 'hospitality'] },
+  // 'lodge' and 'cabin' join 'motel' for exactly the reason 'motel' did: they
+  // are the third and fourth words for the same thing, and the gate has
+  // recognised them as accommodation vocabulary (GOV_GATE_WEAK) since the
+  // Disney permits were added. Measured over 1,646 live records: they touch
+  // TWO, both correct - Disney's Animal Kingdom Lodge and Disney's Fort
+  // Wilderness Cabin Improvements - and the three other records containing the
+  // words already classify as Theme Park and are unaffected.
+  { venue: 'Hotel', keywords: ['hotel', 'motel', 'lodge', 'cabin', 'lodging', 'hospitality'] },
   { venue: 'Convention/Expo', keywords: ['convention center', 'convention centre', 'convention', 'exhibition center', 'exhibition centre', 'expo', 'exposition', 'congress center', 'congress centre'] },
   { venue: 'Smart City', keywords: ['smart city'] },
   { venue: 'Master-Planned Community', keywords: ['master-planned community', 'master planned community', 'master-planned', 'masterplanned'] },
