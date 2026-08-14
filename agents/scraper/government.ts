@@ -38,7 +38,7 @@ import {
 import { lastAttachmentStats } from './sources/legistar-attachments';
 import { resetParseReports, printParseReports, allParseReports } from './sources/schemas';
 import { RunTimer } from './logger';
-import { initSentry, captureError, flushSentry } from './sentry';
+import { alarmError } from './alarm';
 import { recordSourceRun, reportRunHealth, resetSourceRuns } from './health';
 import { scrapeGovDocs, govDocMarkets } from './sources/govdocs';
 import {
@@ -623,7 +623,6 @@ function printGovernmentReport(
 }
 
 async function main(): Promise<void> {
-  initSentry();
   const run = new RunTimer('government');
   resetParseReports();
   // KNOWN-ENTITY BYPASS: the index is built from the project register BEFORE the
@@ -777,11 +776,12 @@ async function main(): Promise<void> {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  main()
-    .catch(async (err) => {
-      console.error('Government lane failed:', err);
-      captureError(err, { lane: 'government' });
-      process.exitCode = 1;
-    })
-    .finally(() => flushSentry());
+  // NOTHING TO FLUSH. The logger writes synchronously to stdout, so the
+  // .finally(flushSentry) that used to sit here - and the three-second wait it
+  // could impose on every run - is gone with the SDK it existed for.
+  main().catch((err) => {
+    console.error('Government lane failed:', err);
+    alarmError(err, { lane: 'government' });
+    process.exitCode = 1;
+  });
 }

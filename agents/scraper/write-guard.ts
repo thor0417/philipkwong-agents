@@ -21,7 +21,7 @@
 
 import { supabaseAdmin } from '../../lib/supabase-admin';
 import { logger } from './logger';
-import { captureWriteFailure } from './sentry';
+import { alarmWriteFailure } from './alarm';
 
 // Columns only Philip writes. Stripped from every scrape payload.
 export const OWNED_BY_USER = ['status', 'notes', 'manual_overrides', 'status_changed_at'] as const;
@@ -208,7 +208,7 @@ export async function guardedUpsert(
     const { error } = await supabaseAdmin.from('leads').upsert(payload, { onConflict: 'url' });
     if (error) {
       logger.error({ event: 'write.failed', url, err: error.message }, 'lead write failed');
-      captureWriteFailure(url, error.message);
+      alarmWriteFailure(url, error.message);
       report.failed++;
       continue;
     }

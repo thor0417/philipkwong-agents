@@ -36,11 +36,12 @@
     "dismiss:unadmitted": "node --env-file=.env.local --import tsx agents/scraper/migrations/dismiss-unadmitted-projects.ts",
     "park:compliance": "node --env-file=.env.local --import tsx agents/scraper/migrations/park-compliance-and-dismiss.ts",
     "names:audit": "node --env-file=.env.local --import tsx agents/scraper/name-audit.ts",
-    "rename:provisional": "node --env-file=.env.local --import tsx agents/scraper/migrations/rename-provisional-projects.ts"
+    "rename:provisional": "node --env-file=.env.local --import tsx agents/scraper/migrations/rename-provisional-projects.ts",
+    "verify:alarms": "node --env-file=.env.local --import tsx agents/scraper/verify-alarms.ts",
+    "verify:naming": "node --env-file=.env.local --import tsx agents/scraper/verify-naming.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.20.0",
-    "@sentry/node": "^10.68.0",
     "@supabase/supabase-js": "^2.39.0",
     "csv-parse": "^5.5.6",
     "date-fns": "^4.4.0",

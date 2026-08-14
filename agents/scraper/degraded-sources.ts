@@ -4,7 +4,7 @@
 // is not an alarm. It is a training exercise in ignoring alarms, and it costs
 // more than silence would, because it buries the one alert that is new.
 //
-// Measured: 194 Sentry events in a week, attributed to two documented failures
+// Measured: 194 alarm events in a week, attributed to two documented failures
 // that have not changed since the day they were diagnosed. Checking them against
 // a live run found that only ONE of the two is still real - Las Vegas PrimeGov
 // is still behind Cloudflare (HTTP 403), while Anaheim's hosts have recovered
@@ -28,9 +28,9 @@
 //
 // Concretely: an entry declares the verdict it expects while the condition
 // holds. If the observed verdict matches, the run report and the Health surface
-// still show it - it is never hidden, only de-escalated - and Sentry is not
+// still show it - it is never hidden, only de-escalated - and no alarm is
 // paged. If the observed verdict is ANYTHING else, including recovery, that is
-// news and Sentry hears about it. A source that starts returning records after
+// news and the alarm fires. A source that starts returning records after
 // being dead is exactly the case the brief names, and it alerts.
 //
 // NOTHING HERE SUPPRESSES A NEW FAILURE. Only the named unit, only the named
@@ -51,7 +51,7 @@ export interface DegradedSource {
   // a year is visibly a year old.
   recorded: string;
   // THE EXPECTED FAILURE. While the unit produces exactly this verdict, the
-  // condition is unchanged and Sentry is not paged. Any other verdict - better
+  // condition is unchanged and no alarm is raised. Any other verdict - better
   // or worse - is a change, and a change alerts.
   expect: HealthVerdict;
   // What would make this alert again, in plain words, for the run report.
@@ -117,7 +117,7 @@ export const DEGRADED_SOURCES: DegradedSource[] = [
 export interface DegradedMatch {
   entry: DegradedSource;
   // True when the observed verdict is the one the entry expects, so this is the
-  // known condition and Sentry stays quiet.
+  // known condition and the alarm stays quiet.
   asExpected: boolean;
 }
 
@@ -129,7 +129,7 @@ export function degradedEntry(unit: string): DegradedSource | null {
   return null;
 }
 
-// Should Sentry hear about this finding? A registered unit producing exactly the
+// Should this finding raise an alarm? A registered unit producing exactly the
 // verdict its entry expects is the known condition: reported, not paged.
 // Everything else pages, including a registered unit that has RECOVERED, because
 // the register is then wrong and someone has to remove the entry.

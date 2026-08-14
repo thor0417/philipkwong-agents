@@ -26,7 +26,7 @@
 // nothing is suspicious, and a unit that fetched nothing at all is worse.
 
 import { supabaseAdmin } from '../../lib/supabase-admin';
-import { captureDeadSource, captureDegradedRecovery, captureEmptyLane } from './sentry';
+import { alarmDeadSource, alarmDegradedRecovery, alarmEmptyLane } from './alarm';
 import { ageInDays, degradedEntry, suppressesAlert } from './degraded-sources';
 
 export interface SourceRun {
@@ -133,8 +133,21 @@ export async function loadBaselines(lane?: string): Promise<Map<string, number>>
 
 // Persist this run's counts so future runs have a baseline. Best-effort: a
 // missing table must never fail a scrape.
+// A VERIFICATION RUN MUST NOT BECOME TOMORROW'S BASELINE.
+//
+// verify-alarms drives reportRunHealth with invented counts to prove the alarm
+// still fires. Those counts were being inserted into source_health, so a fake
+// "legistar fetched 0" row joined the history that judges the real legistar -
+// and the harness reported "usually 3.7" on its second run, a baseline it had
+// written itself. A test that changes the thing it measures is not a test.
+//
+// Set by the harness, never by a lane. It suppresses the WRITE only: the run is
+// still judged against real history and still alarms, which is the whole point.
+const NO_HEALTH_WRITE = process.env.HEALTH_NO_WRITE === '1';
+
 export async function persistSourceRuns(rs: SourceRun[]): Promise<boolean> {
   if (rs.length === 0) return true;
+  if (NO_HEALTH_WRITE) return true;
   const { error } = await supabaseAdmin.from('source_health').insert(
     rs.map((r) => ({ unit: r.unit, lane: r.lane, fetched: r.fetched, kept: r.kept }))
   );
@@ -182,7 +195,8 @@ export async function reportRunHealth(
   //     Run health: 0 of 0 sources produced records.
   //       LANE ALERT: "government" fetched 0 and wrote 0 (total death)
   //
-  // and page Sentry at fatal. The lane was working exactly as designed.
+  // and raise the zero-write alarm at fatal. The lane was working exactly as
+  // designed.
   //
   // The distinction is exact and needs no new plumbing. Only adapters that RAN
   // record a source run, so an empty `rs` means no adapter was selected, while
@@ -208,7 +222,7 @@ export async function reportRunHealth(
   // THE KNOWN-DEGRADED REGISTER decides who gets paged, never who gets shown.
   // A registered unit producing exactly the failure its entry expects is the
   // documented condition: it appears in the run report and on the Health surface
-  // above, and Sentry is not woken for it. Anything else - a different failure,
+  // above, and no alarm is raised for it. Anything else - a different failure,
   // or a recovery - is a change, and a change alerts.
   for (const f of findings) {
     if (f.verdict === 'ok') {
@@ -219,7 +233,7 @@ export async function reportRunHealth(
           `  DEGRADED-SOURCE RECOVERY: "${f.unit}" kept ${f.kept} and is registered as degraded ` +
             `since ${known.entry.recorded}. Remove its entry in agents/scraper/degraded-sources.`
         );
-        captureDegradedRecovery({
+        alarmDegradedRecovery({
           unit: f.unit,
           lane: f.lane,
           fetched: f.fetched,
@@ -231,7 +245,7 @@ export async function reportRunHealth(
     }
     const known = suppressesAlert(f.unit, f.verdict);
     if (known?.asExpected) continue;
-    captureDeadSource({
+    alarmDeadSource({
       unit: f.unit,
       lane: f.lane,
       fetched: f.fetched,
@@ -243,7 +257,7 @@ export async function reportRunHealth(
 
   // Lane-level check as well: a lane can write nothing even when no individual
   // source looks dead, and vice versa.
-  captureEmptyLane(lane, laneTotals.fetched, laneTotals.written, rs.length);
+  alarmEmptyLane(lane, laneTotals.fetched, laneTotals.written, rs.length);
   if (laneTotals.written === 0) {
     console.log(
       `  LANE ALERT: "${lane}" fetched ${laneTotals.fetched} and wrote 0` +
