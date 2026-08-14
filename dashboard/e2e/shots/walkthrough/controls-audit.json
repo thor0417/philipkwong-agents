@@ -224,13 +224,13 @@
       {
         "label": "venue=Hotel",
         "url": "/register?view=all&country=any&venue=Hotel",
-        "total": 36,
+        "total": 38,
         "verdict": "changed"
       },
       {
         "label": "category=Hospitality/Tourism",
         "url": "/register?view=all&country=any&category=Hospitality%2FTourism",
-        "total": 80,
+        "total": 86,
         "verdict": "changed"
       },
       {

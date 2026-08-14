@@ -79,6 +79,24 @@ const ATTACHMENT_CONCURRENCY = 4;
 //     - Orange County FL ('orangecountyfl','ocfl','orange') and Orlando
 //       ('orlando','orlandofl','cityoforlando') -> not on Legistar; the Disney/
 //       Universal orbit is covered by CFTOD + FL comprehensive-plan document sources.
+//
+// RE-PROBED 2026-08-14 for the Florida and Miami gap. Orange County (7 code
+// variants), Orlando (5), Osceola (5) and Miami Beach (5) all answer HTTP 500 on
+// every variant. Orlando runs NovusAgenda, Miami Beach runs Granicus, and
+// Orange County and Osceola have no platform this repo can read. See
+// docs/COVERAGE-MAP.md.
+//
+// AND ONE TRAP, WHICH IS WHY THIS NOTE IS LONGER THAN IT LOOKS. City of Miami
+// answers HTTP 200 on client 'miamifl', so it looks like a two-line config row.
+// It is a TEST INSTANCE: six matters total, two of them titled "Test item" and
+// "Test March 26, 2026 Resolution Item", four events, nothing matching a leisure
+// or entitlement word. The city publishes through miamifl.granicus.com instead,
+// where the same view carries 313 agendas.
+//
+// A 200 FROM /Bodies IS NOT EVIDENCE OF A USABLE JURISDICTION. Check the matter
+// count and read the titles before adding a row. miamidade is the same warning
+// from the other end: it answers 200 and holds 107 matters, all introduced
+// between 2016 and 2018.
 export interface LegistarJurisdiction {
   client: string;
   jurisdictionLabel: string;

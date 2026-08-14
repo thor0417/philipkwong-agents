@@ -69,19 +69,45 @@ test('walkthrough captures', async ({ page }) => {
   const ids = await page
     .locator('[data-row-id]')
     .evaluateAll((els) => els.slice(0, 10).map((e) => e.getAttribute('data-row-id')));
+  // SELECTED ON THE THING THAT IS LATER ASSERTED, which it was not.
+  //
+  // The loop used to accept any project whose DETAIL PANE showed parties, and
+  // step 4 then required a COMPANY LINK on the project page. Those are two
+  // different facts: a party is a name on a filing, and a company link exists
+  // only where the companies layer has attached that party to a company row. It
+  // held by luck until the register's top ten shifted, and then the run failed
+  // three steps after the choice that caused it, with a timeout rather than a
+  // reason.
+  //
+  // Now the project page itself is the test: a candidate is chosen only if it
+  // has a party to follow, which is exactly what step 4 needs.
   let chosen = ids[0];
+  let chosenCompany: string | null = null;
   for (const id of ids) {
+    await page.goto(`/project/${id}`, { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('h1')).toBeVisible({ timeout: 60_000 });
+    const href = await page
+      .locator('a[href^="/company/"]')
+      .first()
+      .getAttribute('href')
+      .catch(() => null);
+    if (!href) continue;
     await page.goto(`/register?selected=${id}`, { waitUntil: 'domcontentloaded' });
     await expect(page.locator('aside[aria-label="Project detail"]')).toBeVisible({
       timeout: 60_000,
     });
-    const parties = await page.locator('aside dl dd').count();
     const rows = await page.locator('aside ol li').count();
-    if (parties > 0 && rows > 1) {
+    if (rows > 1) {
       chosen = id;
+      chosenCompany = href;
       break;
     }
   }
+  expect(
+    chosenCompany,
+    'none of the top ten register rows has a company to follow, so the walkthrough cannot photograph one'
+  ).toBeTruthy();
+  console.log(`walkthrough project: ${chosen} -> ${chosenCompany}`);
   await page.goto(`/register?selected=${chosen}`, { waitUntil: 'domcontentloaded' });
   await expect(page.locator('aside[aria-label="Project detail"]')).toBeVisible({ timeout: 60_000 });
   await settle(page);
@@ -95,9 +121,8 @@ test('walkthrough captures', async ({ page }) => {
   await page.screenshot({ path: OUT('3-project'), fullPage: true, animations: 'disabled' });
 
   // ---- 4. Company page, reached the way a person reaches it.
-  const companyHref = await page.locator('a[href^="/company/"]').first().getAttribute('href');
-  expect(companyHref, 'the chosen project had no party to follow').toBeTruthy();
-  await page.goto(companyHref as string, { waitUntil: 'domcontentloaded' });
+  // The link found during selection, so this step cannot disagree with it.
+  await page.goto(chosenCompany as string, { waitUntil: 'domcontentloaded' });
   await expect(page.locator('h1')).toBeVisible({ timeout: 60_000 });
   await settle(page);
   await unlockHeight(page);

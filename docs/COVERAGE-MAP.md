@@ -273,6 +273,82 @@ the single largest known gap in the downstate picture.
 
 ---
 
+---
+
+## Central Florida and Miami, probed 2026-08-14 - ALL FIVE NEED ADAPTER WORK
+
+Florida coverage today is **Disney only**: CFTOD governs Walt Disney World and
+the SFWMD permits in Lake Buena Vista are Disney's land. Universal Epic
+Universe, the I-Drive hotel corridor, SeaWorld and the Orange County Convention
+Center district are invisible, in the busiest theme-park corridor in the world.
+Miami has the same shape one layer down: Miami-Dade County is configured, but
+the county handles the airport, seaport, transit and unincorporated land, while
+hospitality files with the City of Miami and Miami Beach.
+
+Five jurisdictions were probed against every platform this repo can read. **None
+is a config row. Every one is adapter work**, and the work differs per market.
+
+| jurisdiction | platform | evidence | config row? |
+|---|---|---|---|
+| Orange County, FL | none identified | not on Legistar (7 code variants, all HTTP 500); no Granicus, PrimeGov, IQM2, CivicClerk, CivicWeb or NovusAgenda instance answers. `apps.ocfl.net/agenda/` returns the same 7,420-byte shell for every path, so it is a JS application | **no** - adapter work, and the platform is not yet known |
+| City of Orlando, FL | **NovusAgenda** | `orlando.novusagenda.com` is live and real (79 KB listing, meeting ids resolve) | **no** - no NovusAgenda adapter exists |
+| Osceola County, FL | none identified | not on Legistar, Granicus, NovusAgenda, IQM2, CivicWeb or CivicClerk under any code tried. The `granicus` strings on osceola.org are the OpenCities **website** product, not an agenda system | **no** - adapter work, platform unknown |
+| City of Miami, FL | **Granicus** | `miamifl.granicus.com` view_id=1 is 5.99 MB and carries 313 AgendaViewer links | **no** - see below |
+| Miami Beach, FL | **Granicus**, but empty at the public view | `miamibeachfl.granicus.com` view_id=1 returns 46 KB with **zero** agenda, minutes, media or clip links; view_id 2-6 all 404 | **no** - adapter work, and there may be nothing to read |
+
+### The City of Miami Legistar trap
+
+`webapi.legistar.com/v1/miamifl/Bodies` answers **HTTP 200**, and adding a
+config row on that basis is the obvious mistake. It is a **test instance**:
+
+```
+Matters (no filter, top 1000): 6
+  25-023   2026-03-25  Test March 26, 2026 Resolution Item
+  26-0018  2026-04-29  Test item
+  26-0020  2026-05-13  Minutes of May 18th, 2026 of the City Commission
+  ...
+Events: 4
+```
+
+Six matters, two of them literally titled "Test item", none matching any
+leisure or entitlement word. The city publishes through Granicus instead. **A
+200 from Legistar is not evidence of a usable jurisdiction; check the matter
+count and the titles.**
+
+### Why Granicus is not a config row either
+
+`sources/agenda-portal.ts` supports Granicus for **Anaheim specifically**:
+`ANAHEIM_VIEWPUBLISHER` is a constant, `parseAnaheimMeetings` hard-codes the
+body names `City Council|Planning Commission`, and `scrapeAnaheimAgendas` is a
+named function. Adding a Granicus market means generalising that adapter into a
+configured one - real work, and worth doing once for Miami rather than twice.
+
+### Two blockers found by fetching, not by reading
+
+Both were found by running the gate over real fetched text (read-only, nothing
+stored):
+
+- **Miami's AgendaViewer pages do not fetch from this runtime.** The 313 links
+  exist in the listing; `AgendaViewer.php?view_id=1&clip_id=NNNN` fails with a
+  transport error. Same class as [[anaheim-agenda-hosts]], where Granicus
+  stopped serving agendas inline. This must be resolved before any Miami adapter
+  is costed, because it may be the whole job.
+- **Orlando serves agendas as PDF.** `DisplayAgendaPDF.ashx?MeetingID=NNNN`
+  returns a binary; run through the HTML text extractor it yields PDF stream
+  noise, and the gate correctly rejects all of it as `no-match`. The repo has
+  `fetchPdfPages` already, so this is plumbing rather than research - but it is
+  plumbing plus an ASP.NET WebForms listing whose links are all `WebResource.axd`
+  postbacks.
+
+### What this means for a claim of coverage
+
+Florida is Disney-only today and stays Disney-only until one of these adapters
+is built. Orange County is where Universal Epic Universe, the convention centre
+and the I-Drive corridor file, and it is the one with **no identified platform
+at all** - so it is the highest value and the least tractable of the five.
+
+---
+
 ## Layer 6, special regulators: NONE in every market
 
 Probed 2026-08-08. A licence application often precedes the land use filing, so

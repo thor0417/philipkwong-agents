@@ -220,8 +220,8 @@
     {
       "axis": "venue",
       "value": "Hotel",
-      "chipCount": 30,
-      "total": 36,
+      "chipCount": 32,
+      "total": 38,
       "gap": 6,
       "escapees": 0
     },
@@ -244,8 +244,8 @@
     {
       "axis": "category",
       "value": "Hospitality/Tourism",
-      "chipCount": 70,
-      "total": 80,
+      "chipCount": 76,
+      "total": 86,
       "gap": 10,
       "escapees": 0
     },
