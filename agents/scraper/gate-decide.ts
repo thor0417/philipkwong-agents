@@ -163,6 +163,11 @@ export function admissionLabel(d: GateDecision, hits?: string): string {
   }
 }
 
+// VERDICTS NO BYPASS MAY OVERRIDE. Both are statements that the record is not a
+// project filing AT ALL, rather than statements that its vocabulary was thin, so
+// a tracked name appearing somewhere in the text cannot argue with either.
+const REFUSED_BY_RULE = new Set<GateReason>(['excluded', 'governance-instrument']);
+
 export function decide(c: GateCandidate): GateDecision {
   // The market is passed because one rule is calibrated per market. Every other
   // rule ignores it, and a candidate whose market is unknown gets the global
@@ -209,7 +214,14 @@ export function decide(c: GateCandidate): GateDecision {
   // This aligns the named-target bypass with the known-entity bypass below,
   // which has never overridden an exclusion. The asymmetry noted there is now
   // closed rather than merely observed.
-  if (bypass && verdict.reason !== 'excluded') {
+  //
+  // A GOVERNANCE INSTRUMENT BEATS IT FOR THE SAME REASON. The 21 unclustered
+  // New York design-commission agendas in the live corpus are admitted here,
+  // not by the vocabulary: they carry a tracked term because the commission
+  // reviewed a tracked project that month. A meeting agenda is not a filing on
+  // the project it discusses, and treating it as one is how an eight-record
+  // project came to be called "Brooklyn Borough Board Meeting via Webex".
+  if (bypass && !REFUSED_BY_RULE.has(verdict.reason)) {
     return { admitted: true, reason: 'bypass', verdict, bypass };
   }
 
@@ -230,7 +242,7 @@ export function decide(c: GateCandidate): GateDecision {
   //
   // It respects the detached-residential veto, so a tracked project's
   // single-family subdivision filings stay out exactly as Part 2 decided.
-  if (verdict.reason !== 'excluded' && !isDetachedResidential(c.gate_text)) {
+  if (!REFUSED_BY_RULE.has(verdict.reason) && !isDetachedResidential(c.gate_text)) {
     const entity = knownEntityHit(c.gate_text, c.market);
     if (entity) return { admitted: true, reason: 'known-entity', verdict, bypass, entity };
   }

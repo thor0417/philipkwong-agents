@@ -1115,8 +1115,104 @@ export function isCivicInstitutional(text: string): boolean {
   return false;
 }
 
+
+// ---- A GOVERNANCE INSTRUMENT IS NEVER A PROJECT -----------------------------
+//
+// A MEETING, A BUDGET ORDINANCE AND A TAX LEVY ARE NOT DEVELOPMENTS, in any
+// market, ever. They are the government describing its own procedure, and no
+// amount of leisure vocabulary inside one changes what it is.
+//
+// WHY THIS IS NOT IN GOV_GATE_OUT_OF_VERTICAL, which was the obvious place.
+// That list is CONDITIONAL - conclusive only when nothing hospitality-shaped is
+// in the record - and measured against the frozen corpus it saved 23 of the 25
+// records this class was written to remove, including all three the brief named:
+//
+//   Yonkers special ordinance   admitted on STRONG 'museum', from
+//                               "...FOR THE PURPOSE OF: 1) SNOW AND ICE CONTROL
+//                               STREET MAINTENANCE MATERIAL, AND 2) MUSEUM
+//                               SPECIAL PROJECTS"
+//   Oakland tax levy            admitted on STRONG 'zoo', from
+//                               "The 2022 Oakland Zoo Animal Care, Education And
+//                               Improvement Ordinance (Measure Y)"
+//
+// Neither is a leisure filing. Both are a leisure noun inside an enumeration -
+// a budget account, a ballot-measure name - which is the same borrowed-context
+// failure as "CR (Commercial Resort) Zone", one layer up.
+//
+// AND A HARD VETO IS WRONG TOO. Measured: a veto that beats STRONG removes 25
+// records and takes a real one with it - Westchester's "CBA-RP02A-3248-Ice
+// Casino Improvements II", a capital budget amendment for the Playland Ice
+// Casino, which is a genuine leisure capital project and is labelled relevant.
+//
+// SO THE DISCRIMINATOR IS POSITION, and it is the principle the gate already
+// uses when it judges an item's own subject rather than the page around it: A
+// GOVERNANCE INSTRUMENT NAMES ITS MATTER IN ITS OPENING. A leisure noun in the
+// first GOVERNANCE_NAMING_WINDOW characters is what the instrument is ABOUT; one
+// further down is an account line, a measure title or an attachment list.
+//
+//   "CBA-RP02A-3248-Ice Casino Improvements II"   'casino' at char 19  -> kept
+//   Yonkers, 'museum' past char 200                                    -> excluded
+//   Oakland, 'zoo' past char 300                                       -> excluded
+//
+// MEASURED BEFORE APPLYING, against the frozen corpus of 7,419 candidates:
+// removes 24 of 329 admitted records, precision 54.8% -> 58.4%, and loses
+// exactly ONE labelled-relevant record - "Queens Borough Board Meeting on Monday
+// May 6, 2024", a meeting agenda carrying Willets Point business terms in its
+// body. Its project keeps 11 other filings. That is the whole cost, and it is
+// named here rather than discovered later.
+//
+// Live corpus: 29 records, 21 of them already unclustered. Two projects are
+// emptied and both were provisional-named - the Yonkers ordinance and the
+// Oakland levy, which is the brief's point exactly.
+export const GOVERNANCE_NAMING_WINDOW = 120;
+
+// THE MEETING LIMB IS SUBJECT-SCOPED, and that is load-bearing. San Antonio
+// staples "TIF_MIDTOWN TIRZ Board Meeting_8.31.21" into the body of every TIF
+// matter, so a term matched anywhere would kill the Encore Multifamily
+// calibration probe. A meeting item announces itself on its first line.
+const GOVERNANCE_MEETING: RegExp[] = [
+  /^\s*(?:[\d.]+\s*)?(?:notice of (?:a )?)?[A-Za-z' ()\/-]{0,50}\b(?:board|commission|council|committee|authority|agency|district)\s+meeting\b/i,
+  /^\s*(?:[\d.]+\s*)?(?:special|regular|annual|joint|adjourned)\s+meeting\b/i,
+];
+
+// The other two limbs are specific enough to match anywhere. "Amending the
+// budget", "transferring funds to and from" and "levying tax" cannot be
+// anything but the instrument speaking.
+const GOVERNANCE_BUDGET =
+  /\b(?:amending|amendment to|amend)\s+the\s+budget\b|\bbudget\s+(?:amendment|transfer|adjustment|modification)\b|\bsupplemental\s+appropriation\b|\btransferring\s+funds\s+to\s+and\s+from\b|\bappropriation\s+ordinance\b/i;
+
+const GOVERNANCE_TAX_LEVY =
+  /\blevying\s+(?:the\s+|a\s+|of\s+)?tax(?:es)?\b|\bfixing\s+(?:the\s+)?rate\s+of\s+tax\b|\bcost[-\s]of[-\s]living\s+tax\s+adjustment\b|\btax\s+levy\b|\blevy\s+of\s+taxes\b|\bsetting\s+the\s+tax\s+rate\b/i;
+
+export type GovernanceLimb = 'meeting' | 'budget-ordinance' | 'tax-levy';
+
+/** Which limb the text is, ignoring position. Exported for the audit harness. */
+export function governanceLimb(text: string): GovernanceLimb | null {
+  const subject = String(text ?? '').split(/\r?\n/)[0] ?? '';
+  if (GOVERNANCE_MEETING.some((re) => re.test(subject))) return 'meeting';
+  if (GOVERNANCE_BUDGET.test(text)) return 'budget-ordinance';
+  if (GOVERNANCE_TAX_LEVY.test(text)) return 'tax-levy';
+  return null;
+}
+
+/**
+ * The limb to exclude on, or null to let the record through.
+ *
+ * Null when a STRONG term appears in the naming window, because then the
+ * instrument is ABOUT that venue: a capital budget amendment for an ice casino
+ * is a filing on an ice casino.
+ */
+export function governanceExclusion(text: string, strongHits: readonly string[]): GovernanceLimb | null {
+  const limb = governanceLimb(text);
+  if (!limb) return null;
+  const head = String(text ?? '').slice(0, GOVERNANCE_NAMING_WINDOW).toLowerCase();
+  if (strongHits.some((t) => head.includes(t.toLowerCase()))) return null;
+  return limb;
+}
+
 export type GateReason =
   | 'strong'
+  | 'governance-instrument'
   | 'weak+action'
   | 'deal'
   | 'excluded'
@@ -1134,6 +1230,8 @@ export interface GateVerdict {
   dealHits: string[];
   exclusionHits: string[];
   outOfVerticalHits: string[];
+  // Which governance limb fired, when one did. Null otherwise.
+  governanceLimb: GovernanceLimb | null;
 }
 
 // Two-tier gate verdict for a government record's combined text. Exclusions win
@@ -1191,10 +1289,29 @@ export function governmentGate(raw: string, market?: string | null): GateVerdict
   const dealHits = GOV_GATE_DEAL.filter((t) => hasWord(text, t));
   const exclusionHits = GOV_GATE_EXCLUSIONS.filter((t) => hasWord(text, t));
   const outOfVerticalHits = GOV_GATE_OUT_OF_VERTICAL.filter((t) => hasWord(text, t));
-  const hits = { strongHits, weakHits, actionHits, dealHits, exclusionHits, outOfVerticalHits };
+  // Judged on the RAW text, not the neutralised one: the naming window is about
+  // where a word sits in the item as written, and blanking a phrase would move
+  // every later character.
+  const govLimb = governanceExclusion(raw, strongHits);
+  const hits = {
+    strongHits,
+    weakHits,
+    actionHits,
+    dealHits,
+    exclusionHits,
+    outOfVerticalHits,
+    governanceLimb: govLimb,
+  };
 
   if (exclusionHits.length > 0) {
     return { matched: false, reason: 'excluded', ...hits };
+  }
+  // ABOVE STRONG, DELIBERATELY, AND ONLY BECAUSE OF THE NAMING WINDOW. See
+  // governanceExclusion: a strong term inside the window has already returned
+  // null, so this can only fire when the leisure noun is somewhere the
+  // instrument merely lists it.
+  if (govLimb) {
+    return { matched: false, reason: 'governance-instrument', ...hits };
   }
   if (strongHits.length > 0) {
     return { matched: true, reason: 'strong', ...hits };
