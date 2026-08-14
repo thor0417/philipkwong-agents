@@ -18,7 +18,8 @@ import { applyProjectFilters, PROJECT_COLUMNS, type Project, type TimelineRecord
 import { LIVE_PIPELINE_STORAGE_KEY } from './pipelines';
 import type { ResolvedPeriod } from './period';
 import { DEFAULT_SECTION_IDS, sectionById, type SectionContext } from './report-sections';
-import { estimatePages, type ReportDocument } from './report-model';
+import { estimatePages, type Entry, type ReportDocument } from './report-model';
+import { buildEntry } from './report-entry';
 import { streamLabel } from './streams';
 import { normaliseParty, type PartyHistory } from './people';
 
@@ -279,6 +280,51 @@ export async function buildReport(req: BuildRequest): Promise<BuiltReport> {
   const detailedProjects = ranked.slice(0, detailCap);
   const undetailedProjects = ranked.slice(detailCap);
 
+  // ---- THE ENTRIES, BUILT ONCE ------------------------------------------
+  //
+  // Ordered by MARKET and then by significance inside it, so that the category
+  // sections can print a market subheading whenever `group` changes and never
+  // print the same market twice. Markets ordered by how much of the document
+  // they hold, which is a consequence of significance rather than of how many
+  // rows a clerk happened to file.
+  //
+  // Built here rather than in a section because two sections now need the
+  // result: the category sections print the entries, and the coverage note
+  // counts the filings they held back. See SectionContext.entries.
+  const recordsByProject = new Map<string, typeof records>();
+  for (const r of records) {
+    const id = r.project_id ?? '';
+    if (!id) continue;
+    if (!recordsByProject.has(id)) recordsByProject.set(id, []);
+    recordsByProject.get(id)!.push(r);
+  }
+  const placeOf = (p: Project) => p.market ?? p.region_state ?? '';
+  const marketWeight = new Map<string, number>();
+  for (const p of detailedProjects) {
+    marketWeight.set(placeOf(p), (marketWeight.get(placeOf(p)) ?? 0) + 1);
+  }
+  const grouped = [...detailedProjects].sort(
+    (a, b) =>
+      (marketWeight.get(placeOf(b)) ?? 0) - (marketWeight.get(placeOf(a)) ?? 0) ||
+      placeOf(a).localeCompare(placeOf(b)) ||
+      (b.significance ?? -1) - (a.significance ?? -1) ||
+      a.name.localeCompare(b.name)
+  );
+  const entries: Entry[] = [];
+  let heldRecords = 0;
+  let mergedRecords = 0;
+  for (const p of grouped) {
+    const built = buildEntry(p, recordsByProject.get(p.id) ?? [], { history: partyHistory });
+    // Eligibility was settled before selection, so every detailed project has a
+    // filing in the period and this cannot normally fire. It stays because
+    // "cannot normally" is not "cannot", and an entry with nothing to cite must
+    // never be printed.
+    if (!built) continue;
+    heldRecords += built.held;
+    mergedRecords += built.merged;
+    entries.push({ ...built.entry, group: placeOf(p) || null });
+  }
+
   const ctx: SectionContext = {
     projects,
     detailedProjects,
@@ -287,6 +333,10 @@ export async function buildReport(req: BuildRequest): Promise<BuiltReport> {
     unplacedProjects: unplaced,
     excludedHollow,
     detailCap,
+    entries,
+    heldRecords,
+    mergedRecords,
+    pipelineId: req.scope.pipeline_id,
     records,
     partyHistory,
     events,
@@ -327,7 +377,12 @@ export async function buildReport(req: BuildRequest): Promise<BuiltReport> {
       ].filter(Boolean),
       periodOpen: !req.period.closed,
     },
-    sections: chosen.map((s) => s.build(ctx)),
+    // A registry entry may produce several sections - the category block is one
+    // entry and N headings - so the result is flattened in document order.
+    sections: chosen.flatMap((s) => {
+      const built = s.build(ctx);
+      return Array.isArray(built) ? built : [built];
+    }),
     projectCount: projects.length,
     recordCount: records.length,
   };

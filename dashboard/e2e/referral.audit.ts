@@ -60,7 +60,7 @@ test('the project page starts a referral brief for that project', async ({ page 
   out.sections = sections;
   expect(sections, 'the referral preset did not seed the section list').toEqual([
     'cover',
-    'markets',
+    'categories',
     'appendix',
     'coverage',
   ]);

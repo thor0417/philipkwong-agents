@@ -204,6 +204,16 @@ export interface Entry {
   name: string;
   // Market and stage, printed small beside the name.
   meta: string;
+  // THE SUBHEADING THIS ENTRY SITS UNDER. Geography, inside a category section:
+  // the renderer prints it whenever it changes and never twice in a row, so a
+  // category holding one market prints one subheading and a category holding
+  // seven prints seven. Null in a document that does not group.
+  //
+  // A FIELD ON THE ENTRY RATHER THAN A NESTED GROUP TYPE, because the
+  // provenance gate walks section.entries and every check it makes is per
+  // entry. Nesting would have meant teaching the gate about a second level of
+  // structure to gain nothing it needs.
+  group?: string | null;
   // SENTENCE ONE: quoted from a filing, with the filing's link. Null when the
   // project has no derived summary - 60 of 171 do not, and inventing one for
   // them is the failure this whole layer exists to prevent.

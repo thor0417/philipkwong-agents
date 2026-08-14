@@ -226,7 +226,7 @@ test('composer generates three documents', async ({ page }, testInfo) => {
   }
   expect(chosen, 'no project in this scope has a filing in the period to write a brief about').not.toBeNull();
   // Trim to the two sections a referral needs.
-  for (const id of ['moved', 'markets', 'hearings', 'watchlist', 'coverage']) {
+  for (const id of ['moved', 'categories', 'hearings', 'watchlist', 'coverage']) {
     const remove = page.locator(`[data-section="${id}"] button`);
     if (await remove.count()) await remove.click();
   }

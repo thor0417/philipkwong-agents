@@ -62,6 +62,33 @@ export const DEVELOPMENT_CATEGORIES = [
 
 export type DevelopmentCategory = (typeof DEVELOPMENT_CATEGORIES)[number];
 
+// ---- WHICH CATEGORIES A PIPELINE'S DOCUMENTS ARE SECTIONED BY ----------------
+//
+// THE REPORT'S SECTION LIST IS THIS LIST, READ AT BUILD TIME. It is not typed
+// out in report-sections and it is not derived from whatever categories happen
+// to be present in the data: a section list built from the data cannot tell
+// "this category is empty this month" from "this category does not exist", and
+// the first is worth saying while the second is noise.
+//
+// KEYED ON pipeline_id BECAUSE A CATEGORY IS A PROPERTY OF A LINE OF BUSINESS.
+// The hospitality pipeline is sectioned by development category, which is the
+// locked list above. A fuel or consulting pipeline would be sectioned by
+// something else, and when one arrives it adds a row here rather than a branch
+// in the report.
+//
+// The fallback is deliberate and stated: an unregistered pipeline gets the
+// development categories, because that is what every project row in this
+// database carries today. It is a fallback to the truth, not to a guess.
+const PIPELINE_CATEGORIES: Record<string, readonly DevelopmentCategory[]> = {
+  hospitality: DEVELOPMENT_CATEGORIES,
+};
+
+export function categoriesForPipeline(
+  pipelineId: string | null | undefined
+): readonly DevelopmentCategory[] {
+  return PIPELINE_CATEGORIES[String(pipelineId ?? '')] ?? DEVELOPMENT_CATEGORIES;
+}
+
 // Each venue_type maps to exactly one development_category.
 export const VENUE_TO_CATEGORY: Record<VenueType, DevelopmentCategory> = {
   'Theme Park': 'Entertainment/Attractions',

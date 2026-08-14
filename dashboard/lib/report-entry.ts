@@ -135,8 +135,19 @@ function brandCasing(projectName: string): Map<string, string> {
 function restoreBrands(text: string, source: string, brands: Map<string, string>): string {
   if (brands.size === 0) return text;
   return text.replace(/\b[A-Za-z][A-Za-z0-9']{2,}\b/g, (word) => {
-    const canonical = brands.get(word.toLowerCase());
-    if (!canonical || word === canonical) return word;
+    // A POSSESSIVE IS STILL THE BRAND. The token pattern takes the apostrophe
+    // with it, so "OCVIBE's" arrived here as one word, missed the lookup keyed
+    // on "ocvibe", and stayed deshouted: a headline reading "Ocvibe's $5B
+    // Vision" under a line whose own prefix says "OCVibe:".
+    const possessive = /['’]s$/.exec(word);
+    const bare = possessive ? word.slice(0, -2) : word;
+    const canonical = brands.get(bare.toLowerCase());
+    if (!canonical || bare === canonical) return word;
+    if (possessive) {
+      const shouted = new RegExp(`\\b${bare.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+      const hit = shouted.exec(source);
+      return hit && hit[0] === hit[0].toUpperCase() ? `${canonical}${possessive[0]}` : word;
+    }
     // Only where the SOURCE shouted it. A source that already wrote "OCVibe"
     // needs no help, and a lower-case word in the source was never a brand.
     const shouted = new RegExp(`\\b${word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
@@ -187,6 +198,37 @@ function actionText(
   // stop mid-thought for no reason. One period is punctuation and goes; three
   // are a statement that there was more, and stay.
   return /\.\.\.$/.test(text) ? text : text.replace(/[.\s]+$/, '');
+}
+
+/**
+ * ONE RECORD, AS A SENTENCE, FOR THE SECTIONS THAT PRINT LINES.
+ *
+ * THE ENTRIES WERE CLEANED AND THE LINES WERE NOT. Headline finds, Upcoming
+ * hearings, the watch list and both appendices all printed `r.title` raw, so a
+ * document whose category sections read
+ *
+ *   Mirage Propco casino - Design review for a proposed theater expansion in
+ *   conjunction with a previously approved resort hotel
+ *
+ * carried, three pages earlier, under Headline finds:
+ *
+ *   DR-26-0313-MIRAGE PROPCO, LLC:\nDESIGN REVIEW for a proposed theater
+ *   expansion ... TS/hw/cv  (For possible action)
+ *
+ * complete with the clerk's initials, the routing code, the embedded newline
+ * and the block capitals. Two renderings of one record in one document, and the
+ * uglier one is the section a reader reaches first.
+ *
+ * THE PROJECT NAME IS PASSED WHERE THE CALLER HAS ONE, for the same reason the
+ * entries pass it: deshouting is right for a clerk's block capitals and wrong
+ * for a brand that is genuinely capitalised, and the register's own name for the
+ * thing is what settles which is which. Without it, "OCVIBE's $5B Vision" came
+ * back as "Ocvibe's" on a line whose own prefix reads "OCVibe:".
+ */
+export function recordSentence(r: ScopedRecord, projectName?: string | null): string {
+  const reference = referenceOf(r);
+  const text = actionText(r, reference, brandCasing(String(projectName ?? '')));
+  return reference ? `${reference}: ${text}` : text;
 }
 
 // ---- FIGURES -----------------------------------------------------------------

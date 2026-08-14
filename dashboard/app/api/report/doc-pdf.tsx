@@ -35,6 +35,7 @@ const s = StyleSheet.create({
 
   key: { flexDirection: 'row', gap: 12, marginBottom: 14 },
   keyItem: { fontSize: 7.5, color: MUTED },
+  keyProse: { fontSize: 7.5, color: MUTED, lineHeight: 1.45 },
 
   sectionTitle: { fontSize: 12, marginTop: 16, marginBottom: 2, borderBottomWidth: 0.5, borderBottomColor: RULE, paddingBottom: 3 },
   lede: { fontSize: 8, color: MUTED, marginBottom: 6 },
@@ -49,6 +50,22 @@ const s = StyleSheet.create({
 
   commentary: { borderLeftWidth: 2, borderLeftColor: ACCENT, paddingLeft: 8, marginTop: 8, marginBottom: 4 },
   commentaryHead: { fontSize: 7, letterSpacing: 0.8, color: ACCENT, textTransform: 'uppercase', marginBottom: 3 },
+
+  // THE GEOGRAPHY SUBHEADING, INSIDE A CATEGORY SECTION. Smaller than a section
+  // title and larger than an entry name, because that is exactly where it sits
+  // in the hierarchy: the reader is inside "Hospitality/Tourism" and this says
+  // which market the next few entries are in.
+  group: {
+    fontSize: 8,
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+    color: MUTED,
+    marginTop: 12,
+    marginBottom: 2,
+    borderBottomWidth: 0.5,
+    borderBottomColor: RULE,
+    paddingBottom: 2,
+  },
 
   // ---- THE ENTRY. A project named, described, then evidenced.
   entry: { marginTop: 10, marginBottom: 6 },
@@ -225,10 +242,18 @@ function DocBody({ doc }: { doc: ReportDocument }) {
           )}
         </View>
 
+        {/* THE PROVENANCE LEGEND, IN PROSE. Three bullets read as a key to a
+            chart; the July brief states it as a sentence, and a sentence is
+            what a client actually reads before the first section. Same three
+            labels, same meanings, and it now says WHY they are separated. */}
         <View style={s.key}>
-          <Text style={s.keyItem}>[RECORD] drawn from a captured filing, with its link</Text>
-          <Text style={s.keyItem}>[PRESS] reported elsewhere</Text>
-          <Text style={s.keyItem}>[ASSESSMENT] our own read, not in any document</Text>
+          <Text style={s.keyProse}>
+            Provenance legend. This report separates three kinds of statement so the reader can
+            weigh each. [RECORD] marks facts drawn from the government filings we captured, each
+            with the link to the filing itself. [PRESS] marks facts reported in the press or
+            otherwise beyond our filing record. [ASSESSMENT] marks our own read, offered as
+            judgment rather than as fact.
+          </Text>
         </View>
 
         {doc.sections.map((sec) => (
@@ -238,8 +263,16 @@ function DocBody({ doc }: { doc: ReportDocument }) {
             {sec.lines.map((l, i) => (
               <LineRow key={i} l={l} />
             ))}
-            {(sec.entries ?? []).map((e) => (
-              <EntryBlock key={e.id} e={e} />
+            {/* GEOGRAPHY AS A SUBHEADING, PRINTED ONLY WHEN IT CHANGES. The
+                entries arrive already ordered by market, so a heading per
+                change is a heading per market: one market, one subheading. */}
+            {(sec.entries ?? []).map((e, i, all) => (
+              <View key={e.id}>
+                {e.group && e.group !== all[i - 1]?.group ? (
+                  <Text style={s.group}>{e.group}</Text>
+                ) : null}
+                <EntryBlock e={e} />
+              </View>
             ))}
             {sec.emptyNote ? <Text style={s.empty}>{sec.emptyNote}</Text> : null}
             {sec.commentary.length > 0 && (

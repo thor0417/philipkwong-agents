@@ -27,7 +27,8 @@ import {
   type Line,
   type Section,
 } from './report-model';
-import { buildEntry } from './report-entry';
+import { buildEntry, recordSentence } from './report-entry';
+import { categoriesForPipeline } from './taxonomy';
 import type { PartyHistory } from './people';
 
 export interface SectionContext {
@@ -48,6 +49,21 @@ export interface SectionContext {
   // Dropped before scope for having no live record at all.
   excludedHollow: number;
   detailCap: number;
+  // THE ENTRIES, BUILT ONCE, IN SIGNIFICANCE ORDER, WITH THEIR MARKET AS group.
+  //
+  // They used to be built inside the by-market section. With the document now
+  // sectioned by category and subheaded by market, two sections would otherwise
+  // both have to build them - the category sections to print them and the
+  // coverage note to count what they held back - and two builders of one thing
+  // eventually disagree about it. See buildReport.
+  entries: Entry[];
+  // Filings beyond an entry's own cap, and filings folded together as the same
+  // item captured twice. Document-level facts, stated in the coverage note.
+  heldRecords: number;
+  mergedRecords: number;
+  // Which pipeline this document is for. The category section list is read from
+  // the taxonomy keyed on it.
+  pipelineId: string;
   // Where each named party appears on OTHER projects, keyed by normalised name.
   // Empty when the companies layer holds nothing, and nothing is claimed then.
   partyHistory: Map<string, PartyHistory>;
@@ -87,9 +103,12 @@ function host(url: string | null | undefined): string {
 
 function lineForRecord(
   r: TimelineRecord & { market?: string | null },
-  prefix = ''
+  prefix = '',
+  projectName?: string | null
 ): Line {
-  const text = `${prefix}${r.title ?? 'Untitled record'}`;
+  // The record as a sentence, not as the clerk's agenda line. See
+  // report-entry/recordSentence for what this used to print.
+  const text = `${prefix}${recordSentence(r, projectName) || r.title || 'Untitled record'}`;
   const meta = [r.published_date?.slice(0, 10), r.market].filter(Boolean).join(' | ');
   return isFiling(r.source, r.source_type, r.stream)
     ? recordLine(text, r.url, r.source ?? host(r.url), meta)
@@ -125,7 +144,19 @@ export interface SectionDef {
   id: string;
   label: string;
   description: string;
-  build: (ctx: SectionContext) => Section;
+  // ONE REGISTRY ENTRY MAY PRODUCE SEVERAL SECTIONS.
+  //
+  // The category sections are one per category that has something in it, and
+  // which categories those are is not knowable until the scope has been
+  // resolved. The alternative - a registry entry per category - would mean the
+  // composer offering a checkbox for "Infrastructure" whether or not this
+  // client has any infrastructure, and a section list that changes shape
+  // depending on the data, which is exactly what a registry is for avoiding.
+  //
+  // So the registry holds ONE 'categories' entry, the composer offers one
+  // control, and the document gets as many headings as the taxonomy and the
+  // data between them justify.
+  build: (ctx: SectionContext) => Section | Section[];
 }
 
 function withCommentary(id: string, ctx: SectionContext, section: Omit<Section, 'commentary'>): Section {
@@ -216,7 +247,11 @@ const whatMoved: SectionDef = {
 
 // ---- 3. HEADLINE FINDS -------------------------------------------------------
 
-const HEADLINE_CAP = 10;
+// FIFTEEN, ACROSS EVERY CATEGORY. The brief's number, and the reason for it is
+// the resectioning: with the document split by category, a reader who only
+// wants "what matters most" has no single section to read unless the headline
+// list spans them all. Ten was chosen when the document had one project list.
+const HEADLINE_CAP = 15;
 
 const headlines: SectionDef = {
   id: 'headlines',
@@ -253,7 +288,7 @@ const headlines: SectionDef = {
         .filter((r) => r.project_id === p.id)
         .sort((a, b) => (b.published_date ?? '').localeCompare(a.published_date ?? ''))[0];
       if (!rec) return [];
-      return [lineForRecord(rec, `${p.name}: `), ...summaryLine(p)].filter(
+      return [lineForRecord(rec, `${p.name}: `, p.name), ...summaryLine(p)].filter(
         (l): l is Line => !!l
       );
     });
@@ -270,194 +305,177 @@ const headlines: SectionDef = {
   },
 };
 
-// ---- 4. BY MARKET ------------------------------------------------------------
-
-// THE SECTION THAT LISTED STRANGERS.
+// ---- 4. THE CATEGORY SECTIONS -------------------------------------------------
 //
-// It printed one line per project - market, name, stage, link - and never said
-// what a single one of them was. 111 of the 171 live projects carry a derived,
-// citable sentence describing themselves; none of it appeared here. And for a
-// project with no filing inside the period it printed
+// CATEGORY IS WHAT A READER THINKS IN; GEOGRAPHY IS A SUBHEADING INSIDE IT.
 //
-//   [ASSESSMENT] Clark County | Symphony Park Hotel (approved), no filing in this period
+// The document was sectioned by market, so a reader working a casino brief
+// walked seven states to find the casinos and had to hold the set in their head
+// as they went. Category first inverts that: the casinos are in one place, and
+// the states are subheadings under them. It is also the structure that survives
+// the register reaching fifty markets, where a market-per-section document is a
+// contents page and nothing else.
 //
-// which is the defect the brief names first: our own register, rendered as
-// Philip's personal judgement, on a line the client cannot check.
+// THE SECTION LIST COMES FROM THE TAXONOMY, NOT FROM THE DATA AND NOT FROM A
+// LITERAL HERE. categoriesForPipeline(pipeline_id) is the locked list in
+// lib/taxonomy, mirrored dashboard-side, and it is read at build time. A list
+// derived from whichever categories happen to be present would silently change
+// shape month to month; a list typed out here would drift from the taxonomy the
+// moment anyone edited it.
 //
-// BOTH FAILURES HAVE THE SAME FIX. The section now emits ENTRIES: a project
-// named, described from its own derived summary, and evidenced by its own dated
-// filings, each with players, figures, a contact where the record names one, and
-// a link. An entry is built from records, so a project with no record in the
-// period cannot produce one - buildEntry returns null - and there is no longer
-// any code path that reaches for commentary to fill the hole. The fallback is
-// not fixed; it is gone, and the count of what it would have covered is stated
-// in the section note instead.
+// A CATEGORY WITH NOTHING IN IT IS OMITTED. Not printed empty: a heading over
+// an empty-state sentence is a paragraph telling the reader nothing, repeated
+// once per category the client does not buy.
 //
-// THE SECTION DESCRIBES WHAT THE DOCUMENT SELECTED. It does not select.
+// A PROJECT WHOSE CATEGORY WE COULD NOT RESOLVE GETS A SECTION NAMED FOR THAT
+// FACT, and is never quietly dropped or filed under "Other" - "Other" is a
+// value in the taxonomy that means something, and using it for "we do not know"
+// would make the two indistinguishable in the one place a reader might act on
+// the difference.
 //
-// It used to: it took every project in scope and cut each market to 25. That is
-// a per-market quota, and a quota is not a selection - it gave a market with 27
-// low-significance projects more of the document than a market with 3 important
-// ones, and it made the total unpredictable, which is how a cover reading "149
-// projects" ended up over a list of 122.
-//
-// Selection is now made once, in buildReport, across the whole scope and by
-// significance. This section groups the result for reading and counts the
-// remainder per market, which is the one thing that genuinely belongs here
-// because it is the one thing that is per-market.
+// THE SECTIONS DESCRIBE WHAT THE DOCUMENT SELECTED. They do not select, and
+// they do not build. Selection happens once in buildReport, across the whole
+// scope and by significance, and the entries are built once there too - so a
+// category section is a partition of a list, and two sections cannot disagree
+// about what an entry says.
 
-const byMarket: SectionDef = {
-  id: 'markets',
-  label: 'By market',
-  description: 'Each selected project described, with its filings, grouped by market.',
-  build: (ctx) => {
-    // No 'Unassigned' fallback. Selection guarantees every project reaching
-    // this section has one of the two, so the coalesce cannot produce a
-    // placeholder heading.
-    const marketOf = (p: Project) => p.market ?? p.region_state ?? '';
+const CATEGORY_SECTION_PREFIX = 'category:';
 
-    const groups = new Map<string, Project[]>();
-    for (const p of ctx.detailedProjects) {
-      const k = marketOf(p);
-      if (!groups.has(k)) groups.set(k, []);
-      groups.get(k)!.push(p);
-    }
+/** The section id a category's heading is stored under, for commentary keying. */
+export function categorySectionId(category: string): string {
+  return `${CATEGORY_SECTION_PREFIX}${category}`;
+}
 
-    // The remainder, per market, so a reader of one market's section learns how
-    // much of that market is not on the page without doing arithmetic against
-    // the cover.
-    const remainderByMarket = new Map<string, number>();
-    for (const p of ctx.undetailedProjects) {
-      const k = marketOf(p);
-      remainderByMarket.set(k, (remainderByMarket.get(k) ?? 0) + 1);
-    }
+export const UNCATEGORISED_SECTION_ID = 'category:unresolved';
 
-    // Records bucketed once. find() per project was O(projects x records) and
-    // returned only the FIRST match, which is why the old section could show a
-    // project's oldest filing and call it the project.
-    const byProject = new Map<string, SectionContext['records']>();
-    for (const r of ctx.records) {
-      const id = r.project_id ?? '';
-      if (!id) continue;
-      if (!byProject.has(id)) byProject.set(id, []);
-      byProject.get(id)!.push(r);
-    }
+/** Market, or the state when the market is unresolved. Never 'Unassigned'. */
+function placeOf(p: Project): string {
+  return p.market ?? p.region_state ?? '';
+}
 
-    const entries: Entry[] = [];
-    let heldRecords = 0; // filings beyond an entry's own cap
-    let mergedRecords = 0; // the same filing captured twice, folded into one
+/**
+ * One section per category holding entries, in taxonomy order, plus a final
+ * section for the projects whose category we could not resolve.
+ */
+function buildCategorySections(ctx: SectionContext): Section[] {
+  const projectById = new Map(ctx.detailedProjects.map((p) => [p.id, p]));
+  const known = new Set<string>(categoriesForPipeline(ctx.pipelineId));
 
-    // Markets ordered by how much of the document they hold, which is now a
-    // consequence of significance rather than of how many rows a clerk filed.
-    for (const [, ps] of [...groups.entries()].sort((a, b) => b[1].length - a[1].length)) {
-      ps.sort((a, b) => (b.significance ?? -1) - (a.significance ?? -1));
-      for (const p of ps) {
-        const built = buildEntry(p, byProject.get(p.id) ?? [], { history: ctx.partyHistory });
-        // Eligibility was settled before selection, so every detailed project
-        // has a filing in the period and this cannot normally fire. It stays
-        // because "cannot normally" is not "cannot", and an entry with nothing
-        // to cite must never be printed.
-        if (!built) continue;
-        heldRecords += built.held;
-        mergedRecords += built.merged;
-        entries.push(built.entry);
-      }
-    }
+  // Bucket the entries the document already built. An entry whose project
+  // carries no category, or one outside the taxonomy, goes to the unresolved
+  // bucket under its own key.
+  const buckets = new Map<string, Entry[]>();
+  for (const e of ctx.entries) {
+    const p = projectById.get(e.id);
+    const cat = p?.development_category ?? null;
+    const key = cat && known.has(cat) ? cat : UNCATEGORISED_SECTION_ID;
+    if (!buckets.has(key)) buckets.set(key, []);
+    buckets.get(key)!.push(e);
+  }
 
-    // COUNTED, NOT LISTED, ONE CLAUSE PER MARKET - EXCEPT THE SINGLETONS.
+  // The remainder, per category and then per market inside it, so a reader of
+  // one category learns how much of that category is not on the page.
+  const remainder = new Map<string, Map<string, number>>();
+  for (const p of ctx.undetailedProjects) {
+    const cat =
+      p.development_category && known.has(p.development_category)
+        ? p.development_category
+        : UNCATEGORISED_SECTION_ID;
+    if (!remainder.has(cat)) remainder.set(cat, new Map());
+    const byPlace = remainder.get(cat)!;
+    const place = placeOf(p) || 'no resolved market';
+    byPlace.set(place, (byPlace.get(place) ?? 0) + 1);
+  }
+
+  const section = (key: string, title: string, lede: string): Section | null => {
+    const entries = buckets.get(key) ?? [];
+    const rest = remainder.get(key);
+    // OMITTED, NOT PRINTED EMPTY, and "empty" means NO ENTRY.
     //
-    // A line per market is the right unit until the tail arrives: on the whole
-    // register this produced fifteen consecutive sentences, nine of which read
-    // "1 further project in X is not detailed here." That is a paragraph
-    // pretending to be a list, and a reader skips it, which defeats the point
-    // of counting the remainder at all. Markets holding one undetailed project
-    // are named together in a single clause; the count is identical and it can
-    // actually be read.
-    const ranked = [...remainderByMarket.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
-    const many = ranked.filter(([, n]) => n > 1);
-    const singles = ranked.filter(([, n]) => n === 1).map(([m]) => m);
-    const remainderLines = many.map(
-      ([market, n]) => `${n} further projects in ${market} are not detailed here.`
-    );
-    if (singles.length === 1) {
-      remainderLines.push(`1 further project in ${singles[0]} is not detailed here.`);
-    } else if (singles.length > 1) {
-      remainderLines.push(
-        `1 further project in each of ${singles.slice(0, -1).join(', ')} and ` +
-          `${singles[singles.length - 1]} is not detailed here.`
-      );
-    }
+    // The first version kept a category that had counted-but-undescribed
+    // projects, on the reasoning that "four of these exist and none is
+    // described" is information. It is - and printed this way it was three
+    // consecutive headings with one sentence under each, which reads as a
+    // document with holes in it. The information is not lost: the coverage note
+    // names every category that is in scope with nothing described, in one
+    // sentence, which is where the document's other limits already are.
+    if (entries.length === 0) return null;
 
+    const markets = new Set(entries.map((e) => e.group ?? '').filter(Boolean));
     const notes: string[] = [];
-    if (remainderLines.length) {
+    if (rest) {
+      const ranked = [...rest.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+      const many = ranked.filter(([, n]) => n > 1);
+      const singles = ranked.filter(([, n]) => n === 1).map(([m]) => m);
+      const clauses = many.map(([m, n]) => `${n} further projects in ${m}`);
+      if (singles.length === 1) clauses.push(`1 further project in ${singles[0]}`);
+      else if (singles.length > 1) {
+        clauses.push(
+          `1 further project in each of ${singles.slice(0, -1).join(', ')} and ` +
+            `${singles[singles.length - 1]}`
+        );
+      }
+      const total = ranked.reduce((n, [, c]) => n + c, 0);
       notes.push(
-        `${entries.length} of ${ctx.projects.length} projects in scope are described above, ` +
-          `selected by significance. ` +
-          remainderLines.join(' ') +
-          (ctx.sectionIds.includes('remainder')
-            ? ' The appendix below names them.'
-            : ' Add the "Appendix: projects not detailed" section to name them.')
-      );
-    }
-    if (ctx.silentProjects.length) {
-      // STATED, NOT PRINTED AS AN ENTRY. These are the projects the old section
-      // rendered as [ASSESSMENT] lines. They are in the client's scope and they
-      // did nothing in the period, and saying so once in a sentence is both
-      // shorter and more honest than saying it project by project in a label
-      // that claims Philip wrote it.
-      const silent = ctx.silentProjects.length;
-      notes.push(
-        `${silent} further project${silent === 1 ? '' : 's'} in scope had no filing captured during ` +
-          `${ctx.periodLabel}, so ${silent === 1 ? 'it is' : 'they are'} not described here. ` +
-          `${silent === 1 ? 'It remains' : 'They remain'} on the register.`
-      );
-    }
-    if (ctx.unplacedProjects.length) {
-      // NAMED, NOT GROUPED. The count belongs here because a reader of the
-      // by-market section is entitled to know that the markets above do not
-      // account for everything in scope; the reason they are absent is that we
-      // could not place them, which is a statement about our capture and not
-      // about a market.
-      const n = ctx.unplacedProjects.length;
-      notes.push(
-        `${n} further project${n === 1 ? '' : 's'} in scope ${n === 1 ? 'has' : 'have'} no market or region ` +
-          `resolved and ${n === 1 ? 'is' : 'are'} therefore not grouped under any market above.`
-      );
-    }
-    if (heldRecords) {
-      notes.push(
-        `${heldRecords} further filing${heldRecords === 1 ? '' : 's'} on the projects above ` +
-          `${heldRecords === 1 ? 'is' : 'are'} in scope but not printed, because each project shows its ` +
-          `most recent filings only.`
-      );
-    }
-    if (mergedRecords) {
-      // The counts on the cover come from the record set, so an entry that
-      // prints six lines where the basis counted twelve records has to account
-      // for the other six. Two captures of one filing is our capture artefact -
-      // a bilingual minute, a plan captured page by page - and the client is
-      // told that rather than left to find the arithmetic.
-      notes.push(
-        `${mergedRecords} record${mergedRecords === 1 ? '' : 's'} counted on the cover ` +
-          `${mergedRecords === 1 ? 'is' : 'are'} the same filing captured more than once - a bilingual ` +
-          `minute, or a document captured page by page - and ${mergedRecords === 1 ? 'is' : 'are'} shown ` +
-          `once above.`
+        `${clauses.join(', ')} ${total === 1 ? 'is' : 'are'} in this category and not described here.`
       );
     }
 
-    return withCommentary('markets', ctx, {
-      id: 'markets',
-      title: 'By market',
-      lede: `The ${ctx.detailCap} most significant projects in this scope, described from their own filings and grouped by market.`,
+    // COMMENTARY, KEYED BY CATEGORY, FALLING BACK TO THE COMPOSER'S ONE BOX.
+    //
+    // The composer offers a single "Category sections" control, so what Philip
+    // types there is keyed 'categories'. It attaches to the FIRST category
+    // section rather than to all of them, because repeating one paragraph under
+    // every heading would read as a template rather than as a remark. A
+    // per-category box can be added later without touching this: the key it
+    // would write is the category's own name, which is what is read first.
+    const commentary = {
+      ...ctx.commentary,
+      [key]: ctx.commentary[key] ?? (out.length === 0 ? ctx.commentary.categories : undefined) ?? '',
+    };
+    return withCommentary(key, { ...ctx, commentary }, {
+      id: key,
+      title,
+      lede:
+        entries.length === 0
+          ? lede
+          : `${lede} ${entries.length} project${entries.length === 1 ? '' : 's'} described, ` +
+            `across ${markets.size} market${markets.size === 1 ? '' : 's'}.`,
       lines: [],
       entries,
-      emptyNote: entries.length === 0
-        ? `No project in this scope had a filing captured during ${ctx.periodLabel}, so there is nothing to describe.`
-        : notes.length
-          ? notes.join(' ')
-          : undefined,
+      emptyNote: notes.length ? notes.join(' ') : undefined,
     });
-  },
+  };
+
+  const out: Section[] = [];
+  // TAXONOMY ORDER, NOT COUNT ORDER. A document whose sections reorder
+  // themselves month to month is one a reader has to re-learn each time, and
+  // the taxonomy's own order is the one Philip already thinks in.
+  for (const category of categoriesForPipeline(ctx.pipelineId)) {
+    const s = section(
+      category,
+      category,
+      `Projects in this category, described from their own filings, grouped by market.`
+    );
+    if (s) out.push(s);
+  }
+  const unresolved = section(
+    UNCATEGORISED_SECTION_ID,
+    'Projects with no resolved category',
+    'These projects are in scope and our classifier could not place them in the taxonomy. ' +
+      'They are described here rather than dropped, and they are not filed under "Other", ' +
+      'which is a category that means something.'
+  );
+  if (unresolved) out.push(unresolved);
+  return out;
+}
+
+const categories: SectionDef = {
+  id: 'categories',
+  label: 'Category sections',
+  description:
+    'One section per category in the taxonomy that has something in it, with geography as a subheading inside.',
+  build: buildCategorySections,
 };
 
 // ---- 5. UPCOMING HEARINGS ----------------------------------------------------
@@ -513,7 +531,7 @@ const watchList: SectionDef = {
         quiet++;
         continue;
       }
-      lines.push(lineForRecord(rec, `${p.name}: `));
+      lines.push(lineForRecord(rec, `${p.name}: `, p.name));
     }
     return withCommentary('watchlist', ctx, {
       id: 'watchlist',
@@ -605,7 +623,7 @@ const remainder: SectionDef = {
         .sort((a, b) => (b.published_date ?? '').localeCompare(a.published_date ?? ''))[0];
       if (!rec) return [];
       const market = p.market ?? p.region_state ?? 'Unassigned';
-      return [lineForRecord(rec, `${market} | ${p.name}: `)];
+      return [lineForRecord(rec, `${market} | ${p.name}: `, p.name)];
     });
     return withCommentary('remainder', ctx, {
       id: 'remainder',
@@ -647,6 +665,66 @@ const coverage: SectionDef = {
             `in scope ${ctx.undetailedProjects.length === 1 ? 'is' : 'are'} counted but not described.`
           : 'Every project in scope is described.')
     );
+    // A CATEGORY WITH NOTHING DESCRIBED IS NAMED, ONCE, HERE.
+    //
+    // The category sections print only where there is an entry to print, so a
+    // category holding nothing but counted projects has no heading of its own.
+    // Without this sentence a reader would have no way to tell that from "we
+    // cover no infrastructure", which is a different and much larger claim.
+    const described = new Set(
+      ctx.detailedProjects.map((p) => p.development_category).filter(Boolean) as string[]
+    );
+    const undescribed = new Map<string, number>();
+    for (const p of ctx.undetailedProjects) {
+      const c = p.development_category;
+      if (!c || described.has(c)) continue;
+      undescribed.set(c, (undescribed.get(c) ?? 0) + 1);
+    }
+    if (undescribed.size) {
+      const named = [...undescribed.entries()]
+        .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+        .map(([c, n]) => `${c} (${n})`);
+      notes.push(
+        `${named.length === 1 ? 'One category is' : `${named.length} categories are`} in scope with ` +
+          `no project described, so ${named.length === 1 ? 'it has' : 'they have'} no section above: ` +
+          `${named.join(', ')}. The count in brackets is how many projects in that category are in ` +
+          `scope and below the detail cap.`
+      );
+    }
+    // QUIET IS NOT THE SAME AS UNIMPORTANT, and the document says so once.
+    //
+    // This sentence used to sit under the by-market heading. With the document
+    // sectioned by category it has no single section to belong to - the silent
+    // projects are spread across every category - so it moved here, which is
+    // where the rest of the document's limits already are.
+    if (ctx.silentProjects.length) {
+      const n = ctx.silentProjects.length;
+      notes.push(
+        `${n} further project${n === 1 ? '' : 's'} in scope had no filing captured during ` +
+          `${ctx.periodLabel}, so ${n === 1 ? 'it is' : 'they are'} not described in any category ` +
+          `section. ${n === 1 ? 'It remains' : 'They remain'} on the register.`
+      );
+    }
+    if (ctx.heldRecords) {
+      notes.push(
+        `${ctx.heldRecords} further filing${ctx.heldRecords === 1 ? '' : 's'} on the projects described ` +
+          `${ctx.heldRecords === 1 ? 'is' : 'are'} in scope but not printed, because each project shows ` +
+          `its most recent filings only.`
+      );
+    }
+    if (ctx.mergedRecords) {
+      // The counts on the cover come from the record set, so a document that
+      // prints six lines where the basis counted twelve records has to account
+      // for the other six. Two captures of one filing is our capture artefact -
+      // a bilingual minute, a plan captured page by page - and the client is
+      // told that rather than left to find the arithmetic.
+      notes.push(
+        `${ctx.mergedRecords} record${ctx.mergedRecords === 1 ? '' : 's'} counted on the cover ` +
+          `${ctx.mergedRecords === 1 ? 'is' : 'are'} the same filing captured more than once - a bilingual ` +
+          `minute, or a document captured page by page - and ${ctx.mergedRecords === 1 ? 'is' : 'are'} shown ` +
+          `once above.`
+      );
+    }
     if (ctx.unplacedProjects.length) {
       const n = ctx.unplacedProjects.length;
       notes.push(
@@ -680,7 +758,7 @@ export const SECTION_REGISTRY: SectionDef[] = [
   cover,
   whatMoved,
   headlines,
-  byMarket,
+  categories,
   hearings,
   watchList,
   tenders,
@@ -700,18 +778,36 @@ export const SECTION_REGISTRY: SectionDef[] = [
 // Part 4 of the brief rebuilds this document to the Heart Hotel standard, at
 // which point this array becomes that structure. Until then it is the honest
 // subset of the sections that exist.
-export const REFERRAL_SECTION_IDS = ['cover', 'markets', 'appendix', 'coverage'];
+export const REFERRAL_SECTION_IDS = ['cover', 'categories', 'appendix', 'coverage'];
 
+// THE ORDER THE BRIEF SPECIFIES, and it is the order of the array.
+//
+// Cover and the provenance legend are rendered by the document itself, ahead of
+// every section; 'cover' below is the Scope of this report section that follows
+// them. The category sections sit in the middle because that is where the
+// substance is: what moved and the headline finds orient a reader, the
+// categories are what they came for, and hearings, the watch list and the
+// coverage note are what they check afterwards.
 export const DEFAULT_SECTION_IDS = [
   'cover',
   'moved',
   'headlines',
-  'markets',
+  'categories',
   'hearings',
   'watchlist',
   'coverage',
 ];
 
+// A SAVED TEMPLATE MUST NOT LOSE THE BODY OF THE DOCUMENT.
+//
+// The by-market section was id 'markets' and stored templates still name it.
+// Without this alias sectionById returns undefined, buildReport filters it out,
+// and the report generates with a cover, a headline list and a coverage note
+// over nothing at all - a document that is wrong in the one way nobody checks,
+// because every section it DOES contain is correct.
+const LEGACY_SECTION_IDS: Record<string, string> = { markets: 'categories' };
+
 export function sectionById(id: string): SectionDef | undefined {
-  return SECTION_REGISTRY.find((s) => s.id === id);
+  const resolved = LEGACY_SECTION_IDS[id] ?? id;
+  return SECTION_REGISTRY.find((s) => s.id === resolved);
 }
