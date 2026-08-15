@@ -39,10 +39,24 @@ function GeoCounts({ level }: { level: GeoLevel }) {
   );
 }
 
+/** A covered market as the rail needs it: where it is, what state it is in. */
+export interface CoveredMarketNode {
+  market: string;
+  regionState: string;
+  country: string;
+  projects: number;
+  state: string;
+  why: string;
+}
+
 export default function ProjectsRail({
   views,
   view,
   onView,
+  covered,
+  pressCount,
+  pressOpen,
+  onTogglePress,
   countries,
   regions,
   markets,
@@ -55,6 +69,10 @@ export default function ProjectsRail({
   views: CountedView[];
   view: string;
   onView: (key: string) => void;
+  covered: CoveredMarketNode[];
+  pressCount: number | undefined;
+  pressOpen: boolean;
+  onTogglePress: () => void;
   countries: GeoLevel[];
   regions: GeoLevel[];
   markets: GeoLevel[];
@@ -86,7 +104,76 @@ export default function ProjectsRail({
         </div>
       </RailSection>
 
-      <RailSection title="Geography">
+      {/* COVERED MARKETS ARE NOT THE SAME KIND OF THING AS EVERYWHERE ELSE.
+          A tree listing sixty-five countries with counts beside them reads as
+          coverage. Thirteen of those places have a government-lane adapter
+          pointed at them; every other entry is where a press story happened to
+          land. Shown as one list they are indistinguishable, and that is how a
+          market name reaches a client's cover page on the strength of one
+          headline.
+          So the covered markets are their own section, each carrying the state
+          it is actually in - live, degraded, stale, thin or dead - and the rest
+          of the world is one collapsed node below, labelled as press coverage.
+          The states come from lib/coverage, which is also what the Health screen
+          reads, so the two cannot disagree. */}
+      <RailSection title="Covered markets">
+        <div className={styles.railList}>
+          {covered.length === 0 && <p className={styles.railLegend}>Reading coverage...</p>}
+          {covered.map((m) => (
+            <button
+              key={m.market}
+              type="button"
+              data-covered-market={m.market}
+              data-coverage-state={m.state}
+              title={m.why}
+              className={`${styles.railItem} ${geo.market === m.market ? styles.railItemActive : ''}`}
+              onClick={() =>
+                onGeo(
+                  geo.market === m.market
+                    ? {}
+                    : { country: m.country, region_state: m.regionState, market: m.market }
+                )
+              }
+            >
+              <span className={styles.railLabel}>{m.market}</span>
+              <span className={styles.railCounts}>
+                <span className={styles.railState} data-coverage-state={m.state}>
+                  {m.state}
+                </span>
+                <span className={`${styles.railCount} mono`}>{m.projects}</span>
+              </span>
+            </button>
+          ))}
+        </div>
+      </RailSection>
+
+      <RailSection title="Press coverage">
+        {/* ONE NODE, COLLAPSED, AND NAMED FOR WHAT IT IS. These are geographies
+            a story mentioned. Opening it gives the country tree the rail has
+            always had, which is the right tool for browsing them - it is simply
+            no longer presented as the map of what we watch. */}
+        <div className={styles.railList}>
+          <button
+            type="button"
+            data-testid="press-coverage-toggle"
+            className={styles.railItem}
+            aria-expanded={pressOpen}
+            onClick={onTogglePress}
+          >
+            <span className={styles.railLabel}>
+              {pressOpen ? 'Hide' : 'Show'} press-only geographies
+            </span>
+            <span className={`${styles.railCount} mono`}>{pressCount ?? '--'}</span>
+          </button>
+          <p className={styles.railLegend}>
+            Places a story landed on. No adapter is pointed at any of them, so
+            nothing here is a market we watch.
+          </p>
+        </div>
+      </RailSection>
+
+      {pressOpen && (
+      <RailSection title="All geography">
         {/* One number, one meaning, no legend needed. */}
         <div className={styles.railList}>
           <button
@@ -172,6 +259,7 @@ export default function ProjectsRail({
           })}
         </div>
       </RailSection>
+      )}
 
       <RailSection title="Saved views">
         <div className={styles.railList}>

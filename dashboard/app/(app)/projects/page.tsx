@@ -44,6 +44,7 @@ import {
 } from '@/lib/use-period';
 // The one copy, read across the package split. See lib/dead-feeds.
 import { deadFeedForMarket } from '../../../../lib/dead-feeds';
+import { useCoverage } from '@/lib/use-coverage';
 import ProjectsRail from './ProjectsRail';
 import ProjectsDetail from './ProjectsDetail';
 import styles from './page.module.css';
@@ -589,6 +590,27 @@ export default function ProjectsPage() {
   // appears with the count the click returns rather than with a 0 and a
   // footnote. Nothing that can be opened is hidden, and no number on the rail
   // answers a question other than "what happens if I press this".
+  // THE COVERED MARKETS, WITH THE STATE EACH IS ACTUALLY IN. Read from the same
+  // place the Health screen reads, so the rail and Health cannot disagree about
+  // whether Nashville is thin. The project count here is the market's own live
+  // count rather than one filtered by this screen's view: it is a statement
+  // about coverage, and a coverage figure that moved when the operator clicked
+  // Watchlist would be answering a different question again.
+  const coverage = useCoverage(LIVE_PIPELINE_STORAGE_KEY);
+  const [pressOpen, setPressOpen] = useState(false);
+  const coveredNodes = useMemo(
+    () =>
+      (coverage.data?.markets ?? []).map((m) => ({
+        market: m.market,
+        regionState: m.regionState,
+        country: m.country,
+        projects: m.liveProjects,
+        state: m.coverage.state,
+        why: `${m.coverage.state}: ${m.coverage.why}`,
+      })),
+    [coverage.data]
+  );
+
   const geoLevels = useCallback(
     (counts: { value: string; count: number }[] | undefined) =>
       [...(counts ?? [])]
@@ -853,6 +875,10 @@ export default function ProjectsPage() {
     <div className={styles.screen}>
       <ProjectsRail
         views={VIEWS.map((v) => ({ ...v, count: counts[v.key] }))}
+        covered={coveredNodes}
+        pressCount={coverage.data?.press.length}
+        pressOpen={pressOpen}
+        onTogglePress={() => setPressOpen((o) => !o)}
         view={viewKey}
         onView={(k) => {
           void setView(k);

@@ -1,0 +1,379 @@
+{
+  "markets": [
+    {
+      "market": "Miami-Dade County",
+      "state": "dead",
+      "projects": 3,
+      "named": 2,
+      "records": 6,
+      "published": "2980d",
+      "captured": "16d",
+      "why": "the source has published nothing for over a year; declared in lib/dead-feeds"
+    },
+    {
+      "market": "San Antonio",
+      "state": "dead",
+      "projects": 3,
+      "named": 2,
+      "records": 22,
+      "published": "30d",
+      "captured": "5d",
+      "why": "the source has published nothing for over a year; declared in lib/dead-feeds"
+    },
+    {
+      "market": "Las Vegas",
+      "state": "degraded",
+      "projects": 33,
+      "named": 31,
+      "records": 73,
+      "published": "14d",
+      "captured": "3d",
+      "why": "the adapter is failing in a known way; declared in the known-degraded register"
+    },
+    {
+      "market": "South Florida",
+      "state": "stale",
+      "projects": 2,
+      "named": 2,
+      "records": 2,
+      "published": "15930d",
+      "captured": "22d",
+      "why": "the newest document we hold is 15930 days old, past the 90-day line"
+    },
+    {
+      "market": "Central Florida Tourism Oversight District",
+      "state": "stale",
+      "projects": 1,
+      "named": 1,
+      "records": 11,
+      "published": "204d",
+      "captured": "22d",
+      "why": "the newest document we hold is 204 days old, past the 90-day line"
+    },
+    {
+      "market": "Nashville",
+      "state": "thin",
+      "projects": 9,
+      "named": 1,
+      "records": 20,
+      "published": "ahead",
+      "captured": "5d",
+      "why": "1 of 9 projects name a party, so a report scoped here comes out mostly empty"
+    },
+    {
+      "market": "Yonkers",
+      "state": "thin",
+      "projects": 0,
+      "named": 0,
+      "records": 0,
+      "published": "--",
+      "captured": "--",
+      "why": "an adapter is pointed here and it has produced nothing at all"
+    },
+    {
+      "market": "New York City",
+      "state": "live",
+      "projects": 93,
+      "named": 89,
+      "records": 215,
+      "published": "11d",
+      "captured": "3d",
+      "why": "93 live projects, 89 naming a party, newest document 11 days old"
+    },
+    {
+      "market": "Clark County",
+      "state": "live",
+      "projects": 27,
+      "named": 27,
+      "records": 82,
+      "published": "4d",
+      "captured": "3d",
+      "why": "27 live projects, 27 naming a party, newest document 4 days old"
+    },
+    {
+      "market": "Anaheim",
+      "state": "live",
+      "projects": 19,
+      "named": 17,
+      "records": 78,
+      "published": "7d",
+      "captured": "3d",
+      "why": "19 live projects, 17 naming a party, newest document 7 days old"
+    },
+    {
+      "market": "Phoenix",
+      "state": "live",
+      "projects": 8,
+      "named": 8,
+      "records": 20,
+      "published": "46d",
+      "captured": "16d",
+      "why": "8 live projects, 8 naming a party, newest document 46 days old"
+    },
+    {
+      "market": "Oakland",
+      "state": "live",
+      "projects": 4,
+      "named": 4,
+      "records": 8,
+      "published": "26d",
+      "captured": "5d",
+      "why": "4 live projects, 4 naming a party, newest document 26 days old"
+    },
+    {
+      "market": "Westchester County",
+      "state": "live",
+      "projects": 1,
+      "named": 1,
+      "records": 2,
+      "published": "13d",
+      "captured": "7d",
+      "why": "1 live projects, 1 naming a party, newest document 13 days old"
+    }
+  ],
+  "sources": [
+    {
+      "source": "iadb",
+      "quiet": true,
+      "records": 1,
+      "published": "9358d",
+      "captured": "5d",
+      "thisRun": "unknown",
+      "feeds": ""
+    },
+    {
+      "source": "sfwmd",
+      "quiet": true,
+      "records": 6,
+      "published": "925d",
+      "captured": "22d",
+      "thisRun": "unknown",
+      "feeds": "South Florida"
+    },
+    {
+      "source": "govdoc",
+      "quiet": true,
+      "records": 3,
+      "published": "226d",
+      "captured": "23d",
+      "thisRun": "unknown",
+      "feeds": "Central Florida Tourism Oversight District"
+    },
+    {
+      "source": "cftod-pdf",
+      "quiet": true,
+      "records": 10,
+      "published": "204d",
+      "captured": "22d",
+      "thisRun": "unknown",
+      "feeds": "Central Florida Tourism Oversight District"
+    },
+    {
+      "source": "nyc-zap",
+      "quiet": true,
+      "records": 40,
+      "published": "146d",
+      "captured": "5d",
+      "thisRun": "unknown",
+      "feeds": "New York City"
+    },
+    {
+      "source": "adb",
+      "quiet": true,
+      "records": 3,
+      "published": "114d",
+      "captured": "23d",
+      "thisRun": "unknown",
+      "feeds": ""
+    },
+    {
+      "source": "nyc-ceqr",
+      "quiet": false,
+      "records": 64,
+      "published": "23d",
+      "captured": "5d",
+      "thisRun": "unknown",
+      "feeds": "New York City"
+    },
+    {
+      "source": "nyc-city-record",
+      "quiet": false,
+      "records": 101,
+      "published": "22d",
+      "captured": "5d",
+      "thisRun": "unknown",
+      "feeds": "New York City"
+    },
+    {
+      "source": "agenda-portal",
+      "quiet": false,
+      "records": 120,
+      "published": "19d",
+      "captured": "16d",
+      "thisRun": "unknown",
+      "feeds": "Anaheim, Las Vegas"
+    },
+    {
+      "source": "uktenders",
+      "quiet": false,
+      "records": 1,
+      "published": "15d",
+      "captured": "23d",
+      "thisRun": "unknown",
+      "feeds": ""
+    },
+    {
+      "source": "worldbank",
+      "quiet": false,
+      "records": 76,
+      "published": "10d",
+      "captured": "5d",
+      "thisRun": "unknown",
+      "feeds": ""
+    },
+    {
+      "source": "ceqanet",
+      "quiet": false,
+      "records": 7,
+      "published": "9d",
+      "captured": "5d",
+      "thisRun": "unknown",
+      "feeds": "Anaheim"
+    },
+    {
+      "source": "clark-tab",
+      "quiet": false,
+      "records": 32,
+      "published": "4d",
+      "captured": "5d",
+      "thisRun": "unknown",
+      "feeds": "Clark County"
+    },
+    {
+      "source": "gli_serper",
+      "quiet": false,
+      "records": 555,
+      "published": "3d",
+      "captured": "3d",
+      "thisRun": "unknown",
+      "feeds": "Anaheim, Clark County, Las Vegas, Nashville, New York City, Phoenix, San Antonio"
+    },
+    {
+      "source": "legistar",
+      "quiet": false,
+      "records": 115,
+      "published": "ahead",
+      "captured": "5d",
+      "thisRun": "unknown",
+      "feeds": "Clark County, Miami-Dade County, Nashville, Oakland, Phoenix, San Antonio, Westchester County"
+    },
+    {
+      "source": "canadabuys",
+      "quiet": false,
+      "records": 3,
+      "published": "ahead",
+      "captured": "23d",
+      "thisRun": "unknown",
+      "feeds": ""
+    }
+  ],
+  "quiet": [
+    "iadb",
+    "sfwmd",
+    "govdoc",
+    "cftod-pdf",
+    "nyc-zap",
+    "adb"
+  ],
+  "railMarkets": [
+    {
+      "market": "Miami-Dade County",
+      "state": "dead"
+    },
+    {
+      "market": "San Antonio",
+      "state": "dead"
+    },
+    {
+      "market": "Las Vegas",
+      "state": "degraded"
+    },
+    {
+      "market": "South Florida",
+      "state": "stale"
+    },
+    {
+      "market": "Central Florida Tourism Oversight District",
+      "state": "stale"
+    },
+    {
+      "market": "Nashville",
+      "state": "thin"
+    },
+    {
+      "market": "Yonkers",
+      "state": "thin"
+    },
+    {
+      "market": "New York City",
+      "state": "live"
+    },
+    {
+      "market": "Clark County",
+      "state": "live"
+    },
+    {
+      "market": "Anaheim",
+      "state": "live"
+    },
+    {
+      "market": "Phoenix",
+      "state": "live"
+    },
+    {
+      "market": "Oakland",
+      "state": "live"
+    },
+    {
+      "market": "Westchester County",
+      "state": "live"
+    }
+  ],
+  "composerCountries": [
+    "United States",
+    "Australia",
+    "Albania",
+    "Armenia",
+    "Cabo Verde",
+    "Pakistan",
+    "United Arab Emirates",
+    "Argentina",
+    "Brazil",
+    "Dominica",
+    "Egypt",
+    "Ethiopia",
+    "Finland",
+    "Ghana",
+    "Ivory Coast",
+    "Jamaica",
+    "Kiribati",
+    "Kyrgyzstan",
+    "Lebanon",
+    "Malaysia",
+    "Mauritius",
+    "Morocco",
+    "Nepal",
+    "North Macedonia",
+    "Oman",
+    "Panama",
+    "Russia",
+    "Rwanda",
+    "Saudi Arabia",
+    "South Africa",
+    "South Sudan",
+    "Sri Lanka",
+    "Tanzania",
+    "Thailand",
+    "Uganda"
+  ]
+}

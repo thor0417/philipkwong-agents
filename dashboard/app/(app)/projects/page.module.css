@@ -717,6 +717,28 @@
   text-underline-offset: 2px;
 }
 
+/* THE COVERAGE STATE, ON THE MARKET NODE.
+   Five words, and only the two that mean "you cannot sell this" take the accent.
+   A rail where every state is coloured is a rail where none of them reads, and
+   the point is that a dead market must be impossible to miss in a list where
+   most rows are fine. `live` is dimmed below the count, because the default
+   state is the least informative thing in the list. */
+.railState {
+  font-size: 9px;
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+  color: var(--ink-muted);
+  white-space: nowrap;
+}
+.railState[data-coverage-state='dead'],
+.railState[data-coverage-state='degraded'] {
+  color: var(--accent);
+}
+.railState[data-coverage-state='live'] {
+  color: var(--ink-disabled);
+  opacity: 0.55;
+}
+
 /* PROVENANCE, AS A LABEL ON THE RECORD. The three stream tabs said which lane
    captured a row, which is a fact about our plumbing; this says whether the row
    is a filing the client can open, a tender still open to bid, or a story

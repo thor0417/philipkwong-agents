@@ -1,0 +1,174 @@
+/* HEALTH. Two tables and the sentences that qualify them.
+ *
+ * Prose-shaped at the top of each block and tabular below it, because a number
+ * on this screen means nothing without the rule that produced it. The tables
+ * fill their width; the ledes are capped at a readable measure.
+ */
+.screen {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-32);
+  padding: var(--space-24) var(--space-24) var(--space-48);
+}
+
+.head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-16);
+}
+
+.title {
+  font-family: var(--font-display);
+  font-weight: var(--weight-medium);
+  font-size: var(--type-display-lg);
+  line-height: var(--leading-display);
+  letter-spacing: var(--track-display);
+  margin: 0;
+}
+
+.h2 {
+  font-family: var(--font-display);
+  font-weight: var(--weight-regular);
+  font-size: var(--type-display-sm, 24px);
+  letter-spacing: var(--track-display);
+  margin: 0 0 var(--space-4);
+}
+
+.lede,
+.caveat,
+.foot {
+  margin: 0 0 var(--space-12);
+  max-width: 88ch;
+  color: var(--ink-muted);
+  font-size: var(--type-meta);
+  line-height: var(--leading-body);
+}
+
+/* The one thing on this screen that qualifies everything below it. A hairline
+   box, not a fill: it is a standing condition, not an alert. */
+.caveat {
+  border: var(--border-hairline);
+  padding: var(--space-12);
+  color: var(--ink);
+}
+
+.foot {
+  color: var(--ink-disabled);
+  font-size: var(--type-caption);
+  margin: 0;
+}
+
+.block {
+  display: flex;
+  flex-direction: column;
+}
+
+.table {
+  display: flex;
+  flex-direction: column;
+}
+
+.headRow,
+.row {
+  display: grid;
+  align-items: center;
+  gap: var(--space-12);
+  padding: 0 var(--space-8);
+}
+
+.marketRow {
+  grid-template-columns:
+    minmax(180px, 1.4fr) 84px 72px 64px 72px 84px 84px minmax(220px, 2fr);
+}
+
+.sourceRow {
+  grid-template-columns: minmax(180px, 1fr) 72px 84px 84px 84px minmax(220px, 2fr);
+}
+
+.headRow {
+  height: var(--row-h-dense);
+  border-bottom: var(--border-strong);
+  font-size: var(--type-caption);
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+.row {
+  min-height: var(--row-h);
+  border-bottom: var(--border-hairline);
+  font-size: var(--type-meta);
+}
+
+.cellName {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink);
+  font-size: var(--type-body);
+}
+
+.num {
+  text-align: right;
+  justify-self: end;
+  font-variant-numeric: tabular-nums;
+}
+
+.why {
+  color: var(--ink-muted);
+  font-size: var(--type-caption);
+  line-height: var(--leading-body);
+  min-width: 0;
+}
+
+/* THE COVERAGE STATE. Five words, and only the worst of them takes the accent.
+   A screen where every state is coloured is a screen where none of them reads,
+   and the point of this table is that a dead market must be impossible to miss
+   in a list where most rows are fine. */
+.state {
+  font-size: var(--type-caption);
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+  color: var(--ink-muted);
+  white-space: nowrap;
+}
+.state[data-state='dead'],
+.state[data-state='degraded'] {
+  color: var(--accent);
+}
+.state[data-state='live'] {
+  color: var(--ink-disabled);
+}
+
+.degradedTag {
+  padding: 0 var(--space-4);
+  border: var(--border-hairline);
+  border-radius: var(--radius-sm, 2px);
+  font-size: var(--type-caption);
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+  color: var(--ink-tertiary, var(--ink-secondary));
+  white-space: nowrap;
+}
+
+/* A source that has published nothing in a month. Weight, not colour: the
+   accent on this screen belongs to a dead or degraded market. */
+.row[data-quiet='yes'] .cellName {
+  font-weight: var(--weight-medium);
+}
+
+.dim {
+  color: var(--ink-muted);
+  font-size: var(--type-meta);
+}
+
+.error {
+  border: var(--border-hairline);
+  border-left: 2px solid var(--accent);
+  padding: var(--space-8) var(--space-12);
+  font-size: var(--type-meta);
+}

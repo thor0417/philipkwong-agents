@@ -98,6 +98,12 @@ export const NAV: NavSection[] = [
         keywords: ['unattached', 'untriaged', 'orphan', 'attach', 'triage', 'backlog'],
         hint: 'Records attached to no project. It empties.',
       },
+      {
+        label: 'Health',
+        href: '/health',
+        keywords: ['sources', 'freshness', 'stale', 'dead', 'degraded', 'coverage', 'alarm', 'staleness'],
+        hint: 'Which sources are still being read, and which markets are real.',
+      },
     ],
   },
   {

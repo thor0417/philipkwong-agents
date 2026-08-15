@@ -116,11 +116,13 @@ export interface CoverageInput {
   liveProjects: number;
   /** Of those, how many have at least one record naming a party. */
   projectsNamingAParty: number;
+  /** Every live record naming this market, attached or not. */
+  records: number;
   /** Age in days of the newest document we hold for it, or null if none. */
   newestDocumentDays: number | null;
   /** Declared dead in lib/dead-feeds. */
   deadFeed: boolean;
-  /** Declared degraded in agents/scraper/degraded-sources. */
+  /** Declared degraded in the known-degraded register. */
   degraded: boolean;
 }
 
@@ -138,16 +140,27 @@ export interface Coverage {
  * Each state is the WORST thing true of the market.
  */
 export function coverageFor(input: CoverageInput): Coverage {
-  const { liveProjects, projectsNamingAParty, newestDocumentDays, deadFeed, degraded } = input;
+  const { liveProjects, projectsNamingAParty, records, newestDocumentDays, deadFeed, degraded } =
+    input;
 
   if (deadFeed) {
     return { state: 'dead', why: 'the source has published nothing for over a year; declared in lib/dead-feeds' };
   }
   if (degraded) {
-    return { state: 'degraded', why: 'the adapter is failing in a known way; declared in degraded-sources' };
+    return { state: 'degraded', why: 'the adapter is failing in a known way; declared in the known-degraded register' };
+  }
+  // NO RECORDS AT ALL IS A DIFFERENT STATEMENT FROM UNDATED RECORDS, and saying
+  // the wrong one is how Yonkers reported "no record here carries a date" while
+  // holding no records whatsoever. Both are thin; only one of them is worth
+  // acting on, and the operator has to be able to tell which.
+  if (records === 0) {
+    return { state: 'thin', why: 'an adapter is pointed here and it has produced nothing at all' };
   }
   if (newestDocumentDays === null) {
-    return { state: 'thin', why: 'no record here carries a date, so nothing can be said about freshness' };
+    return {
+      state: 'thin',
+      why: `${records} records here and not one carries a date, so nothing can be said about freshness`,
+    };
   }
   if (newestDocumentDays > STALE_DAYS) {
     return {

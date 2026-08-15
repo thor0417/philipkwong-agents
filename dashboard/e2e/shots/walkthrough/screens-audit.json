@@ -61,6 +61,17 @@
     "notes": []
   },
   {
+    "name": "Health",
+    "url": "/health",
+    "ok": true,
+    "primary": "[data-market]",
+    "rows": 16,
+    "consoleErrors": [],
+    "pageErrors": [],
+    "failedRequests": [],
+    "notes": []
+  },
+  {
     "name": "Reports",
     "url": "/reports",
     "ok": true,

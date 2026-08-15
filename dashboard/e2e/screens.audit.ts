@@ -49,6 +49,7 @@ const SCREENS: { name: string; url: string; primary: string; rowSel?: string }[]
   { name: 'Players', url: '/players', primary: '[data-testid="players-stats"]', rowSel: '[data-company-id]' },
   // The Inbox's primary content is its count, which is the point of the screen.
   { name: 'Inbox', url: '/inbox', primary: '[data-testid="inbox-total"]', rowSel: '[data-record-id]' },
+  { name: 'Health', url: '/health', primary: '[data-market]', rowSel: '[data-source]' },
   { name: 'Reports', url: '/reports', primary: '[data-testid="report-client"]', rowSel: '[data-section]' },
   { name: 'Clients', url: '/clients', primary: 'h1', rowSel: '[data-client-id]' },
   { name: 'Design system', url: '/design', primary: 'h1', rowSel: 'section' },
