@@ -5,13 +5,9 @@
     "ok": true,
     "primary": "h1",
     "rows": 128,
-    "consoleErrors": [
-      "Failed to load resource: the server responded with a status of 401 ()"
-    ],
+    "consoleErrors": [],
     "pageErrors": [],
-    "failedRequests": [
-      "401 https://ifpbvuclzjoxblgywibi.supabase.co/rest/v1/leads?select=source%2Cfirst_seen&module=eq.gli&order=first_seen.desc&limit=6000"
-    ],
+    "failedRequests": [],
     "notes": [
       "body contains \"failed\""
     ]

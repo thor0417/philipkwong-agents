@@ -80,6 +80,46 @@ const SCREENS: Screen[] = [
     // elements to kinds - an 8 that nothing approaches is not a ratchet.
     accentBudget: 4,
   },
+  // THE FOUR SCREENS THIS BRIEF ADDED, EACH WITH A BUDGET FROM THE START.
+  //
+  // Records is the argument for this: it went in without one, accumulated
+  // eleven kinds of accented thing, and by the time anybody counted, the number
+  // was too large to be a ratchet and too old to attribute. A screen with no
+  // budget is a screen whose design debt is invisible until it is expensive.
+  {
+    name: '05-players',
+    path: '/players',
+    ready: '[data-testid="players-stats"]',
+    // MEASURED AT 2: the active nav item, and the reachability column - which is
+    // the one thing on that screen worth the eye, and the reason the accent is
+    // spent there. Held at what it measures, like Today, so a third KIND fails.
+    accentBudget: 2,
+  },
+  {
+    name: '06-inbox',
+    path: '/inbox',
+    ready: '[data-testid="inbox-total"]',
+    // Measured at 2: the nav item and the error rule.
+    accentBudget: 2,
+  },
+  {
+    name: '07-health',
+    path: '/health',
+    ready: '[data-market]',
+    fullPage: true,
+    // Measured at 2: the nav item, and the dead/degraded state, which is one
+    // kind however many markets are in it. Nothing else on a screen about
+    // failure may claim the eye, or the failures stop reading.
+    accentBudget: 2,
+  },
+  {
+    name: '08-vocabulary',
+    path: '/vocabulary',
+    ready: '[data-term]',
+    fullPage: true,
+    // Measured at 2. A page of definitions has nothing to emphasise.
+    accentBudget: 2,
+  },
   // The record table, moved from /projects. Still the pre-rebuild screen, so
   // its accent debt is unchanged and held where it was measured.
   {

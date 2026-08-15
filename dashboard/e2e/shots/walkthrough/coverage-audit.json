@@ -46,9 +46,9 @@
       "projects": 1,
       "named": 1,
       "records": 11,
-      "published": "204d",
+      "published": "205d",
       "captured": "22d",
-      "why": "the newest document we hold is 204 days old, past the 90-day line"
+      "why": "the newest document we hold is 205 days old, past the 90-day line"
     },
     {
       "market": "Nashville",
@@ -86,9 +86,9 @@
       "projects": 27,
       "named": 27,
       "records": 82,
-      "published": "4d",
+      "published": "5d",
       "captured": "3d",
-      "why": "27 live projects, 27 naming a party, newest document 4 days old"
+      "why": "27 live projects, 27 naming a party, newest document 5 days old"
     },
     {
       "market": "Anaheim",
@@ -154,7 +154,7 @@
       "source": "govdoc",
       "quiet": true,
       "records": 3,
-      "published": "226d",
+      "published": "227d",
       "captured": "23d",
       "thisRun": "unknown",
       "feeds": "Central Florida Tourism Oversight District"
@@ -163,7 +163,7 @@
       "source": "cftod-pdf",
       "quiet": true,
       "records": 10,
-      "published": "204d",
+      "published": "205d",
       "captured": "22d",
       "thisRun": "unknown",
       "feeds": "Central Florida Tourism Oversight District"
@@ -181,7 +181,7 @@
       "source": "adb",
       "quiet": true,
       "records": 3,
-      "published": "114d",
+      "published": "115d",
       "captured": "23d",
       "thisRun": "unknown",
       "feeds": ""
@@ -190,7 +190,7 @@
       "source": "nyc-ceqr",
       "quiet": false,
       "records": 64,
-      "published": "23d",
+      "published": "24d",
       "captured": "5d",
       "thisRun": "unknown",
       "feeds": "New York City"
@@ -199,7 +199,7 @@
       "source": "nyc-city-record",
       "quiet": false,
       "records": 101,
-      "published": "22d",
+      "published": "23d",
       "captured": "5d",
       "thisRun": "unknown",
       "feeds": "New York City"
@@ -223,6 +223,15 @@
       "feeds": ""
     },
     {
+      "source": "ceqanet",
+      "quiet": false,
+      "records": 7,
+      "published": "10d",
+      "captured": "5d",
+      "thisRun": "unknown",
+      "feeds": "Anaheim"
+    },
+    {
       "source": "worldbank",
       "quiet": false,
       "records": 76,
@@ -232,19 +241,10 @@
       "feeds": ""
     },
     {
-      "source": "ceqanet",
-      "quiet": false,
-      "records": 7,
-      "published": "9d",
-      "captured": "5d",
-      "thisRun": "unknown",
-      "feeds": "Anaheim"
-    },
-    {
       "source": "clark-tab",
       "quiet": false,
       "records": 32,
-      "published": "4d",
+      "published": "5d",
       "captured": "5d",
       "thisRun": "unknown",
       "feeds": "Clark County"
@@ -252,7 +252,7 @@
     {
       "source": "gli_serper",
       "quiet": false,
-      "records": 555,
+      "records": 535,
       "published": "3d",
       "captured": "3d",
       "thisRun": "unknown",

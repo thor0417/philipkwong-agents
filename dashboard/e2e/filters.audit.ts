@@ -76,6 +76,24 @@ async function chipsOf(
   return raw.filter((c) => c.value && c.value !== 'all');
 }
 
+/**
+ * Open the press-only geography tree.
+ *
+ * The country / region / market tree is now behind a collapsed node: covered
+ * markets are their own section and everywhere else is press coverage, because
+ * showing the two as one list is how a market name reaches a client's cover page
+ * on the strength of one headline. The tree itself is unchanged and this audit
+ * still tests it, so it opens it first.
+ *
+ * Idempotent: already-open is a no-op, so it can be called before every read.
+ */
+async function openGeographyTree(page: Page): Promise<void> {
+  const toggle = page.getByTestId('press-coverage-toggle');
+  await expect(toggle).toBeVisible({ timeout: 120_000 });
+  if ((await toggle.getAttribute('aria-expanded')) !== 'true') await toggle.click();
+  await expect(page.locator('[data-country]').first()).toBeVisible({ timeout: 30_000 });
+}
+
 async function totalFor(page: import('@playwright/test').Page, url: string): Promise<number> {
   await page.goto(url, { waitUntil: 'domcontentloaded' });
   const pager = page.getByTestId('pager-total');
@@ -265,6 +283,7 @@ test('register filtering audit', async ({ page }) => {
     // cannot test a market the corpus no longer holds and call the resulting
     // equality a pass.
     await page.goto(l2Url, { waitUntil: 'domcontentloaded' });
+    await openGeographyTree(page);
     await expect(page.locator('[data-market]').first()).toBeVisible({ timeout: 120_000 });
     const marketNodes = await page
       .locator('[data-market]')
@@ -393,6 +412,7 @@ test('register filtering audit', async ({ page }) => {
   for (const region of ['California', 'Nevada', 'New York']) {
     const regionUrl = `${l1Url}&region=${encodeURIComponent(region)}`;
     await page.goto(regionUrl, { waitUntil: 'domcontentloaded' });
+    await openGeographyTree(page);
     await expect(page.locator('[data-market]').first()).toBeVisible({ timeout: 120_000 });
     const nodes = await page
       .locator('[data-market]')
@@ -639,6 +659,8 @@ test('clicking a filter chip requeries the list', async ({ page }) => {
     const pager = page.getByTestId('pager-total');
     await expect(pager).toBeVisible({ timeout: 120_000 });
     await expect.poll(async () => await pager.getAttribute('data-total'), { timeout: 120_000 }).not.toBeNull();
+    // The market controls live in the press-only tree, which is collapsed.
+    if (a.pick === 'market') await openGeographyTree(page);
     const before = Number(await pager.getAttribute('data-total'));
 
     // A real value, taken off the screen the click will happen on.
@@ -663,6 +685,7 @@ test('clicking a filter chip requeries the list', async ({ page }) => {
     await page.goto(a.from, { waitUntil: 'domcontentloaded' });
     await expect(pager).toBeVisible({ timeout: 120_000 });
     await expect.poll(async () => await pager.getAttribute('data-total'), { timeout: 120_000 }).not.toBeNull();
+    if (a.pick === 'market') await openGeographyTree(page);
 
     let requests = 0;
     const count = (r: { url(): string }) => {

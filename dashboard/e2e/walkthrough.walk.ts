@@ -133,7 +133,7 @@ test('walkthrough captures', async ({ page }) => {
   await expect(page.locator('[data-row-id]').first()).toBeVisible({ timeout: 60_000 });
   await hydrated(page);
   await page.keyboard.press('ControlOrMeta+k');
-  const input = page.getByPlaceholder('Jump to a project, a screen, or a pipeline');
+  const input = page.getByPlaceholder('Jump to a project, find a record, or go to a screen');
   await expect(input).toBeVisible({ timeout: 20_000 });
   await input.fill('resort');
   await expect(page.locator('[cmdk-item]').first()).toBeVisible({ timeout: 20_000 });

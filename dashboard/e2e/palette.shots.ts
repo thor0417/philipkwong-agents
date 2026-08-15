@@ -39,7 +39,7 @@ test('command palette', async ({ page }, testInfo) => {
   // work wherever the operator's hands happen to be.
   await page.keyboard.press('ControlOrMeta+k');
 
-  const input = page.getByPlaceholder('Jump to a project, a screen, or a pipeline');
+  const input = page.getByPlaceholder('Jump to a project, find a record, or go to a screen');
   await expect(input).toBeVisible({ timeout: 10_000 });
 
   // Empty state: screens and pipelines are listed before anything is typed, so
