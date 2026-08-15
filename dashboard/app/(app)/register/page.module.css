@@ -55,6 +55,19 @@
   min-width: 0;
 }
 
+/* EXPANDED, THE ROW MUST BE ABLE TO GROW, and it could not.
+   `nowrap` plus `overflow: hidden` is right for the collapsed row - that is what
+   keeps three filter groups to three lines - but it stayed on when "+16 more"
+   expanded the group, so the extra chips were laid out on one unbroken line and
+   clipped at the container edge. Twenty venue values, five of them reachable,
+   and the control that promised the other fifteen was the control that hid them.
+   The "less" button was off the same edge, so the state could not be left
+   either. Expanding now wraps. */
+.chipRowOpen {
+  flex-wrap: wrap;
+  overflow: visible;
+}
+
 .chipRowLabel {
   flex: 0 0 auto;
   width: 62px;

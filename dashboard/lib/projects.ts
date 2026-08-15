@@ -123,6 +123,18 @@ export interface ProjectQuery {
   // paths now agree, which is the point: a scope naming one market and a scope
   // naming two must not be matched by different rules.
   loose?: { field: LooseField; value: string }[];
+  // COLUMNS REQUIRED TO BE EMPTY. The route to the projects an "All" chip does
+  // not reach.
+  //
+  // Sixty-four live projects carry no venue type and no development category,
+  // and none of them holds a record naming one either - so "All venues" counted
+  // 203 while "All stages" counted 267 and the venue row offered no way to the
+  // other 64. An "All" that is not all is a silent gap: the operator cannot see
+  // that a quarter of the register is missing from that axis, let alone open it.
+  //
+  // Expressible only since this filter existed. An earlier "No stage yet" saved
+  // view was removed rather than fixed for exactly this reason.
+  nullFields?: LooseField[];
   search?: string;
   sortField?: string;
   sortDir?: 'asc' | 'desc';
@@ -165,6 +177,7 @@ export function applyProjectFilters<T>(builder: T, q: ProjectQuery): T {
   let b = builder as unknown as {
     eq: (c: string, v: unknown) => unknown;
     not: (c: string, op: string, v: unknown) => unknown;
+    is: (c: string, v: unknown) => unknown;
     gte: (c: string, v: unknown) => unknown;
     lt: (c: string, v: unknown) => unknown;
     in: (c: string, v: readonly unknown[]) => unknown;
@@ -198,6 +211,7 @@ export function applyProjectFilters<T>(builder: T, q: ProjectQuery): T {
   // and the server rejects it. Substituting an impossible value keeps "no
   // events in this period" answering zero instead of erroring.
   if (q.ids !== undefined) set(b.in('id', q.ids.length ? q.ids : [NO_SUCH_ID]));
+  for (const f of q.nullFields ?? []) set(b.is(f, null));
   for (const m of q.loose ?? []) {
     if (m.value.trim()) set(b.ilike(m.field, likeLiteral(m.value)));
   }
@@ -312,8 +326,12 @@ export async function projectFacetCounts(
   // reason: migration 017's function compares with `=`, so a tolerant filter it
   // has never heard of would simply not be applied, and the chips would count a
   // wider set than the list beside them shows.
+  // `nullFields` joins them for the same reason: migration 017's function has
+  // never heard of it, so a chip counted through the RPC would ignore the "no
+  // venue type" constraint entirely and count the whole register beside a list
+  // showing 64.
   const periodScoped = scoped.firstSeenFrom !== undefined || scoped.firstSeenTo !== undefined || scoped.ids !== undefined;
-  const { data, error } = periodScoped || (scoped.loose ?? []).length > 0
+  const { data, error } = periodScoped || (scoped.loose ?? []).length > 0 || (scoped.nullFields ?? []).length > 0
     ? { data: null, error: { message: 'period- or loosely-scoped facets bypass the RPC' } }
     : await supabase.rpc('project_facet_counts', {
         p_field: field,

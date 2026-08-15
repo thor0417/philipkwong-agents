@@ -310,6 +310,68 @@ test('register filtering audit', async ({ page }) => {
     });
   }
 
+  // ---- "ALL" MUST MEAN ALL. ------------------------------------------------
+  //
+  // "All venues" read 203 while "All stages" read 267, on the same unfiltered
+  // register. Sixty-four projects carry no venue type - and, measured, no record
+  // of theirs names one either - so a quarter of the register was missing from
+  // that axis with nothing on the screen saying so and nothing to click for it.
+  //
+  // Each row's "All" chip is now the whole axis, and the axis carries an
+  // explicit node for the projects with no value on it. This asserts the first
+  // half, per row, against the register's own total. It catches the same gap
+  // opening on any axis, including stage, which measures zero missing today and
+  // is one null away from the identical defect.
+  console.log('\n===== EVERY "ALL" CHIP IS THE WHOLE REGISTER =====');
+  const allChips: { axis: string; all: number }[] = [];
+  await page.goto(BASE, { waitUntil: 'domcontentloaded' });
+  await expect(page.getByTestId('pager-total')).toBeVisible({ timeout: 120_000 });
+  for (const attr of ['stage', 'venue', 'category'] as const) {
+    // WAIT FOR A REAL FACET VALUE, not merely for a second chip.
+    //
+    // "All venues" and "No venue type" are both rendered from state that exists
+    // before the facet query answers - the first from an empty count map, the
+    // second from its own count query - so a poll for "more than one chip" is
+    // satisfied on the first paint. Read then, All shows 0 named + 64 unnamed
+    // and this audit reports 64 against a register of 267: the instrument's own
+    // race, printed as a finding about the product.
+    await expect
+      .poll(
+        async () =>
+          await page
+            .locator(`[data-${attr}]`)
+            .evaluateAll(
+              (els, a: string) =>
+                els.filter((e) => {
+                  const v = e.getAttribute(`data-${a}`);
+                  return v && v !== 'all' && v !== '__none__';
+                }).length,
+              attr
+            ),
+        { timeout: 120_000 }
+      )
+      .toBeGreaterThan(0);
+    const all = Number(
+      await page
+        .locator(`[data-${attr}="all"]`)
+        .first()
+        .evaluate((e) => (e.textContent ?? '').replace(/[^0-9]/g, ''))
+    );
+    console.log(`  ${attr.padEnd(9)} All = ${String(all).padStart(4)}   register = ${baseline}`);
+    allChips.push({ axis: attr, all });
+  }
+
+  // AND THE NODE OPENS. A count with no route to it is the same silent gap one
+  // step later, so the "no value" chip is followed to its list.
+  const noValue: { axis: string; total: number }[] = [];
+  for (const attr of ['venue', 'category'] as const) {
+    const total = await totalFor(page, `${BASE}&${attr}=__none__`);
+    console.log(`  ${attr.padEnd(9)} no value -> ${total} projects`);
+    noValue.push({ axis: attr, total });
+    await page.goto(BASE, { waitUntil: 'domcontentloaded' });
+    await expect(page.getByTestId('pager-total')).toBeVisible({ timeout: 120_000 });
+  }
+
   // ---- THE RAIL MUST COUNT WHAT CLICKING IT RETURNS. -----------------------
   //
   // The market node's number used to come off projects.market, which is a MODE
@@ -447,6 +509,8 @@ test('register filtering audit', async ({ page }) => {
         hierarchy,
         unmatched,
         venueAndCategory: axisRows,
+        allChips,
+        noValueNodes: noValue,
         railVersusClick: railRows,
       },
       null,
@@ -472,6 +536,27 @@ test('register filtering audit', async ({ page }) => {
       `market=${h.market} returned exactly ${h.region}'s ${h.l2} projects, so the market filter is not being applied`
     ).toBeLessThan(h.l2);
     expect(h.l3, `market=${h.market} returned nothing at all`).toBeGreaterThan(0);
+  }
+
+  for (const a of allChips) {
+    expect(
+      a.all,
+      `"All" on the ${a.axis} row counts ${a.all} against a register of ${baseline}. ` +
+        `An "All" that is not all is a silent gap: ${baseline - a.all} projects are missing from that axis ` +
+        `and the row offers no route to them.`
+    ).toBe(baseline);
+  }
+
+  for (const n of noValue) {
+    expect(
+      n.total,
+      `the ${n.axis} row's "no value" node returned ${n.total}. It exists because that set is not empty; ` +
+        `a node counting projects it cannot open is the gap it was added to close.`
+    ).toBeGreaterThan(0);
+    expect(
+      n.total,
+      `the ${n.axis} row's "no value" node returned the whole register`
+    ).toBeLessThan(baseline);
   }
 
   for (const r of railRows) {

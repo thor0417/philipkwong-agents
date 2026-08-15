@@ -21,7 +21,12 @@ import { useRouter } from 'next/navigation';
 import { useQueryState, parseAsString, parseAsInteger } from 'nuqs';
 import { PROJECT_STAGES } from '@/lib/taxonomy';
 import { LIVE_PIPELINE_STORAGE_KEY } from '@/lib/pipelines';
-import { DEFAULT_PROJECT_PAGE_SIZE, type Project, type ProjectQuery } from '@/lib/projects';
+import {
+  DEFAULT_PROJECT_PAGE_SIZE,
+  type LooseField,
+  type Project,
+  type ProjectQuery,
+} from '@/lib/projects';
 import {
   useProjectPage,
   useProjectCount,
@@ -103,6 +108,21 @@ const SAVED = [
 const DEFAULT_COUNTRY = 'United States';
 const GEO_ANY = 'any';
 
+// THE ROUTE TO THE PROJECTS AN "ALL" CHIP DOES NOT REACH.
+//
+// "All venues" read 203 while "All stages" read 267. Sixty-four live projects
+// carry no venue type - and, measured, not one of them holds a record naming one
+// either, so this is a real absence rather than a labelling gap - and the venue
+// row offered no way to any of them. Same 64 on the category axis.
+//
+// An "All" that is not all is a silent gap: nothing on the screen said a quarter
+// of the register was missing from that axis, and nothing offered to show it.
+//
+// A URL value rather than a null, for the same reason the geography sentinel is:
+// ?venue=__none__ is a link that survives being sent and reloaded, where "the
+// parameter is absent" already means "every venue".
+const NO_VALUE = '__none__';
+
 function effectiveCountry(param: string | null): string | undefined {
   if (param === null) return DEFAULT_COUNTRY;
   if (param === GEO_ANY) return undefined;
@@ -144,13 +164,37 @@ function significanceTitle(p: Project): string {
   return [head, ...parts].join('\n');
 }
 
-const COLUMNS: { key: string; label: string; sort?: string; numeric?: boolean }[] = [
+const COLUMNS: { key: string; label: string; sort?: string; numeric?: boolean; help?: string }[] = [
   { key: 'name', label: 'Project', sort: 'name' },
   { key: 'significance', label: 'Sig', sort: 'significance' },
   { key: 'applicant', label: 'Applicant', sort: 'primary_applicant' },
   { key: 'market', label: 'Market', sort: 'market' },
   { key: 'stage', label: 'Stage', sort: 'stage' },
-  { key: 'last', label: 'Last activity', sort: 'last_activity', numeric: true },
+  // "LAST ACTIVITY" NAMED A DATE IT DOES NOT SHOW, beside a control that filters
+  // on a different one.
+  //
+  // projects.last_activity is the newest DOCUMENT date across the project's
+  // records - a deadline, else a publication date, and explicitly never a
+  // capture time (see bestDate in agents/scraper/cluster). The period control
+  // beside it defaults to the Arrived axis, which filters on when WE captured a
+  // record. So "this month" legitimately lists a project whose newest filing is
+  // dated 2024, and the row reads as a bug in a screen that is working.
+  //
+  // Renamed rather than given a companion column, because the honest companion
+  // is the project's NEWEST capture date and no such column exists: first_seen
+  // is written once as the OLDEST capture among its records, so printing it here
+  // would produce the same contradiction one column to the left. Adding the real
+  // one is a migration, and it is reported rather than smuggled in.
+  {
+    key: 'last',
+    label: 'Last filed',
+    sort: 'last_activity',
+    numeric: true,
+    help:
+      'The date on the newest document we hold for this project - a deadline, ' +
+      'else a publication date. It is not when we captured it, which is what ' +
+      'the Arrived period filters on.',
+  },
 ];
 
 export default function RegisterPage() {
@@ -202,16 +246,34 @@ export default function RegisterPage() {
   // Measured: 21 projects hold a record naming a venue their own label does not,
   // 17 a category, 3 a market. Top Gun Las Vegas is filed as a Family
   // Entertainment Center and its records also name Casino/Gaming.
-  const recordFacetFilter = { market, venue_type: venue, development_category: category };
-  const facetConstrained = !!(market || venue || category);
+  // "No venue type" is the absence of a value, so it is not a record match at
+  // all: it is a constraint on the project row, and the record resolution has to
+  // be told to ignore that axis rather than search the records for the literal
+  // string. Sent to the records as a value it would match nothing and the two
+  // constraints would AND to the empty set.
+  const venueValue = venue === NO_VALUE ? null : venue;
+  const categoryValue = category === NO_VALUE ? null : category;
+  const nullFields = useMemo(() => {
+    const f: LooseField[] = [];
+    if (venue === NO_VALUE) f.push('venue_type');
+    if (category === NO_VALUE) f.push('development_category');
+    return f;
+  }, [venue, category]);
+
+  const recordFacetFilter = {
+    market,
+    venue_type: venueValue,
+    development_category: categoryValue,
+  };
+  const facetConstrained = !!(market || venueValue || categoryValue);
   const facetIds = useProjectIdsMatchingRecords(recordFacetFilter, facetConstrained);
 
   // THE SAME RESOLUTION WITHOUT THE MARKET AXIS, which is what the market facet
   // has to be counted against. A facet never filters itself, and on this axis
   // "itself" is a record match rather than a column.
-  const marketFacetConstrained = !!(venue || category);
+  const marketFacetConstrained = !!(venueValue || categoryValue);
   const marketFacetIds = useProjectIdsMatchingRecords(
-    { venue_type: venue, development_category: category },
+    { venue_type: venueValue, development_category: categoryValue },
     marketFacetConstrained
   );
 
@@ -336,7 +398,10 @@ export default function RegisterPage() {
       ...statusFilter(viewKey),
       stage: stage ?? undefined,
       // venue_type, development_category and market are deliberately absent:
-      // they are resolved against the records into idFilter above.
+      // they are resolved against the records into idFilter above. The ABSENCE
+      // of a venue or a category is the exception, because no record can carry
+      // it - it is a constraint on the project row and goes to the server.
+      ...(nullFields.length ? { nullFields } : {}),
       ...geo,
       ...idFilter,
       search: search.trim() || undefined,
@@ -360,7 +425,10 @@ export default function RegisterPage() {
     // read only THROUGH idFilter, which lists it in its own deps. Naming both
     // would leave two ways for this to drift apart again, and the one that was
     // named is the one that was not being used.
-    [viewKey, stage, geo, idFilter, search]
+    // nullFields is named here for exactly the reason the note above gives: a
+    // value that reaches the URL and stops one line short of the query key is a
+    // control that does nothing, and this axis has been that once already.
+    [viewKey, stage, geo, idFilter, search, nullFields]
   );
 
   // BUCKETING OWNS THE SORT WHILE IT IS ON.
@@ -430,14 +498,30 @@ export default function RegisterPage() {
   // prints the gap per value. Left as it stands pending Philip's decision on
   // which of the two numbers a chip should show; both are filtered, which is the
   // part that was broken.
-  const venueFacet = useProjectFacet(
-    { ...baseQuery, venue_type: undefined },
-    'venue_type',
-    facetsReady
+  //
+  // A FACET STRIPS ITS OWN NULL CONSTRAINT AS WELL AS ITS OWN VALUE. Without
+  // this, selecting "No venue type" would leave nullFields on the base the venue
+  // chips are counted against, and every venue chip would read 0 beside a list
+  // of 64 - the facet counting the one thing it is supposed to exclude.
+  const withoutAxis = useCallback(
+    (field: LooseField): ProjectQuery => {
+      const nulls = (baseQuery.nullFields ?? []).filter((f) => f !== field);
+      return {
+        ...baseQuery,
+        [field]: undefined,
+        ...(nulls.length ? { nullFields: nulls } : { nullFields: undefined }),
+      };
+    },
+    [baseQuery]
   );
-  const categoryFacet = useProjectFacet(
-    { ...baseQuery, development_category: undefined },
-    'development_category',
+  const venueBase = useMemo(() => withoutAxis('venue_type'), [withoutAxis]);
+  const categoryBase = useMemo(() => withoutAxis('development_category'), [withoutAxis]);
+  const venueFacet = useProjectFacet(venueBase, 'venue_type', facetsReady);
+  const categoryFacet = useProjectFacet(categoryBase, 'development_category', facetsReady);
+  // The other side of each axis: the projects the chips above cannot reach.
+  const venueNone = useProjectCount({ ...venueBase, nullFields: ['venue_type'] }, facetsReady);
+  const categoryNone = useProjectCount(
+    { ...categoryBase, nullFields: ['development_category'] },
     facetsReady
   );
   const geoBase: ProjectQuery = {
@@ -687,19 +771,32 @@ export default function RegisterPage() {
     ];
   }, [stageFacet.data, stage]);
 
+  // THE "ALL" CHIP COUNTS THE WHOLE AXIS, INCLUDING THE PROJECTS THAT HAVE NO
+  // VALUE ON IT, and there is a chip that opens them. Before this the All chip
+  // was the sum of the named values, which is why it read 203 next to a register
+  // of 267 with nothing to click for the difference.
+  //
+  // The "none" chip is placed last rather than by count: it is the edge of the
+  // axis, not a value competing with the others for the top of the row.
   const facetChips = (
     counts: { value: string; count: number }[] | undefined,
     active: string | null,
-    allLabel: string
+    allLabel: string,
+    noneCount: number | undefined,
+    noneLabel: string
   ): { value: string | null; label: string; count: number }[] => {
     const m = new Map((counts ?? []).map((f) => [f.value, f.count] as const));
-    const total = [...m.values()].reduce((a, b) => a + b, 0);
+    const named = [...m.values()].reduce((a, b) => a + b, 0);
+    const none = noneCount ?? 0;
     return [
-      { value: null as string | null, label: allLabel, count: total },
+      { value: null as string | null, label: allLabel, count: named + none },
       ...[...m.entries()]
         .filter(([v, n]) => n > 0 || active === v)
         .sort((a, b) => b[1] - a[1])
         .map(([v, n]) => ({ value: v as string | null, label: v, count: n })),
+      ...(none > 0 || active === NO_VALUE
+        ? [{ value: NO_VALUE as string | null, label: noneLabel, count: none }]
+        : []),
     ];
   };
   // A COLLAPSED GROUP STILL SHOWS WHAT IS SELECTED. Slicing the first N would
@@ -735,12 +832,21 @@ export default function RegisterPage() {
     c.value !== null && (c.value === stage || c.value === venue || c.value === category);
 
   const venueChips = useMemo(
-    () => facetChips(venueFacet.data?.counts, venue, 'All venues'),
-    [venueFacet.data, venue]
+    () => facetChips(venueFacet.data?.counts, venue, 'All venues', venueNone.data, 'No venue type'),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [venueFacet.data, venue, venueNone.data]
   );
   const categoryChips = useMemo(
-    () => facetChips(categoryFacet.data?.counts, category, 'All categories'),
-    [categoryFacet.data, category]
+    () =>
+      facetChips(
+        categoryFacet.data?.counts,
+        category,
+        'All categories',
+        categoryNone.data,
+        'No category'
+      ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [categoryFacet.data, category, categoryNone.data]
   );
 
   return (
@@ -771,7 +877,7 @@ export default function RegisterPage() {
       <div className={`${styles.listPane} ${viewKey === 'trash' ? styles.trashView : ''}`}>
         <div className={styles.listHead}>
           <div className={styles.filterBar}>
-          <div className={styles.chipRow} data-testid="register-stage-chips">
+          <div className={`${styles.chipRow} ${filtersOpen ? styles.chipRowOpen : ''}`} data-testid="register-stage-chips">
             <span className={styles.chipRowLabel}>stage</span>
             {visible(stageChips).map((c) => (
               <button
@@ -789,7 +895,7 @@ export default function RegisterPage() {
             ))}
             {more(stageChips)}
           </div>
-          <div className={styles.chipRow} data-testid="register-venue-chips">
+          <div className={`${styles.chipRow} ${filtersOpen ? styles.chipRowOpen : ''}`} data-testid="register-venue-chips">
             <span className={styles.chipRowLabel}>venue</span>
             {visible(venueChips).map((c) => (
               <button
@@ -810,7 +916,7 @@ export default function RegisterPage() {
             ))}
             {more(venueChips)}
           </div>
-          <div className={styles.chipRow} data-testid="register-category-chips">
+          <div className={`${styles.chipRow} ${filtersOpen ? styles.chipRowOpen : ''}`} data-testid="register-category-chips">
             <span className={styles.chipRowLabel}>category</span>
             {visible(categoryChips).map((c) => (
               <button
@@ -973,6 +1079,8 @@ export default function RegisterPage() {
               <button
                 key={c.key}
                 type="button"
+                title={c.help}
+                data-column={c.key}
                 className={`${styles.colHead} ${c.numeric ? styles.num : ''} ${
                   effectiveSort === c.sort ? styles.colHeadActive : ''
                 }`}

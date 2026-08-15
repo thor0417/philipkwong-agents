@@ -90,3 +90,54 @@ test('register layout at 1920x1080', async ({ page }, testInfo) => {
     expect(await nameLines.count(), 'the project row must keep both its lines').toBeGreaterThanOrEqual(2);
   }
 });
+
+// EXPANDING THE OVERFLOW MUST REACH THE OVERFLOW.
+//
+// The collapsed chip row is `flex-wrap: nowrap; overflow: hidden`, which is what
+// holds three filter groups to three lines. Those two properties stayed on when
+// "+16 more" expanded the group, so the extra chips were laid out on one
+// unbroken line and clipped at the container's edge: twenty venue values, five
+// reachable, and the control that promised the other fifteen was the control
+// that hid them. The "less" button went off the same edge, so the state could
+// not be left either.
+//
+// A screenshot cannot catch this - the clipped chips simply are not in the
+// picture, and the picture looks fine. This measures each chip against its
+// container.
+test('the venue chip overflow opens rather than clipping', async ({ page }) => {
+  await page.setViewportSize(VIEWPORT);
+  await page.goto('/register', { waitUntil: 'domcontentloaded' });
+  const row = page.getByTestId('register-venue-chips');
+  await expect(row).toBeVisible({ timeout: 120_000 });
+  await page.evaluate(() => document.fonts.ready);
+  await page.waitForTimeout(2500);
+
+  const collapsed = await row.locator('[data-venue]').count();
+  const more = row.getByRole('button', { name: /^\+\d+ more$/ });
+  await expect(more, 'the venue row did not overflow, so there is nothing to test').toBeVisible({
+    timeout: 30_000,
+  });
+  const promised = Number(((await more.textContent()) ?? '').replace(/[^0-9]/g, ''));
+  await more.click();
+
+  await expect(row.getByRole('button', { name: 'less' })).toBeVisible({ timeout: 30_000 });
+  await page.waitForTimeout(300);
+
+  const expanded = await row.locator('[data-venue]').count();
+  console.log(`venue chips: ${collapsed} collapsed, +${promised} promised, ${expanded} expanded`);
+  expect(
+    expanded,
+    `"+${promised} more" expanded the row to ${expanded} chips, not the ${collapsed + promised} it promised`
+  ).toBe(collapsed + promised);
+
+  // EVERY chip inside the container it was expanded into, and the way back out
+  // reachable too. Right edge, because that is the one the clip happened at.
+  const clipped = await row.evaluate((el) => {
+    const bounds = el.getBoundingClientRect();
+    return [...el.querySelectorAll('button')]
+      .map((b) => ({ text: (b.textContent ?? '').trim().slice(0, 24), r: b.getBoundingClientRect() }))
+      .filter((c) => c.r.right > bounds.right + 1 || c.r.left < bounds.left - 1)
+      .map((c) => c.text);
+  });
+  expect(clipped, `chips laid out beyond the row they were expanded into: ${clipped.join(', ')}`).toEqual([]);
+});

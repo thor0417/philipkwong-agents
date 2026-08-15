@@ -6,7 +6,7 @@
       "before": 267,
       "expected": 37,
       "afterClick": 37,
-      "requests": 11
+      "requests": 13
     },
     {
       "axis": "category",
@@ -14,7 +14,7 @@
       "before": 267,
       "expected": 84,
       "afterClick": 84,
-      "requests": 11
+      "requests": 13
     },
     {
       "axis": "market",
@@ -22,7 +22,7 @@
       "before": 27,
       "expected": 19,
       "afterClick": 19,
-      "requests": 13
+      "requests": 15
     }
   ]
 }

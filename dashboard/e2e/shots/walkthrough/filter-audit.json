@@ -258,6 +258,30 @@
       "escapees": 0
     }
   ],
+  "allChips": [
+    {
+      "axis": "stage",
+      "all": 267
+    },
+    {
+      "axis": "venue",
+      "all": 267
+    },
+    {
+      "axis": "category",
+      "all": 267
+    }
+  ],
+  "noValueNodes": [
+    {
+      "axis": "venue",
+      "total": 64
+    },
+    {
+      "axis": "category",
+      "total": 64
+    }
+  ],
   "railVersusClick": [
     {
       "region": "California",
