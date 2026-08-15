@@ -74,6 +74,21 @@ export const NAV: NavSection[] = [
       },
     ],
   },
+  // THE SECOND GROUP IS THE WORK THE SYSTEM OWES YOU, rather than the work you
+  // do. Both of these are piles that should be empty and are not, and both were
+  // invisible: 585 records attached to nothing, and nineteen sources that have
+  // gone quiet without anything saying so.
+  {
+    label: null,
+    items: [
+      {
+        label: 'Inbox',
+        href: '/inbox',
+        keywords: ['unattached', 'untriaged', 'orphan', 'attach', 'triage', 'backlog'],
+        hint: 'Records attached to no project. It empties.',
+      },
+    ],
+  },
   {
     label: 'Reference',
     items: [

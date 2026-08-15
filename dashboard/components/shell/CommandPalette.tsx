@@ -145,8 +145,8 @@ export default function CommandPalette({
             An attached record opens its PROJECT, because that is where the
             record is read - in the timeline, in the order things happened, next
             to everything else about the same site. An unattached record has no
-            timeline to open, so it opens the document itself and says it is
-            unattached; the Inbox is where those are worked. */}
+            timeline to open, so it opens the Inbox at that record, which is the
+            one place it can be acted on. */}
         {records.length > 0 && (
           <Command.Group heading="Records" className={styles.group}>
             {records.map((r) => (
@@ -156,9 +156,11 @@ export default function CommandPalette({
                 className={styles.item}
                 onSelect={() =>
                   run(() =>
-                    r.project_id
-                      ? router.push(`/projects?selected=${r.project_id}`)
-                      : window.open(r.url, '_blank', 'noreferrer')
+                    router.push(
+                      r.project_id
+                        ? `/projects?selected=${r.project_id}`
+                        : `/inbox?q=${encodeURIComponent(r.title ?? r.url)}`
+                    )
                   )
                 }
               >

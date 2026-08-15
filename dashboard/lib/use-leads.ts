@@ -237,6 +237,17 @@ async function invalidateAfterStatus(client: QueryClient): Promise<void> {
     client.invalidateQueries({ queryKey: leadKeys.facets() }),
     client.invalidateQueries({ queryKey: ['leads', 'unresolved-geo'] }),
     client.invalidateQueries({ queryKey: leadKeys.backlog() }),
+    // THE INBOX IS A LIST OF LEADS UNDER A PROJECT KEY, and dismissing is what
+    // takes a record out of it. Without this the Inbox does not empty: measured,
+    // pressing E wrote the dismissal, the server count was correct on the next
+    // load, and the record stayed on screen because nothing told this query it
+    // was stale. A pile that does not visibly shrink as you work it is the exact
+    // failure the Inbox was built to end.
+    //
+    // Written as a literal prefix rather than through projectKeys, to keep the
+    // leads layer from importing the projects layer for one key. invalidateQueries
+    // matches on prefix, so this catches every filtered and paged Inbox query.
+    client.invalidateQueries({ queryKey: ['projects', 'inbox'] }),
   ]);
 }
 
