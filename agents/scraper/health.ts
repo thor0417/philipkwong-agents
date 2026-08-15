@@ -28,6 +28,7 @@
 import { supabaseAdmin } from '../../lib/supabase-admin';
 import { alarmDeadSource, alarmDegradedRecovery, alarmEmptyLane } from './alarm';
 import { ageInDays, degradedEntry, suppressesAlert } from './degraded-sources';
+import { DEAD_FEEDS } from '../../lib/dead-feeds';
 
 export interface SourceRun {
   // The thing being judged: a source name ('legistar'), or something finer
@@ -218,6 +219,7 @@ export async function reportRunHealth(
   const baselines = await loadBaselines(lane);
   const findings = judge(rs, baselines);
   printHealth(findings);
+  printFrozenFeeds(lane);
 
   // THE KNOWN-DEGRADED REGISTER decides who gets paged, never who gets shown.
   // A registered unit producing exactly the failure its entry expects is the
@@ -267,6 +269,44 @@ export async function reportRunHealth(
 
   await persistSourceRuns(rs);
   return findings;
+}
+
+/**
+ * THE MARKETS THIS LANE IS NO LONGER READING, printed on every run of that lane.
+ *
+ * These do NOT appear above, and that is the entire reason this exists. A frozen
+ * feed passes every check in this file: Legistar fetches Miami-Dade's matters
+ * and keeps them, so the verdict is 'ok' and the lane reports itself healthy
+ * while returning the same 2018 snapshot it returned last week. Health asks "did
+ * this source produce?"; the question a frozen feed fails is "is what it
+ * produces still moving?", which needs run history that source_health does not
+ * have and a comparison against the SOURCE that verify-staleness does make.
+ *
+ * So the run report states the declaration rather than deriving it. It is not an
+ * alarm - the condition is known and written down - but a lane that prints
+ * "8 of 8 sources produced records" and says nothing about two markets it cannot
+ * see is a report that reads as full coverage.
+ */
+export function printFrozenFeeds(lane: string, now: Date = new Date()): void {
+  const feeds = DEAD_FEEDS.filter((f) => f.lane === lane);
+  if (feeds.length === 0) return;
+  console.log('\n  MARKETS WE ARE NO LONGER READING (declared in lib/dead-feeds):');
+  for (const f of feeds) {
+    const behind = Math.floor(
+      (now.getTime() - Date.parse(f.frozenSince)) / (30.44 * 24 * 3600 * 1000)
+    );
+    const years = Math.floor(behind / 12);
+    console.log(
+      `    ${f.market} (${f.client})  nothing published since ${f.frozenSince}` +
+        (Number.isFinite(behind) ? `, ${years}y ${behind % 12}m behind` : '')
+    );
+    console.log(`        live data:  ${f.liveDataAt ?? 'not established'}`);
+    console.log(`        removed when: ${f.revivesWhen.replace(/\s+/g, ' ')}`);
+  }
+  console.log(
+    '    These markets are held out of client documents and marked on the register. ' +
+      'Run `npm run verify:staleness` to re-measure.'
+  );
 }
 
 export function printHealth(findings: HealthFinding[]): void {

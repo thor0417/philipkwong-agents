@@ -41,7 +41,14 @@
     "verify:naming": "node --env-file=.env.local --import tsx agents/scraper/verify-naming.ts",
     "dismiss:governance": "node --env-file=.env.local --import tsx agents/scraper/migrations/dismiss-governance-instruments.ts",
     "retag:golf": "node --env-file=.env.local --import tsx agents/scraper/migrations/retag-golf-and-lodging.ts",
-    "verify:staleness": "node --import tsx agents/scraper/verify-staleness.ts"
+    "verify:staleness": "node --import tsx agents/scraper/verify-staleness.ts",
+    "verify:curation": "node --env-file=.env.local --import tsx agents/scraper/verify-curation.ts",
+    "verify:object-model": "node --env-file=.env.local --import tsx agents/scraper/verify-object-model.ts",
+    "verify:client-watch-terms": "node --env-file=.env.local --import tsx agents/scraper/verify-client-watch-terms.ts",
+    "verify:companies": "node --env-file=.env.local --import tsx agents/scraper/verify-companies.ts",
+    "verify:event-queries": "node --env-file=.env.local --import tsx agents/scraper/verify-event-queries.ts",
+    "verify:pipelines": "node --env-file=.env.local --import tsx agents/scraper/verify-pipelines.ts",
+    "verify": "npm run typecheck && npm run verify:geography && npm run verify:naming && npm run verify:curation && npm run verify:object-model && npm run verify:client-watch-terms && npm run verify:companies && npm run verify:event-queries && npm run verify:pipelines && npm run verify:alarms && npm run verify:staleness"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.20.0",

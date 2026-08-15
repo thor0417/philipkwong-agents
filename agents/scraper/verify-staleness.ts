@@ -20,11 +20,28 @@
 // jurisdiction for the newest matter, one for the count over the last twelve
 // months. Reads nothing of ours, writes nothing anywhere.
 //
+// IT CHECKS THE DECLARATION IN BOTH DIRECTIONS, which is the half that keeps
+// this honest. lib/dead-feeds names the markets we have stopped reading, and the
+// report path withholds them from client documents on the strength of it. So:
+//
+//   frozen and declared      the known condition. Reported, not failed.
+//   frozen and NOT declared  a market on the covered list that nobody knows is
+//                            dead. Fails: this is the original bug.
+//   declared and PUBLISHING  the feed came back and we are still withholding a
+//                            market from a paying client. Fails, and the fix is
+//                            to DELETE the entry rather than edit it.
+//
+// The third case is the one an exclusion rule cannot be trusted without. A
+// suppression with no expiry is how a market stays hidden for a year after its
+// source recovered, and nothing else in the system would ever ask.
+//
 // It exits non-zero when a configured jurisdiction is more than STALE_MONTHS
-// behind, so it can gate a run rather than only inform one.
+// behind and undeclared, or when a declared one has recovered, so it can gate a
+// run rather than only inform one.
 
 import { pathToFileURL } from 'node:url';
 import { DEFAULT_JURISDICTIONS } from './sources/legistar-jurisdictions';
+import { DEAD_FEEDS, deadFeedForClient } from '../../lib/dead-feeds';
 
 const UA = 'Mozilla/5.0 (compatible; philipkwong-agents/1.0 +scraper)';
 const BASE = 'https://webapi.legistar.com/v1';
@@ -124,42 +141,107 @@ async function main(): Promise<void> {
     `today ${now.toISOString().slice(0, 10)}   stale past ${monthsAgo(STALE_MONTHS, now)} ` +
       `(${STALE_MONTHS} months)\n`
   );
-  console.log('client                  http  newest matter  last12m  newest event  verdict');
-  console.log('-'.repeat(84));
+  console.log('client                  http  newest matter  last12m  newest event  verdict    declared');
+  console.log('-'.repeat(94));
 
   const readings: Reading[] = [];
   for (const j of DEFAULT_JURISDICTIONS) {
     const r = await readJurisdiction(j.client, j.jurisdictionLabel, now);
     readings.push(r);
+    const declared = deadFeedForClient(r.client);
     console.log(
       `${r.client.padEnd(23)} ${String(r.status).padStart(4)}  ${(r.newestMatter ?? '-').padEnd(13)} ` +
-        `${String(r.lastTwelveMonths ?? '-').padStart(7)}  ${(r.newestEvent ?? '-').padEnd(12)}  ${r.verdict}`
+        `${String(r.lastTwelveMonths ?? '-').padStart(7)}  ${(r.newestEvent ?? '-').padEnd(12)}  ` +
+        `${r.verdict.padEnd(9)}  ${declared ? `yes (${declared.frozenSince})` : '-'}`
     );
   }
 
   const dead = readings.filter((r) => r.verdict === 'STALE' || r.verdict === 'NO MATTERS');
   const unreadable = readings.filter((r) => r.verdict === 'UNREADABLE');
+  let failures = 0;
 
+  // ---- 1. FROZEN AND UNDECLARED. The original bug. -----------------------
   console.log('');
-  if (dead.length === 0 && unreadable.length === 0) {
-    console.log(`All ${readings.length} configured jurisdictions have filed within ${STALE_MONTHS} months.`);
-    return;
-  }
-  for (const r of dead) {
+  const undeclared = dead.filter((r) => !deadFeedForClient(r.client));
+  const known = dead.filter((r) => deadFeedForClient(r.client));
+  for (const r of undeclared) {
+    failures++;
     const behind = r.newestMatter
       ? Math.round((now.getTime() - Date.parse(r.newestMatter)) / (30.44 * 24 * 3600 * 1000))
       : null;
     console.log(
-      `DEAD FEED: ${r.label} - newest matter ${r.newestMatter ?? 'none'}` +
-        (behind ? `, ${Math.floor(behind / 12)}y ${behind % 12}m behind` : '')
+      `UNDECLARED DEAD FEED: ${r.label} - newest matter ${r.newestMatter ?? 'none'}` +
+        (behind ? `, ${Math.floor(behind / 12)}y ${behind % 12}m behind` : '') +
+        '\n  This market is on the covered list and nothing is reading it. Declare it in ' +
+        'lib/dead-feeds so client documents hold it out and say so.'
     );
   }
+  for (const r of known) {
+    const f = deadFeedForClient(r.client)!;
+    console.log(
+      `declared dead, unchanged: ${r.label} - newest matter ${r.newestMatter ?? 'none'}, ` +
+        `declared frozen since ${f.frozenSince}, measured ${f.measured}.`
+    );
+  }
+
+  // ---- 2. DECLARED AND PUBLISHING AGAIN. The expiry. ---------------------
+  //
+  // Checked over the whole declaration rather than over the readings, so an
+  // entry naming a client that is no longer configured is caught too: a
+  // declaration nothing probes is a market withheld on the strength of a fact
+  // nobody is checking.
+  for (const f of DEAD_FEEDS) {
+    const r = readings.find((x) => x.client === f.client);
+    if (!r) {
+      failures++;
+      console.log(
+        `DECLARATION WITH NO PROBE: ${f.market} names client "${f.client}", which is not in ` +
+          `DEFAULT_JURISDICTIONS. Nothing measures this entry, and it is withholding a market from ` +
+          `client documents. Point it at a configured client or remove it.`
+      );
+      continue;
+    }
+    if (r.verdict === 'live' || r.verdict === 'quiet') {
+      failures++;
+      console.log(
+        `DECLARED DEAD BUT PUBLISHING: ${f.market} (${f.client}) - newest matter ${r.newestMatter}, ` +
+          `${r.lastTwelveMonths} in the last twelve months.\n` +
+          `  Its declaration says frozen since ${f.frozenSince}, and it removes when: ` +
+          `${f.revivesWhen.replace(/\s+/g, ' ')}\n` +
+          `  That condition is met. DELETE the entry in lib/dead-feeds - a market withheld from a ` +
+          `paying client after its source recovered is the same silent absence, wearing the other sign.`
+      );
+    }
+  }
+
+  // ---- 3. UNREADABLE. Fails, as it did before this check grew a declaration.
+  //
+  // It may be a transient network fault rather than a dead jurisdiction, and it
+  // still fails: the claim this check exists to defend is "we know this market
+  // is live", and a request that did not answer does not support it. A run that
+  // could not measure a market must not report the same word as a run that
+  // measured it and found it moving.
   for (const r of unreadable) {
-    console.log(`UNREADABLE: ${r.label} - the API did not answer (HTTP ${r.status}).`);
+    failures++;
+    console.log(
+      `UNREADABLE: ${r.label} - the API did not answer (HTTP ${r.status}). This is not proof the ` +
+        `feed is dead; it is the absence of proof that it is alive. Re-run before acting on it.`
+    );
+  }
+
+  console.log('');
+  if (failures === 0) {
+    console.log(
+      `PASS: ${readings.length - dead.length} of ${readings.length} configured jurisdictions have ` +
+        `filed within ${STALE_MONTHS} months, and every frozen one is declared in lib/dead-feeds.`
+    );
+    return;
   }
   console.log(
-    '\nA jurisdiction on the covered-markets table with a dead feed is a document ' +
-      'describing the past. See docs/COVERAGE-MAP.md.'
+    `FAIL: ${failures} feed${failures === 1 ? '' : 's'} ${failures === 1 ? 'is' : 'are'} not in the ` +
+      `state the code claims. A jurisdiction on the covered-markets table with a dead feed is a ` +
+      `document describing the past; a declared market whose feed came back is coverage we are ` +
+      `withholding for no reason. See docs/COVERAGE-MAP.md.`
   );
   process.exitCode = 1;
 }
