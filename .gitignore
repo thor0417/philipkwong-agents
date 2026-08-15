@@ -64,3 +64,6 @@ dashboard/e2e/shots/*
 !dashboard/e2e/shots/documents/
 dashboard/test-results/
 dashboard/playwright-report/
+
+# Playwright's failure artefacts. Regenerated per run; never source.
+dashboard/test-results/
