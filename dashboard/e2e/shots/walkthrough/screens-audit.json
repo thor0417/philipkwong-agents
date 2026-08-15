@@ -13,8 +13,8 @@
     ]
   },
   {
-    "name": "Register",
-    "url": "/register",
+    "name": "Projects",
+    "url": "/projects",
     "ok": true,
     "primary": "[data-testid=\"pager-total\"]",
     "rows": 50,
@@ -94,8 +94,8 @@
     "notes": []
   },
   {
-    "name": "Projects (legacy route)",
-    "url": "/projects",
+    "name": "Register (legacy route)",
+    "url": "/register",
     "ok": true,
     "primary": "[data-testid=\"pager-total\"]",
     "rows": 50,

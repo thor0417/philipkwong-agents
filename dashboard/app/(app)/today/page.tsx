@@ -237,12 +237,12 @@ export default function TodayPage() {
             <span className={styles.needLabel}>Record triage backlog</span>
             <span className={styles.needHint}>Records still at status new, on Records</span>
           </Link>
-          <Link href="/register?view=watchlist" className={styles.need}>
+          <Link href="/projects?view=watchlist" className={styles.need}>
             <span className={`${styles.needCount} mono`}>{watchRows.length}</span>
             <span className={styles.needLabel}>Watchlist activity</span>
             <span className={styles.needHint}>Events on projects you watch</span>
           </Link>
-          <Link href="/register?view=new" className={styles.need}>
+          <Link href="/projects?view=new" className={styles.need}>
             <span className={`${styles.needCount} mono`}>{created.length}</span>
             <span className={styles.needLabel}>New projects to review</span>
             <span className={styles.needHint}>Arrived in this window</span>

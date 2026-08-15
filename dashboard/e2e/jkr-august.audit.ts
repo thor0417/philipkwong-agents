@@ -16,7 +16,7 @@ test('the JKR August report reconciles with the register Arrived count', async (
   const out: Record<string, unknown> = {};
 
   // ---- the register, Arrived, August, no geography narrowing ---------------
-  await page.goto('/register?view=all&country=any&axis=arrived&period=m:2026-08', {
+  await page.goto('/projects?view=all&country=any&axis=arrived&period=m:2026-08', {
     waitUntil: 'domcontentloaded',
   });
   const pager = page.getByTestId('pager-total');

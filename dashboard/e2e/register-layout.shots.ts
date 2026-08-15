@@ -33,7 +33,7 @@ const VIEWPORT = { width: 1920, height: 1080 };
 test('register layout at 1920x1080', async ({ page }, testInfo) => {
   const tag = process.env.SHOT_TAG ?? 'after';
   await page.setViewportSize(VIEWPORT);
-  await page.goto('/register', { waitUntil: 'domcontentloaded' });
+  await page.goto('/projects', { waitUntil: 'domcontentloaded' });
   await expect(page.getByTestId('register-venue-chips')).toBeVisible({ timeout: 120_000 });
   await page.evaluate(() => document.fonts.ready);
   // Let the facet counts settle so the chips are at their real width.
@@ -91,6 +91,72 @@ test('register layout at 1920x1080', async ({ page }, testInfo) => {
   }
 });
 
+// PROJECTS OPENS RANKED, AND SAYS WHICH NAMES IT DID NOT READ.
+//
+// Nine weighted signals are computed and stored with their breakdown, and for a
+// while none of it reached the view Philip lives in: the list opened on last
+// activity, so a dormant street-address filing outranked a multi-billion casino
+// bid. And 39 of 267 projects are excluded from every client document because
+// their name is a cleaned agenda line rather than a name anything published -
+// an exclusion that was stated in the detail pane, which is opened one project
+// at a time, and nowhere a person scanning the list could see it.
+test('projects opens ranked, with unread names marked', async ({ page }) => {
+  await page.setViewportSize(VIEWPORT);
+  await page.goto('/projects', { waitUntil: 'domcontentloaded' });
+  await expect(page.locator('[data-testid="register-row"]').first()).toBeVisible({
+    timeout: 120_000,
+  });
+  await page.waitForTimeout(2000);
+
+  // The Sig cell is the third child of the row: checkbox, name, significance.
+  const scores = await page
+    .locator('[data-testid="register-row"]')
+    .evaluateAll((rows) =>
+      rows.map((r) => {
+        const cell = r.children[2];
+        const t = (cell?.textContent ?? '').trim();
+        return t === '--' ? null : Number(t);
+      })
+    );
+  console.log(`page 1 significance: ${scores.slice(0, 12).join(', ')}`);
+  expect(scores.length, 'no rows to judge the ordering on').toBeGreaterThan(1);
+  expect(scores.filter((s) => s === null).length, 'a row rendered no significance at all').toBe(0);
+  for (let i = 1; i < scores.length; i++) {
+    expect(
+      scores[i]!,
+      `row ${i} scores ${scores[i]} under row ${i - 1}'s ${scores[i - 1]}: the default order is not significance`
+    ).toBeLessThanOrEqual(scores[i - 1]!);
+  }
+
+  const marked = await page.locator('[data-testid="name-provisional-row"]').count();
+  const rows = scores.length;
+  console.log(`page 1: ${rows} rows, ${marked} with a name we did not read`);
+  // The mark must exist SOMEWHERE - a predicate that excludes 39 projects from
+  // every client document and marks none of them is the invisible exclusion this
+  // was added to end. It is asserted over the whole register rather than page one,
+  // because a page-one assertion would depend on where the provisional ones rank.
+  const anywhere = await page.goto('/projects?country=any&sort=name&dir=asc');
+  expect(anywhere?.ok() ?? true).toBeTruthy();
+  await expect(page.locator('[data-testid="register-row"]').first()).toBeVisible({
+    timeout: 60_000,
+  });
+  await page.waitForTimeout(2000);
+  let seen = 0;
+  for (let p = 1; p <= 6 && seen === 0; p++) {
+    if (p > 1) {
+      await page.goto(`/projects?country=any&sort=name&dir=asc&page=${p}`, {
+        waitUntil: 'domcontentloaded',
+      });
+      await expect(page.locator('[data-testid="register-row"]').first()).toBeVisible({
+        timeout: 60_000,
+      });
+      await page.waitForTimeout(1500);
+    }
+    seen = await page.locator('[data-testid="name-provisional-row"]').count();
+  }
+  expect(seen, 'no row anywhere is marked as carrying a name we did not read').toBeGreaterThan(0);
+});
+
 // EXPANDING THE OVERFLOW MUST REACH THE OVERFLOW.
 //
 // The collapsed chip row is `flex-wrap: nowrap; overflow: hidden`, which is what
@@ -106,7 +172,7 @@ test('register layout at 1920x1080', async ({ page }, testInfo) => {
 // container.
 test('the venue chip overflow opens rather than clipping', async ({ page }) => {
   await page.setViewportSize(VIEWPORT);
-  await page.goto('/register', { waitUntil: 'domcontentloaded' });
+  await page.goto('/projects', { waitUntil: 'domcontentloaded' });
   const row = page.getByTestId('register-venue-chips');
   await expect(row).toBeVisible({ timeout: 120_000 });
   await page.evaluate(() => document.fonts.ready);

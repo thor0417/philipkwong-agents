@@ -1,6 +1,6 @@
 'use client';
 
-// THE REGISTER'S CONTEXTUAL NAVIGATION, rendered into the shell rail.
+// THE PROJECTS SCREEN'S CONTEXTUAL NAVIGATION, rendered into the shell rail.
 //
 // Views, then geography as a tree, then saved views. All three are filters, and
 // all three live in the rail rather than above the table because a filter bar
@@ -39,7 +39,7 @@ function GeoCounts({ level }: { level: GeoLevel }) {
   );
 }
 
-export default function RegisterRail({
+export default function ProjectsRail({
   views,
   view,
   onView,

@@ -311,7 +311,7 @@ function statusFilterFor(v: TriageView): Pick<LeadQuery, 'status' | 'excludeStat
   return { status: v };
 }
 
-export default function RegisterPage() {
+export default function RecordsPage() {
   // Labels resolve from the pipeline registry. Nothing on this screen names a
   // pipeline; the export and report scopes below read it from here.
   const brand = useBrand();
@@ -327,7 +327,7 @@ export default function RegisterPage() {
   //
   // Putting it in the URL makes /records?stream=intelligence a real address
   // that survives a reload and can be sent to somebody, which is the rule the
-  // Register already follows and the reason its filters are shareable.
+  // Projects screen already follows and the reason its filters are shareable.
   const [streamParam, setStreamParam] = useQueryState('stream', parseAsString);
   const activeStream = streamParam ?? 'opportunity';
   const setActiveStream = useCallback(

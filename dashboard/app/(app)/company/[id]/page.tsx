@@ -53,7 +53,7 @@ export default function CompanyPage() {
     return (
       <div className={styles.screen}>
         <p className={styles.dim}>No company with that id.</p>
-        <Link href="/register">Back to the Register</Link>
+        <Link href="/projects">Back to Projects</Link>
       </div>
     );
   }
@@ -67,7 +67,7 @@ export default function CompanyPage() {
     <div className={styles.screen}>
       <header className={styles.head}>
         <div className={styles.crumb}>
-          <Link href="/register">Register</Link>
+          <Link href="/projects">Projects</Link>
           <span aria-hidden="true">/</span>
           <span>Company</span>
         </div>

@@ -55,7 +55,7 @@ export default function ProjectPage() {
         <p className={styles.dim}>
           No project with that id. It may have been merged into another.
         </p>
-        <Link href="/register">Back to the Register</Link>
+        <Link href="/projects">Back to Projects</Link>
       </div>
     );
   }
@@ -68,7 +68,7 @@ export default function ProjectPage() {
     <div className={styles.screen}>
       <header className={styles.head}>
         <div className={styles.crumb}>
-          <Link href="/register">Register</Link>
+          <Link href="/projects">Projects</Link>
           <span aria-hidden="true">/</span>
           <span>{p.market ?? p.region_state ?? p.country ?? 'Unresolved'}</span>
         </div>

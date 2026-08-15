@@ -42,7 +42,7 @@ interface ScreenResult {
 // selector the screen does not actually contain.
 const SCREENS: { name: string; url: string; primary: string; rowSel?: string }[] = [
   { name: 'Today', url: '/today', primary: 'h1', rowSel: 'li' },
-  { name: 'Register', url: '/register', primary: '[data-testid="pager-total"]', rowSel: '[data-row-id]' },
+  { name: 'Projects', url: '/projects', primary: '[data-testid="pager-total"]', rowSel: '[data-row-id]' },
   // The record table itself. It renders its own empty row when a filter matches
   // nothing, so this asserts the table exists without asserting the corpus does.
   { name: 'Records', url: '/records', primary: '[data-testid="records-pager-total"]', rowSel: 'tbody tr' },
@@ -55,7 +55,9 @@ const SCREENS: { name: string; url: string; primary: string; rowSel?: string }[]
   // /gli is a redirect into /records and has been since the rename, so it is
   // audited on what it lands on rather than on what it used to be.
   { name: 'Legacy GLI', url: '/gli', primary: '[data-testid="records-pager-total"]', rowSel: 'tbody tr' },
-  { name: 'Projects (legacy route)', url: '/projects', primary: '[data-testid="pager-total"]', rowSel: '[data-row-id]' },
+  // /register is the old path for Projects and now forwards to it, query string
+  // intact. Audited so the forward itself cannot rot.
+  { name: 'Register (legacy route)', url: '/register', primary: '[data-testid="pager-total"]', rowSel: '[data-row-id]' },
 ];
 
 test('every screen renders', async ({ page }) => {
@@ -118,7 +120,7 @@ test('every screen renders', async ({ page }) => {
   }
 
   // The detail routes need an id, taken from the live data rather than hardcoded.
-  await page.goto('/register?country=any', { waitUntil: 'domcontentloaded' });
+  await page.goto('/projects?country=any', { waitUntil: 'domcontentloaded' });
   await expect(page.locator('[data-row-id]').first()).toBeVisible({ timeout: 30_000 });
   const projectId = await page.locator('[data-row-id]').first().getAttribute('data-row-id');
 

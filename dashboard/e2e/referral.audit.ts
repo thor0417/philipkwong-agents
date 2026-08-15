@@ -20,7 +20,7 @@ test('the project page starts a referral brief for that project', async ({ page 
   // The register opens a project by selecting a row and pressing Enter, not by
   // a link, so that is what this does. Reaching the project page by URL would
   // skip the navigation and test less than it appears to.
-  await page.goto('/register', { waitUntil: 'domcontentloaded' });
+  await page.goto('/projects', { waitUntil: 'domcontentloaded' });
   const firstRow = page.getByTestId('register-row').first();
   await expect(firstRow).toBeVisible({ timeout: 120_000 });
   const projectId = (await firstRow.getAttribute('data-row-id')) ?? '';

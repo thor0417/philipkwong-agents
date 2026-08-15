@@ -43,7 +43,7 @@ test('period selection sums', async ({ page }) => {
   const out: Record<string, unknown> = {};
 
   for (const axis of ['arrived', 'moved'] as const) {
-    const base = `/register?view=all&country=any&axis=${axis}`;
+    const base = `/projects?view=all&country=any&axis=${axis}`;
     const month = await totalFor(page, `${base}&period=m:2026-07`);
 
     const weeks: { token: string; count: number }[] = [];
@@ -92,9 +92,9 @@ test('period selection sums', async ({ page }) => {
 
   // The two axes answer different questions and must not return the same set by
   // accident: that would mean one of them is not being applied.
-  const arrivedJuly = await totalFor(page, '/register?view=all&country=any&axis=arrived&period=m:2026-07');
-  const movedJuly = await totalFor(page, '/register?view=all&country=any&axis=moved&period=m:2026-07');
-  const allTime = await totalFor(page, '/register?view=all&country=any&period=all');
+  const arrivedJuly = await totalFor(page, '/projects?view=all&country=any&axis=arrived&period=m:2026-07');
+  const movedJuly = await totalFor(page, '/projects?view=all&country=any&axis=moved&period=m:2026-07');
+  const allTime = await totalFor(page, '/projects?view=all&country=any&period=all');
   console.log(`\narrived in July ${arrivedJuly} | moved in July ${movedJuly} | all time ${allTime}`);
   expect(arrivedJuly, 'the arrived axis returned the whole register, so it is not filtering')
     .toBeLessThanOrEqual(allTime);
@@ -104,7 +104,7 @@ test('period selection sums', async ({ page }) => {
   // A period with no data must return zero rather than everything. This is the
   // failure mode of a filter that is silently dropped when its bounds are
   // unfamiliar.
-  const empty = await totalFor(page, '/register?view=all&country=any&axis=arrived&period=m:2019-01');
+  const empty = await totalFor(page, '/projects?view=all&country=any&axis=arrived&period=m:2019-01');
   console.log(`January 2019 (nothing existed): ${empty}`);
   expect(empty, 'an empty period returned rows, so the period filter was dropped').toBe(0);
 
@@ -193,7 +193,7 @@ const FIXTURE = {
 test('a project that only gained a record in the period still arrives in it', async ({ page }) => {
   // ---- the fixture's shape: first seen BEFORE the period ---------------------
   await page.goto(
-    `/register?view=all&country=any&period=all&q=${encodeURIComponent(FIXTURE.search)}`,
+    `/projects?view=all&country=any&period=all&q=${encodeURIComponent(FIXTURE.search)}`,
     { waitUntil: 'domcontentloaded' }
   );
   // Wait for the query to settle before looking for the row. Asserting on the
@@ -227,7 +227,7 @@ test('a project that only gained a record in the period still arrives in it', as
 
   // ---- and it must still arrive in the period --------------------------------
   const url =
-    `/register?view=all&country=any&axis=arrived&period=${FIXTURE.period}` +
+    `/projects?view=all&country=any&axis=arrived&period=${FIXTURE.period}` +
     `&region=${encodeURIComponent(FIXTURE.region)}`;
   await page.goto(url, { waitUntil: 'domcontentloaded' });
   const pager = page.getByTestId('pager-total');

@@ -20,7 +20,7 @@ test('keyboard triage', async ({ page }, testInfo) => {
       animations: 'disabled',
     });
 
-  await page.goto('/register', { waitUntil: 'domcontentloaded' });
+  await page.goto('/projects', { waitUntil: 'domcontentloaded' });
   await expect(page.locator('header').first()).toBeVisible({ timeout: 120_000 });
   // Hydration, not markup: the keydown listener is attached in an effect.
   await expect(page.locator('button[aria-pressed="true"]').first()).toBeVisible({

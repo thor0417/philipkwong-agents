@@ -68,19 +68,19 @@ const SCREENS: Screen[] = [
     // things is not. Held at 3, so a fourth KIND fails.
     accentBudget: 3,
   },
-  // The Register: rail, list, detail. Not fullPage, because the shell owns the
+  // Projects: rail, list, detail. Not fullPage, because the shell owns the
   // viewport and each pane scrolls inside it, so a full-page capture would just
   // be the same 900px.
   {
-    name: '02-register',
-    path: '/register',
+    name: '02-projects',
+    path: '/projects',
     ready: 'header',
     // Measured at 3 kinds: the active nav item, the active rail view, and the
     // selected row's edge. Re-baselined from 8 when the metric changed from
     // elements to kinds - an 8 that nothing approaches is not a ratchet.
     accentBudget: 4,
   },
-  // The record table, moved from /register. Still the pre-rebuild screen, so
+  // The record table, moved from /projects. Still the pre-rebuild screen, so
   // its accent debt is unchanged and held where it was measured.
   {
     name: '04-records',

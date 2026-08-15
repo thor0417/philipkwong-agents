@@ -33,10 +33,13 @@ export const NAV: NavSection[] = [
         hint: 'What happened while you were away.',
       },
       {
-        label: 'Register',
-        href: '/register',
-        keywords: ['projects', 'triage', 'watchlist', 'stage', 'pipeline'],
-        hint: 'The working surface. Projects, triage, brief.',
+        label: 'Projects',
+        href: '/projects',
+        // "register" stays a keyword: it is what this screen was called, and the
+        // palette is the one place a name people already have in their heads
+        // must keep working.
+        keywords: ['register', 'triage', 'watchlist', 'stage', 'significance', 'ranked'],
+        hint: 'Every project, ranked by significance.',
       },
       {
         label: 'Records',

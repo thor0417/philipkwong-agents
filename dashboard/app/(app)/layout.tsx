@@ -1,6 +1,6 @@
 // Every authenticated screen lives in this route group, so every one of them
 // gets the same shell and the same auth gate. A route group changes no URLs:
-// (app)/register is still /register.
+// (app)/projects is still /projects.
 //
 // /login stays outside deliberately. It is the one screen that must render
 // without a session, and wrapping it in a shell that redirects to /login would

@@ -27,7 +27,7 @@ function ymd(iso: string | null | undefined): string {
   return iso ? iso.slice(0, 10) : '--';
 }
 
-export default function RegisterDetail({
+export default function ProjectsDetail({
   id,
   onClose,
   onError,

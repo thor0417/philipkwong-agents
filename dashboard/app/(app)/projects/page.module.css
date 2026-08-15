@@ -526,6 +526,20 @@
   white-space: nowrap;
 }
 
+/* A name we assembled rather than read. Same hairline tag as the frozen-market
+   mark, because it is the same kind of statement: a fact about the row that
+   nothing else on the row can reveal, and one that decides whether the project
+   may be printed to a client. */
+.provisionalTag {
+  margin-left: var(--space-8);
+  padding: 0 var(--space-4);
+  border: var(--border-hairline);
+  border-radius: var(--radius-sm, 2px);
+  font-size: var(--type-caption);
+  color: var(--ink-tertiary, var(--ink-secondary));
+  white-space: nowrap;
+}
+
 .summarySource {
   display: block;
   margin-top: var(--space-4);

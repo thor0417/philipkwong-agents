@@ -22,7 +22,7 @@ test('command palette', async ({ page }, testInfo) => {
       animations: 'disabled',
     });
 
-  await page.goto('/register', { waitUntil: 'domcontentloaded' });
+  await page.goto('/projects', { waitUntil: 'domcontentloaded' });
   await expect(page.locator('header').first()).toBeVisible({ timeout: 60_000 });
   await page.evaluate(() => document.fonts.ready);
 
@@ -64,7 +64,7 @@ test('command palette', async ({ page }, testInfo) => {
       message: 'selecting a project did not navigate anywhere',
       timeout: 20_000,
     })
-    .toMatch(/^\/register\?selected=/);
+    .toMatch(/^\/projects\?selected=/);
 
   // And the destination actually opened that project rather than just changing
   // the URL.

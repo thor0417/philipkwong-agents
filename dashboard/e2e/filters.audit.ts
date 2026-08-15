@@ -95,12 +95,12 @@ test('register filtering audit', async ({ page }) => {
   test.setTimeout(900_000);
   const results: Row[] = [];
   // THE BASELINE IS THE CLEARED REGISTER, not the default one. The Register now
-  // opens on the United States, so '/register?view=all' is itself a filtered
+  // opens on the United States, so '/projects?view=all' is itself a filtered
   // view: measuring the country filter against it would compare United States
   // with United States and report the geography filter as doing nothing. Every
   // single-axis case below therefore carries country=any, so exactly one filter
   // is under test at a time.
-  const BASE = '/register?view=all&country=any';
+  const BASE = '/projects?view=all&country=any';
 
   const baseline = await totalFor(page, BASE);
   expect(baseline, 'baseline returned no count').toBeGreaterThan(0);
@@ -122,21 +122,21 @@ test('register filtering audit', async ({ page }) => {
   expect(stages.length, 'no stage chips rendered').toBeGreaterThan(0);
 
   const cases: { filter: string; url: string; filtersOn: string }[] = [
-    { filter: 'View: New', url: '/register?view=new&country=any', filtersOn: "projects.status = 'new'" },
+    { filter: 'View: New', url: '/projects?view=new&country=any', filtersOn: "projects.status = 'new'" },
     {
       filter: 'View: Watchlist',
-      url: '/register?view=watchlist&country=any',
+      url: '/projects?view=watchlist&country=any',
       filtersOn: "projects.watch = true AND status <> 'dismissed'",
     },
     {
       filter: 'View: Client ready',
-      url: '/register?view=client_ready&country=any',
+      url: '/projects?view=client_ready&country=any',
       filtersOn: "projects.status = 'client_ready'",
     },
-    { filter: 'View: Trash', url: '/register?view=trash&country=any', filtersOn: "projects.status = 'dismissed'" },
+    { filter: 'View: Trash', url: '/projects?view=trash&country=any', filtersOn: "projects.status = 'dismissed'" },
     ...stages.map((st) => ({
       filter: `Stage chip: ${st}`,
-      url: `/register?view=all&country=any&stage=${encodeURIComponent(st)}`,
+      url: `/projects?view=all&country=any&stage=${encodeURIComponent(st)}`,
       filtersOn: 'projects.stage =',
     })),
     {
@@ -144,48 +144,48 @@ test('register filtering audit', async ({ page }) => {
       // the Register opens: it must return fewer than the cleared baseline, or
       // the default is not being applied.
       filter: 'Geography default (no parameter)',
-      url: '/register?view=all',
+      url: '/projects?view=all',
       filtersOn: "projects.country = 'United States' by default",
     },
     {
       filter: 'Geography L1: United States',
-      url: '/register?view=all&country=United+States',
+      url: '/projects?view=all&country=United+States',
       filtersOn: 'projects.country =',
     },
     {
       filter: 'Geography L2: California',
-      url: '/register?view=all&country=United+States&region=California',
+      url: '/projects?view=all&country=United+States&region=California',
       filtersOn: 'projects.country = AND projects.region_state =',
     },
     {
       filter: 'Geography L3: Anaheim',
-      url: '/register?view=all&country=United+States&region=California&market=Anaheim',
+      url: '/projects?view=all&country=United+States&region=California&market=Anaheim',
       filtersOn: 'country = AND region_state = AND market =',
     },
     {
       filter: 'Search: "resort"',
-      url: '/register?view=all&country=any&q=resort',
+      url: '/projects?view=all&country=any&q=resort',
       filtersOn: 'ilike over name, primary_applicant, primary_representative',
     },
     // Saved views: each must move the number, or it is a control that lies.
     {
       filter: 'Saved view: Anaheim',
-      url: '/register?view=all&saved=anaheim&country=United+States&region=California&market=Anaheim',
+      url: '/projects?view=all&saved=anaheim&country=United+States&region=California&market=Anaheim',
       filtersOn: 'country + region_state + market',
     },
     {
       filter: 'Saved view: Approved, anywhere',
-      url: '/register?view=all&saved=approved&country=any&stage=approved',
+      url: '/projects?view=all&saved=approved&country=any&stage=approved',
       filtersOn: "projects.stage = 'approved'",
     },
     {
       filter: 'Saved view: Hearing scheduled',
-      url: '/register?view=all&saved=hearing&country=any&stage=hearing+scheduled',
+      url: '/projects?view=all&saved=hearing&country=any&stage=hearing+scheduled',
       filtersOn: "projects.stage = 'hearing scheduled'",
     },
     {
       filter: 'Search: "zzzznomatch"',
-      url: '/register?view=all&country=any&q=zzzznomatch',
+      url: '/projects?view=all&country=any&q=zzzznomatch',
       filtersOn: 'same three columns; proves the search is not ignored',
     },
   ];
@@ -208,8 +208,8 @@ test('register filtering audit', async ({ page }) => {
   // THE DEFAULT MUST BE CLEARABLE. Opening on the United States is only
   // acceptable if All countries genuinely removes it, so both numbers are read
   // through the real UI and compared.
-  const defaulted = await totalFor(page, '/register?view=all');
-  const cleared = await totalFor(page, '/register?view=all&country=any');
+  const defaulted = await totalFor(page, '/projects?view=all');
+  const cleared = await totalFor(page, '/projects?view=all&country=any');
   console.log(
     `${'Default US vs cleared'.padEnd(34)} ${String(defaulted).padStart(5)} -> ${String(cleared).padStart(5)}`
   );
@@ -218,7 +218,7 @@ test('register filtering audit', async ({ page }) => {
 
   // Sorting must NOT change the count: it reorders the same set. A sort that
   // changes the total is a filter pretending to be a sort.
-  const sorted = await totalFor(page, '/register?view=all&country=any&sort=name&dir=asc');
+  const sorted = await totalFor(page, '/projects?view=all&country=any&sort=name&dir=asc');
   console.log(`${'Sort by name (control)'.padEnd(34)} ${String(baseline).padStart(5)} -> ${String(sorted).padStart(5)}`);
   expect(sorted, 'sorting changed the result count, so it is filtering').toBe(baseline);
 
@@ -256,7 +256,7 @@ test('register filtering audit', async ({ page }) => {
   }[] = [];
 
   console.log('\n===== GEOGRAPHY HIERARCHY =====');
-  const l1Url = '/register?view=all&country=United+States';
+  const l1Url = '/projects?view=all&country=United+States';
   const l1 = await idsFor(page, l1Url);
 
   for (const region of ['California', 'Nevada']) {
@@ -430,7 +430,7 @@ test('register filtering audit', async ({ page }) => {
     ['venue', 'venue=Notavenue'],
     ['category', 'category=Notacategory'],
   ] as const) {
-    const url = `/register?view=all&country=United+States&${param}`;
+    const url = `/projects?view=all&country=United+States&${param}`;
     const t = await totalFor(page, url);
     console.log(`  ${axis.padEnd(10)} ${param.padEnd(26)} -> ${t}`);
     unmatched.push({ axis, url, total: t });
@@ -614,11 +614,11 @@ test('clicking a filter chip requeries the list', async ({ page }) => {
   test.setTimeout(600_000);
 
   const axes: { axis: string; from: string; attr: string; pick: 'chip' | 'market' }[] = [
-    { axis: 'venue', from: '/register?view=all&country=any', attr: 'venue', pick: 'chip' },
-    { axis: 'category', from: '/register?view=all&country=any', attr: 'category', pick: 'chip' },
+    { axis: 'venue', from: '/projects?view=all&country=any', attr: 'venue', pick: 'chip' },
+    { axis: 'category', from: '/projects?view=all&country=any', attr: 'category', pick: 'chip' },
     {
       axis: 'market',
-      from: '/register?view=all&country=United+States&region=California',
+      from: '/projects?view=all&country=United+States&region=California',
       attr: 'market',
       pick: 'market',
     },

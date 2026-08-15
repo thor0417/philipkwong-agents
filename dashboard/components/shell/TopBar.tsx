@@ -23,7 +23,7 @@ export default function TopBar({ onOpenPalette }: { onOpenPalette: () => void })
 
   return (
     <header className={styles.bar}>
-      <Link href="/register" className={styles.brand} aria-label={brand.wordmark}>
+      <Link href="/projects" className={styles.brand} aria-label={brand.wordmark}>
         <span className={styles.operator}>{brand.wordmark.split(' / ')[0]}</span>
         <span className={styles.slash}>/</span>
         <span className={styles.pipeline}>{brand.pipelineShort}</span>

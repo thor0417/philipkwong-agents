@@ -15,7 +15,7 @@ test('period selection', async ({ page }, testInfo) => {
     });
 
   // 1. July 2026, arrived, bucketed by week.
-  await page.goto('/register?view=all&country=any&period=m:2026-07&axis=arrived&bucket=week', {
+  await page.goto('/projects?view=all&country=any&period=m:2026-07&axis=arrived&bucket=week', {
     waitUntil: 'domcontentloaded',
   });
   await expect(page.getByTestId('period-bounds')).toBeVisible({ timeout: 120_000 });
@@ -27,7 +27,7 @@ test('period selection', async ({ page }, testInfo) => {
   await shot('period-register-week');
 
   // 2. The same month on the moved axis, bucketed by month.
-  await page.goto('/register?view=all&country=any&period=m:2026-07&axis=moved&bucket=month', {
+  await page.goto('/projects?view=all&country=any&period=m:2026-07&axis=moved&bucket=month', {
     waitUntil: 'domcontentloaded',
   });
   await expect(page.locator('[data-row-id]').first()).toBeVisible({ timeout: 120_000 });

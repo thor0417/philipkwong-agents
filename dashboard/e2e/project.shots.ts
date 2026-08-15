@@ -11,7 +11,7 @@ import path from 'node:path';
 test('project page', async ({ page }, testInfo) => {
   const mode = testInfo.project.name;
 
-  await page.goto('/register', { waitUntil: 'domcontentloaded' });
+  await page.goto('/projects', { waitUntil: 'domcontentloaded' });
   await expect(page.locator('[data-row-id]').first()).toBeVisible({ timeout: 120_000 });
   const id = await page.locator('[data-row-id]').first().getAttribute('data-row-id');
   expect(id, 'no project to open').toBeTruthy();

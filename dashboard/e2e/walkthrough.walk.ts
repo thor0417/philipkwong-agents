@@ -60,7 +60,7 @@ test('walkthrough captures', async ({ page }) => {
   await page.screenshot({ path: OUT('1-today'), fullPage: true, animations: 'disabled' });
 
   // ---- 2. Register, with the detail pane open on a real project.
-  await page.goto('/register', { waitUntil: 'domcontentloaded' });
+  await page.goto('/projects', { waitUntil: 'domcontentloaded' });
   await expect(page.locator('[data-row-id]').first()).toBeVisible({ timeout: 120_000 });
   await hydrated(page);
 
@@ -92,7 +92,7 @@ test('walkthrough captures', async ({ page }) => {
       .getAttribute('href')
       .catch(() => null);
     if (!href) continue;
-    await page.goto(`/register?selected=${id}`, { waitUntil: 'domcontentloaded' });
+    await page.goto(`/projects?selected=${id}`, { waitUntil: 'domcontentloaded' });
     await expect(page.locator('aside[aria-label="Project detail"]')).toBeVisible({
       timeout: 60_000,
     });
@@ -108,7 +108,7 @@ test('walkthrough captures', async ({ page }) => {
     'none of the top ten register rows has a company to follow, so the walkthrough cannot photograph one'
   ).toBeTruthy();
   console.log(`walkthrough project: ${chosen} -> ${chosenCompany}`);
-  await page.goto(`/register?selected=${chosen}`, { waitUntil: 'domcontentloaded' });
+  await page.goto(`/projects?selected=${chosen}`, { waitUntil: 'domcontentloaded' });
   await expect(page.locator('aside[aria-label="Project detail"]')).toBeVisible({ timeout: 60_000 });
   await settle(page);
   await page.screenshot({ path: OUT('2-register'), animations: 'disabled' });
@@ -129,7 +129,7 @@ test('walkthrough captures', async ({ page }) => {
   await page.screenshot({ path: OUT('4-company'), fullPage: true, animations: 'disabled' });
 
   // ---- 5. Command palette, open, mid-search.
-  await page.goto('/register', { waitUntil: 'domcontentloaded' });
+  await page.goto('/projects', { waitUntil: 'domcontentloaded' });
   await expect(page.locator('[data-row-id]').first()).toBeVisible({ timeout: 60_000 });
   await hydrated(page);
   await page.keyboard.press('ControlOrMeta+k');

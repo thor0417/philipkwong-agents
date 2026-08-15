@@ -14,7 +14,7 @@ test('company page', async ({ page }, testInfo) => {
 
   // Find a project that actually has a party, rather than assuming the first
   // one does. Projects without an identified applicant are common.
-  await page.goto('/register', { waitUntil: 'domcontentloaded' });
+  await page.goto('/projects', { waitUntil: 'domcontentloaded' });
   await expect(page.locator('[data-row-id]').first()).toBeVisible({ timeout: 120_000 });
   const ids = await page.locator('[data-row-id]').evaluateAll((els) =>
     els.slice(0, 8).map((e) => e.getAttribute('data-row-id'))

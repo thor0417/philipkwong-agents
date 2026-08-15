@@ -70,21 +70,21 @@ test('controls do what they say', async ({ page }) => {
     return Number(await pager.getAttribute('data-total'));
   }
 
-  const B = '/register?view=all&country=any';
+  const B = '/projects?view=all&country=any';
   const baseline = await total(B);
   const cases: [string, string][] = [
     ['baseline (all, any country)', B],
     ['view=new', `${B}&view=new`],
-    ['view=watchlist', '/register?view=watchlist&country=any'],
-    ['view=client_ready', '/register?view=client_ready&country=any'],
-    ['view=trash', '/register?view=trash&country=any'],
+    ['view=watchlist', '/projects?view=watchlist&country=any'],
+    ['view=client_ready', '/projects?view=client_ready&country=any'],
+    ['view=trash', '/projects?view=trash&country=any'],
     ['stage=filed', `${B}&stage=filed`],
     ['stage=approved', `${B}&stage=approved`],
     ['stage=dormant', `${B}&stage=dormant`],
-    ['country default (absent)', '/register?view=all'],
-    ['country=United States', '/register?view=all&country=United+States'],
-    ['region=Nevada', '/register?view=all&country=United+States&region=Nevada'],
-    ['market=Las Vegas', '/register?view=all&country=United+States&region=Nevada&market=Las+Vegas'],
+    ['country default (absent)', '/projects?view=all'],
+    ['country=United States', '/projects?view=all&country=United+States'],
+    ['region=Nevada', '/projects?view=all&country=United+States&region=Nevada'],
+    ['market=Las Vegas', '/projects?view=all&country=United+States&region=Nevada&market=Las+Vegas'],
     ['q=resort', `${B}&q=resort`],
     ['q=zzzznomatch', `${B}&q=zzzznomatch`],
     ['period=m:2026-07 arrived', `${B}&period=m:2026-07&axis=arrived`],
@@ -97,7 +97,7 @@ test('controls do what they say', async ({ page }) => {
     ['page=2 (must not change total)', `${B}&page=2`],
     ['nonsense param', `${B}&banana=1`],
     ['nonsense stage value', `${B}&stage=notastage`],
-    ['nonsense market value', '/register?view=all&country=United+States&market=Atlantis'],
+    ['nonsense market value', '/projects?view=all&country=United+States&market=Atlantis'],
     // The other two record-matched axes, which this audit never measured. Venue
     // and category reached the register on 10 August and were never listed here,
     // so a broken one had nowhere to show up.
@@ -108,10 +108,10 @@ test('controls do what they say', async ({ page }) => {
     // L2 and L3 adjacent in the table, because the number that matters is the
     // difference between them and it took a person comparing two rows by eye to
     // see that there was not one.
-    ['region=California (L2)', '/register?view=all&country=United+States&region=California'],
+    ['region=California (L2)', '/projects?view=all&country=United+States&region=California'],
     [
       'market=Anaheim (L3, must be < L2)',
-      '/register?view=all&country=United+States&region=California&market=Anaheim',
+      '/projects?view=all&country=United+States&region=California&market=Anaheim',
     ],
   ];
 
@@ -134,7 +134,7 @@ test('controls do what they say', async ({ page }) => {
 
   // ---- KEYBOARD: the non-destructive keys ----------------------------------
   console.log('\n===== KEYBOARD =====');
-  await page.goto('/register?country=any', { waitUntil: 'domcontentloaded' });
+  await page.goto('/projects?country=any', { waitUntil: 'domcontentloaded' });
   await expect(page.locator('[data-row-id]').first()).toBeVisible({ timeout: 60_000 });
   await page.waitForTimeout(1500);
   const keyboard: Record<string, string> = {};
