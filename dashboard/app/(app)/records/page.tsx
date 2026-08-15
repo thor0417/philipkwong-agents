@@ -878,7 +878,11 @@ export default function RegisterPage() {
             onServerSort={handleSort}
           />
           <div className={styles.pager}>
-            <span className={styles.pagerInfo}>
+            {/* The screen's primary content marker. This screen carries no <h1>
+                - its identity is in the shell's top bar - so the screen audit
+                needs something that only exists once the table has loaded, and
+                the register's pager already plays that role there. */}
+            <span className={styles.pagerInfo} data-testid="records-pager-total">
               {total === 0
                 ? 'No records'
                 : `${(page - 1) * pageSize + 1}-${Math.min(page * pageSize, total)} of ${total}`}

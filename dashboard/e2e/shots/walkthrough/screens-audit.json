@@ -30,15 +30,13 @@
   {
     "name": "Records",
     "url": "/records",
-    "ok": false,
-    "primary": "h1",
-    "rows": null,
+    "ok": true,
+    "primary": "[data-testid=\"records-pager-total\"]",
+    "rows": 52,
     "consoleErrors": [],
     "pageErrors": [],
     "failedRequests": [],
-    "notes": [
-      "did not render: Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('h1').first()\nExpected: visible\nTimeout: 20000ms\nErr"
-    ]
+    "notes": []
   },
   {
     "name": "Reports",
@@ -76,34 +74,30 @@
   {
     "name": "Legacy pipeline",
     "url": "/pipeline",
-    "ok": false,
-    "primary": "h1",
-    "rows": null,
+    "ok": true,
+    "primary": "[data-testid=\"pipeline-body\"]",
+    "rows": 319,
     "consoleErrors": [],
     "pageErrors": [],
     "failedRequests": [],
-    "notes": [
-      "did not render: Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('h1').first()\nExpected: visible\nTimeout: 20000ms\nErr"
-    ]
+    "notes": []
   },
   {
     "name": "Legacy GLI",
     "url": "/gli",
-    "ok": false,
-    "primary": "h1",
-    "rows": null,
+    "ok": true,
+    "primary": "[data-testid=\"records-pager-total\"]",
+    "rows": 52,
     "consoleErrors": [],
     "pageErrors": [],
     "failedRequests": [],
-    "notes": [
-      "did not render: Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('h1').first()\nExpected: visible\nTimeout: 20000ms\nErr"
-    ]
+    "notes": []
   },
   {
     "name": "Projects (legacy route)",
     "url": "/projects",
     "ok": true,
-    "primary": "body",
+    "primary": "[data-testid=\"pager-total\"]",
     "rows": 50,
     "consoleErrors": [
       "Failed to load resource: the server responded with a status of 400 ()"

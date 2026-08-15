@@ -62,7 +62,7 @@ function LeadCard({
   const company = leadOrg(lead);
 
   return (
-    <button className={styles.card} onClick={() => onSelect(lead)}>
+    <button className={styles.card} data-lead-id={lead.id} onClick={() => onSelect(lead)}>
       <div className={styles.cardTop}>
         <span className={styles.cardTitle}>
           {truncate(lead.title ?? '—', 60)}

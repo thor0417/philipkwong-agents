@@ -133,7 +133,11 @@ export default function PipelinePage() {
           Loading…
         </p>
       ) : (
-        <>
+        // Marked so the screen audit can wait for the LOADED body rather than
+        // for a heading this screen has never had. `<main>` paints immediately
+        // with "Loading...", so probing it would report a screen as rendered
+        // before its session check and its query had finished.
+        <div data-testid="pipeline-body">
           <CategoryNav filter={catFilter} onChange={setCatFilter} />
           <StatsBar leads={categoryLeads} outreach={outreach} />
           {agentsOpen && <AgentPanel agents={agents} onRefresh={load} />}
@@ -176,7 +180,7 @@ export default function PipelinePage() {
             onClose={() => setSelectedId(null)}
             onRefresh={load}
           />
-        </>
+        </div>
       )}
     </main>
   );

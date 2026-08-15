@@ -24,16 +24,38 @@ interface ScreenResult {
   notes: string[];
 }
 
+// THE PRIMARY SELECTOR IS PER SCREEN AND `h1` WAS A COPY-PASTE DEFAULT.
+//
+// Three screens were reported as "does not render", each after waiting the full
+// twenty seconds: Records, Legacy pipeline and Legacy GLI. All three render
+// correctly in a browser. None of the three contains an `<h1>`.
+//
+// Records and /pipeline put their identity in the shell's top bar rather than in
+// a page heading, and /gli is a redirect INTO /records, so it inherited the same
+// missing element. The audit was therefore not measuring the screens at all: it
+// was waiting for a tag that has never existed on them, and reporting its own
+// wrong question as their failure. Three FAILED lines that named nothing real
+// are worse than no audit, because they train the reader to skip the output.
+//
+// Every entry below now names the screen's OWN primary content - the thing that
+// has to be on the page for the screen to be doing its job - and no entry uses a
+// selector the screen does not actually contain.
 const SCREENS: { name: string; url: string; primary: string; rowSel?: string }[] = [
   { name: 'Today', url: '/today', primary: 'h1', rowSel: 'li' },
   { name: 'Register', url: '/register', primary: '[data-testid="pager-total"]', rowSel: '[data-row-id]' },
-  { name: 'Records', url: '/records', primary: 'h1', rowSel: 'tbody tr' },
+  // The record table itself. It renders its own empty row when a filter matches
+  // nothing, so this asserts the table exists without asserting the corpus does.
+  { name: 'Records', url: '/records', primary: '[data-testid="records-pager-total"]', rowSel: 'tbody tr' },
   { name: 'Reports', url: '/reports', primary: '[data-testid="report-client"]', rowSel: '[data-section]' },
   { name: 'Clients', url: '/clients', primary: 'h1', rowSel: '[data-client-id]' },
   { name: 'Design system', url: '/design', primary: 'h1', rowSel: 'section' },
-  { name: 'Legacy pipeline', url: '/pipeline', primary: 'h1', rowSel: 'tbody tr' },
-  { name: 'Legacy GLI', url: '/gli', primary: 'h1', rowSel: 'tbody tr' },
-  { name: 'Projects (legacy route)', url: '/projects', primary: 'body', rowSel: '[data-row-id]' },
+  // The retired lanes. Its body renders only once the session check and the load
+  // have both finished, which is exactly the condition worth probing.
+  { name: 'Legacy pipeline', url: '/pipeline', primary: '[data-testid="pipeline-body"]', rowSel: '[data-lead-id]' },
+  // /gli is a redirect into /records and has been since the rename, so it is
+  // audited on what it lands on rather than on what it used to be.
+  { name: 'Legacy GLI', url: '/gli', primary: '[data-testid="records-pager-total"]', rowSel: 'tbody tr' },
+  { name: 'Projects (legacy route)', url: '/projects', primary: '[data-testid="pager-total"]', rowSel: '[data-row-id]' },
 ];
 
 test('every screen renders', async ({ page }) => {
