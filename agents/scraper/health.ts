@@ -77,18 +77,16 @@ export function runsFromLeads(
   }));
 }
 
-export type HealthVerdict =
-  // Produced records. Nothing to say.
-  | 'ok'
-  // Fetched nothing at all. Total death: the source is unreachable, blocked, or
-  // returning an empty document. Loudest.
-  | 'no-fetch'
-  // Fetched records and kept none, against a history of keeping some. The
-  // Granicus and CFTOD failure.
-  | 'zero-kept'
-  // Fetched and kept nothing, with no history to compare against. Reported at a
-  // lower level: it may simply be a new source, or a genuinely quiet week.
-  | 'zero-no-baseline';
+// THE VERDICT TYPE MOVED TO root lib/degraded-sources.ts and is re-exported
+// here, so every existing import of it is unchanged.
+//
+// It went the other way round: the degraded register needed the type, the
+// dashboard's Health screen needs the register, and this module imports
+// lib/supabase-admin - the SERVICE ROLE KEY - which must never be reachable
+// from a browser bundle. Moving one string union inverted the dependency and
+// closed that door. Everything that COMPUTES a verdict is still here.
+import type { HealthVerdict } from './degraded-sources';
+export type { HealthVerdict };
 
 export interface HealthFinding {
   unit: string;
