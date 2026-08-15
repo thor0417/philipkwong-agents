@@ -15,6 +15,7 @@
 import { Fragment, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { isProvisionalName } from '@/lib/taxonomy';
+import { recordProvenance } from '@/lib/report-model';
 // The one copy, read across the package split. See lib/dead-feeds.
 import { deadFeedForMarket } from '../../../../lib/dead-feeds';
 import { useProject, useProjectTimeline, useProjectMutations } from '@/lib/use-projects';
@@ -267,6 +268,18 @@ export default function ProjectsDetail({
                   {ymd(r.deadline ?? r.published_date ?? r.first_seen)}
                 </span>
                 <span className={styles.tlBody}>
+                  {/* PROVENANCE ON THE ROW, WHICH IS WHERE THE THREE STREAM
+                      TABS WENT. Which lane captured a record is a fact about
+                      the record, not a place to visit, and the difference
+                      between a filing the client can open and a story somebody
+                      wrote is the one thing about a timeline row that decides
+                      how much it is worth. Same rule the document uses. */}
+                  <span
+                    className={styles.tlProvenance}
+                    data-provenance={recordProvenance(r.source, r.source_type, r.stream)}
+                  >
+                    [{recordProvenance(r.source, r.source_type, r.stream)}]
+                  </span>
                   {r.url ? (
                     <a href={r.url} target="_blank" rel="noreferrer" className={styles.tlLink}>
                       {r.title ?? 'Untitled record'}

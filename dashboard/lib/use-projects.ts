@@ -25,6 +25,7 @@ import {
   fetchMarketFacetFromRecords,
   projectFacetCounts,
   searchProjects,
+  searchRecords,
   type InboxQuery,
   type ProjectFacetField,
   type ProjectQuery,
@@ -60,6 +61,7 @@ export const projectKeys = {
   timeline: (id: string) => ['projects', 'timeline', id] as const,
   inbox: (q: InboxQuery) => ['projects', 'inbox', stable(q), q] as const,
   search: (t: string) => ['projects', 'search', t] as const,
+  recordSearch: (t: string) => ['records', 'search', t] as const,
 };
 
 export function useProjectPage(q: ProjectQuery, enabled = true) {
@@ -132,6 +134,17 @@ export function useProjectSearch(term: string) {
     queryKey: projectKeys.search(term),
     queryFn: () => searchProjects(term),
     enabled: term.trim().length >= 2,
+  });
+}
+
+// FINDING ONE RECORD, from the palette. Three characters rather than two,
+// because a record search matches title AND url and two characters of a url
+// matches most of the corpus.
+export function useRecordSearch(term: string) {
+  return useQuery({
+    queryKey: projectKeys.recordSearch(term),
+    queryFn: () => searchRecords(term),
+    enabled: term.trim().length >= 3,
   });
 }
 

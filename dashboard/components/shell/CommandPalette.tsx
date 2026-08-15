@@ -7,10 +7,18 @@
 // browsable; fourteen hundred projects are not, and the only way to reach one by
 // name is to type it.
 //
-// Three kinds of result, in the order they are useful:
+// Four kinds of result, in the order they are useful:
 //   1. Projects, matched server-side by name. The reason to open this.
-//   2. Screens, so navigation never requires the mouse.
-//   3. Pipelines, so switching context is one action rather than a hunt.
+//   2. Records, matched on title and url. See below.
+//   3. Screens, so navigation never requires the mouse.
+//   4. Pipelines, so switching context is one action rather than a hunt.
+//
+// RECORDS ARE HERE BECAUSE RECORDS IS NO LONGER A DESTINATION. Raw records are
+// what a project is made of, not a place to visit: they are read as a project's
+// timeline. What a browsable record table was genuinely good for is finding ONE
+// document somebody has quoted at you - a case reference, a headline, a link
+// pasted into an email - and that is search rather than browse. This is the
+// search.
 //
 // cmdk is headless: it ships the list, the filtering and the roving focus, and
 // exactly no styling. Everything visible here is this project's own tokens.
@@ -18,7 +26,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Command } from 'cmdk';
-import { useProjectSearch } from '@/lib/use-projects';
+import { useProjectSearch, useRecordSearch } from '@/lib/use-projects';
+import { recordProvenance } from '@/lib/report-model';
 import { useActivePipeline } from '@/lib/use-pipeline';
 import { NAV_ITEMS } from './navigation';
 import styles from './CommandPalette.module.css';
@@ -38,6 +47,8 @@ export default function CommandPalette({
   // enough to be worth a round trip.
   const projectQuery = useProjectSearch(term);
   const projects = projectQuery.data ?? [];
+  const recordQuery = useRecordSearch(term);
+  const records = recordQuery.data ?? [];
 
   // Screens and pipelines are a short static list, so they filter here rather
   // than costing a request. cmdk's own filter is off (shouldFilter={false})
@@ -79,7 +90,12 @@ export default function CommandPalette({
   );
 
   const empty =
-    screens.length === 0 && pipelines.length === 0 && projects.length === 0 && !projectQuery.isFetching;
+    screens.length === 0 &&
+    pipelines.length === 0 &&
+    projects.length === 0 &&
+    records.length === 0 &&
+    !projectQuery.isFetching &&
+    !recordQuery.isFetching;
 
   return (
     <Command.Dialog
@@ -96,7 +112,7 @@ export default function CommandPalette({
           className={styles.input}
           value={term}
           onValueChange={setTerm}
-          placeholder="Jump to a project, a screen, or a pipeline"
+          placeholder="Jump to a project, find a record, or go to a screen"
         />
         <kbd className={styles.kbd}>esc</kbd>
       </div>
@@ -123,6 +139,43 @@ export default function CommandPalette({
         {/* Only worth saying while a search is genuinely outstanding. */}
         {projectQuery.isFetching && projects.length === 0 && needle.length > 1 && (
           <div className={styles.searching}>Searching projects...</div>
+        )}
+
+        {/* THE RECORD, AND WHAT OPENING IT MEANS.
+            An attached record opens its PROJECT, because that is where the
+            record is read - in the timeline, in the order things happened, next
+            to everything else about the same site. An unattached record has no
+            timeline to open, so it opens the document itself and says it is
+            unattached; the Inbox is where those are worked. */}
+        {records.length > 0 && (
+          <Command.Group heading="Records" className={styles.group}>
+            {records.map((r) => (
+              <Command.Item
+                key={r.id}
+                value={`record-${r.id}`}
+                className={styles.item}
+                onSelect={() =>
+                  run(() =>
+                    r.project_id
+                      ? router.push(`/projects?selected=${r.project_id}`)
+                      : window.open(r.url, '_blank', 'noreferrer')
+                  )
+                }
+              >
+                <span className={styles.itemLabel}>{r.title ?? r.url}</span>
+                <span className={styles.itemMeta}>
+                  [{recordProvenance(r.source, r.source_type, r.stream)}]
+                  {r.market ? ` ${r.market}` : ''}
+                  {r.published_date ? ` ${r.published_date.slice(0, 10)}` : ''}
+                  {r.project_id ? '' : ' - not attached'}
+                </span>
+              </Command.Item>
+            ))}
+          </Command.Group>
+        )}
+
+        {recordQuery.isFetching && records.length === 0 && needle.length > 2 && (
+          <div className={styles.searching}>Searching records...</div>
         )}
 
         {screens.length > 0 && (

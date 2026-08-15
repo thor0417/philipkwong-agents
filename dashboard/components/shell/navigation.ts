@@ -41,23 +41,36 @@ export const NAV: NavSection[] = [
         keywords: ['register', 'triage', 'watchlist', 'stage', 'significance', 'ranked'],
         hint: 'Every project, ranked by significance.',
       },
+      // RECORDS IS NOT A DESTINATION.
+      //
+      // It was three stream tabs - Opportunities, Intelligence, Government -
+      // over 1,500 raw rows. Those three name the LANE that captured a row,
+      // which is a fact about our plumbing rather than about the subject, and
+      // browsing raw records is not a thing anybody does: a project's records
+      // are its timeline, read in order, beside everything else about the same
+      // site. The provenance those tabs carried is now a label on the timeline
+      // row ([RECORD], [PRESS], [TENDER]) and the one genuinely useful thing the
+      // screen did - finding a single document by case reference, title or url -
+      // is in the command palette, which is search rather than browse.
+      //
+      // The route survives at /records. It is not in the rail and not in the
+      // palette, so it is not somewhere to end up by accident, and /gli still
+      // forwards into it.
+      // CLIENTS SITS ABOVE REPORTS BECAUSE THAT IS THE ORDER OF THE WORK. A
+      // report is generated FOR a client and FROM their scope; a rail that puts
+      // the document first suggests the document is the thing being composed,
+      // when what is being composed is a client's coverage.
       {
-        label: 'Records',
-        href: '/records',
-        keywords: ['leads', 'raw', 'opportunities', 'intelligence', 'government', 'gli'],
-        hint: 'Every captured record, by stream.',
+        label: 'Clients',
+        href: '/clients',
+        keywords: ['client', 'scope', 'retainer', 'cadence', 'delivery', 'contacts', 'intake'],
+        hint: 'Who the work is for, and what they are covered for.',
       },
       {
         label: 'Reports',
         href: '/reports',
         keywords: ['report', 'compose', 'document', 'pdf', 'csv', 'xlsx', 'generate', 'brief', 'deliver'],
         hint: 'Compose and generate a client document.',
-      },
-      {
-        label: 'Clients',
-        href: '/clients',
-        keywords: ['client', 'scope', 'retainer', 'cadence', 'delivery', 'contacts', 'intake'],
-        hint: 'Who the work is for, and what they are covered for.',
       },
     ],
   },

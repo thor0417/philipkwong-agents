@@ -717,6 +717,19 @@
   text-underline-offset: 2px;
 }
 
+/* PROVENANCE, AS A LABEL ON THE RECORD. The three stream tabs said which lane
+   captured a row, which is a fact about our plumbing; this says whether the row
+   is a filing the client can open, a tender still open to bid, or a story
+   somebody wrote. Mono, because it is an identifier. No fill and no accent: it
+   qualifies the title beside it rather than competing with it. */
+.tlProvenance {
+  font-family: var(--font-mono);
+  font-size: var(--type-caption);
+  letter-spacing: var(--track-label);
+  color: var(--ink-disabled);
+  white-space: nowrap;
+}
+
 .tlSource {
   font-size: var(--type-caption);
   color: var(--ink-disabled);

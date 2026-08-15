@@ -19,6 +19,7 @@ import { useProject, useProjectTimeline } from '@/lib/use-projects';
 import { useProjectParties, useRelatedProjects } from '@/lib/use-companies';
 import { useProjectPeople } from '@/lib/use-people';
 import { useProjectHistory } from '@/lib/use-today';
+import { recordProvenance } from '@/lib/report-model';
 import styles from './page.module.css';
 
 function ymd(iso: string | null | undefined): string {
@@ -175,6 +176,15 @@ export default function ProjectPage() {
                       )}
                     </div>
                     <div className={styles.tlMeta}>
+                      {/* Which lane captured it, on the row. See recordProvenance:
+                          the same rule the client document labels lines with,
+                          and the replacement for the three stream tabs. */}
+                      <span
+                        className={styles.provenanceTag}
+                        data-provenance={recordProvenance(r.source, r.source_type, r.stream)}
+                      >
+                        [{recordProvenance(r.source, r.source_type, r.stream)}]
+                      </span>
                       <span className={styles.tag}>{r.source_type ?? r.source ?? 'unknown'}</span>
                       {r.action_sought && <span className={styles.dim}>{r.action_sought}</span>}
                     </div>

@@ -110,6 +110,33 @@ export function isFiling(
   return false;
 }
 
+// ---- THE SAME RULE, AS A LABEL ON A ROW --------------------------------------
+//
+// THE THREE STREAM TABS ON /records ARE GONE AND THIS IS WHAT REPLACED THEM.
+//
+// Opportunities, Intelligence and Government were three destinations telling the
+// operator which LANE captured a row, which is a fact about our plumbing rather
+// than about the subject. Provenance is worth knowing - it is the difference
+// between a filing a client can open and a story somebody wrote - but it is a
+// property of a record, so it belongs on the record, not in the navigation.
+//
+// THE DOCUMENT'S RULE, NOT A SECOND ONE. isFiling above is what decides RECORD
+// against PRESS in a client document; this reads it and then splits RECORD in
+// two, because a tender notice with a deadline you can still bid into is a
+// different object from a council resolution. The report keeps its two labels -
+// its Provenance type is unchanged and this is not part of it - so a document
+// and a screen can disagree about the WORD while agreeing about the fact.
+export type RecordProvenance = 'RECORD' | 'PRESS' | 'TENDER';
+
+export function recordProvenance(
+  source: string | null | undefined,
+  sourceType?: string | null,
+  stream?: Stream
+): RecordProvenance {
+  if (!isFiling(source, sourceType, stream)) return 'PRESS';
+  return stream === 'opportunity' ? 'TENDER' : 'RECORD';
+}
+
 export interface Line {
   provenance: Provenance;
   text: string;

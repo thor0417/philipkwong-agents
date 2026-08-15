@@ -163,6 +163,15 @@
   border-top: var(--border-hairline);
 }
 
+/* See tlProvenance on the Projects screen: the same label, the same reason. */
+.provenanceTag {
+  font-family: var(--font-mono);
+  font-size: var(--type-caption);
+  letter-spacing: var(--track-label);
+  color: var(--ink-disabled);
+  white-space: nowrap;
+}
+
 .tlRow {
   display: flex;
   gap: var(--space-16);

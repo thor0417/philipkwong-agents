@@ -504,6 +504,11 @@ const TIMELINE_COLUMNS = [
   'first_seen', 'date_source', 'cluster_reason', 'status', 'applicant',
   'representative', 'presented_by', 'action_sought', 'contact_name',
   'contact_email', 'contact_phone', 'primary_document_url',
+  // The capture lane. Selected here now because the timeline is where records
+  // are read since Records stopped being a destination, and RECORD / PRESS /
+  // TENDER is decided from it (recordProvenance). Without it every timeline row
+  // fell through to the legacy source list and a tender read as a filing.
+  'stream',
 ].join(',');
 
 // Every attached record in date order. The timeline is the project: it is what
@@ -586,6 +591,54 @@ export async function fetchInboxPage(q: InboxQuery): Promise<{
     pageCount: Math.max(1, Math.ceil(total / pageSize)),
     rowsFetched: rows.length,
   };
+}
+
+// ---- FINDING ONE RECORD ------------------------------------------------------
+//
+// SEARCH, NOT BROWSE, AND THAT IS THE WHOLE DIFFERENCE.
+//
+// Records was a destination: three stream tabs, a geography tree, a triage bar
+// and a page of filters over 1,500 raw rows. Nobody browses raw records - a
+// project's records are its timeline, which is where they are read. What was
+// genuinely lost by removing the screen is the ability to find ONE document you
+// already know something about: a case reference somebody quoted, a headline, a
+// link in an email. That is a search box, and the palette is already the search
+// box.
+//
+// THREE FIELDS, AND THEY ARE THE THREE A PERSON HAS IN HAND. There is no case
+// reference COLUMN: Legistar prints it inside the title ("RES.123-2025
+// RESOLUTION - APPROVING..."), so a title match is a case-reference match. The
+// url is here because a link pasted from a browser is the other thing people
+// arrive with, and matching on it is the only way to answer "do we already hold
+// this document".
+export interface RecordHit {
+  id: string;
+  title: string | null;
+  url: string;
+  source: string | null;
+  source_type: string | null;
+  stream: string | null;
+  published_date: string | null;
+  market: string | null;
+  project_id: string | null;
+}
+
+export async function searchRecords(term: string, limit = 12): Promise<RecordHit[]> {
+  if (!term.trim()) return [];
+  const safe = term.trim().replace(/\s+/g, ' ').replace(/["\\]/g, '');
+  const { data, error } = await supabase
+    .from('leads')
+    .select('id,title,url,source,source_type,stream,published_date,market,project_id')
+    .eq('module', LIVE_PIPELINE_STORAGE_KEY)
+    // Dismissed rows are excluded for the same reason Trash is a separate view:
+    // this is a way to find a document, not an archive dig. Nothing is deleted,
+    // and a dismissed record is still reachable through its project.
+    .neq('status', 'dismissed')
+    .or(['title', 'url'].map((f) => `${f}.ilike."%${safe}%"`).join(','))
+    .order('published_date', { ascending: false, nullsFirst: false })
+    .limit(limit);
+  if (error) throw new Error(`record search failed: ${error.message}`);
+  return (data ?? []) as unknown as RecordHit[];
 }
 
 // Project name search, for the Inbox's "attach to an existing project" control.
