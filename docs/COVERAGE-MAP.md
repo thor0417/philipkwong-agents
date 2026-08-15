@@ -42,9 +42,9 @@ is layers 1 and 2 with some of 3.
 | Anaheim | California | FULL | FULL | PARTIAL | `agenda-portal`, `ceqanet` |
 | Phoenix | Arizona | FULL | FULL | NONE | `legistar` (phoenix) |
 | Nashville | Tennessee | FULL | FULL | NONE | `legistar` (nashville) |
-| San Antonio | Texas | **DEAD FEED** | **DEAD FEED** | NONE | `legistar` (sanantonio) - frozen 2021 |
+| San Antonio | Texas | **DEAD FEED** | **DEAD FEED** | NONE | `legistar` (sanantonio) - frozen 2021, **excluded from client documents** |
 | Oakland | California | FULL | FULL | PARTIAL | `legistar` (oakland), `ceqanet` |
-| Miami-Dade County | Florida | **DEAD FEED** | **DEAD FEED** | NONE | `legistar` (miamidade) - frozen 2018 |
+| Miami-Dade County | Florida | **DEAD FEED** | **DEAD FEED** | NONE | `legistar` (miamidade) - frozen 2018, **excluded from client documents** |
 | South Florida | Florida | NONE | PARTIAL | NONE | `sfwmd` (water permits, layer 4) |
 | Central Florida Tourism Oversight District | Florida | FULL | FULL | NONE | `cftod-pdf` |
 | New York City | New York | NONE | **STALE** | FULL | `nyc-zap`, `nyc-ceqr`, `nyc-city-record` |
@@ -54,6 +54,74 @@ is layers 1 and 2 with some of 3.
 Layers 5 through 8 are **NONE in every market**. No aviation, special-regulator,
 capital-plan or bond source is captured anywhere. That is a system-wide gap, not
 a per-market one, and it is stated once here rather than repeated in ten rows.
+
+### The honest count: 11, and 6 of those are worth selling
+
+Measured 2026-08-15, through the projects rather than through this table. Every
+number below is what a scope on that market actually holds today: live projects
+(not dormant, at least one undismissed record), records behind them, the age of
+the newest record, how many live projects name a party, and how many carry any
+contact path.
+
+| market | live projects | records | newest record | names a party | contact path | verdict |
+|---|---:|---:|---|---:|---:|---|
+| Clark County | 27 | 89 | 4 days | 27 | 11 | **defensible** |
+| Las Vegas | 24 | 56 | 13 days | 19 | 1 | **defensible, watch the feed** |
+| Anaheim | 14 | 59 | 9 days | 11 | 5 | **defensible** |
+| New York City | 38 | 159 | 22 days | 26 | 4 | **defensible, with the stated ZAP gap** |
+| Nashville | 9 | 19 | current | 1 | 1 | **thin**: captures and clusters, names almost nobody |
+| Phoenix | 8 | 15 | 45 days | 8 | 0 | **defensible** |
+| Oakland | 4 | 8 | 25 days | 2 | 2 | **thin but live** |
+| Westchester County | 1 | 2 | 12 days | 0 | 0 | **live, negligible** |
+| Central Florida Tourism Oversight District | 1 | 11 | 204 days | 1 | 0 | **stale, not dead** |
+| Yonkers | 0 | 0 | - | 0 | 0 | **captured nothing that survived** |
+| South Florida | 0 | 2 | 15,929 days | 0 | 0 | **not a market we cover** |
+| ~~San Antonio~~ | - | - | 1,789 days | - | - | **DEAD FEED, excluded** |
+| ~~Miami-Dade County~~ | - | - | 2,979 days | - | - | **DEAD FEED, excluded** |
+
+So: **13 on the table, 11 after the two dead feeds, and 6 that would survive a
+client asking what we found there last month** - Clark County, Las Vegas,
+Anaheim, New York City, Phoenix and Oakland. The rest are captured rather than
+covered, and the difference is worth stating before it is sold.
+
+Two of the six carry a condition:
+
+- **Las Vegas.** Its newest AGENDA record is 44 days old and no new one has
+  arrived since 1 July, because `adapter:lasvegas-agendas` is registered in
+  `degraded-sources` as fetching nothing at all behind Cloudflare. What is fresh
+  in Las Vegas is press, not filings. It is not yet twelve months behind and so
+  does not trip the dead-feed rule, but it is the same shape of failure at an
+  earlier stage, and it is the market that matters most.
+- **New York City.** ZAP stopped publishing on 2026-05-26 and NYC Council has no
+  public feed at all, so we can say what was filed and reviewed and never what
+  was approved. Both are stated in the NYC section below.
+
+### THE CHECK ONLY COVERS ONE LANE, AND THAT IS THE NEXT GAP
+
+`npm run verify:staleness` probes the eight configured **Legistar** clients. It
+does not probe PrimeGov, Granicus, CEQAnet, the CFTOD packets, the NYC Socrata
+datasets or SFWMD. Five of the thirteen markets above are therefore covered by a
+rule that cannot see them, and two of those five already hold captures older than
+the twelve-month line:
+
+| market | source | newest record we hold | probed by verify:staleness |
+|---|---|---|---|
+| Las Vegas | `agenda-portal` (PrimeGov) | 44 days | **no** |
+| Anaheim | `agenda-portal` (Granicus), `ceqanet` | 9 / 190 days | **no** |
+| Central Florida Tourism Oversight District | `cftod-pdf` | 204 days | **no** |
+| New York City | `nyc-zap`, `nyc-ceqr`, `nyc-city-record` | 145 / 23 / 22 days | **no** |
+| South Florida, Lake Buena Vista | `sfwmd` | 15,929 / 924 days | **no** |
+
+The two SFWMD figures are the age of what we CAPTURED, not proof the source has
+stopped: SFWMD may be publishing normally while our capture holds only old
+permits, and those are different failures with different fixes. Nothing here
+establishes which, because nothing probes it. That is the honest state, and it is
+why neither is declared in `lib/dead-feeds` - a declaration withholds a market
+from a paying client, and it may only be made on a measurement of the SOURCE.
+
+**Costed:** extend `verify-staleness` past Legistar, one probe per adapter
+family. Until that exists, the twelve-month rule is enforced on 8 of 13 markets
+and merely hoped for on the other 5.
 
 ---
 
