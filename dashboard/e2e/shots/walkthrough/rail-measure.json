@@ -1,0 +1,47 @@
+{
+  "nav": [
+    {
+      "label": "TToday",
+      "href": "/today"
+    },
+    {
+      "label": "PProjects",
+      "href": "/projects"
+    },
+    {
+      "label": "CClients",
+      "href": "/clients"
+    },
+    {
+      "label": "PPlayers",
+      "href": "/players"
+    },
+    {
+      "label": "RReports",
+      "href": "/reports"
+    },
+    {
+      "label": "IInbox",
+      "href": "/inbox"
+    },
+    {
+      "label": "HHealth",
+      "href": "/health"
+    },
+    {
+      "label": "DDesign system",
+      "href": "/design"
+    },
+    {
+      "label": "VVocabulary",
+      "href": "/vocabulary"
+    },
+    {
+      "label": "LLegacy pipeline",
+      "href": "/pipeline"
+    }
+  ],
+  "firstRowTop": 242,
+  "controls": 47,
+  "rows": 11
+}
