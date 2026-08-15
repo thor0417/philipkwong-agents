@@ -500,6 +500,18 @@
    warning rather than as metadata: this is the one project state that changes
    what a client document is allowed to contain, and the fix is a rename the
    operator makes right here. */
+/* A MARKET WHOSE SOURCE HAS STOPPED. Shares the warning shape with .nameSource
+   deliberately - both answer "what is this project not allowed to do" - and sits
+   above it, because a frozen market outranks an unreadable name. */
+.frozenMarket {
+  margin: var(--space-4) 0 var(--space-8);
+  padding-left: var(--space-8);
+  font-size: var(--type-caption);
+  line-height: 1.45;
+  color: var(--ink-secondary);
+  border-left: 2px solid var(--accent);
+}
+
 .nameSource {
   margin: var(--space-4) 0 var(--space-8);
   padding-left: var(--space-8);
@@ -507,6 +519,21 @@
   line-height: 1.45;
   color: var(--ink-secondary);
   border-left: 2px solid var(--accent);
+}
+
+/* A MARKET WE HAVE STOPPED BEING ABLE TO READ. Deliberately NOT an accent: the
+   accent budget counts kinds of emphasis per screen, and this appears on every
+   row of a frozen market, which would make it the loudest thing on the page for
+   a fact that is true of the market rather than of the row. Tertiary ink and a
+   hairline box: legible when scanned for, silent when not. */
+.frozenTag {
+  margin-left: var(--space-8);
+  padding: 0 var(--space-4);
+  border: var(--border-hairline);
+  border-radius: var(--radius-sm, 2px);
+  font-size: var(--type-caption);
+  color: var(--ink-tertiary, var(--ink-secondary));
+  white-space: nowrap;
 }
 
 .summarySource {

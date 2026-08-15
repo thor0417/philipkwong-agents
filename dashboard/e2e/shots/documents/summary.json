@@ -6,25 +6,25 @@
     "prov": "87 record / 8 press / 12 assessment"
   },
   "fullFiles": {
-    "pdf": 67234,
-    "csv": 33922,
-    "xlsx": 16418
+    "pdf": 67249,
+    "csv": 33957,
+    "xlsx": 16427
   },
   "detail15": {
-    "p": "142 projects",
-    "r": "214 records",
+    "p": "141 projects",
+    "r": "206 records",
     "pg": "~13 pages",
-    "prov": "93 record / 12 press / 14 assessment"
+    "prov": "93 record / 12 press / 17 assessment"
   },
   "detail30": {
-    "p": "142 projects",
-    "r": "214 records",
+    "p": "141 projects",
+    "r": "206 records",
     "pg": "~20 pages",
-    "prov": "154 record / 18 press / 14 assessment"
+    "prov": "154 record / 18 press / 17 assessment"
   },
   "detailFiles": {
-    "at15": 71400,
-    "at30": 109328
+    "at15": 73719,
+    "at30": 110422
   },
   "deliveryStatus": "Generated CSV. Delivery recorded.",
   "narrowed": {
@@ -34,7 +34,7 @@
     "prov": "18 record / 4 press / 10 assessment"
   },
   "countyFiles": {
-    "pdf": 19942
+    "pdf": 19969
   },
   "referral": {
     "p": "1 projects",

@@ -33,6 +33,7 @@ import {
 } from './report-model';
 import { buildEntry, recordSentence } from './report-entry';
 import { categoriesForPipeline } from './taxonomy';
+import { frozenMarketSentence, monthYear, type DeadFeed } from '../../lib/dead-feeds';
 import type { PartyHistory } from './people';
 
 export interface SectionContext {
@@ -52,6 +53,10 @@ export interface SectionContext {
   unplacedProjects: Project[];
   // Dropped before scope for having no live record at all.
   excludedHollow: number;
+  // Dropped for having had no heartbeat inside the liveness window. Counted as
+  // well as named: the coverage note stated the reason for years and never the
+  // number, which tells a reader a rule fired without telling them how hard.
+  excludedDormant: number;
   // THE READ LIMITS, AND WHETHER EACH ONE BOUND. A cap that binds and is not
   // stated is a document covering less than its scope claims, which is the one
   // failure this layer exists to prevent. See the coverage note.
@@ -70,6 +75,12 @@ export interface SectionContext {
   // "nothing is silently absent" means the reader can see where the gap is,
   // not merely that there is one.
   provisionalExcluded: Project[];
+  // EXCLUDED BECAUSE THEIR MARKET STOPPED PUBLISHING. Held with the declaration
+  // that caused it rather than as a count, because the sentence a client reads
+  // has to carry the freeze date: "we do not cover San Antonio" and "we covered
+  // San Antonio until September 2021" are different facts and only the second
+  // one is true. See lib/dead-feeds.
+  frozenExcluded: { project: Project; feed: DeadFeed }[];
   detailCap: number;
   // THE ENTRIES, BUILT ONCE, IN SIGNIFICANCE ORDER, WITH THEIR MARKET AS group.
   //
@@ -189,6 +200,31 @@ function withCommentary(id: string, ctx: SectionContext, section: Omit<Section, 
   return { ...section, commentary: commentaryLines(ctx.commentary[id]) };
 }
 
+/**
+ * The frozen markets this document lost projects in, grouped and counted.
+ *
+ * Grouped rather than listed per project because the fact is about the market:
+ * three separate Miami-Dade lines would read as three separate problems.
+ */
+export function frozenByFeed(ctx: SectionContext): { feed: DeadFeed; projects: number }[] {
+  const byMarket = new Map<string, { feed: DeadFeed; projects: number }>();
+  for (const { feed } of ctx.frozenExcluded) {
+    const cur = byMarket.get(feed.market);
+    if (cur) cur.projects++;
+    else byMarket.set(feed.market, { feed, projects: 1 });
+  }
+  return [...byMarket.values()].sort(
+    (a, b) => b.projects - a.projects || a.feed.market.localeCompare(b.feed.market)
+  );
+}
+
+/** 'San Antonio' / 'Miami-Dade County and San Antonio', for the cover sentence. */
+function frozenMarketsNamed(ctx: SectionContext): string {
+  const names = frozenByFeed(ctx).map((f) => f.feed.market);
+  if (names.length <= 1) return names[0] ?? '';
+  return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+}
+
 
 /**
  * WHAT EACH READ LIMIT SAYS WHEN IT BINDS.
@@ -294,6 +330,20 @@ const cover: SectionDef = {
             ? `A further ${ctx.provisionalExcluded.length} project${ctx.provisionalExcluded.length === 1 ? '' : 's'} in this ` +
               `geography ${ctx.provisionalExcluded.length === 1 ? 'is' : 'are'} excluded because our capture holds no ` +
               `published name for ${ctx.provisionalExcluded.length === 1 ? 'it' : 'them'}; the coverage note says where. `
+            : '') +
+          // ON THE COVER TOO, AND NAMING THE MARKETS. The other exclusions are a
+          // number on the cover and a reason in the coverage note, because the
+          // reader's question is "does this add up". This one is different: a
+          // client whose scope includes San Antonio is not asking whether the
+          // arithmetic works, they are asking whether they are covered there.
+          // That question has to be answerable on the first page.
+          // Inflected on the PROJECT count and the MARKET count separately. They
+          // are different numbers and one sentence needs both.
+          (ctx.frozenExcluded.length
+            ? `${ctx.frozenExcluded.length} project${ctx.frozenExcluded.length === 1 ? '' : 's'} in ` +
+              `${frozenMarketsNamed(ctx)} ${ctx.frozenExcluded.length === 1 ? 'is' : 'are'} held out entirely: ` +
+              `the public source we read for ${frozenByFeed(ctx).length === 1 ? 'that market' : 'those markets'} ` +
+              `has stopped publishing, so what we hold is historical. The coverage note gives the dates. `
             : '') +
           `Anything outside that geography or period is not covered here.`
       ),
@@ -742,7 +792,44 @@ const coverage: SectionDef = {
       `Coverage is limited to ${ctx.geographyLabel}. Projects outside it exist in our register and are not reported here.`,
       `The period is ${ctx.periodLabel}. Activity outside it is not included even where it concerns the same project.`,
     ];
-    if (!ctx.includeDormant) notes.push('Dormant projects are excluded from this report.');
+    // FIRST OF THE EXCLUSIONS, BECAUSE IT QUALIFIES THE TWO SENTENCES ABOVE IT.
+    //
+    // Every other note in this section says which projects were left out of a
+    // geography we cover. This one says a geography we claim to cover is not
+    // being read at all, which is a limit on the coverage statement rather than
+    // on the selection, and a reader who stops after three sentences must have
+    // had it.
+    const frozen = frozenByFeed(ctx);
+    if (frozen.length) {
+      notes.push(frozenMarketSentence(frozen));
+      // The freeze date twice over: once inside the sentence above as a month,
+      // and once here per market with what we still hold, because a client whose
+      // scope names one of these markets will want to know whether the gap is
+      // last quarter or last decade.
+      for (const { feed, projects } of frozen) {
+        notes.push(
+          `On ${feed.market}: the last filing we hold is from ${monthYear(feed.frozenSince)}, and we ` +
+            `have captured nothing there since. The ${projects} project${projects === 1 ? '' : 's'} ` +
+            `concerned ${projects === 1 ? 'is' : 'are'} on the register with that date against ` +
+            `${projects === 1 ? 'it' : 'them'}. We are not able to say what has been filed in ` +
+            `${feed.market} since then, and this document should not be read as saying nothing has.`
+        );
+      }
+    }
+    // THE REASON AND THE COUNT. The reason alone was here for as long as this
+    // section has existed, and it is half a statement: a reader learns a rule
+    // fired without learning whether it removed one project or forty.
+    if (!ctx.includeDormant) {
+      notes.push(
+        ctx.excludedDormant
+          ? `${ctx.excludedDormant} project${ctx.excludedDormant === 1 ? '' : 's'} in this geography ` +
+            `${ctx.excludedDormant === 1 ? 'is' : 'are'} dormant and excluded from this report: ` +
+            `${ctx.excludedDormant === 1 ? 'it has' : 'they have'} had no filing for long enough that we ` +
+            `no longer treat ${ctx.excludedDormant === 1 ? 'it' : 'them'} as live. ` +
+            `${ctx.excludedDormant === 1 ? 'It remains' : 'They remain'} on the register.`
+          : 'Dormant projects are excluded from this report. None in this geography is dormant.'
+      );
+    }
     if (!ctx.includeContext) notes.push('Context records that support a finding without being about it are excluded.');
     if (ctx.watchlistOnly) notes.push('This report is restricted to watch-listed projects.');
     // THE SELECTION IS A LIMIT ON THE DOCUMENT, so it belongs in the list of

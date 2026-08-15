@@ -15,6 +15,8 @@
 import { Fragment, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { isProvisionalName } from '@/lib/taxonomy';
+// The one copy, read across the package split. See lib/dead-feeds.
+import { deadFeedForMarket } from '../../../../lib/dead-feeds';
 import { useProject, useProjectTimeline, useProjectMutations } from '@/lib/use-projects';
 import { useProjectPeople } from '@/lib/use-people';
 import { PROJECT_STAGES } from '@/lib/taxonomy';
@@ -74,6 +76,28 @@ export default function RegisterDetail({
               name for? Marked here rather than hidden, because the register is
               where naming one by hand is done. Every other source is silent:
               a label on every row is not a label. */}
+          {/* THE MARKET STOPPED PUBLISHING, SO EVERYTHING BELOW IS HISTORY.
+              Placed above the name source and above the summary because it
+              qualifies both: the stage, the last activity date and the record
+              timeline in this pane are all accurate and all frozen, and an
+              operator reading "approved" on a project last touched in 2021 has
+              to be told which of those two facts is load bearing. The date and
+              the reason come from the declaration, never from prose here, so
+              this pane and the client document cannot disagree. */}
+          {(() => {
+            const feed = deadFeedForMarket(p.market, p.region_state);
+            return feed ? (
+              <p className={styles.frozenMarket} data-testid="market-frozen-detail">
+                {feed.market} is not being read. The public source we capture from has published
+                nothing since {feed.frozenSince}, so the records below are complete up to that date
+                and empty after it. Projects in this market are held out of client documents and
+                the coverage note says so.
+                {feed.liveDataAt
+                  ? ` The jurisdiction itself still publishes, at ${feed.liveDataAt}; we do not read it yet.`
+                  : ''}
+              </p>
+            ) : null;
+          })()}
           {isProvisionalName(p.name_source) && (
             <p className={styles.nameSource} data-testid="name-provisional">
               Name taken from the agenda line, not a published name. Projects

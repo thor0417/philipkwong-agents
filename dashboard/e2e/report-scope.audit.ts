@@ -16,6 +16,7 @@
 
 import { test, expect } from '@playwright/test';
 import { isProvisionalName } from '../lib/taxonomy';
+import { deadFeedForMarket } from '../../lib/dead-feeds';
 import { streamLabel } from '../lib/streams';
 import { createClient } from '@supabase/supabase-js';
 import { readFileSync, existsSync, writeFileSync, mkdirSync } from 'node:fs';
@@ -132,7 +133,12 @@ test('the three axes the composer used to drop', async ({ page }) => {
       // testing whether the SCOPE leaks rather than re-discovering two rules it
       // is not about.
       (r.record_count ?? 0) > 0 &&
-      !isProvisionalName(r.name_source as string | null)
+      !isProvisionalName(r.name_source as string | null) &&
+      // AND THE THIRD: a market whose source has stopped publishing is held out
+      // of every client document, stated in the coverage note. Same reason as
+      // the two above - this audit is about whether the SCOPE leaks, not about
+      // re-discovering the document rules.
+      !deadFeedForMarket(r.market as string | null)
   );
   console.log(`  database says the stored scope covers ${inScope.length} projects`);
 
@@ -154,7 +160,12 @@ test('the three axes the composer used to drop', async ({ page }) => {
       // nothing else. Leaving them off here made the mode side larger and the
       // assertion failed on an inequality that was never about facets.
       (r.record_count ?? 0) > 0 &&
-      !isProvisionalName(r.name_source as string | null)
+      !isProvisionalName(r.name_source as string | null) &&
+      // AND THE THIRD: a market whose source has stopped publishing is held out
+      // of every client document, stated in the coverage note. Same reason as
+      // the two above - this audit is about whether the SCOPE leaks, not about
+      // re-discovering the document rules.
+      !deadFeedForMarket(r.market as string | null)
   );
   console.log(
     `  matching the mode column would cover ${byMode.length}; matching any record covers ` +

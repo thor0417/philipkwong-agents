@@ -20,6 +20,9 @@ import type { ResolvedPeriod } from './period';
 import { DEFAULT_SECTION_IDS, sectionById, type SectionContext } from './report-sections';
 import { estimatePages, type Entry, type ReportDocument } from './report-model';
 import { isProvisionalName } from './taxonomy';
+// ONE COPY, READ ACROSS THE PACKAGE SPLIT. See the header of lib/dead-feeds for
+// why this is not mirrored into dashboard/lib the way taxonomy.ts is.
+import { deadFeedForMarket, type DeadFeed } from '../../lib/dead-feeds';
 import { buildEntry } from './report-entry';
 import { streamLabel } from './streams';
 import { normaliseParty, type PartyHistory } from './people';
@@ -79,6 +82,11 @@ export interface BuildRequest {
   // Exposed at all so an INTERNAL document can be generated with them, which is
   // a different question from what a client is sent.
   includeProvisionalNames?: boolean;
+  // OFF BY DEFAULT, for the same reason and with the same escape hatch. A market
+  // whose source has stopped publishing does not enter a client document. An
+  // INTERNAL document may legitimately ask what we still hold there, which is a
+  // different question from what a client is sent. See the block in buildReport.
+  includeFrozenMarkets?: boolean;
   geographyLabel: string;
   // HOW MANY PROJECTS THE DOCUMENT DESCRIBES IN FULL. The rest are counted.
   // See DETAIL_CAP_DEFAULT for why this is a number a person chooses.
@@ -117,8 +125,12 @@ export interface BuiltReport {
     silent: number;
     unplaced: number;
     excludedHollow: number;
+    excludedDormant: number;
     // Excluded because their name is a cleaned agenda line rather than a name.
     provisionalNames: number;
+    // Excluded because the source we read for their market has stopped
+    // publishing. See lib/dead-feeds.
+    frozenMarkets: number;
   };
 }
 
@@ -141,10 +153,83 @@ export async function buildReport(req: BuildRequest): Promise<BuiltReport> {
   if (req.projectId) projects = projects.filter((p) => p.id === req.projectId);
   if (req.watchlistOnly) projects = projects.filter((p) => p.watch);
 
+  // THE GEOGRAPHY THE SCOPE ASKED FOR, computed once and used by every rule that
+  // has to narrow a count to this document. Lower-cased here so no rule has to
+  // remember to.
+  const geo = [
+    ...(req.scope.markets ?? []),
+    ...(req.scope.regions ?? []),
+    ...(req.scope.countries ?? []),
+  ].map((v) => v.toLowerCase());
+  const inGeo = (p: Project) =>
+    geo.length === 0 ||
+    geo.includes(String(p.market ?? '').toLowerCase()) ||
+    geo.includes(String(p.region_state ?? '').toLowerCase()) ||
+    geo.includes(String(p.country ?? '').toLowerCase());
+
+  // A MARKET WHOSE SOURCE HAS STOPPED PUBLISHING DOES NOT ENTER A CLIENT
+  // DOCUMENT.
+  //
+  // Miami-Dade's Legistar feed carries nothing newer than June 2018 and San
+  // Antonio's nothing newer than September 2021. Both are on the covered-markets
+  // table, both captured cleanly, and both produce projects that generate
+  // perfectly: every statement true, every link resolving, every date five or
+  // eight years old. The period filter does not save this, because first_seen is
+  // 2026 - the date OUR SCRAPER found the filing - so a "this month" report can
+  // surface an eight-year-old plat as though it had just arrived.
+  //
+  // The worst case is not the quiet one. Five of the six projects in these two
+  // markets are already dormant and would have been dropped by the dormant rule.
+  // The sixth is Weston Urban: stage 'approved', 8 records, a master economic
+  // incentive agreement with the City of San Antonio, and last touched in
+  // September 2021. A client document would have described it in the present
+  // tense, under a stage that reads as forward motion.
+  //
+  // FIRST OF THE PROJECT RULES, AND DELIBERATELY BEFORE THE DORMANT ONE. Whether
+  // a project is dormant is a fact about that project; whether its market is
+  // readable at all is a fact about the market, and it is the larger of the two.
+  // A reader is owed "San Antonio is frozen" rather than five separate dormancy
+  // notices and one live-looking entry.
+  //
+  // COUNTED ON THE PROJECT'S OWN STORED GEOGRAPHY, not on the record-keyed market
+  // match that runs further down. That is safe here in a way it was not for the
+  // provisional rule: this filter IS a geography filter, so the column it counts
+  // on is the column it filters on, and there is nothing for the two to disagree
+  // about. What it must still respect is the scope - a Nashville report must not
+  // report a San Antonio exclusion - which is what inGeo does.
+  let frozenExcluded: { project: Project; feed: DeadFeed }[] = [];
+  if (!req.includeFrozenMarkets) {
+    const keep: Project[] = [];
+    for (const p of projects) {
+      const feed = deadFeedForMarket(p.market, p.region_state);
+      if (!feed) {
+        keep.push(p);
+        continue;
+      }
+      if (inGeo(p)) frozenExcluded.push({ project: p, feed });
+    }
+    projects = keep;
+  }
+
   // A dormant project has had no heartbeat for the liveness window. Its stage is
   // written 'dormant' by the clusterer, so excluding it is a filter on the value
   // the clusterer already computed rather than a second definition of dormancy.
-  if (!req.includeDormant) projects = projects.filter((p) => p.stage !== 'dormant');
+  //
+  // COUNTED, NOT ONLY NAMED. The coverage note has always said dormant projects
+  // are excluded and never said how many, which is half of the rule: a reader
+  // told the reason but not the count cannot tell a document that dropped one
+  // project from a document that dropped forty. Narrowed on the project's own
+  // stored geography for the same reason the hollow count is - see below.
+  let dormantExcluded: Project[] = [];
+  if (!req.includeDormant) {
+    const keep: Project[] = [];
+    for (const p of projects) {
+      if (p.stage === 'dormant') {
+        if (inGeo(p)) dormantExcluded.push(p);
+      } else keep.push(p);
+    }
+    projects = keep;
+  }
 
   // HOLLOW PROJECTS ARE EXCLUDED ENTIRELY, not merely left undetailed.
   //
@@ -176,18 +261,7 @@ export async function buildReport(req: BuildRequest): Promise<BuiltReport> {
   //
   // So the count is narrowed using the hollow project's OWN stored geography.
   // That is the only evidence left about where it was: its records are gone.
-  const geo = [
-    ...(req.scope.markets ?? []),
-    ...(req.scope.regions ?? []),
-    ...(req.scope.countries ?? []),
-  ].map((v) => v.toLowerCase());
-  const excludedHollow = geo.length
-    ? hollow.filter((p) =>
-        geo.includes(String(p.market ?? '').toLowerCase()) ||
-        geo.includes(String(p.region_state ?? '').toLowerCase()) ||
-        geo.includes(String(p.country ?? '').toLowerCase())
-      ).length
-    : hollow.length;
+  const excludedHollow = hollow.filter(inGeo).length;
 
   // THE STREAM AXIS, APPLIED TO PROJECTS AS WELL AS TO RECORDS.
   //
@@ -219,6 +293,44 @@ export async function buildReport(req: BuildRequest): Promise<BuiltReport> {
   if (hasRecordFacets(recordFacets) && projects.length) {
     const keep = await projectsMatchingRecordFacets(projects.map((p) => p.id), recordFacets);
     projects = projects.filter((p) => keep.has(p.id));
+  }
+
+  // A COUNT MUST BE ABOUT THIS DOCUMENT, ON EVERY AXIS THE SCOPE NARROWS.
+  //
+  // The frozen-market and dormancy rules run above, before the stream and
+  // record-facet matches, because both are properties of the project rather than
+  // of its filings. That ordering is right for the FILTER and wrong for the
+  // COUNT: a scope narrowed by category rather than by geography passes inGeo
+  // trivially, so the number that reached the page was the whole register's.
+  // Measured by the exclusion audit: a Hospitality/Tourism document stated 6
+  // frozen and 86 dormant when its own scope held 1 and 25.
+  //
+  // This is the identical failure the provisional rule had - a document stating
+  // a count that is not about itself - and it is worth the two round trips it
+  // costs, which are only paid when something was actually excluded.
+  //
+  // The hollow count is deliberately NOT narrowed here: a hollow project has no
+  // live record for either filter to match on, so passing it through would
+  // silently zero it. Its geography-only narrowing is the best evidence that
+  // exists about it, and the comment above it says so.
+  const narrowToScope = async (rows: Project[]): Promise<Project[]> => {
+    if (rows.length === 0) return rows;
+    let out = rows;
+    if (streams) {
+      const keep = await projectsHoldingStreams(out.map((p) => p.id), streams);
+      out = out.filter((p) => keep.has(p.id));
+    }
+    if (hasRecordFacets(recordFacets)) {
+      const keep = await projectsMatchingRecordFacets(out.map((p) => p.id), recordFacets);
+      out = out.filter((p) => keep.has(p.id));
+    }
+    return out;
+  };
+  if (streams || hasRecordFacets(recordFacets)) {
+    const keptFrozen = await narrowToScope(frozenExcluded.map((f) => f.project));
+    const keptIds = new Set(keptFrozen.map((p) => p.id));
+    frozenExcluded = frozenExcluded.filter((f) => keptIds.has(f.project.id));
+    dormantExcluded = await narrowToScope(dormantExcluded);
   }
 
   // A PROVISIONAL NAME DOES NOT REACH A CLIENT DOCUMENT, AND IS NOT HEDGED
@@ -477,7 +589,9 @@ export async function buildReport(req: BuildRequest): Promise<BuiltReport> {
     silentProjects: silent,
     unplacedProjects: unplaced,
     excludedHollow,
+    excludedDormant: dormantExcluded.length,
     provisionalExcluded,
+    frozenExcluded,
     detailCap,
     entries,
     heldRecords,
@@ -547,7 +661,11 @@ export async function buildReport(req: BuildRequest): Promise<BuiltReport> {
       silent: silent.length,
       unplaced: unplaced.length,
       excludedHollow,
+      excludedDormant: dormantExcluded.length,
       provisionalNames: provisionalExcluded.length,
+      // Excluded because the source we read for their market has stopped
+      // publishing, so everything we hold for them is old.
+      frozenMarkets: frozenExcluded.length,
     },
   };
 }
@@ -646,13 +764,20 @@ export async function listScopeProjects(
 ): Promise<{ id: string; name: string; market: string | null }[]> {
   const { query, postFilters, streams, recordFacets } = resolveScope(scope);
   const { data, error } = await applyProjectFilters(
-    supabase.from('projects').select('id,name,market,venue_type,development_category,stage'),
+    supabase.from('projects').select('id,name,market,region_state,venue_type,development_category,stage'),
     { ...query, module: query.module ?? LIVE_PIPELINE_STORAGE_KEY }
   )
     .order('last_activity', { ascending: false, nullsFirst: false })
     .limit(500);
   if (error) throw new Error(`scope project list failed: ${error.message}`);
   let rows = applyPostFilters((data ?? []) as unknown as Record<string, unknown>[], postFilters);
+  // A FROZEN MARKET IS NOT OFFERED FOR A REFERRAL BRIEF. A referral brief is the
+  // most client-facing document this system produces - it is written to be
+  // forwarded to someone who will act on it - so a project whose market stopped
+  // publishing in 2021 must not be pickable. The generator would drop it anyway
+  // and the brief would come out empty, which is the failure mode this list
+  // exists to prevent: a control that offers something the generator refuses.
+  rows = rows.filter((r) => !deadFeedForMarket(r.market as string | null, r.region_state as string | null));
   // The picker offers what the report would cover, stream axis included. A
   // picker listing a project the generator then drops is a control that lies.
   if (streams && rows.length) {

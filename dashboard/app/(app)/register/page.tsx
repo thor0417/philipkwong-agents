@@ -38,6 +38,8 @@ import {
   useMovedProjectIds,
   useProjectIdsMatchingRecords,
 } from '@/lib/use-period';
+// The one copy, read across the package split. See lib/dead-feeds.
+import { deadFeedForMarket } from '../../../../lib/dead-feeds';
 import RegisterRail from './RegisterRail';
 import RegisterDetail from './RegisterDetail';
 import styles from './page.module.css';
@@ -1028,7 +1030,32 @@ export default function RegisterPage() {
                   {r.significance == null ? '--' : Math.round(r.significance)}
                 </span>
                 <span className={styles.cell}>{r.primary_applicant ?? '--'}</span>
-                <span className={styles.cell}>{r.market ?? r.region_state ?? '--'}</span>
+                {/* THE MARKET, AND WHETHER WE ARE STILL READING IT.
+                    A frozen market is the one thing about a row that cannot be
+                    inferred from anything else on it: the name, the stage and
+                    the applicant all look entirely healthy on a project whose
+                    source stopped publishing in 2018. Marked on the row rather
+                    than only in the pane, because the register is scanned far
+                    more often than it is opened, and this is the fact that
+                    decides whether a row can be sold as coverage. */}
+                <span className={styles.cell}>
+                  {r.market ?? r.region_state ?? '--'}
+                  {(() => {
+                    const feed = deadFeedForMarket(r.market, r.region_state);
+                    return feed ? (
+                      <span
+                        className={styles.frozenTag}
+                        data-testid="market-frozen"
+                        title={
+                          `Our source for ${feed.market} has published nothing since ` +
+                          `${feed.frozenSince}. Projects here are held out of client documents.`
+                        }
+                      >
+                        frozen {feed.frozenSince.slice(0, 4)}
+                      </span>
+                    ) : null;
+                  })()}
+                </span>
                 <span className={styles.cell}>{r.stage ?? '--'}</span>
                 <span className={`${styles.cell} ${styles.num} mono`}>{ymd(r.last_activity)}</span>
                 {viewKey === 'trash' && (

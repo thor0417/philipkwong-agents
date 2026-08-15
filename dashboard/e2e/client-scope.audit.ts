@@ -19,6 +19,7 @@
 
 import { test, expect } from '@playwright/test';
 import { isProvisionalName } from '../lib/taxonomy';
+import { deadFeedForMarket } from '../../lib/dead-feeds';
 import { createClient } from '@supabase/supabase-js';
 import { writeFileSync, mkdirSync, readFileSync, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -158,6 +159,11 @@ test('a scoped client sees nothing outside their scope', async ({ page }) => {
       // ignored, so this audit still fails if the SCOPE leaks while remaining
       // correct about the exclusion.
       && !isProvisionalName(p.name_source as string | null)
+      // AND THE THIRD: a market whose source has stopped publishing is held out
+      // of every client document, stated in the coverage note. Same reason as
+      // the two above - this audit is about whether the SCOPE leaks, not about
+      // re-discovering the document rules.
+      && !deadFeedForMarket(p.market as string | null)
   );
   console.log(`database says the scope covers ${inScope.length} projects`);
   expect(shown, 'the composer and the database disagree about this scope').toBe(inScope.length);

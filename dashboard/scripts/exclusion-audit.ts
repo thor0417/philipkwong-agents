@@ -22,6 +22,7 @@ import { capNotes, DEFAULT_SECTION_IDS } from '../lib/report-sections';
 import { renderDocumentText } from '../lib/report-text';
 import { HOSPITALITY_ID } from '../lib/pipelines';
 import { isProvisionalName } from '../lib/taxonomy';
+import { DEAD_FEEDS, deadFeedForMarket } from '../../lib/dead-feeds';
 import { applyProjectFilters, PROJECT_COLUMNS, type Project } from '../lib/projects';
 import {
   applyPostFilters,
@@ -109,6 +110,14 @@ async function main(): Promise<void> {
     { label: 'market = New York City', scope: emptyScope({ markets: ['New York City'] }) },
     { label: 'market = Nashville', scope: emptyScope({ markets: ['Nashville'] }) },
     { label: 'category = Hospitality/Tourism', scope: emptyScope({ development_categories: ['Hospitality/Tourism'] }) },
+    // A SCOPE THAT IS ENTIRELY FROZEN. The exclusion is worth nothing if it is
+    // only ever exercised as a rounding error inside a large document: this
+    // scope loses every project it has, and the document has to say so rather
+    // than come out looking like a market with nothing happening in it.
+    ...DEAD_FEEDS.map((f) => ({
+      label: `market = ${f.market} (declared frozen)`,
+      scope: emptyScope({ markets: [f.market] }),
+    })),
   ];
   if (clientScope && client) cases.push({ label: `client = ${client.name}`, scope: clientScope, clientName: client.name });
 
@@ -135,8 +144,15 @@ async function main(): Promise<void> {
 
     // Reconstruct what each rule removed, from the same predicates the builder
     // uses, so the audit and the document cannot disagree about the reason.
-    const dormant = before.filter((p) => p.stage === 'dormant');
-    const live = before.filter((p) => p.stage !== 'dormant');
+    // IN THE ORDER THE BUILDER APPLIES THEM. The frozen-market rule runs first,
+    // before dormancy, so a project in a frozen market is attributed to the
+    // freeze rather than to its own quietness - which is the point of the
+    // ordering, and would be invisible to an audit that reconstructed the rules
+    // in a different sequence.
+    const frozen = before.filter((p) => deadFeedForMarket(p.market, p.region_state));
+    const readable = before.filter((p) => !deadFeedForMarket(p.market, p.region_state));
+    const dormant = readable.filter((p) => p.stage === 'dormant');
+    const live = readable.filter((p) => p.stage !== 'dormant');
     const hollow = live.filter((p) => (p.record_count ?? 0) <= 0);
     const withRecords = live.filter((p) => (p.record_count ?? 0) > 0);
     const provisional = withRecords.filter((p) => isProvisionalName(p.name_source));
@@ -146,7 +162,8 @@ async function main(): Promise<void> {
     console.log('='.repeat(78));
 
     const rules: { name: string; lost: Project[]; stated: number }[] = [
-      { name: 'dormant', lost: dormant, stated: 0 },
+      { name: 'frozen market (source stopped publishing)', lost: frozen, stated: built.selection.frozenMarkets },
+      { name: 'dormant', lost: dormant, stated: built.selection.excludedDormant },
       { name: 'hollow (every record dismissed)', lost: hollow, stated: built.selection.excludedHollow },
       { name: 'provisional name', lost: provisional, stated: built.selection.provisionalNames },
     ];
@@ -164,10 +181,20 @@ async function main(): Promise<void> {
     console.log('\n  DOES THE DOCUMENT SAY SO?');
     const checks: { rule: string; lost: number; found: boolean; needle: string }[] = [
       {
+        rule: 'frozen market',
+        lost: frozen.length,
+        needle: 'has stopped publishing',
+        found: text.includes('has stopped publishing'),
+      },
+      {
+        // THE COUNT, NOT ONLY THE REASON. This used to accept the bare sentence
+        // "Dormant projects are excluded from this report", which satisfies half
+        // the rule: a reader learns that a filter ran and never learns whether
+        // it took one project or forty.
         rule: 'dormant',
         lost: dormant.length,
-        needle: 'Dormant projects are excluded',
-        found: text.includes('Dormant projects are excluded'),
+        needle: 'dormant and excluded from this report',
+        found: /\d+ projects? in this geography (is|are) dormant and excluded/.test(text),
       },
       {
         rule: 'hollow',
@@ -214,6 +241,28 @@ async function main(): Promise<void> {
     if (provisional.length !== built.selection.provisionalNames) {
       failures++;
       console.log(`    MISMATCH  provisional: audit counts ${provisional.length}, document states ${built.selection.provisionalNames}`);
+    }
+    if (frozen.length !== built.selection.frozenMarkets) {
+      failures++;
+      console.log(`    MISMATCH  frozen market: audit counts ${frozen.length}, document states ${built.selection.frozenMarkets}`);
+    }
+    if (dormant.length !== built.selection.excludedDormant) {
+      failures++;
+      console.log(`    MISMATCH  dormant: audit counts ${dormant.length}, document states ${built.selection.excludedDormant}`);
+    }
+    // A FROZEN MARKET MUST BE NAMED, NOT ONLY COUNTED. A client scoped to a
+    // market that stopped publishing needs the market's name and the date in
+    // front of them; a bare number tells them a rule fired somewhere.
+    for (const f of DEAD_FEEDS) {
+      const lost = frozen.filter((p) => p.market === f.market).length;
+      if (lost === 0) continue;
+      const named = text.includes(f.market) && text.includes(String(new Date(`${f.frozenSince}T00:00:00Z`).getUTCFullYear()));
+      if (!named) {
+        failures++;
+        console.log(`    SILENT !  frozen market ${f.market}: ${lost} lost, document does not name it with its freeze date`);
+      } else {
+        console.log(`    NAMED     frozen market ${f.market}: ${lost} lost, named with the ${f.frozenSince.slice(0, 4)} freeze date`);
+      }
     }
     console.log('');
   }
