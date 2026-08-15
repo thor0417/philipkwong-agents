@@ -66,6 +66,17 @@ export const NAV: NavSection[] = [
         keywords: ['client', 'scope', 'retainer', 'cadence', 'delivery', 'contacts', 'intake'],
         hint: 'Who the work is for, and what they are covered for.',
       },
+      // PLAYERS SITS BESIDE PROJECTS BECAUSE IT IS THE OTHER OBJECT. A project
+      // is a site with a history; a player is a firm with a pattern. The company
+      // page has existed for weeks and was reachable only by drilling through a
+      // project you already knew about, which meant the graph could never be
+      // read as a graph.
+      {
+        label: 'Players',
+        href: '/players',
+        keywords: ['companies', 'company', 'firms', 'parties', 'applicant', 'representative', 'people'],
+        hint: 'Companies and the markets they file in.',
+      },
       {
         label: 'Reports',
         href: '/reports',

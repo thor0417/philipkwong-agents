@@ -235,6 +235,138 @@ export async function fetchRelatedCompanies(companyId: string): Promise<RelatedC
 }
 
 /** Company search, for the merge picker. */
+// ---- THE PLAYERS LIST --------------------------------------------------------
+//
+// Player extraction is the differentiator and the company page was reachable
+// only by drilling through a project - so the graph could only be read one node
+// at a time, from a node you already knew about. This is the list.
+//
+// FOUR BOUNDED READS AND AN AGGREGATION IN MEMORY, deliberately, and it is worth
+// stating why rather than leaving it to be discovered. The honest implementation
+// is one grouped query, which means a Postgres function, which is DDL, which is
+// Philip's to run and not something to depend on silently. The corpus is 182
+// companies over 106 links; every read below is paged and none of them selects a
+// row body. When the graph is ten times this it becomes migration 034 and this
+// function's shape does not change.
+//
+// A COMPANY'S NUMBERS COUNT LIVE PROJECTS ONLY. A dismissed project is not
+// coverage, and a firm whose only two filings were both dismissed should read as
+// nothing rather than as two.
+export interface Player extends Company {
+  /** Live projects this company is attached to. */
+  projects: number;
+  /** Every role it holds, across those projects. */
+  roles: string[];
+  /** Every market those projects sit in. */
+  markets: string[];
+  /**
+   * Whether any of its projects carries a contact path - an email or a phone on
+   * a record. THE COMMERCIALLY VALUABLE COLUMN: a players list that does not say
+   * which parties are reachable buries the thing worth selling.
+   */
+  reachable: boolean;
+}
+
+const PLAYER_PAGE = 1000;
+
+/** Every page of a query, so a 1,001st company cannot silently not exist. */
+async function pageAll<T>(
+  run: (from: number, to: number) => PromiseLike<{ data: unknown; error: { message: string } | null }>,
+  label: string
+): Promise<T[]> {
+  const out: T[] = [];
+  for (let from = 0; ; from += PLAYER_PAGE) {
+    const { data, error } = await run(from, from + PLAYER_PAGE - 1);
+    if (error) throw new Error(`${label} read failed: ${error.message}`);
+    const rows = (data ?? []) as T[];
+    out.push(...rows);
+    if (rows.length < PLAYER_PAGE) break;
+  }
+  return out;
+}
+
+export async function fetchPlayers(module: string): Promise<Player[]> {
+  const companies = (
+    await pageAll<Company>(
+      (a, b) => supabase.from('companies').select(COMPANY_COLUMNS).range(a, b),
+      'companies'
+    )
+  ).filter((c) => !isMerged(c));
+
+  const projects = await pageAll<{ id: string; market: string | null; status: string | null }>(
+    (a, b) => supabase.from('projects').select('id,market,status').eq('module', module).range(a, b),
+    'projects'
+  );
+  const liveProjects = new Map(
+    projects.filter((p) => p.status !== 'dismissed').map((p) => [p.id, p])
+  );
+
+  const links = await pageAll<CompanyLink>(
+    (a, b) =>
+      supabase.from('company_projects').select('company_id,project_id,role,first_seen').range(a, b),
+    'company_projects'
+  );
+
+  // THE CONTACT PATH IS EMAIL OR PHONE, which is the definition lib/people
+  // already uses for PartyContact - so this column and the party block on a
+  // project page cannot disagree about who is reachable. Only rows that HAVE one
+  // are read, so this is a small set rather than the whole corpus.
+  const contacts = await pageAll<{ project_id: string | null }>(
+    (a, b) =>
+      supabase
+        .from('leads')
+        .select('project_id')
+        .eq('module', module)
+        .neq('status', 'dismissed')
+        .not('project_id', 'is', null)
+        .or('contact_email.not.is.null,contact_phone.not.is.null')
+        .range(a, b),
+    'leads'
+  );
+  const reachableProjects = new Set(
+    contacts.map((c) => c.project_id).filter((id): id is string => !!id)
+  );
+
+  const agg = new Map<
+    string,
+    { projects: Set<string>; roles: Set<string>; markets: Set<string>; reachable: boolean }
+  >();
+  for (const l of links) {
+    const p = liveProjects.get(l.project_id);
+    if (!p) continue;
+    const e =
+      agg.get(l.company_id) ??
+      { projects: new Set<string>(), roles: new Set<string>(), markets: new Set<string>(), reachable: false };
+    e.projects.add(l.project_id);
+    if (l.role) e.roles.add(l.role);
+    if (p.market) e.markets.add(p.market);
+    if (reachableProjects.has(l.project_id)) e.reachable = true;
+    agg.set(l.company_id, e);
+  }
+
+  return companies
+    .map((c) => {
+      const e = agg.get(c.id);
+      return {
+        ...c,
+        projects: e?.projects.size ?? 0,
+        roles: [...(e?.roles ?? [])].sort(),
+        markets: [...(e?.markets ?? [])].sort(),
+        reachable: e?.reachable ?? false,
+      };
+    })
+    // CROSS-MARKET PRESENCE FIRST, because it is the finding. A firm filing in
+    // three markets is the thing this graph exists to surface; a firm with four
+    // filings in one market is ordinary. Then reachability, then volume.
+    .sort(
+      (a, b) =>
+        b.markets.length - a.markets.length ||
+        Number(b.reachable) - Number(a.reachable) ||
+        b.projects - a.projects ||
+        a.name.localeCompare(b.name)
+    );
+}
+
 export async function searchCompanies(term: string, limit = 12): Promise<Company[]> {
   const t = term.trim();
   if (t.length < 2) return [];

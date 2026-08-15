@@ -10,6 +10,7 @@ import {
   fetchProjectParties,
   fetchRelatedCompanies,
   fetchRelatedProjects,
+  fetchPlayers,
   searchCompanies,
   mergeCompanies,
 } from './companies';
@@ -22,6 +23,7 @@ export const companyKeys = {
   parties: (projectId: string) => ['companies', 'parties', projectId] as const,
   relatedProjects: (projectId: string) => ['companies', 'related-projects', projectId] as const,
   search: (term: string) => ['companies', 'search', term] as const,
+  players: (module: string) => ['companies', 'players', module] as const,
 };
 
 export function useCompany(id: string | null) {
@@ -61,6 +63,16 @@ export function useRelatedProjects(projectId: string | null, market: string | nu
     queryKey: [...companyKeys.relatedProjects(projectId ?? ''), market],
     queryFn: () => fetchRelatedProjects(projectId as string, market),
     enabled: !!projectId,
+  });
+}
+
+// EVERY PLAYER, AGGREGATED. One query for the whole list rather than one per
+// row: a screen that issues 182 requests to draw 182 rows is not a screen.
+export function usePlayers(module: string) {
+  return useQuery({
+    queryKey: companyKeys.players(module),
+    queryFn: () => fetchPlayers(module),
+    staleTime: 60_000,
   });
 }
 

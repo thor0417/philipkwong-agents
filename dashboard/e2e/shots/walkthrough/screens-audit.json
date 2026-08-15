@@ -39,6 +39,28 @@
     "notes": []
   },
   {
+    "name": "Players",
+    "url": "/players",
+    "ok": true,
+    "primary": "[data-testid=\"players-stats\"]",
+    "rows": 182,
+    "consoleErrors": [],
+    "pageErrors": [],
+    "failedRequests": [],
+    "notes": []
+  },
+  {
+    "name": "Inbox",
+    "url": "/inbox",
+    "ok": true,
+    "primary": "[data-testid=\"inbox-total\"]",
+    "rows": 1,
+    "consoleErrors": [],
+    "pageErrors": [],
+    "failedRequests": [],
+    "notes": []
+  },
+  {
     "name": "Reports",
     "url": "/reports",
     "ok": true,

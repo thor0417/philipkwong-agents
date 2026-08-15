@@ -46,6 +46,9 @@ const SCREENS: { name: string; url: string; primary: string; rowSel?: string }[]
   // The record table itself. It renders its own empty row when a filter matches
   // nothing, so this asserts the table exists without asserting the corpus does.
   { name: 'Records', url: '/records', primary: '[data-testid="records-pager-total"]', rowSel: 'tbody tr' },
+  { name: 'Players', url: '/players', primary: '[data-testid="players-stats"]', rowSel: '[data-company-id]' },
+  // The Inbox's primary content is its count, which is the point of the screen.
+  { name: 'Inbox', url: '/inbox', primary: '[data-testid="inbox-total"]', rowSel: '[data-record-id]' },
   { name: 'Reports', url: '/reports', primary: '[data-testid="report-client"]', rowSel: '[data-section]' },
   { name: 'Clients', url: '/clients', primary: 'h1', rowSel: '[data-client-id]' },
   { name: 'Design system', url: '/design', primary: 'h1', rowSel: 'section' },
