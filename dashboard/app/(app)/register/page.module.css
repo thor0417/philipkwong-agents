@@ -437,29 +437,6 @@
   gap: var(--space-8);
   flex: none;
 }
-.railRecordCount {
-  font-size: var(--type-caption);
-  color: var(--ink-disabled);
-  opacity: 0.55;
-  flex: none;
-}
-
-/* Names the two numbers once, at the top of the tree, rather than relying on a
-   hover title nobody hovers. */
-.railLegend {
-  font-size: var(--type-caption);
-  color: var(--ink-disabled);
-  line-height: 1.4;
-  margin: 0 0 var(--space-8);
-  /* Matches the rail's own items, which use --space-16. At --space-8 this line
-     sat four pixels proud of every label beneath it and read as bleeding off
-     the edge. */
-  padding: 0 var(--space-16);
-}
-.railLegendDim {
-  opacity: 0.55;
-}
-
 /* ------------------------------------------------------------------ detail */
 .detail {
   display: flex;

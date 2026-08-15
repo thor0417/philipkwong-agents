@@ -22,6 +22,7 @@ import {
   fetchProject,
   fetchProjectPage,
   fetchProjectTimeline,
+  fetchMarketFacetFromRecords,
   projectFacetCounts,
   searchProjects,
   type InboxQuery,
@@ -54,6 +55,7 @@ export const projectKeys = {
   count: (q: ProjectQuery) => ['projects', 'count', stable(q), q] as const,
   facets: () => ['projects', 'facet'] as const,
   facet: (q: ProjectQuery, f: ProjectFacetField) => ['projects', 'facet', f, stable(q), q] as const,
+  marketFacet: (q: ProjectQuery) => ['projects', 'facet', 'market-via-records', stable(q), q] as const,
   detail: (id: string) => ['projects', 'detail', id] as const,
   timeline: (id: string) => ['projects', 'timeline', id] as const,
   inbox: (q: InboxQuery) => ['projects', 'inbox', stable(q), q] as const,
@@ -84,6 +86,17 @@ export function useProjectFacet(q: ProjectQuery, field: ProjectFacetField, enabl
   return useQuery({
     queryKey: projectKeys.facet(q, field),
     queryFn: () => projectFacetCounts(q, field),
+    enabled,
+    placeholderData: (prev) => prev,
+  });
+}
+
+// The market facet, counted through the records rather than off the mode column,
+// so a node's number is the set clicking it opens. See fetchMarketFacetFromRecords.
+export function useMarketFacetFromRecords(q: ProjectQuery, enabled = true) {
+  return useQuery({
+    queryKey: projectKeys.marketFacet(q),
+    queryFn: () => fetchMarketFacetFromRecords(q),
     enabled,
     placeholderData: (prev) => prev,
   });

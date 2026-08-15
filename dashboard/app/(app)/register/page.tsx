@@ -26,10 +26,9 @@ import {
   useProjectPage,
   useProjectCount,
   useProjectFacet,
+  useMarketFacetFromRecords,
   useProjectMutations,
 } from '@/lib/use-projects';
-import { useFacet } from '@/lib/use-leads';
-import type { LeadQuery } from '@/lib/query';
 import PeriodSelector from '@/components/PeriodSelector';
 import { BUCKETS, PERIOD_AXES, bucketOf, type BucketMode } from '@/lib/period';
 import {
@@ -121,6 +120,16 @@ function ymd(iso: string | null | undefined): string {
   return iso ? iso.slice(0, 10) : '--';
 }
 
+// Two optional id constraints, ANDed. `undefined` is "unconstrained" and an
+// empty array is "constrained to nothing", and the difference is load-bearing on
+// both axes - see the notes on idFilter below.
+function intersectIds(a: string[] | undefined, b: string[] | undefined): string[] | undefined {
+  if (a === undefined) return b;
+  if (b === undefined) return a;
+  const inB = new Set(b);
+  return a.filter((id) => inB.has(id));
+}
+
 // The score's own breakdown, on hover. Explainable at the point of use: a
 // ranking nobody can interrogate is a ranking nobody can trust.
 function significanceTitle(p: Project): string {
@@ -196,6 +205,15 @@ export default function RegisterPage() {
   const recordFacetFilter = { market, venue_type: venue, development_category: category };
   const facetConstrained = !!(market || venue || category);
   const facetIds = useProjectIdsMatchingRecords(recordFacetFilter, facetConstrained);
+
+  // THE SAME RESOLUTION WITHOUT THE MARKET AXIS, which is what the market facet
+  // has to be counted against. A facet never filters itself, and on this axis
+  // "itself" is a record match rather than a column.
+  const marketFacetConstrained = !!(venue || category);
+  const marketFacetIds = useProjectIdsMatchingRecords(
+    { venue_type: venue, development_category: category },
+    marketFacetConstrained
+  );
 
   // A CONSTRAINED FACET THAT HAS NOT ANSWERED IS NOT AN ABSENT ONE, and every
   // query on this screen waits for it rather than running unfiltered.
@@ -434,61 +452,64 @@ export default function RegisterPage() {
     'region_state',
     facetsReady && !!geo.country
   );
-  const marketFacet = useProjectFacet(
-    { ...geoBase, country: geo.country, region_state: geo.region_state },
-    'market',
-    facetsReady && !!geo.country && !!geo.region_state
+  // COUNTED THROUGH THE RECORDS, because that is how the click resolves. Country
+  // and region above stay on the project column, because that is how THEIR
+  // clicks resolve - both go straight into the project query - so all three
+  // nodes now count the thing pressing them returns.
+  //
+  // The base carries the period ids and the venue/category record facets, and
+  // deliberately not the market: a facet never filters itself.
+  const marketFacetBase: ProjectQuery = useMemo(
+    () => ({
+      ...geoBase,
+      country: geo.country,
+      region_state: geo.region_state,
+      ...(periodFilter.ids === undefined && !marketFacetConstrained
+        ? {}
+        : {
+            ids: intersectIds(
+              periodFilter.ids,
+              marketFacetConstrained ? (marketFacetIds.data?.ids ?? []) : undefined
+            ),
+          }),
+    }),
+    [geoBase, geo.country, geo.region_state, periodFilter, marketFacetConstrained, marketFacetIds.data]
+  );
+  const marketFacet = useMarketFacetFromRecords(
+    marketFacetBase,
+    facetsReady &&
+      !!geo.country &&
+      !!geo.region_state &&
+      (!marketFacetConstrained || !marketFacetIds.isPending)
   );
 
-  // TWO NUMBERS PER NODE: projects, and the records behind them.
+  // ONE NUMBER PER NODE, AND IT IS THE ONE THE CLICK PRODUCES.
   //
-  // The tree counts PROJECTS, because the Register is a project register and
-  // clicking a node filters projects. That is correct and it was also hiding
-  // the corpus: New York holds twelve records and zero projects, so it did not
-  // appear at all, and nine countries and thirty-one regions were invisible for
-  // the same reason. A reader could not tell "we cover nothing there" from
-  // "nothing there has clustered into a project yet", which are very different
-  // statements to make to a client.
+  // The rail used to print a second, dimmed record count beside the project
+  // count, in the same row, and the two answered different questions. The
+  // project count respects every filter on this screen - view, stage, period,
+  // search. The record count could not: stage is a project attribute and the
+  // period axes are defined on projects and project_events, so it was the whole
+  // unfiltered corpus for that geography and did not move when the view did.
   //
-  // So each node now carries its record count as well. The click still filters
-  // projects and the project number still governs what the list shows, so the
-  // control does not lie; the second number simply says what is behind it.
+  // Two numbers side by side with nothing saying they are differently scoped is
+  // not extra information, it is a reading the operator has to be told about
+  // once and then remember forever. It is the same shape of confusion that made
+  // the original period-filter symptom unreadable, and it is the reason this
+  // rail could not be trusted at a glance.
   //
-  // THE TWO NUMBERS ARE SCOPED DIFFERENTLY AND THE RAIL SAYS SO. The project
-  // count respects every filter on this screen - view, stage, period, search.
-  // The record count cannot: stage is a project attribute, and the period axes
-  // (arrived / moved) are defined on projects and project_events. It is
-  // therefore the CORPUS count for that geography - this module, not dismissed
-  // - and it does not move when the view does. Pretending otherwise by
-  // half-applying the filters would be a worse lie than the one being fixed.
-  const recordGeoBase: LeadQuery = {
-    module: LIVE_PIPELINE_STORAGE_KEY,
-    excludeStatus: 'dismissed',
-  };
-  const countryRecords = useFacet(recordGeoBase, 'country');
-  const regionRecords = useFacet({ ...recordGeoBase, country: geo.country }, 'region_state', !!geo.country);
-  const marketRecords = useFacet(
-    { ...recordGeoBase, country: geo.country, region_state: geo.region_state },
-    'market',
-    !!geo.country && !!geo.region_state
-  );
-
-  // Union of both sides. A node with projects and no records cannot happen, but
-  // the reverse is the whole point, so the record side contributes values the
-  // project side has never heard of. Ordered by projects first, because that is
-  // what the click acts on, then by records so an uncovered market with a live
-  // corpus sorts above an empty one.
-  const mergeGeo = useCallback(
-    (
-      projects: { value: string; count: number }[] | undefined,
-      records: { value: string; count: number }[] | undefined
-    ) => {
-      const p = new Map((projects ?? []).map((x) => [x.value, x.count]));
-      const r = new Map((records ?? []).map((x) => [x.value, x.count]));
-      return [...new Set([...p.keys(), ...r.keys()])]
-        .map((value) => ({ value, count: p.get(value) ?? 0, records: r.get(value) ?? 0 }))
-        .sort((a, b) => b.count - a.count || b.records - a.records || a.value.localeCompare(b.value));
-    },
+  // The record count existed to stop the tree hiding geography that had captures
+  // but no clustered project. That job is now done properly rather than
+  // annotated: the market facet resolves through the records (see
+  // fetchMarketFacetFromRecords), so a market reachable only through a record
+  // appears with the count the click returns rather than with a 0 and a
+  // footnote. Nothing that can be opened is hidden, and no number on the rail
+  // answers a question other than "what happens if I press this".
+  const geoLevels = useCallback(
+    (counts: { value: string; count: number }[] | undefined) =>
+      [...(counts ?? [])]
+        .map((c) => ({ value: c.value, count: c.count }))
+        .sort((a, b) => b.count - a.count || a.value.localeCompare(b.value)),
     []
   );
 
@@ -732,9 +753,9 @@ export default function RegisterPage() {
           void setPage(1);
           void setSelected(null);
         }}
-        countries={mergeGeo(countryFacet.data?.counts, countryRecords.data?.counts)}
-        regions={mergeGeo(regionFacet.data?.counts, regionRecords.data?.counts)}
-        markets={mergeGeo(marketFacet.data?.counts, marketRecords.data?.counts)}
+        countries={geoLevels(countryFacet.data?.counts)}
+        regions={geoLevels(regionFacet.data?.counts)}
+        markets={geoLevels(marketFacet.data?.counts)}
         geo={geo}
         onGeo={(next) => {
           void setCountry(next.country ?? null);

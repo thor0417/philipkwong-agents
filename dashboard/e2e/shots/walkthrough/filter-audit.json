@@ -257,5 +257,73 @@
       "gap": 2,
       "escapees": 0
     }
+  ],
+  "railVersusClick": [
+    {
+      "region": "California",
+      "market": "Anaheim",
+      "rail": 19,
+      "click": 19
+    },
+    {
+      "region": "California",
+      "market": "Oakland",
+      "rail": 4,
+      "click": 4
+    },
+    {
+      "region": "California",
+      "market": "Disneyland Resort",
+      "rail": 1,
+      "click": 1
+    },
+    {
+      "region": "California",
+      "market": "Los Angeles",
+      "rail": 1,
+      "click": 1
+    },
+    {
+      "region": "California",
+      "market": "Orange County",
+      "rail": 1,
+      "click": 1
+    },
+    {
+      "region": "Nevada",
+      "market": "Las Vegas",
+      "rail": 33,
+      "click": 33
+    },
+    {
+      "region": "Nevada",
+      "market": "Clark County",
+      "rail": 27,
+      "click": 27
+    },
+    {
+      "region": "New York",
+      "market": "New York City",
+      "rail": 93,
+      "click": 93
+    },
+    {
+      "region": "New York",
+      "market": "Downtown Brooklyn",
+      "rail": 1,
+      "click": 1
+    },
+    {
+      "region": "New York",
+      "market": "Westchester County",
+      "rail": 1,
+      "click": 1
+    },
+    {
+      "region": "New York",
+      "market": "Willets Point",
+      "rail": 1,
+      "click": 1
+    }
   ]
 }

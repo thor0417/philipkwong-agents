@@ -310,6 +310,47 @@ test('register filtering audit', async ({ page }) => {
     });
   }
 
+  // ---- THE RAIL MUST COUNT WHAT CLICKING IT RETURNS. -----------------------
+  //
+  // The market node's number used to come off projects.market, which is a MODE
+  // over the project's records, while clicking it resolves through the records.
+  // Two questions, one row. Measured 2026-08-15, before the fix:
+  //
+  //   Las Vegas       rail 32, click 33
+  //   Oakland         rail  5, click  4
+  //   Orange County   rail  0, click  1     <- a node over a reachable project
+  //   Willets Point   rail  0, click  1     <- the same
+  //   Yonkers         rail  1, click  0     <- a node promising one, returning none
+  //
+  // Equality, not a direction. A direction was the right call for the venue and
+  // category CHIPS, where the two numbers are deliberately different questions
+  // pending a decision; here the number and the click are the same question and
+  // there is nothing left to decide.
+  console.log('\n===== THE RAIL COUNTS WHAT THE CLICK RETURNS =====');
+  const railRows: { region: string; market: string; rail: number; click: number }[] = [];
+  for (const region of ['California', 'Nevada', 'New York']) {
+    const regionUrl = `${l1Url}&region=${encodeURIComponent(region)}`;
+    await page.goto(regionUrl, { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('[data-market]').first()).toBeVisible({ timeout: 120_000 });
+    const nodes = await page
+      .locator('[data-market]')
+      .evaluateAll((els) =>
+        els.map((e) => ({
+          value: e.getAttribute('data-market') ?? '',
+          projects: Number(e.getAttribute('data-projects') ?? '0'),
+        }))
+      );
+    for (const n of nodes) {
+      const click = await totalFor(page, `${regionUrl}&market=${encodeURIComponent(n.value)}`);
+      console.log(
+        `  ${region.padEnd(12)} ${n.value.padEnd(44)} rail ${String(n.projects).padStart(4)}  click ${String(
+          click
+        ).padStart(4)}${n.projects === click ? '' : '   <-- DISAGREE'}`
+      );
+      railRows.push({ region, market: n.value, rail: n.projects, click });
+    }
+  }
+
   // ---- A VALUE NOTHING MATCHES RETURNS NOTHING. ----------------------------
   //
   // FAILING OPEN IS THE DANGEROUS DIRECTION and it is the one this axis failed
@@ -406,6 +447,7 @@ test('register filtering audit', async ({ page }) => {
         hierarchy,
         unmatched,
         venueAndCategory: axisRows,
+        railVersusClick: railRows,
       },
       null,
       2
@@ -430,6 +472,14 @@ test('register filtering audit', async ({ page }) => {
       `market=${h.market} returned exactly ${h.region}'s ${h.l2} projects, so the market filter is not being applied`
     ).toBeLessThan(h.l2);
     expect(h.l3, `market=${h.market} returned nothing at all`).toBeGreaterThan(0);
+  }
+
+  for (const r of railRows) {
+    expect(
+      r.rail,
+      `the rail shows ${r.rail} for ${r.market} and clicking it returns ${r.click}. ` +
+        `A navigation tree that hides a reachable result, or promises one it cannot produce, is not navigation.`
+    ).toBe(r.click);
   }
 
   for (const u of unmatched) {

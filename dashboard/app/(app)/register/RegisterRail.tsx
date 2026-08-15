@@ -23,31 +23,18 @@ export interface CountedView {
 
 export interface GeoLevel {
   value: string;
-  // Projects, which is what clicking this node filters.
+  // PROJECTS, AND SPECIFICALLY THE ONES CLICKING THIS NODE RETURNS. Every level
+  // is now counted by the same rule its click is resolved by: country and region
+  // off the project column, market through the records. There is no second
+  // number, because the second number was the whole corpus for that geography
+  // and it sat in the same row as a fully filtered one.
   count: number;
-  // Records behind it. Optional so a caller that has only project counts still
-  // type-checks; absent renders as nothing rather than as zero, because "not
-  // measured" and "none" are different and only one of them is worth printing.
-  records?: number;
 }
 
-// A node's two numbers: projects, then records, the second dimmed.
-//
-// The record count is printed even when the project count is zero - especially
-// then. A market with 0 projects and 5 records is the case this exists for: it
-// says the corpus has something there and nothing has clustered yet, which is
-// not the same as saying we have no coverage. Zero records is printed as
-// nothing rather than as "0", because a node with no records at all is only
-// ever a project node and the second number would be noise.
 function GeoCounts({ level }: { level: GeoLevel }) {
   return (
     <span className={styles.railCounts}>
       <span className={`${styles.railCount} mono`}>{level.count}</span>
-      {level.records ? (
-        <span className={`${styles.railRecordCount} mono`} title={`${level.records} records`}>
-          {level.records}
-        </span>
-      ) : null}
     </span>
   );
 }
@@ -100,13 +87,7 @@ export default function RegisterRail({
       </RailSection>
 
       <RailSection title="Geography">
-        {/* The two numbers mean different things and are scoped differently, so
-            they are named rather than left to be guessed at. */}
-        <p className={styles.railLegend}>
-          projects <span className={styles.railLegendDim}>records</span>
-          <br />
-          records are the whole corpus here, unfiltered by view or period
-        </p>
+        {/* One number, one meaning, no legend needed. */}
         <div className={styles.railList}>
           <button
             type="button"
@@ -168,7 +149,6 @@ export default function RegisterRail({
                               // so the numbers have to be readable.
                               data-market={m.value}
                               data-projects={m.count}
-                              data-records={m.records}
                               className={`${styles.railItem} ${styles.railL3} ${
                                 geo.market === m.value ? styles.railItemActive : ''
                               }`}

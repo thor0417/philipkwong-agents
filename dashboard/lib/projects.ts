@@ -357,6 +357,95 @@ export async function projectFacetCounts(
   };
 }
 
+// ---- The market facet, counted the way the click resolves ---------------------
+//
+// EVERY OTHER FACET ON THIS SCREEN COUNTS THE COLUMN IT FILTERS. The market
+// facet did not, and that is the whole defect.
+//
+// projects.market is a MODE over the project's records - its most common market
+// value - while clicking a market node filters on "holds any record naming this
+// market" (see fetchProjectIdsMatchingRecords). Counting the column and
+// resolving the click through the records are two different questions, so the
+// rail printed one answer and produced another:
+//
+//   Las Vegas       rail 32, click 33
+//   Oakland         rail  5, click  4
+//   Orange County   rail  0, click  1
+//   Willets Point   rail  0, click  1
+//   Yonkers         rail  1, click  0
+//
+// The plus-one cases are cosmetic. The zeroes are not: Orange County and Willets
+// Point rendered as empty nodes over a project the click would have returned, so
+// the tree hid a reachable result. Yonkers is the same fault pointing the other
+// way - a node promising one project and returning none.
+//
+// This counts the click. `q` is the register's base query with the market axis
+// removed and every other axis (view, stage, geography, period, search, and the
+// venue/category record facets) still applied, so a node's number is exactly the
+// set that opens when it is pressed.
+
+// Projects per request when fanning out over a bounded id set. Same figure the
+// scope resolver uses, for the same PostgREST url-length reason.
+const MARKET_FACET_ID_CHUNK = 150;
+// Lead rows per page inside a chunk. PostgREST stops at 1000 by default, and a
+// chunk of 150 projects can hold more than that.
+const MARKET_FACET_PAGE = 1000;
+
+/** Just the ids matching a query. The facet below fans out over these. */
+export async function fetchProjectIds(q: ProjectQuery): Promise<string[]> {
+  const out: string[] = [];
+  for (let from = 0; ; from += MARKET_FACET_PAGE) {
+    const { data, error } = await applyProjectFilters(
+      supabase.from('projects').select('id'),
+      q
+    ).range(from, from + MARKET_FACET_PAGE - 1);
+    if (error) throw new Error(`project id query failed: ${error.message}`);
+    const rows = (data ?? []) as unknown as { id: string }[];
+    out.push(...rows.map((r) => r.id));
+    if (rows.length < MARKET_FACET_PAGE) break;
+  }
+  return out;
+}
+
+export async function fetchMarketFacetFromRecords(
+  q: ProjectQuery
+): Promise<{ counts: FacetCount[]; projects: number }> {
+  const ids = await fetchProjectIds({ ...q, market: undefined });
+  if (!ids.length) return { counts: [], projects: 0 };
+
+  // market -> the projects reachable through it. A Set, because one project
+  // holding four Clark County filings is one project, not four.
+  const byMarket = new Map<string, Set<string>>();
+  for (let i = 0; i < ids.length; i += MARKET_FACET_ID_CHUNK) {
+    const chunk = ids.slice(i, i + MARKET_FACET_ID_CHUNK);
+    for (let from = 0; ; from += MARKET_FACET_PAGE) {
+      const { data, error } = await supabase
+        .from('leads')
+        .select('project_id,market')
+        .in('project_id', chunk)
+        .not('market', 'is', null)
+        .neq('status', 'dismissed')
+        .range(from, from + MARKET_FACET_PAGE - 1);
+      if (error) throw new Error(`market facet query failed: ${error.message}`);
+      const rows = (data ?? []) as unknown as { project_id: string | null; market: string | null }[];
+      for (const r of rows) {
+        if (!r.project_id || !r.market) continue;
+        const set = byMarket.get(r.market) ?? new Set<string>();
+        set.add(r.project_id);
+        byMarket.set(r.market, set);
+      }
+      if (rows.length < MARKET_FACET_PAGE) break;
+    }
+  }
+
+  return {
+    counts: [...byMarket.entries()]
+      .map(([value, set]) => ({ value, count: set.size }))
+      .sort((a, b) => b.count - a.count || a.value.localeCompare(b.value)),
+    projects: ids.length,
+  };
+}
+
 // ---- Detail view ------------------------------------------------------------
 
 export async function fetchProject(id: string): Promise<Project> {
