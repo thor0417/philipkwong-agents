@@ -55,7 +55,7 @@
 .headRow,
 .row {
   display: grid;
-  grid-template-columns: 2fr 1.5fr 1fr 0.8fr 1fr 1fr 0.8fr;
+  grid-template-columns: 2fr 1.5fr 1fr 0.8fr 1fr 1fr 0.8fr 1.2fr;
   gap: var(--space-16);
   align-items: center;
   padding: var(--space-8) var(--space-8);
@@ -78,6 +78,19 @@
 .row:hover {
   background: var(--paper-card);
   border-left-color: var(--accent);
+}
+
+/* The route into the client's scope, as the same Projects table. A link rather
+   than the row's own target because the row still reaches the client RECORD,
+   and reading a client's coverage and editing their contacts are different
+   jobs. */
+.openView {
+  font-size: var(--type-meta);
+  color: var(--ink-secondary);
+  white-space: nowrap;
+}
+.openView:hover {
+  color: var(--ink);
 }
 
 .cell {

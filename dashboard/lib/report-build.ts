@@ -20,6 +20,7 @@ import type { ResolvedPeriod } from './period';
 import { DEFAULT_SECTION_IDS, sectionById, type SectionContext } from './report-sections';
 import { estimatePages, type Entry, type ReportDocument } from './report-model';
 import { isProvisionalName } from './taxonomy';
+import { fetchIncludedProjectIds } from './client-projects';
 // ONE COPY, READ ACROSS THE PACKAGE SPLIT. See the header of lib/dead-feeds for
 // why this is not mirrored into dashboard/lib the way taxonomy.ts is.
 import { deadFeedForMarket, type DeadFeed } from '../../lib/dead-feeds';
@@ -96,6 +97,13 @@ export interface BuildRequest {
   // scope model is geography-and-stage shaped and cannot express it, so this is
   // its own field rather than a market filter pretending to be one.
   projectId?: string | null;
+  // WHICH CLIENT THIS IS FOR, so confirmed membership can be enforced.
+  //
+  // The scope PROPOSES; only what Philip has confirmed may be printed. Without
+  // an id there is nobody whose confirmations to read, and the gate cannot run -
+  // which is correct for an internal or unassigned document and is reported as
+  // such rather than treated as approval. See migration 033.
+  clientId?: string | null;
 }
 
 export interface BuiltReport {
@@ -131,7 +139,19 @@ export interface BuiltReport {
     // Excluded because the source we read for their market has stopped
     // publishing. See lib/dead-feeds.
     frozenMarkets: number;
+    // Excluded because the client has not confirmed them. Null when the gate did
+    // not run, which is a different statement from zero: zero means every
+    // proposed project was confirmed, null means confirmation is not switched
+    // on. See membershipGate below.
+    unconfirmed: number | null;
   };
+  // HOW THE MEMBERSHIP GATE BEHAVED, so a document can state it rather than
+  // leaving the reader to infer it from a count.
+  //
+  //   'enforced'    only confirmed projects reached the document
+  //   'no-client'   no client id, so there is nobody whose confirmations to read
+  //   'not-applied' migration 033 has not been run and the table does not exist
+  membershipGate: 'enforced' | 'no-client' | 'not-applied';
 }
 
 export async function buildReport(req: BuildRequest): Promise<BuiltReport> {
@@ -293,6 +313,43 @@ export async function buildReport(req: BuildRequest): Promise<BuiltReport> {
   if (hasRecordFacets(recordFacets) && projects.length) {
     const keep = await projectsMatchingRecordFacets(projects.map((p) => p.id), recordFacets);
     projects = projects.filter((p) => keep.has(p.id));
+  }
+
+  // ---- THE MEMBERSHIP GATE ------------------------------------------------
+  //
+  // ONLY A CONFIRMED PROJECT MAY BE PRINTED.
+  //
+  // Everything above this line is the scope resolving, and a resolved scope is a
+  // PROPOSAL: it says "these look like Simtec's", and it is right most of the
+  // time and wrong in a way nobody can see - a market spelled differently, a
+  // venue type that means something else in this jurisdiction, a project that
+  // matches on paper and would embarrass everyone in a document. Until now the
+  // proposal WAS the document, with no step between the query and the client.
+  //
+  // THE THREE OUTCOMES ARE DISTINCT AND THE DOCUMENT SAYS WHICH ONE HAPPENED.
+  // The dangerous failure is treating "confirmation is not switched on" as
+  // "everything is confirmed", which is what an empty Set would do: it is the
+  // same shape as "nothing is confirmed" and the opposite meaning, and one of
+  // those empties every document while the other prints everything. So
+  // fetchIncludedProjectIds returns null for an absent table and this branches
+  // on it explicitly.
+  //
+  // It runs LAST, after every scope axis, because it is a decision about the
+  // proposal rather than part of making it - and because that keeps the count
+  // below meaningful: it is projects the scope proposed and Philip has not
+  // confirmed, not projects that were never in scope.
+  let unconfirmed: number | null = null;
+  let membershipGate: BuiltReport['membershipGate'] = 'no-client';
+  if (req.clientId) {
+    const included = await fetchIncludedProjectIds(req.clientId);
+    if (included === null) {
+      membershipGate = 'not-applied';
+    } else {
+      membershipGate = 'enforced';
+      const before = projects.length;
+      projects = projects.filter((p) => included.has(p.id));
+      unconfirmed = before - projects.length;
+    }
   }
 
   // A COUNT MUST BE ABOUT THIS DOCUMENT, ON EVERY AXIS THE SCOPE NARROWS.
@@ -666,7 +723,11 @@ export async function buildReport(req: BuildRequest): Promise<BuiltReport> {
       // Excluded because the source we read for their market has stopped
       // publishing, so everything we hold for them is old.
       frozenMarkets: frozenExcluded.length,
+      // Proposed by the scope and not confirmed by the client. Null when the
+      // gate did not run at all - see membershipGate.
+      unconfirmed,
     },
+    membershipGate,
   };
 }
 

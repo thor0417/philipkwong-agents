@@ -275,6 +275,9 @@ export default function ReportsPage() {
       includeDormant,
       includeContext,
       detailCap,
+      // NAMED IN THE KEY, because the membership gate reads it: without this
+      // the document built for one client answers from cache for the next.
+      clientId,
     ],
     queryFn: () =>
       buildReport({
@@ -286,6 +289,10 @@ export default function ReportsPage() {
         brandName,
         addressee,
         clientName: client?.name ?? null,
+        // WHICH CLIENT, so the membership gate can run. Without it the gate
+        // reports 'no-client' and every scope-proposed project is printed,
+        // which is the behaviour this brief exists to end.
+        clientId: clientId || null,
         watchlistOnly,
         includeDormant,
         includeContext,

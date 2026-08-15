@@ -45,6 +45,7 @@ import {
 // The one copy, read across the package split. See lib/dead-feeds.
 import { deadFeedForMarket } from '../../../../lib/dead-feeds';
 import { useCoverage } from '@/lib/use-coverage';
+import { useClientView } from '@/lib/use-client-view';
 import ProjectsRail from './ProjectsRail';
 import ProjectsDetail from './ProjectsDetail';
 import styles from './page.module.css';
@@ -220,6 +221,10 @@ export default function ProjectsPage() {
   const [page, setPage] = useQueryState('page', parseAsInteger.withDefault(1));
   const [selected, setSelected] = useQueryState('selected', parseAsString);
   const [saved, setSaved] = useQueryState('saved', parseAsString.withDefault('none'));
+  // A CLIENT IS A SAVED VIEW YOU OPEN. ?client=<id> narrows this list to that
+  // client's stored scope - same table, same columns, same sort, same keyboard -
+  // and turns on the column saying why each project is in it.
+  const [clientId, setClientId] = useQueryState('client', parseAsString);
   // DEFAULT SORT IS SIGNIFICANCE. Last activity stays available, because "what
   // moved most recently" is a real question; it is simply not the first one.
   const [sortField, setSortField] = useQueryState(
@@ -293,7 +298,19 @@ export default function ProjectsPage() {
   // answered with nothing, and `?? []` below turns that into the empty set.
   // Holding on error instead would freeze the register on whatever was last on
   // screen with no number and no explanation.
-  const facetsPending = facetConstrained && facetIds.isPending;
+  // THE CLIENT SCOPE IS A THIRD ID CONSTRAINT, ANDed with the other two.
+  //
+  // It fails closed the way the facets do and for the same reason, which matters
+  // more here than anywhere else on the screen: a client view that quietly
+  // widened to the whole register is the exact set a client document would then
+  // have been built from. `?? []` while the scope is resolving, never undefined.
+  const client = useClientView(clientId);
+  const clientConstrained = !!clientId;
+
+  // The client scope joins the same gate: a list rendered before the scope has
+  // resolved is a list of projects the client is not covered for.
+  const facetsPending =
+    (facetConstrained && facetIds.isPending) || (clientConstrained && client.isPending);
   const facetsReady = !facetsPending;
   const facetError =
     facetConstrained && facetIds.error
@@ -387,11 +404,10 @@ export default function ProjectsPage() {
   const idFilter: Pick<ProjectQuery, 'ids'> = useMemo(() => {
     const periodIds = periodFilter.ids;
     const facets = facetConstrained ? (facetIds.data?.ids ?? []) : undefined;
-    if (facets === undefined) return periodIds === undefined ? {} : { ids: periodIds };
-    if (periodIds === undefined) return { ids: facets };
-    const inFacets = new Set(facets);
-    return { ids: periodIds.filter((id) => inFacets.has(id)) };
-  }, [periodFilter, facetConstrained, facetIds.data]);
+    const scoped = clientConstrained ? (client.data?.ids ?? []) : undefined;
+    const ids = intersectIds(intersectIds(periodIds, facets), scoped);
+    return ids === undefined ? {} : { ids };
+  }, [periodFilter, facetConstrained, facetIds.data, clientConstrained, client.data]);
 
   const baseQuery: ProjectQuery = useMemo(
     () => ({
@@ -1054,6 +1070,54 @@ export default function ProjectsPage() {
             the corpus rather than about a query that never came back. Not
             dismissable, because it describes a live condition rather than an
             event. */}
+        {/* THE CLIENT BANNER. What is being looked at, and on what basis.
+            A filtered list with no statement of the filter is a list you have to
+            remember the provenance of, and the whole point of opening a client
+            is that the answer to "why these" must be on the screen. */}
+        {clientId && (
+          <div className={styles.clientBar} data-testid="client-scope-bar">
+            <span className={styles.clientName}>
+              {client.data?.scope ? 'Client scope' : 'Client'}
+            </span>
+            {client.isPending ? (
+              <span className={styles.dim}>resolving the stored scope...</span>
+            ) : !client.data?.scope ? (
+              <span className={styles.dim}>
+                This client stores no scope, so nothing is narrowed and the list below is
+                every project.
+              </span>
+            ) : client.data.unconstrained ? (
+              <span className={styles.dim}>
+                The stored scope constrains no axis, so this client is covered for
+                everything. The list below is the whole register.
+              </span>
+            ) : (
+              <span className={styles.dim}>
+                <span className="mono">{client.data.ids.length}</span> projects proposed by the
+                stored scope
+                {client.data.capped ? ' (CAPPED)' : ''}.{' '}
+                {client.data.membershipNotApplied
+                  ? 'Confirmed membership is not switched on: migration 033 has not been run, so nothing here has been confirmed or excluded yet.'
+                  : `${
+                      [...client.data.membership.values()].filter((s) => s === 'included').length
+                    } confirmed, ${
+                      [...client.data.membership.values()].filter((s) => s === 'excluded').length
+                    } excluded.`}
+              </span>
+            )}
+            <button
+              type="button"
+              className={styles.chipMore}
+              onClick={() => {
+                void setClientId(null);
+                void setPage(1);
+              }}
+            >
+              clear
+            </button>
+          </div>
+        )}
+
         {(error || facetError) && (
           <div className={styles.error} role="alert" data-testid="register-error">
             {error ?? facetError}
@@ -1200,10 +1264,33 @@ export default function ProjectsPage() {
                     )}
                   </span>
                   {/* The name answers "which one". This answers "what is it".
-                      Rendered even when null so every row is the same height. */}
-                  <span className={styles.cellSummary} data-row-summary>
-                    {r.summary ?? ''}
-                  </span>
+                      Rendered even when null so every row is the same height.
+
+                      IN A CLIENT VIEW IT ANSWERS "WHY IS THIS HERE" INSTEAD, and
+                      that is the more urgent question of the two. A client list
+                      showing forty projects and nothing about why each one is in
+                      it is a list you either trust entirely or not at all, and
+                      "not at all" is the correct response to a list you cannot
+                      check. One wrong project in a client document is worse than
+                      four missing ones. It replaces the summary rather than
+                      joining it because the row is two lines by design and a
+                      third would change the density of every screen. */}
+                  {clientId ? (
+                    <span className={styles.cellReason} data-row-reason>
+                      {(() => {
+                        const axes = client.data?.reasons.get(r.id) ?? [];
+                        if (!client.data?.scope) return 'no stored scope: not narrowed';
+                        if (client.data.unconstrained) return 'scope constrains no axis: everything is in scope';
+                        return axes.length
+                          ? axes.join(', ')
+                          : 'matched no constrained axis - check the scope';
+                      })()}
+                    </span>
+                  ) : (
+                    <span className={styles.cellSummary} data-row-summary>
+                      {r.summary ?? ''}
+                    </span>
+                  )}
                 </span>
                 <span className={`${styles.cell} ${styles.num} mono`} title={significanceTitle(r)}>
                   {r.significance == null ? '--' : Math.round(r.significance)}

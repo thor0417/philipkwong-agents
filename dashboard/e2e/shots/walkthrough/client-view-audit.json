@@ -1,0 +1,32 @@
+[
+  {
+    "client": "JKR & Associates",
+    "proposed": 267,
+    "withReason": 0,
+    "withoutReason": 50,
+    "unconstrained": true,
+    "bar": "CLIENT SCOPE The stored scope constrains no axis, so this client is covered for everything. The list below is the whole register. CLEAR",
+    "sample": [
+      "scope constrains no axis: everything is in scope",
+      "scope constrains no axis: everything is in scope",
+      "scope constrains no axis: everything is in scope",
+      "scope constrains no axis: everything is in scope",
+      "scope constrains no axis: everything is in scope"
+    ]
+  },
+  {
+    "client": "Simtec Attractions",
+    "proposed": 15,
+    "withReason": 15,
+    "withoutReason": 0,
+    "unconstrained": false,
+    "bar": "CLIENT SCOPE 15 projects proposed by the stored scope. Confirmed membership is not switched on: migration 033 has not been run, so nothing here has been confirmed or excluded yet. CLEAR",
+    "sample": [
+      "stage approved, market Las Vegas / Clark County, venue type Integrated Resort / Casino/Gaming",
+      "stage approved, market Anaheim, venue type Mixed-Use Development / Theme Park / Entertainment District / Arena/Stadium",
+      "stage approved, market Anaheim, venue type Theme Park",
+      "stage under construction, market Central Florida Tourism Oversight District, venue type Theme Park",
+      "stage approved, market Anaheim, venue type Integrated Resort / Theme Park / Mixed-Use Development / Arena/Stadium"
+    ]
+  }
+]

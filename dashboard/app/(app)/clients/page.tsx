@@ -286,13 +286,22 @@ export default function ClientsPage() {
             <span>Cadence</span>
             <span>Next delivery</span>
             <span>Status</span>
+            {/* A CLIENT IS A SAVED VIEW YOU OPEN. This column is the route to
+                it: the same Projects table, narrowed to the client's stored
+                scope, with the reason each project matched on every row. It is
+                a second link rather than the row's own target because the row
+                still has to reach the client RECORD - the scope editor, the
+                contacts, the deliveries - and those are different jobs. */}
+            <span>View</span>
           </div>
           {(clients.data ?? []).map((c) => {
             const cs = scopesByClient.get(c.id) ?? [];
             const marketCount = new Set(cs.flatMap((s) => s.markets ?? [])).size;
             return (
-              <Link key={c.id} href={`/client/${c.id}`} className={styles.row} data-client-id={c.id}>
-                <span className={styles.name}>{c.name}</span>
+              <div key={c.id} className={styles.row} data-client-id={c.id}>
+                <Link href={`/client/${c.id}`} className={styles.name}>
+                  {c.name}
+                </Link>
                 <span className={styles.cell}>{c.organisation ?? '--'}</span>
                 <span className={styles.cell}>
                   {cs.length === 0 ? (
@@ -307,7 +316,14 @@ export default function ClientsPage() {
                 <span className={styles.cell}>{c.cadence ?? '--'}</span>
                 <span className={`${styles.cell} mono`}>{c.next_delivery ?? '--'}</span>
                 <span className={styles.status}>{c.status ?? '--'}</span>
-              </Link>
+                <Link
+                  href={`/projects?client=${encodeURIComponent(c.id)}&country=any`}
+                  className={styles.openView}
+                  data-client-view={c.id}
+                >
+                  Open as a view
+                </Link>
+              </div>
             );
           })}
         </div>

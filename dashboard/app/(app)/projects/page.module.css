@@ -717,6 +717,41 @@
   text-underline-offset: 2px;
 }
 
+/* THE CLIENT BAR. What is being looked at and on what basis, above the list it
+   qualifies. A hairline row, not a fill: it is a statement of context, not an
+   alert, and the accent on this screen belongs to the selected row. */
+.clientBar {
+  flex: none;
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-12);
+  padding: var(--space-8) var(--space-16);
+  border-bottom: var(--border-hairline);
+  font-size: var(--type-meta);
+}
+
+.clientName {
+  font-size: var(--type-caption);
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+  color: var(--ink-muted);
+  white-space: nowrap;
+}
+
+/* WHY THIS PROJECT IS IN THIS CLIENT'S LIST. Takes the second line of the name
+   cell in a client view, where it is the more urgent of the two questions. Mono
+   would be wrong - these are words, not identifiers - but it is dimmed and
+   small, because it is evidence for the row above it rather than content. */
+.cellReason {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink-muted);
+  font-size: var(--type-caption);
+  line-height: 1.15;
+}
+
 /* THE COVERAGE STATE, ON THE MARKET NODE.
    Five words, and only the two that mean "you cannot sell this" take the accent.
    A rail where every state is coloured is a rail where none of them reads, and

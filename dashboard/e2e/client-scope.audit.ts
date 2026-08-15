@@ -280,3 +280,102 @@ test('scoped, unscoped, and a narrowing that does not write back', async ({ page
     'the one-off narrowing wrote back to the client stored scope'
   ).toEqual(storedMarketsBefore.sort());
 });
+
+// AN UNCONFIRMED PROJECT CANNOT BE PRINTED.
+//
+// The scope PROPOSES. Everything the scope matches used to reach the document
+// directly, with no step between the query and the client, and that is the
+// failure this closes: a market spelled differently or a venue type that means
+// something else in one jurisdiction puts a project in a client's report and
+// nothing asks whether it belongs there.
+//
+// MEASURED THROUGH THE REPORT PATH, NOT THROUGH A MOCK. It confirms exactly one
+// of the client's proposed projects, generates, and requires the document to
+// hold that one and nothing else. Then it puts the table back as it found it -
+// membership is real data and this test must not leave a client half-confirmed.
+//
+// IT FAILS LOUDLY WHEN MIGRATION 033 IS NOT APPLIED, rather than passing. A gate
+// that cannot run is not a gate that approved: the whole point of the null
+// return from fetchIncludedProjectIds is that "not switched on" and "nothing is
+// confirmed" are different, and a green test on an absent table would be this
+// suite making exactly the conflation the code refuses to make.
+test('an unconfirmed project cannot be printed', async ({ page }) => {
+  test.setTimeout(600_000);
+
+  const { data: clientRows } = await admin.from('clients').select('id,name').eq('name', CLIENT_NAME);
+  const clientId = clientRows?.[0]?.id as string;
+  expect(clientId, `client ${CLIENT_NAME} not found`).toBeTruthy();
+
+  const probe = await admin.from('client_projects').select('id').limit(1);
+  if (probe.error) {
+    // Not a skip. A gate that cannot run must be visible as a gate that cannot
+    // run, and the message says exactly what to do about it.
+    expect(
+      probe.error.message,
+      'client_projects does not exist: run agents/scraper/migrations/033_client_projects.sql ' +
+        'in the Supabase SQL editor. Until it exists, every project a scope proposes is printed ' +
+        'without confirmation, which is the behaviour this test exists to forbid.'
+    ).toBe('');
+    return;
+  }
+
+  // What the scope proposes, read off the client view the operator would open.
+  await page.goto(`/projects?client=${clientId}&country=any`, { waitUntil: 'domcontentloaded' });
+  await expect(page.getByTestId('client-scope-bar')).toBeVisible({ timeout: 120_000 });
+  await expect(page.locator('[data-row-id]').first()).toBeVisible({ timeout: 120_000 });
+  const proposed = await page
+    .locator('[data-row-id]')
+    .evaluateAll((els) => els.map((e) => e.getAttribute('data-row-id') ?? ''));
+  expect(proposed.length, 'the client scope proposed nothing to confirm').toBeGreaterThan(1);
+
+  const confirmed = proposed[0];
+  const { data: before } = await admin
+    .from('client_projects')
+    .select('id,project_id,status')
+    .eq('client_id', clientId);
+  const hadRows = (before ?? []).length;
+
+  await admin
+    .from('client_projects')
+    .upsert(
+      { client_id: clientId, project_id: confirmed, status: 'included', set_by: 'client-scope.audit' },
+      { onConflict: 'client_id,project_id' }
+    );
+
+  try {
+    await page.goto('/reports', { waitUntil: 'domcontentloaded' });
+    await page.getByTestId('report-client').selectOption({ label: CLIENT_NAME });
+    await page.waitForTimeout(4000);
+    // data-entry IS the project id: report-entry builds every entry with
+    // `id: project.id`, so the preview's own attribute is the check.
+    const ids = await page
+      .locator('[data-entry]')
+      .evaluateAll((els) => els.map((e) => e.getAttribute('data-entry') ?? ''));
+    console.log(
+      `proposed ${proposed.length}, confirmed 1, document holds ${ids.length}: ${ids.join(', ')}`
+    );
+    for (const id of ids) {
+      expect(
+        id,
+        `the document printed ${id}, which the client has not confirmed. ` +
+          `Only 'included' rows in client_projects may be printed.`
+      ).toBe(confirmed);
+    }
+  } finally {
+    // Put it back. Membership is real data.
+    if (hadRows === 0) {
+      await admin.from('client_projects').delete().eq('client_id', clientId);
+    } else {
+      const prior = (before ?? []).find((r) => r.project_id === confirmed);
+      if (prior) {
+        await admin.from('client_projects').update({ status: prior.status }).eq('id', prior.id);
+      } else {
+        await admin
+          .from('client_projects')
+          .delete()
+          .eq('client_id', clientId)
+          .eq('project_id', confirmed);
+      }
+    }
+  }
+});

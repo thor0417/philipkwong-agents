@@ -22,7 +22,9 @@
 import { supabase } from './supabase';
 import {
   applyPostFilters,
+  hasRecordFacets,
   projectsHoldingStreams,
+  projectsMatchingRecordFacets,
   resolveScope,
   type ClientScope,
 } from './clients';
@@ -55,7 +57,7 @@ export async function fetchScopePreview(
   period: ResolvedPeriod
 ): Promise<ScopePreview> {
   const t0 = Date.now();
-  const { query, postFilters, streams } = resolveScope(scope);
+  const { query, postFilters, streams, recordFacets } = resolveScope(scope);
 
   const { data, error } = await applyProjectFilters(
     supabase.from('projects').select(PROJECT_COLUMNS),
@@ -73,6 +75,24 @@ export async function fetchScopePreview(
   // failed to deliver, which is the one thing this file exists to prevent.
   if (streams && matched.length) {
     const keep = await projectsHoldingStreams(matched.map((p) => p.id), streams);
+    matched = matched.filter((p) => keep.has(p.id));
+  }
+
+  // THE RECORD AXES, WHICH THIS FILE DID NOT APPLY AND THE DOCUMENT DOES.
+  //
+  // Market, venue type and development category are matched against a project's
+  // RECORDS, not against its mode column - resolveScope returns them separately
+  // for exactly that reason, and report-build has applied them since they were
+  // added. This preview destructured everything BUT them, so it counted a scope
+  // narrowed only by the axes it did handle.
+  //
+  // Measured on Simtec, whose scope names 16 markets, 14 venue types and 4
+  // stages: the preview said 48 and the document contains 15. Three times the
+  // truth, on the one screen whose entire job is to answer "what does this scope
+  // actually match" BEFORE a document is generated rather than after it is sent.
+  // A preview that over-states is worse than no preview, because it is believed.
+  if (hasRecordFacets(recordFacets) && matched.length) {
+    const keep = await projectsMatchingRecordFacets(matched.map((p) => p.id), recordFacets);
     matched = matched.filter((p) => keep.has(p.id));
   }
 
@@ -100,7 +120,11 @@ export async function fetchScopePreview(
     records,
     newProjects: inPeriod.length,
     newRecords,
-    postFiltered: [...postFilters.map((f) => f.field), ...(streams ? ['stream'] : [])],
+    postFiltered: [
+      ...postFilters.map((f) => f.field),
+      ...(streams ? ['stream'] : []),
+      ...(hasRecordFacets(recordFacets) ? ['market/venue/category, against the records'] : []),
+    ],
     capped: all.length >= PREVIEW_ROW_CAP,
     sample: matched.slice(0, 8),
     ms: Date.now() - t0,
