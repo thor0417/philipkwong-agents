@@ -53,6 +53,7 @@ const SCREENS: { name: string; url: string; primary: string; rowSel?: string }[]
   { name: 'Reports', url: '/reports', primary: '[data-testid="report-client"]', rowSel: '[data-section]' },
   { name: 'Clients', url: '/clients', primary: 'h1', rowSel: '[data-client-id]' },
   { name: 'Design system', url: '/design', primary: 'h1', rowSel: 'section' },
+  { name: 'Vocabulary', url: '/vocabulary', primary: 'h1', rowSel: '[data-term]' },
   // The retired lanes. Its body renders only once the session check and the load
   // have both finished, which is exactly the condition worth probing.
   { name: 'Legacy pipeline', url: '/pipeline', primary: '[data-testid="pipeline-body"]', rowSel: '[data-lead-id]' },

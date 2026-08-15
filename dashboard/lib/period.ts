@@ -32,16 +32,38 @@
 
 export type PeriodAxis = 'arrived' | 'moved';
 
+// THE TWO AXES, NAMED FOR THE DATE THEY FILTER ON.
+//
+// "Arrived" and "Moved" both describe the PROJECT, and the project is not what
+// either of them is about. Both are dates, they are dates of different things,
+// and half a working session was lost to that: a "this month" view legitimately
+// listing a project whose newest filing is dated 2024 reads as a broken screen,
+// and the only way to know it is not is to have been told once which date the
+// control acts on and to have remembered.
+//
+// So each label now says the date. "Captured" is when WE fetched a record;
+// "Filed" is when something happened to the project and a document says so. The
+// pair is deliberately parallel with the list's own "Last filed" column, which
+// prints the second of the two - so the column and the control that legitimately
+// disagree with each other are at least speaking the same language about why.
+//
+// The KEYS are unchanged. They are in URLs, in shared links and in the period
+// audits; renaming them would break every one of those to fix a label.
 export const PERIOD_AXES: { key: PeriodAxis; label: string; help: string }[] = [
   {
     key: 'arrived',
-    label: 'Arrived',
-    help: 'When we captured it. leads.first_seen and projects.first_seen.',
+    label: 'Captured',
+    help:
+      'The date WE fetched the record, not the date the source put on it. ' +
+      'leads.first_seen and projects.first_seen. A project can be captured this ' +
+      'month and last filed in 2024.',
   },
   {
     key: 'moved',
-    label: 'Moved',
-    help: 'When something happened to it. project_events.occurred_at.',
+    label: 'Filed',
+    help:
+      'The date something happened to the project and a document says so. ' +
+      'project_events.occurred_at.',
   },
 ];
 

@@ -86,7 +86,7 @@ export default function CompanyPage() {
             <span className={`${styles.factValue} mono`}>{ymd(c.first_seen)}</span>
           </span>
           <span className={styles.fact}>
-            <span className={styles.factLabel}>Last activity</span>
+            <span className={styles.factLabel}>Last filed</span>
             <span className={`${styles.factValue} mono`}>{ymd(c.last_activity)}</span>
           </span>
         </div>

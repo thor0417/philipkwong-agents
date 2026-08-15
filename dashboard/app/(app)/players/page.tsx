@@ -46,7 +46,7 @@ const COLUMNS: { key: SortKey | 'roles' | 'reach'; label: string; sort?: SortKey
     help: 'Whether any of its projects carries an email or a phone on a record.',
   },
   { key: 'first_seen', label: 'First seen', sort: 'first_seen' },
-  { key: 'last_activity', label: 'Last activity', sort: 'last_activity' },
+  { key: 'last_activity', label: 'Last filed', sort: 'last_activity' },
 ];
 
 function ymd(iso: string | null | undefined): string {

@@ -109,7 +109,7 @@ export default function ProjectPage() {
             </span>
           </span>
           <span className={styles.fact}>
-            <span className={styles.factLabel}>Last activity</span>
+            <span className={styles.factLabel}>Last filed</span>
             <span className={`${styles.factValue} mono`}>{ymd(p.last_activity)}</span>
           </span>
           {p.next_milestone && (

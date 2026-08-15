@@ -5,9 +5,13 @@
     "ok": true,
     "primary": "h1",
     "rows": 128,
-    "consoleErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 401 ()"
+    ],
     "pageErrors": [],
-    "failedRequests": [],
+    "failedRequests": [
+      "401 https://ifpbvuclzjoxblgywibi.supabase.co/rest/v1/leads?select=source%2Cfirst_seen&module=eq.gli&order=first_seen.desc&limit=6000"
+    ],
     "notes": [
       "body contains \"failed\""
     ]
@@ -99,6 +103,17 @@
     "ok": true,
     "primary": "h1",
     "rows": 5,
+    "consoleErrors": [],
+    "pageErrors": [],
+    "failedRequests": [],
+    "notes": []
+  },
+  {
+    "name": "Vocabulary",
+    "url": "/vocabulary",
+    "ok": true,
+    "primary": "h1",
+    "rows": 40,
     "consoleErrors": [],
     "pageErrors": [],
     "failedRequests": [],

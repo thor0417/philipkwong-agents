@@ -384,7 +384,7 @@ export default function DesignSystemPage() {
               <span role="columnheader">Market</span>
               <span role="columnheader">Stage</span>
               <span className={styles.numHead} role="columnheader">
-                Last activity
+                Last filed
               </span>
             </div>
             {[

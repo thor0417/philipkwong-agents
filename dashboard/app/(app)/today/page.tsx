@@ -245,7 +245,7 @@ export default function TodayPage() {
           <Link href="/projects?view=new" className={styles.need}>
             <span className={`${styles.needCount} mono`}>{created.length}</span>
             <span className={styles.needLabel}>New projects to review</span>
-            <span className={styles.needHint}>Arrived in this window</span>
+            <span className={styles.needHint}>Captured in this window</span>
           </Link>
         </div>
       </Section>

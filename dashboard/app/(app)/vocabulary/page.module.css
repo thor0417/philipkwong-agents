@@ -1,0 +1,106 @@
+/* THE VOCABULARY. Prose-shaped, like the design system it sits beside, because
+ * it is read once end to end and then returned to one row at a time. The measure
+ * is capped: this is the one screen in the product that is entirely sentences.
+ */
+.page {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: var(--space-48) var(--space-24);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-48);
+}
+
+.pageHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-24);
+  padding-bottom: var(--space-24);
+  border-bottom: var(--border-strong);
+}
+
+.pageTitle {
+  font-family: var(--font-display);
+  font-weight: var(--weight-medium);
+  font-size: var(--type-display-lg);
+  line-height: var(--leading-display);
+  letter-spacing: var(--track-display);
+  margin: 0;
+}
+
+.lede {
+  margin: var(--space-8) 0 0;
+  max-width: 72ch;
+  color: var(--ink-secondary);
+  font-size: var(--type-body);
+  line-height: var(--leading-body);
+}
+
+.block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+}
+
+.blockHead {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-12);
+  border-bottom: var(--border-hairline);
+  padding-bottom: var(--space-8);
+}
+
+.blockNum {
+  font-size: var(--type-caption);
+  color: var(--ink-muted);
+  letter-spacing: var(--track-label);
+}
+
+.blockTitle {
+  font-family: var(--font-display);
+  font-weight: var(--weight-regular);
+  font-size: var(--type-display-sm, 24px);
+  letter-spacing: var(--track-display);
+  margin: 0;
+}
+
+.note {
+  margin: 0;
+  max-width: 84ch;
+  color: var(--ink-muted);
+  font-size: var(--type-meta);
+  line-height: var(--leading-body);
+}
+
+/* THE SECOND COLUMN IS THE POINT. The term is narrow and fixed so the
+   definitions align into a readable column rather than starting at a different
+   x on every row. */
+.terms {
+  margin: 0;
+  display: grid;
+  grid-template-columns: 200px minmax(0, 1fr);
+  gap: 0;
+}
+
+.termRow {
+  display: contents;
+}
+
+.term {
+  padding: var(--space-8) var(--space-16) var(--space-8) 0;
+  border-top: var(--border-hairline);
+  font-family: var(--font-body);
+  font-size: var(--type-body);
+  color: var(--ink);
+}
+
+.means {
+  margin: 0;
+  padding: var(--space-8) 0;
+  border-top: var(--border-hairline);
+  color: var(--ink-secondary);
+  font-size: var(--type-meta);
+  line-height: var(--leading-body);
+  max-width: 78ch;
+}

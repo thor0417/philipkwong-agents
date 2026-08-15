@@ -116,6 +116,12 @@ export const NAV: NavSection[] = [
         hint: 'Every token and component, both modes.',
       },
       {
+        label: 'Vocabulary',
+        href: '/vocabulary',
+        keywords: ['terms', 'glossary', 'definitions', 'words', 'provenance', 'stages', 'axes'],
+        hint: 'Every term, with the column or rule behind it.',
+      },
+      {
         label: 'Legacy pipeline',
         href: '/pipeline',
         keywords: ['fuel', 'consulting', 'archive'],
