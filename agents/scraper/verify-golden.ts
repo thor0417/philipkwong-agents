@@ -32,6 +32,9 @@ import { deriveProjectName } from './project-naming';
 import { classifyVenueType, governmentGate, provenStage } from '../../lib/taxonomy';
 import { resolveGeography } from '../../lib/geography';
 import { inCorpusScope } from '../../lib/corpus-scope';
+import {
+  extractPressFacts, verifyNoInvention, attributionTerms, factsForEntry,
+} from './press-facts';
 
 const CASES_FILE = 'agents/scraper/fixtures/golden.jsonl';
 
@@ -188,6 +191,39 @@ const INLINE: Record<string, () => string | null> = {
       return 'an unresolved country was treated as foreign, which discards US coverage';
     }
     if (!inCorpusScope('  united states  ')) return 'case and whitespace defeat the check';
+    return null;
+  },
+
+  'a-figure-not-in-the-article-never-appears': () => {
+    const body =
+      'The Clark County Zoning Commission has approved a proposal from Kulik River Capital ' +
+      'for the resort, which would add 752 rooms if it is built. ' +
+      'Operators have committed US$20 billion across the Strip over the last decade.';
+
+    const facts = extractPressFacts(body);
+    const rooms = facts.find((f) => f.kind === 'rooms');
+    if (!rooms) return 'the room count printed in the article was not extracted';
+    if (!body.includes(rooms.display)) return 'the extracted display string is not in the article';
+    if (!rooms.sentence.includes('Kulik River')) {
+      return 'the fact does not carry the sentence it came from';
+    }
+
+    // The guard must refuse a value the text never printed.
+    let threw = false;
+    try {
+      verifyNoInvention([{ kind: 'rooms', display: '999 rooms', value: 999, sentence: '' }], body);
+    } catch {
+      threw = true;
+    }
+    if (!threw) return 'verifyNoInvention accepted a figure absent from the article';
+
+    // Attribution: the project's own figure stays, the Strip-wide one does not.
+    const terms = attributionTerms('Heart Hotel / Kulik River', 'Kulik River Capital, LLC');
+    const entry = factsForEntry(facts, terms);
+    if (!entry.some((f) => f.kind === 'rooms')) return 'the attributed room count was dropped';
+    if (entry.some((f) => f.display.includes('20 billion'))) {
+      return 'a figure about the wider market reached the project entry';
+    }
     return null;
   },
 
