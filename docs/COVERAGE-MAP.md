@@ -69,7 +69,7 @@ contact path.
 | Las Vegas | 24 | 56 | 13 days | 19 | 1 | **defensible, watch the feed** |
 | Anaheim | 14 | 59 | 9 days | 11 | 5 | **defensible** |
 | New York City | 38 | 159 | 22 days | 26 | 4 | **defensible, with the stated ZAP gap** |
-| Nashville | 9 | 19 | current | 1 | 1 | **thin**: captures and clusters, names almost nobody |
+| Nashville | 9 | 19 | current | 1 | 1 | **thin, and it is Nashville's limit rather than ours** (see below) |
 | Phoenix | 8 | 15 | 45 days | 8 | 0 | **defensible** |
 | Oakland | 4 | 8 | 25 days | 2 | 2 | **thin but live** |
 | Westchester County | 1 | 2 | 12 days | 0 | 0 | **live, negligible** |
@@ -95,6 +95,37 @@ Two of the six carry a condition:
 - **New York City.** ZAP stopped publishing on 2026-05-26 and NYC Council has no
   public feed at all, so we can say what was filed and reviewed and never what
   was approved. Both are stated in the NYC section below.
+
+### NASHVILLE: WHY IT NAMES NOBODY, CHECKED RATHER THAN ASSUMED
+
+The row above used to read "captures and clusters, names almost nobody", which
+implied we were failing to read something Nashville publishes. That was checked
+on 2026-08-16 against the live Legistar API, because a coverage claim that is
+wrong in our own favour is the worst kind and this one pointed the other way.
+
+**The verdict stands, and the reason is Nashville's, not ours.**
+
+- 14 of Nashville's 17 undismissed Legistar records name no party.
+- **2 of those 14 matters carry any attachment at all.** The attachment lane that
+  reads staff reports for owner / applicant / representative is running and works
+  (Clark County: 38 of 44 records carry a read document). Nashville publishes TIF
+  and redevelopment-plan resolutions as roughly 310 characters of matter metadata
+  with no staff report attached, so there is no document to read.
+- Nashville **does** populate `Matters/{id}/Sponsors`, on 17 of 17 records - but
+  every sponsor is a Metro Council member (Kyonzte Toombs, Burkley Allen, Zulfat
+  Suara, Rollin Horton). That is who moved the resolution, never who is behind
+  the project. See roadmap 1I.
+
+**What may honestly be claimed for Nashville:** what was filed, when, which
+committee it sits in, its status, and which council members sponsored it. **What
+may not:** who the developer, owner or applicant is. On these resolutions
+Nashville does not publish it, and no endpoint we are not already calling
+contains it.
+
+The same check applied to the other Legistar markets: Oakland and Westchester
+County publish sponsors (departments, and the County Executive); Clark County,
+Phoenix and Yonkers return an empty list with HTTP 200 on every matter tried, so
+sponsors are not a lever there at all.
 
 ### THE CHECK ONLY COVERS ONE LANE, AND THAT IS THE NEXT GAP
 

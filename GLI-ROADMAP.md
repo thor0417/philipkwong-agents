@@ -100,6 +100,89 @@ narrows a document. A wrong country puts a foreign project inside every domestic
 client's scope, and the audit that exists to catch scope leaks is blind to it by
 construction.
 
+### 1I. Legistar sponsors: the government mover, not the party (SMALL, measured 2026-08-16)
+
+**What was expected, and what is actually there.** This was raised as the fix
+that turns Nashville from a market that cannot name anyone into one that can.
+It is not. `Matters/{id}/Sponsors` was probed against all 108 stored Legistar
+records and against the six live clients directly. **Every sponsor it returns is
+an elected official or a government department. Not one is a private party.**
+
+All 24 distinct sponsor names in the corpus:
+
+| kind | examples |
+|---|---|
+| Metro Council members (Nashville) | Kyonzte Toombs (17), Burkley Allen (16), Zulfat Suara (14), Rollin Horton (12) |
+| City departments (Oakland) | Economic & Workforce Development, Housing & Community Development, Planning & Building, Office Of The Mayor |
+| County commissioners (Miami-Dade) | Dennis C. Moss, Xavier L. Suarez |
+| County Executive (Westchester) | County Executive |
+
+So a sponsor answers **"who in government moved this item"**, which is a real and
+citable fact, and never **"who is behind this project"**. Writing it into
+`applicant` would fabricate a party relationship, which rule 11 forbids and which
+no reader could catch, because "Zulfat Suara" reads exactly like a developer's
+name to anyone who does not know Nashville's council.
+
+**Coverage is three of six live clients, and it is a publishing choice.**
+Measured over the stored corpus, then confirmed against the live API:
+
+| client | stored records | carry a sponsor | endpoint on 12 recent matters |
+|---|---:|---:|---|
+| Nashville | 17 | **17** | HTTP 200, populated |
+| Oakland | 8 | **8** | HTTP 200, populated |
+| Westchester County | 2 | **2** | HTTP 200, populated |
+| Clark County | 44 | **0** | HTTP 200, `[]` on all 12 |
+| Phoenix | 19 | **0** | HTTP 200, `[]` on all 12 |
+| Yonkers | 0 | - | HTTP 200, `[]` on all 12 |
+
+**This answers the Clark County question, and not in the way it was asked.** The
+guess was that sponsors would add nothing in Clark County because its item text
+already names parties, and would add most where the item text is thin. Neither
+half holds. Clark returns an empty array with HTTP 200 on every matter tried: the
+endpoint is not sparse there, it is unused. The correlation is not with how thin
+the item text is, it is with whether the jurisdiction's clerk populates the field
+at all. Clark's 44 records name parties because **the attachments lane already
+works there** (38 of 44 carry a read document), not because sponsors are
+redundant.
+
+**One pass or two, and the honest answer is one call and two meanings.**
+Mechanically it is one pass: `Sponsors` and `Attachments` are sibling
+sub-resources of the same matter, keyless, on the same host, and the fetch loop
+in `sources/legistar.ts` (`docWorker`, bounded concurrency) already visits every
+gated matter with the id in hand. Adding sponsors is one more `fetch` inside that
+existing loop, same error handling, degrading to null. It is not a second pass
+and must not be built as one.
+
+Semantically they are opposites and must not share a field:
+
+- **Attachments -> the private side.** owner / applicant / representative, read
+  out of the staff report. Already built, already running, already on by default.
+- **Sponsors -> the government side.** A new field, and it needs a new one.
+
+**Attachments will not rescue Nashville either, which is the finding that
+matters.** Of the 14 silent Nashville matters, **2 have any attachment at all**.
+Nashville publishes TIF and redevelopment-plan resolutions as ~310 characters of
+matter metadata with no staff report attached. That is a limit of what Nashville
+publishes, not of what we read, and no endpoint closes it.
+
+**What the pass would do.**
+
+- Add `government_sponsors text[]` to `leads` (migration, Philip runs it by hand;
+  there is no DDL helper).
+- One `fetch` in the existing `docWorker` loop; skip the three clients that
+  return `[]` after a first empty response rather than paying the call forever.
+- Extend `LegistarSponsorSchema` in `sources/schemas.ts`, validated at the
+  boundary like every other Legistar shape.
+- Surface it as **"Moved by"** and never as a party. The report layer's party
+  slot must keep saying nothing where the record says nothing.
+- A golden case pinning that a sponsor never lands in `applicant`.
+
+**Honest value.** 27 records gain a "moved by" line. Zero projects gain a party.
+It does not change the Nashville coverage verdict and it does not reduce the 66
+no-party projects by one. It is worth doing for the Nashville TIF resolutions,
+where the sponsoring council member is a genuine contact path for a regulatory
+consultant, and it is worth doing cheaply. It is not the party fix.
+
 ## TRACK 2: CURATION (make Philip the quality filter)
 
 ### 2A. Triage controls (NEXT BRIEF, unlocks everything after it)
@@ -207,6 +290,10 @@ The full pipeline on schedule: capture, attach to projects, decay via liveness, 
 2. 1D miss diagnosis, 1A Clark bodies audit, 1B anchor terms (one small combined session)
 2b. 1H geography resolution (SMALL, and it leaks into every US-scoped client
     scope, so it goes before anything that generates a client document)
+2c. 1I Legistar sponsors (SMALL, one call in an existing loop). Ranked here on
+    request, ahead of Brief P Part 5. Note before scheduling it: it was ranked
+    here to fix the Nashville party gap, and measurement says it does not. It
+    adds a "moved by" line to 27 records and names no party anywhere.
 3. 2A triage brief
 4. 1C Anaheim Planning, 1E Nevada regulators, 1G legacy purge (one cleanup session)
 5. 3A project clustering
