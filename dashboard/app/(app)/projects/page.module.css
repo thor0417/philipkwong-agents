@@ -25,55 +25,165 @@
   border-right: var(--border-hairline);
 }
 
-/* ------------------------------------------------------------- list header */
+/* ----------------------------------------------------------- the filter row */
+/* ONE ROW. It was five.
+ *
+ * Stage, venue and category are three instances of the same control, and each
+ * had its own labelled row above the list; the period and the axis had a fourth
+ * and a fifth. Measured at 1920x1080 that block held 34 controls and pushed the
+ * first ranked project to y=242, so the operator crossed thirty-four decisions
+ * before reading one row - and the honest consequence is that none of them got
+ * made, because thirty-four controls at the top of every visit is something you
+ * learn to scroll past rather than something you use.
+ *
+ * WHAT REPLACED IT IS NOT A SMALLER VERSION OF THE SAME THING. The three axes
+ * are behind one disclosure, the period and the axis are behind a second, and
+ * what remains on the row is a STATEMENT of what is currently applied: one chip
+ * per live constraint, each removable. A collapsed filter that hides what is on
+ * is worse than five rows, so nothing is ever hidden except the values that are
+ * NOT chosen.
+ */
 .listHead {
   flex: none;
   display: flex;
   align-items: center;
-  gap: var(--space-16);
-  padding: var(--space-12) var(--space-16);
+  gap: var(--space-8);
+  flex-wrap: wrap;
+  padding: var(--space-8) var(--space-16);
   border-bottom: var(--border-hairline);
+  /* The panels are absolutely positioned against their own control, and the
+     control is positioned against this row. */
+  position: relative;
 }
 
-.filterBar {
+/* The anchor for a disclosure and its panel. */
+.control {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: none;
+}
+
+/* The control that opens a panel. Deliberately the same shape as a chip: it is
+   the same kind of thing, and a second control language would be one more thing
+   to learn on a screen whose whole problem was how much there was to read. */
+.disclosure {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-8);
+  font-family: var(--font-body);
+  font-size: var(--type-meta);
+  letter-spacing: var(--track-none);
+  text-transform: none;
+  color: var(--ink-secondary);
+  border: var(--border-hairline);
+  border-radius: var(--radius-control);
+  padding: var(--space-4) var(--space-8);
+  white-space: nowrap;
+}
+.listHead .disclosure:hover {
+  background: none;
+  color: var(--ink);
+  border-color: var(--line-strong);
+}
+/* Open, or carrying a selection. Ink and a weight, never the accent: there may
+   be two of these on the row at once and the accent marks one thing. */
+.disclosureOn,
+.listHead .disclosureOn:hover {
+  color: var(--ink);
+  border-color: var(--ink-secondary);
+  font-weight: var(--weight-medium);
+  background: none;
+}
+.caret {
+  color: var(--ink-disabled);
+  font-size: var(--type-caption);
+}
+
+/* WHAT IS CURRENTLY APPLIED, ALWAYS ON THE ROW. One per constraint, and
+   pressing one removes it. This is the half of the collapse that makes it
+   honest: the panel hides the values you did not pick and never the one you
+   did.
+   Ink rather than accent, for the same reason the disclosure is: six of these
+   can be on screen at once and an accent that repeats six times is not an
+   accent. */
+.activeChip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-4);
+  flex: none;
+  font-family: var(--font-body);
+  font-size: var(--type-meta);
+  letter-spacing: var(--track-none);
+  text-transform: none;
+  color: var(--ink);
+  border: var(--hairline-width) solid var(--line-strong);
+  border-radius: var(--radius-control);
+  padding: var(--space-4) var(--space-8);
+  white-space: nowrap;
+}
+.listHead .activeChip:hover {
+  background: none;
+  color: var(--ink);
+  border-color: var(--ink-secondary);
+}
+.activeAxis {
+  color: var(--ink-muted);
+  font-size: var(--type-caption);
+}
+.activeClear {
+  color: var(--ink-disabled);
+  font-size: var(--type-caption);
+}
+.listHead .activeChip:hover .activeClear {
+  color: var(--ink-secondary);
+}
+
+/* THE PANEL. Every value on the axis, wrapped, with nothing clipped.
+   No shadow and no radius: elevation in this system comes from surface tone and
+   border weight, so a panel is card paper inside a strong hairline. */
+.panel {
+  position: absolute;
+  top: calc(100% + var(--space-8));
+  left: 0;
+  z-index: 5;
+  width: 760px;
+  max-width: calc(100vw - var(--rail-w) - var(--space-48));
+  max-height: 60vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+  padding: var(--space-12) var(--space-16);
+  background: var(--paper-card);
+  border: var(--border-strong);
+  border-radius: var(--radius-surface);
+}
+
+.panelGroup {
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
-  min-width: 0;
 }
 
-/* ONE ROW PER GROUP, ALWAYS. Three groups that wrap freely grew to five rows
-   and pushed the first project row to y=370 on a 1080px screen - over a third
-   of the viewport spent on filters before any data appeared. Overflow now goes
-   behind a "more" control instead of down the page. */
-.chipRow {
-  display: flex;
-  align-items: center;
-  gap: var(--space-4);
-  flex-wrap: nowrap;
-  overflow: hidden;
-  min-width: 0;
-}
-
-/* EXPANDED, THE ROW MUST BE ABLE TO GROW, and it could not.
-   `nowrap` plus `overflow: hidden` is right for the collapsed row - that is what
-   keeps three filter groups to three lines - but it stayed on when "+16 more"
-   expanded the group, so the extra chips were laid out on one unbroken line and
-   clipped at the container edge. Twenty venue values, five of them reachable,
-   and the control that promised the other fifteen was the control that hid them.
-   The "less" button was off the same edge, so the state could not be left
-   either. Expanding now wraps. */
-.chipRowOpen {
-  flex-wrap: wrap;
-  overflow: visible;
-}
-
-.chipRowLabel {
-  flex: 0 0 auto;
-  width: 62px;
-  color: var(--ink-secondary);
+.panelLabel {
   font-size: var(--type-caption);
-  text-transform: lowercase;
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+.panelChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+}
+
+/* A statement the toolbar makes about a query it issued, not a control. */
+.toolbarNote {
+  color: var(--ink-muted);
+  font-size: var(--type-caption);
+  white-space: nowrap;
 }
 
 .chipMore {
@@ -146,9 +256,12 @@
   color: var(--ink-muted);
 }
 
+/* Last on the row and pushed to the right edge, because search is the control
+   you reach for when the filters have not found it. */
 .listHead .search {
   width: 260px;
   flex: none;
+  margin-left: auto;
   font-family: var(--font-body);
 }
 
@@ -805,21 +918,17 @@
   gap: var(--space-8);
 }
 
-/* ------------------------------------------------------------ the period bar */
-/* A second toolbar row rather than more controls crowded into the first. The
-   period is a different kind of filter from the stage chips - it applies to
-   every screen, not only this one - and giving it its own line is what stops
-   the head row wrapping at 1440px. */
-.periodBar {
-  display: flex;
-  align-items: center;
-  gap: var(--space-16);
-  flex-wrap: wrap;
-  padding: var(--space-8) var(--space-16);
-  border-bottom: var(--border-hairline);
-  min-height: 0;
-}
-
+/* ------------------------------------------------------------- the period */
+/* THE PERIOD BAR IS GONE AND ITS CONTENTS ARE ONE STATEMENT.
+ *
+ * It was a row of its own holding fifteen controls: four rolling windows, three
+ * calendar ones, a named-month dropdown, two date fields, two axes and three
+ * bucketing modes. "Captured, this month" is a single fact about the list, and
+ * it was being asked as five separate questions on a line the operator read
+ * every time they opened the screen.
+ *
+ * The statement is now the control. Everything that used to be on that row is
+ * inside the panel it opens, grouped by the question it answers. */
 .axisGroup {
   display: flex;
   align-items: center;
@@ -875,4 +984,3 @@
    be scrolled out of view while the page itself has not moved, and the legend
    ran to the viewport edge with no gutter. Both are the same cause: the rail
    was a fixed-height overflow container. */
-.listPane > .filterBar { padding-right: var(--space-16); }

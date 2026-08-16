@@ -199,6 +199,62 @@ const COLUMNS: { key: string; label: string; sort?: string; numeric?: boolean; h
   },
 ];
 
+/**
+ * ONE AXIS INSIDE THE FILTER PANEL, WITH EVERY VALUE ON IT.
+ *
+ * No cap and no "+N more". The cap existed because these were rows on the
+ * screen and a row cannot grow; inside a panel it can, so the twenty venue
+ * values are twenty chips rather than five and a promise.
+ *
+ * The data attribute is passed rather than switched on, because three audits
+ * read these chips by `[data-venue]` / `[data-stage]` / `[data-category]` and a
+ * component that renamed them would break the instruments silently.
+ */
+function FilterGroup({
+  label,
+  testId,
+  attr,
+  chips,
+  active,
+  onPick,
+}: {
+  label: string;
+  testId: string;
+  attr: 'data-stage' | 'data-venue' | 'data-category';
+  chips: { value: string | null; label: string; count: number }[];
+  active: string | null;
+  onPick: (value: string | null) => void;
+}) {
+  return (
+    <div className={styles.panelGroup} data-testid={testId}>
+      <span className={styles.panelLabel}>{label}</span>
+      <div className={styles.panelChips}>
+        {chips.map((c) => {
+          const mark: Record<string, string> = { [attr]: c.value ?? 'all' };
+          return (
+            <button
+              key={`${attr}-${c.label}`}
+              type="button"
+              {...mark}
+              className={`${styles.chip} ${
+                active === c.value
+                  ? c.value === null
+                    ? styles.chipAllActive
+                    : styles.chipActive
+                  : ''
+              }`}
+              onClick={() => onPick(c.value)}
+            >
+              {c.label}
+              <span className={`${styles.chipCount} mono`}>{c.count}</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export default function ProjectsPage() {
   const router = useRouter();
 
@@ -209,9 +265,24 @@ export default function ProjectsPage() {
   // built; the register, which is the working surface, could not answer
   // "New York, then Casino/Gaming" at all - so the question had to be asked on
   // the screen that cannot act on the answer.
-  // The filter bar shows one row per group. Everything past the cap goes
-  // behind this rather than down the page.
+  //
+  // ALL THREE AXES ARE BEHIND ONE DISCLOSURE. They were three labelled rows of
+  // chips, each capped at five values with the rest behind a "+16 more" - which
+  // is three controls' worth of screen spent saying "there are more filters"
+  // and one axis, venue, whose twenty values were mostly unreachable. Inside
+  // the panel every value on every axis is present and wrapped, so the control
+  // that promises the other fifteen is now the control that shows them.
   const [filtersOpen, setFiltersOpen] = useState(false);
+  // The period, the axis it applies to and the bucketing, behind their own.
+  const [periodOpen, setPeriodOpen] = useState(false);
+  const headRef = useRef<HTMLDivElement>(null);
+  // Declared with the state rather than beside its first use, because the
+  // keyboard effect below lists it as a dependency and a const is in its
+  // temporal dead zone until the line that declares it has run.
+  const closePanels = useCallback(() => {
+    setFiltersOpen(false);
+    setPeriodOpen(false);
+  }, []);
   const [venue, setVenue] = useQueryState('venue', parseAsString);
   const [category, setCategory] = useQueryState('category', parseAsString);
   const [countryParam, setCountryParam] = useQueryState('country', parseAsString);
@@ -717,6 +788,17 @@ export default function ProjectsPage() {
     [statusMutation]
   );
 
+  // A panel closes when the operator looks away from it. Bound only while one is
+  // open, so the screen carries no listener it is not using.
+  useEffect(() => {
+    if (!filtersOpen && !periodOpen) return;
+    const onDown = (e: MouseEvent) => {
+      if (headRef.current && !headRef.current.contains(e.target as Node)) closePanels();
+    };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [filtersOpen, periodOpen, closePanels]);
+
   // ---- Keyboard triage.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -727,6 +809,19 @@ export default function ProjectsPage() {
         return;
       }
       if (e.metaKey || e.ctrlKey || e.altKey) return;
+
+      // A PANEL IS OPEN, SO THE KEYBOARD BELONGS TO IT. Without this, pressing E
+      // while reading the venue list dismisses whatever row happened to be
+      // selected behind the panel - a destructive write from a key the operator
+      // thought they were typing into a filter. Escape closes the panel and
+      // stops there rather than also clearing the selection.
+      if (filtersOpen || periodOpen) {
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          closePanels();
+        }
+        return;
+      }
 
       const current = selectedIndex >= 0 ? rows[selectedIndex] : null;
       switch (e.key.toLowerCase()) {
@@ -773,7 +868,7 @@ export default function ProjectsPage() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rows, selectedIndex, selected, move, router, watch]);
+  }, [rows, selectedIndex, selected, move, router, watch, filtersOpen, periodOpen, closePanels]);
 
   const toggleCheck = (id: string) =>
     setChecked((prev) => {
@@ -837,38 +932,6 @@ export default function ProjectsPage() {
         : []),
     ];
   };
-  // A COLLAPSED GROUP STILL SHOWS WHAT IS SELECTED. Slicing the first N would
-  // hide an active chip whenever it sorted low, so the control would show no
-  // filter while a filter was applied. The active chip is always kept.
-  const CHIP_CAP = 5;
-  const visible = (chips: { value: string | null; label: string; count: number }[]) => {
-    if (filtersOpen || chips.length <= CHIP_CAP + 1) return chips;
-    const head = chips.slice(0, CHIP_CAP);
-    const active = chips.find((c) => c.value !== null && !head.includes(c) && isActive(c));
-    return active ? [...head, active] : head;
-  };
-  const more = (chips: { value: string | null; label: string; count: number }[]) => {
-    if (filtersOpen) {
-      return (
-        <button type="button" className={styles.chipMore} onClick={() => setFiltersOpen(false)}>
-          less
-        </button>
-      );
-    }
-    if (chips.length <= CHIP_CAP + 1) return null;
-    return (
-      <button
-        type="button"
-        className={styles.chipMore}
-        onClick={() => setFiltersOpen(true)}
-      >
-        +{chips.length - CHIP_CAP} more
-      </button>
-    );
-  };
-  const isActive = (c: { value: string | null }) =>
-    c.value !== null && (c.value === stage || c.value === venue || c.value === category);
-
   const venueChips = useMemo(
     () => facetChips(venueFacet.data?.counts, venue, 'All venues', venueNone.data, 'No venue type'),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -886,6 +949,109 @@ export default function ProjectsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [categoryFacet.data, category, categoryNone.data]
   );
+
+  // ---- WHAT IS CURRENTLY APPLIED, AS A LIST THE ROW CAN PRINT.
+  //
+  // Every constraint the register is under, coarse to fine, each with the way
+  // to remove it. This is the whole justification for collapsing the chip rows:
+  // a filter behind a disclosure is acceptable only because the SELECTION is
+  // not behind it.
+  //
+  // GEOGRAPHY IS IN HERE TOO, AND IT WAS NOT ON THE OLD FILTER BLOCK AT ALL. It
+  // is chosen from the rail, and the rail marks the active node - but the
+  // register opens on the United States by DEFAULT, and that default appeared
+  // nowhere: the country tree is behind the collapsed press-coverage node, so
+  // the one filter that is always on was the one filter nothing on the screen
+  // stated. It reads as a chip like any other and clears like one.
+  const activeFilters = useMemo(() => {
+    const out: { key: string; axis: string; label: string; clear: () => void }[] = [];
+    if (country) {
+      out.push({
+        key: 'country',
+        axis: 'country',
+        label: country,
+        clear: () => {
+          void setCountry(null);
+          void setRegion(null);
+          void setMarket(null);
+          void setPage(1);
+        },
+      });
+    }
+    if (region) {
+      out.push({
+        key: 'region',
+        axis: 'state',
+        label: region,
+        clear: () => {
+          void setRegion(null);
+          void setMarket(null);
+          void setPage(1);
+        },
+      });
+    }
+    if (market) {
+      out.push({
+        key: 'market',
+        axis: 'market',
+        label: market,
+        clear: () => {
+          void setMarket(null);
+          void setPage(1);
+        },
+      });
+    }
+    if (stage) {
+      out.push({ key: 'stage', axis: 'stage', label: stage, clear: () => applyStage(null) });
+    }
+    if (venue) {
+      out.push({
+        key: 'venue',
+        axis: 'venue',
+        label: venue === NO_VALUE ? 'no venue type' : venue,
+        clear: () => {
+          void setVenue(null);
+          void setPage(1);
+        },
+      });
+    }
+    if (category) {
+      out.push({
+        key: 'category',
+        axis: 'category',
+        label: category === NO_VALUE ? 'no category' : category,
+        clear: () => {
+          void setCategory(null);
+          void setPage(1);
+        },
+      });
+    }
+    return out;
+  }, [
+    country,
+    region,
+    market,
+    stage,
+    venue,
+    category,
+    setCountry,
+    setRegion,
+    setMarket,
+    setVenue,
+    setCategory,
+    setPage,
+    applyStage,
+  ]);
+
+  // "Captured, this month". One statement, from what used to be two rows and a
+  // dropdown. The bucketing joins it only when it is on, because "flat" is the
+  // default and a label that recites its defaults is a label nobody reads.
+  const axisLabel = PERIOD_AXES.find((a) => a.key === axis)?.label ?? 'Captured';
+  const periodStatement =
+    `${axisLabel}, ${period.label}` +
+    (bucketMode === 'none'
+      ? ''
+      : `, ${(BUCKETS.find((b) => b.key === bucketMode)?.label ?? '').toLowerCase()}`);
 
   return (
     <div className={styles.screen}>
@@ -917,131 +1083,197 @@ export default function ProjectsPage() {
       />
 
       <div className={`${styles.listPane} ${viewKey === 'trash' ? styles.trashView : ''}`}>
-        <div className={styles.listHead}>
-          <div className={styles.filterBar}>
-          <div className={`${styles.chipRow} ${filtersOpen ? styles.chipRowOpen : ''}`} data-testid="register-stage-chips">
-            <span className={styles.chipRowLabel}>stage</span>
-            {visible(stageChips).map((c) => (
-              <button
-                key={c.label}
-                type="button"
-                data-stage={c.value ?? 'all'}
-                className={`${styles.chip} ${
-                  stage === c.value ? (c.value === null ? styles.chipAllActive : styles.chipActive) : ''
-                }`}
-                onClick={() => applyStage(c.value)}
-              >
-                {c.label}
-                <span className={`${styles.chipCount} mono`}>{c.count}</span>
-              </button>
-            ))}
-            {more(stageChips)}
-          </div>
-          <div className={`${styles.chipRow} ${filtersOpen ? styles.chipRowOpen : ''}`} data-testid="register-venue-chips">
-            <span className={styles.chipRowLabel}>venue</span>
-            {visible(venueChips).map((c) => (
-              <button
-                key={`v-${c.label}`}
-                type="button"
-                data-venue={c.value ?? 'all'}
-                className={`${styles.chip} ${
-                  venue === c.value ? (c.value === null ? styles.chipAllActive : styles.chipActive) : ''
-                }`}
-                onClick={() => {
-                  void setVenue(c.value);
-                  void setPage(1);
-                }}
-              >
-                {c.label}
-                <span className={`${styles.chipCount} mono`}>{c.count}</span>
-              </button>
-            ))}
-            {more(venueChips)}
-          </div>
-          <div className={`${styles.chipRow} ${filtersOpen ? styles.chipRowOpen : ''}`} data-testid="register-category-chips">
-            <span className={styles.chipRowLabel}>category</span>
-            {visible(categoryChips).map((c) => (
-              <button
-                key={`c-${c.label}`}
-                type="button"
-                data-category={c.value ?? 'all'}
-                className={`${styles.chip} ${
-                  category === c.value ? (c.value === null ? styles.chipAllActive : styles.chipActive) : ''
-                }`}
-                onClick={() => {
-                  void setCategory(c.value);
-                  void setPage(1);
-                }}
-              >
-                {c.label}
-                <span className={`${styles.chipCount} mono`}>{c.count}</span>
-              </button>
-            ))}
-            {more(categoryChips)}
-          </div>
-          </div>
-          <input
-            className={styles.search}
-            value={searchDraft}
-            onChange={(e) => setSearchDraft(e.target.value)}
-            placeholder="Project, applicant or representative"
-            aria-label="Search projects"
-          />
-        </div>
+        <div className={styles.listHead} ref={headRef}>
+          {/* ---- ONE FILTER CONTROL, NOT FIVE ROWS. ------------------------ */}
+          <div className={styles.control}>
+            <button
+              type="button"
+              data-testid="filter-toggle"
+              aria-expanded={filtersOpen}
+              className={`${styles.disclosure} ${filtersOpen ? styles.disclosureOn : ''}`}
+              onClick={() => {
+                setPeriodOpen(false);
+                setFiltersOpen((o) => !o);
+              }}
+            >
+              Filter
+              <span className={styles.caret} aria-hidden="true">
+                {filtersOpen ? '▴' : '▾'}
+              </span>
+            </button>
 
-        <div className={styles.periodBar}>
-          <PeriodSelector
-            period={period}
-            now={periodNow}
-            onChange={(t) => {
-              setPeriod(t);
-              void setPage(1);
-            }}
-          />
-
-          {/* THE AXIS. Which date the period is applied to. Two different
-              questions - what arrived, and what moved - that a single "period"
-              control would silently conflate. */}
-          <div className={styles.axisGroup}>
-            {PERIOD_AXES.map((a) => (
-              <button
-                key={a.key}
-                type="button"
-                title={a.help}
-                data-axis={a.key}
-                className={`${styles.chip} ${axis === a.key ? styles.chipActive : ''}`}
-                onClick={() => {
-                  setAxis(a.key);
-                  void setPage(1);
-                }}
-              >
-                {a.label}
-              </button>
-            ))}
-            {BUCKETS.map((b) => (
-              <button
-                key={b.key}
-                type="button"
-                data-bucket={b.key}
-                className={`${styles.chip} ${bucketMode === b.key ? styles.chipActive : ''}`}
-                onClick={() => {
-                  void setBucket(b.key === 'none' ? null : b.key);
-                  void setPage(1);
-                }}
-              >
-                {b.label}
-              </button>
-            ))}
+            {filtersOpen && (
+              <div className={styles.panel} data-testid="filter-panel">
+                <FilterGroup
+                  label="Stage"
+                  testId="register-stage-chips"
+                  attr="data-stage"
+                  chips={stageChips}
+                  active={stage}
+                  onPick={applyStage}
+                />
+                <FilterGroup
+                  label="Venue"
+                  testId="register-venue-chips"
+                  attr="data-venue"
+                  chips={venueChips}
+                  active={venue}
+                  onPick={(v) => {
+                    void setVenue(v);
+                    void setPage(1);
+                  }}
+                />
+                <FilterGroup
+                  label="Category"
+                  testId="register-category-chips"
+                  attr="data-category"
+                  chips={categoryChips}
+                  active={category}
+                  onPick={(v) => {
+                    void setCategory(v);
+                    void setPage(1);
+                  }}
+                />
+              </div>
+            )}
           </div>
 
-          {bucketMode !== 'none' && (
-            <span className={`${styles.dim} mono`} data-testid="bucket-sort-note">
-              ordered by {bucketField === 'first_seen' ? 'first seen' : 'last activity'}
-            </span>
-          )}
+          {/* ---- AND WHAT IS ON, WHICH IS NEVER BEHIND ANYTHING. ----------- */}
+          {activeFilters.map((f) => (
+            <button
+              key={f.key}
+              type="button"
+              className={styles.activeChip}
+              data-active-filter={f.key}
+              title={`Remove the ${f.axis} filter`}
+              onClick={() => f.clear()}
+            >
+              <span className={styles.activeAxis}>{f.axis}</span>
+              {f.label}
+              <span className={styles.activeClear} aria-hidden="true">
+                ×
+              </span>
+            </button>
+          ))}
 
+          {/* ---- THE PERIOD AND ITS AXIS, AS ONE STATEMENT. ---------------- */}
+          <div className={styles.control}>
+            <button
+              type="button"
+              data-testid="period-toggle"
+              aria-expanded={periodOpen}
+              className={`${styles.disclosure} ${
+                periodOpen || period.key !== 'all' ? styles.disclosureOn : ''
+              }`}
+              onClick={() => {
+                setFiltersOpen(false);
+                setPeriodOpen((o) => !o);
+              }}
+            >
+              {periodStatement}
+              <span className={styles.caret} aria-hidden="true">
+                {periodOpen ? '▴' : '▾'}
+              </span>
+            </button>
+
+            {periodOpen && (
+              <div className={styles.panel} data-testid="period-panel">
+                {/* THE AXIS. Which date the period is applied to. Two different
+                    questions - what arrived, and what moved - that a single
+                    "period" control would silently conflate. */}
+                <div className={styles.panelGroup}>
+                  <span className={styles.panelLabel}>Which date</span>
+                  <div className={styles.panelChips}>
+                    {PERIOD_AXES.map((a) => (
+                      <button
+                        key={a.key}
+                        type="button"
+                        title={a.help}
+                        data-axis={a.key}
+                        className={`${styles.chip} ${axis === a.key ? styles.chipActive : ''}`}
+                        onClick={() => {
+                          setAxis(a.key);
+                          void setPage(1);
+                        }}
+                      >
+                        {a.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className={styles.panelGroup}>
+                  <span className={styles.panelLabel}>Period</span>
+                  {/* ALL TIME HAD NO CONTROL AT ALL. The register's default
+                      period is 'all', and neither the rolling nor the calendar
+                      list offers it - so picking "7 days" was a one-way door
+                      and the only way back was editing the URL. It sits with
+                      the periods rather than inside PeriodSelector because that
+                      component is shared with Today and the composer, where
+                      "all time" is not an option worth offering. */}
+                  <div className={styles.panelChips}>
+                    <button
+                      type="button"
+                      data-period="all"
+                      className={`${styles.chip} ${
+                        period.key === 'all' ? styles.chipAllActive : ''
+                      }`}
+                      onClick={() => {
+                        setPeriod(null);
+                        void setPage(1);
+                      }}
+                    >
+                      All time
+                    </button>
+                  </div>
+                  <PeriodSelector
+                    period={period}
+                    now={periodNow}
+                    onChange={(t) => {
+                      setPeriod(t);
+                      void setPage(1);
+                    }}
+                  />
+                </div>
+
+                <div className={styles.panelGroup}>
+                  <span className={styles.panelLabel}>Grouping</span>
+                  <div className={styles.panelChips}>
+                    {BUCKETS.map((b) => (
+                      <button
+                        key={b.key}
+                        type="button"
+                        data-bucket={b.key}
+                        className={`${styles.chip} ${
+                          bucketMode === b.key ? styles.chipActive : ''
+                        }`}
+                        onClick={() => {
+                          void setBucket(b.key === 'none' ? null : b.key);
+                          void setPage(1);
+                        }}
+                      >
+                        {b.label}
+                      </button>
+                    ))}
+                    {bucketMode !== 'none' && (
+                      <span className={styles.toolbarNote} data-testid="bucket-sort-note">
+                        ordered by {bucketField === 'first_seen' ? 'first seen' : 'last activity'}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* WHAT THE PERIOD AXIS RESOLVED TO, on the row rather than in the
+              panel: it is the result of a query the screen issued and does not
+              otherwise display, and "6 projects" with no cause behind it is what
+              let the old first_seen behaviour go unnoticed for a month. A
+              statement, not a control - it is not counted as a decision because
+              there is nothing to decide about it. */}
           {axis === 'moved' && period.key !== 'all' && (
-            <span className={`${styles.dim} mono`} data-testid="axis-resolution">
+            <span className={`${styles.toolbarNote} mono`} data-testid="axis-resolution">
               {moved.isPending
                 ? 'resolving events...'
                 : `${moved.data?.events ?? 0} events, ${moved.data?.ids.length ?? 0} projects`}
@@ -1049,19 +1281,22 @@ export default function ProjectsPage() {
             </span>
           )}
 
-          {/* The same statement for Arrived. It exists for the same reason the
-              moved one does: the axis resolves through a child table, so the
-              register is showing the result of a query it does not otherwise
-              display, and "6 projects" with no cause behind it is what let the
-              old behaviour go unnoticed. */}
           {axis === 'arrived' && period.key !== 'all' && (
-            <span className={`${styles.dim} mono`} data-testid="axis-resolution">
+            <span className={`${styles.toolbarNote} mono`} data-testid="axis-resolution">
               {arrived.isPending
                 ? 'resolving records...'
                 : `${arrived.data?.records ?? 0} records, ${arrived.data?.ids.length ?? 0} projects`}
               {arrived.data?.capped ? ' (CAPPED)' : ''}
             </span>
           )}
+
+          <input
+            className={styles.search}
+            value={searchDraft}
+            onChange={(e) => setSearchDraft(e.target.value)}
+            placeholder="Project, applicant or representative"
+            aria-label="Search projects"
+          />
         </div>
 
         {/* A FACET THAT COULD NOT BE RESOLVED SAYS SO. Failing closed is only
@@ -1162,7 +1397,7 @@ export default function ProjectsPage() {
           </div>
         )}
 
-        <div className={styles.table} ref={listRef}>
+        <div className={styles.table} ref={listRef} data-testid="register-scroll">
           <div className={styles.headRow} role="row" data-testid="register-head-row">
             <span />
             {COLUMNS.map((c) => (

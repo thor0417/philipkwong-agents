@@ -237,11 +237,29 @@ Filter combinations worth one click: *None*, *Anaheim*, *Approved, anywhere*,
 *Hearing scheduled*. Each sets several filters at once. (Two earlier entries were
 removed because they did not actually change the result set — see §10.)
 
-### List: stage chips
+### List: the filter control
 
-Above the list, one chip per stage plus **All stages**, each with a count.
-Filters on `projects.stage`. Counts exclude the stage filter itself, so a chip
-reading 85 gives you 85 rows.
+**One control, not five rows.** Stage, venue and category were three labelled
+chip rows above the list, each capped at five values with the rest behind a
+"+N more"; the period and its axis had two more rows below them. Measured at
+1920×1080 that block held 34 controls and put the first ranked project at
+y=242 — a third of the screen spent on filters before any work was visible.
+
+What is there now:
+
+- **Filter ▾** opens a panel holding all three axes, every value on each, with
+  the count that clicking it returns. Nothing is capped and nothing is clipped.
+- **One chip per applied filter**, on the row, always. `country United States`,
+  `stage approved`, `venue Hotel`. Pressing one removes it. A collapsed filter
+  that hides what is currently applied would be worse than five rows, so the
+  selection is the one thing that never goes behind the disclosure. The country
+  chip is why the default is now visible at all: the register opens on the
+  United States and nothing on the screen used to say so.
+- **Captured, all time ▾** is the period, the date axis it applies to and the
+  bucketing, as one statement. The panel behind it holds the rolling windows,
+  the calendar periods, the named month, the custom range, both axes, the three
+  grouping modes — and **All time**, which had no control at all before this:
+  picking "7 days" was a one-way door out of the default.
 
 Stages, in ladder order: filed → hearing scheduled → approved → permitted →
 under construction, plus the off-ladder states stalled and dormant.

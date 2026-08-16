@@ -94,6 +94,24 @@ async function openGeographyTree(page: Page): Promise<void> {
   await expect(page.locator('[data-country]').first()).toBeVisible({ timeout: 30_000 });
 }
 
+/**
+ * Open the filter panel.
+ *
+ * Stage, venue and category were three rows of chips above the list and are now
+ * one disclosure: thirty-four controls above the first ranked project is
+ * thirty-four decisions handed to the operator before any work is visible, and
+ * the honest consequence was that none of them got made. The chips themselves
+ * are unchanged and this audit still tests them, so it opens them first.
+ *
+ * Idempotent, like openGeographyTree: already-open is a no-op.
+ */
+async function openFilters(page: Page): Promise<void> {
+  const toggle = page.getByTestId('filter-toggle');
+  await expect(toggle).toBeVisible({ timeout: 120_000 });
+  if ((await toggle.getAttribute('aria-expanded')) !== 'true') await toggle.click();
+  await expect(page.getByTestId('filter-panel')).toBeVisible({ timeout: 30_000 });
+}
+
 async function totalFor(page: import('@playwright/test').Page, url: string): Promise<number> {
   await page.goto(url, { waitUntil: 'domcontentloaded' });
   const pager = page.getByTestId('pager-total');
@@ -127,6 +145,7 @@ test('register filtering audit', async ({ page }) => {
   // that does not exist and call the resulting zero a pass.
   await page.goto(BASE, { waitUntil: 'domcontentloaded' });
   await expect(page.locator('[data-row-id]').first()).toBeVisible({ timeout: 120_000 });
+  await openFilters(page);
 
   // Read the stage chips by their data-stage attribute, NOT by scraping button
   // text. Scraping picked up "New" from the rail's view list on the first
@@ -345,6 +364,7 @@ test('register filtering audit', async ({ page }) => {
   const allChips: { axis: string; all: number }[] = [];
   await page.goto(BASE, { waitUntil: 'domcontentloaded' });
   await expect(page.getByTestId('pager-total')).toBeVisible({ timeout: 120_000 });
+  await openFilters(page);
   for (const attr of ['stage', 'venue', 'category'] as const) {
     // WAIT FOR A REAL FACET VALUE, not merely for a second chip.
     //
@@ -389,6 +409,7 @@ test('register filtering audit', async ({ page }) => {
     noValue.push({ axis: attr, total });
     await page.goto(BASE, { waitUntil: 'domcontentloaded' });
     await expect(page.getByTestId('pager-total')).toBeVisible({ timeout: 120_000 });
+    await openFilters(page);
   }
 
   // ---- THE RAIL MUST COUNT WHAT CLICKING IT RETURNS. -----------------------
@@ -482,6 +503,7 @@ test('register filtering audit', async ({ page }) => {
 
   for (const attr of ['venue', 'category'] as const) {
     await totalFor(page, BASE);
+    await openFilters(page);
     // WAIT FOR MORE THAN ONE CHIP, not for the first one.
     //
     // "All venues" is rendered from an empty facet result, so it exists on the
@@ -659,8 +681,10 @@ test('clicking a filter chip requeries the list', async ({ page }) => {
     const pager = page.getByTestId('pager-total');
     await expect(pager).toBeVisible({ timeout: 120_000 });
     await expect.poll(async () => await pager.getAttribute('data-total'), { timeout: 120_000 }).not.toBeNull();
-    // The market controls live in the press-only tree, which is collapsed.
+    // The market controls live in the press-only tree, which is collapsed; the
+    // venue and category chips live in the filter panel, which is too.
     if (a.pick === 'market') await openGeographyTree(page);
+    else await openFilters(page);
     const before = Number(await pager.getAttribute('data-total'));
 
     // A real value, taken off the screen the click will happen on.
@@ -686,6 +710,7 @@ test('clicking a filter chip requeries the list', async ({ page }) => {
     await expect(pager).toBeVisible({ timeout: 120_000 });
     await expect.poll(async () => await pager.getAttribute('data-total'), { timeout: 120_000 }).not.toBeNull();
     if (a.pick === 'market') await openGeographyTree(page);
+    else await openFilters(page);
 
     let requests = 0;
     const count = (r: { url(): string }) => {

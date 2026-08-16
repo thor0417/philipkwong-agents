@@ -34,9 +34,13 @@ test('register layout at 1920x1080', async ({ page }, testInfo) => {
   const tag = process.env.SHOT_TAG ?? 'after';
   await page.setViewportSize(VIEWPORT);
   await page.goto('/projects', { waitUntil: 'domcontentloaded' });
-  await expect(page.getByTestId('register-venue-chips')).toBeVisible({ timeout: 120_000 });
+  // The filter axes are behind a disclosure now, so the thing to wait for is
+  // the list itself rather than a chip row that is no longer on the screen.
+  await expect(page.locator('[data-testid="register-row"]').first()).toBeVisible({
+    timeout: 120_000,
+  });
   await page.evaluate(() => document.fonts.ready);
-  // Let the facet counts settle so the chips are at their real width.
+  // Let the facet counts settle so the toolbar is at its real width.
   await page.waitForTimeout(2500);
 
   mkdirSync(OUT, { recursive: true });
@@ -157,53 +161,89 @@ test('projects opens ranked, with unread names marked', async ({ page }) => {
   expect(seen, 'no row anywhere is marked as carrying a name we did not read').toBeGreaterThan(0);
 });
 
-// EXPANDING THE OVERFLOW MUST REACH THE OVERFLOW.
+// THE FILTER IS ONE CONTROL, AND WHAT IS APPLIED IS NEVER BEHIND IT.
 //
-// The collapsed chip row is `flex-wrap: nowrap; overflow: hidden`, which is what
-// holds three filter groups to three lines. Those two properties stayed on when
-// "+16 more" expanded the group, so the extra chips were laid out on one
-// unbroken line and clipped at the container's edge: twenty venue values, five
-// reachable, and the control that promised the other fifteen was the control
-// that hid them. The "less" button went off the same edge, so the state could
-// not be left either.
+// Three labelled chip rows became one disclosure. That trade is only acceptable
+// under two conditions, and this asserts both, because a screenshot can show
+// neither:
 //
-// A screenshot cannot catch this - the clipped chips simply are not in the
-// picture, and the picture looks fine. This measures each chip against its
-// container.
-test('the venue chip overflow opens rather than clipping', async ({ page }) => {
+//   1. NOTHING IS CLIPPED INSIDE THE PANEL. The rows this replaced were
+//      `nowrap; overflow: hidden` and capped at five values, so venue offered
+//      five of its twenty and "+16 more" laid the rest out on one unbroken line
+//      that ran off the container's right edge - the control that promised the
+//      other fifteen was the control that hid them. The panel wraps, and every
+//      chip has to sit inside it.
+//   2. THE ACTIVE SELECTION SURVIVES THE COLLAPSE. A filter that is applied and
+//      invisible is strictly worse than five rows of chips, because the
+//      operator is then reading a narrowed list with nothing on screen saying
+//      it is narrowed. So a filter is chosen inside the panel, the panel is
+//      closed, and the selection must still be readable on the row.
+test('the filter panel holds every value, and the selection outlives it', async ({ page }) => {
   await page.setViewportSize(VIEWPORT);
   await page.goto('/projects', { waitUntil: 'domcontentloaded' });
-  const row = page.getByTestId('register-venue-chips');
-  await expect(row).toBeVisible({ timeout: 120_000 });
+  const toggle = page.getByTestId('filter-toggle');
+  await expect(toggle).toBeVisible({ timeout: 120_000 });
   await page.evaluate(() => document.fonts.ready);
   await page.waitForTimeout(2500);
 
-  const collapsed = await row.locator('[data-venue]').count();
-  const more = row.getByRole('button', { name: /^\+\d+ more$/ });
-  await expect(more, 'the venue row did not overflow, so there is nothing to test').toBeVisible({
-    timeout: 30_000,
-  });
-  const promised = Number(((await more.textContent()) ?? '').replace(/[^0-9]/g, ''));
-  await more.click();
-
-  await expect(row.getByRole('button', { name: 'less' })).toBeVisible({ timeout: 30_000 });
-  await page.waitForTimeout(300);
-
-  const expanded = await row.locator('[data-venue]').count();
-  console.log(`venue chips: ${collapsed} collapsed, +${promised} promised, ${expanded} expanded`);
+  // Closed, the three axes are not on the screen at all.
   expect(
-    expanded,
-    `"+${promised} more" expanded the row to ${expanded} chips, not the ${collapsed + promised} it promised`
-  ).toBe(collapsed + promised);
+    await page.locator('[data-venue]').count(),
+    'venue chips are on screen while the filter is collapsed'
+  ).toBe(0);
 
-  // EVERY chip inside the container it was expanded into, and the way back out
-  // reachable too. Right edge, because that is the one the clip happened at.
-  const clipped = await row.evaluate((el) => {
+  await toggle.click();
+  const panel = page.getByTestId('filter-panel');
+  await expect(panel).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator('[data-venue]').first()).toBeVisible({ timeout: 30_000 });
+  await page.waitForTimeout(1500);
+
+  const counts: Record<string, number> = {};
+  for (const attr of ['stage', 'venue', 'category'] as const) {
+    counts[attr] = await panel.locator(`[data-${attr}]`).count();
+  }
+  console.log(
+    `filter panel: ${counts.stage} stage, ${counts.venue} venue, ${counts.category} category chips`
+  );
+  // Venue is the axis the cap was hurting: twenty values, five reachable.
+  expect(counts.venue, 'the panel is still capping the venue axis').toBeGreaterThan(6);
+
+  const clipped = await panel.evaluate((el) => {
     const bounds = el.getBoundingClientRect();
     return [...el.querySelectorAll('button')]
       .map((b) => ({ text: (b.textContent ?? '').trim().slice(0, 24), r: b.getBoundingClientRect() }))
       .filter((c) => c.r.right > bounds.right + 1 || c.r.left < bounds.left - 1)
       .map((c) => c.text);
   });
-  expect(clipped, `chips laid out beyond the row they were expanded into: ${clipped.join(', ')}`).toEqual([]);
+  expect(clipped, `chips laid out beyond the panel holding them: ${clipped.join(', ')}`).toEqual([]);
+
+  // ---- 2. Pick one, close the panel, and look for it on the row. -----------
+  const chosen = await panel
+    .locator('[data-venue]')
+    .nth(1)
+    .getAttribute('data-venue');
+  expect(chosen, 'the venue axis rendered no real value to choose').toBeTruthy();
+  await panel.locator(`[data-venue="${chosen}"]`).first().click();
+  await expect
+    .poll(async () => new URL(page.url()).searchParams.get('venue'), { timeout: 30_000 })
+    .toBe(chosen);
+
+  // Escape closes the panel without touching the selection.
+  await page.keyboard.press('Escape');
+  await expect(panel).toBeHidden({ timeout: 10_000 });
+
+  const active = page.locator('[data-active-filter="venue"]');
+  await expect(active, 'the applied venue filter is not stated anywhere once the panel closes').toBeVisible({
+    timeout: 10_000,
+  });
+  const shown = ((await active.textContent()) ?? '').replace(/\s+/g, ' ').trim();
+  console.log(`collapsed, the row still states: "${shown}"`);
+  expect(shown, `the active chip reads "${shown}" and does not name ${chosen}`).toContain(chosen!);
+
+  // And pressing it removes the filter, which is the only way back out now that
+  // the row has no "All venues" chip on it.
+  await active.click();
+  await expect
+    .poll(async () => new URL(page.url()).searchParams.get('venue'), { timeout: 30_000 })
+    .toBeNull();
 });

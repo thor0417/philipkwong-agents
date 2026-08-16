@@ -41,7 +41,13 @@
       "href": "/pipeline"
     }
   ],
-  "firstRowTop": 242,
-  "controls": 47,
-  "rows": 11
+  "firstRowTop": 133,
+  "controls": 15,
+  "rows": 7,
+  "screenControls": 10,
+  "railControls": 3,
+  "topbarControls": 2,
+  "screenRows": 3,
+  "rowHeight": 52,
+  "rowsPerViewport": 16
 }
