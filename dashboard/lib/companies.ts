@@ -6,10 +6,17 @@
 // counterparties are already in the database, they have simply never been
 // asked for.
 //
-// MERGED COMPANIES ARE HIDDEN, NOT DELETED. Normalisation is exact-after-
-// cleaning by design (fuzzy matching was tested and rejected because it merged
-// genuinely different firms), so duplicates accumulate and a human has to
-// resolve them. A merge repoints the links and marks the loser with a
+// MERGED COMPANIES ARE HIDDEN, NOT DELETED. Identity is decided upstream, in
+// agents/scraper/companies.ts: tidy(), then the clusterer's normalizeEntity(),
+// then EXACT equality on companies.normalized_name, which is the table's unique
+// key. There is one fuzzy pass on top of that, consolidate() in the same file,
+// and it is deliberately almost inert: it needs both names at 10 characters, an
+// identical first token, and 0.90 similarity, and on the live corpus it makes
+// two merges. So near-duplicates accumulate here and a human resolves them.
+// (This comment used to say fuzzy matching had been tested and rejected. It had
+// not; a comment pointing at the wrong file is worse than none.)
+//
+// A merge repoints the links and marks the loser with a
 // manual_overrides.merged_into pointer. Every read filters those out. Nothing
 // is destroyed, so a wrong merge is recoverable, and because it lives in
 // manual_overrides it is an override no future scraper run reverts.
