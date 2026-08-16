@@ -266,10 +266,18 @@ export default function ClientsPage() {
       {intake ? (
         <IntakeForm onDone={() => setIntake(false)} onCancel={() => setIntake(false)} />
       ) : clients.isPending ? (
-        <p className={styles.empty}>Loading...</p>
+        <p className={styles.empty}>Reading the client list...</p>
       ) : clients.isError ? (
-        <p className={styles.empty}>
-          Clients unreadable: {(clients.error as Error).message}
+        /* An error states what happened and what to do. "Clients unreadable"
+           plus a driver message did the first half and left the reader to
+           guess whether the list is empty or broken - which is the one
+           distinction that matters here, because an empty client list looks
+           exactly like a client list that failed to load. */
+        <p className={styles.empty} role="alert">
+          The client list could not be read: {(clients.error as Error).message}. This screen is
+          blank because the query failed, not because there are no clients.
+          Reload; if it persists, this session cannot read the clients table and
+          no document can be generated until it can.
         </p>
       ) : (clients.data ?? []).length === 0 ? (
         <p className={styles.empty}>

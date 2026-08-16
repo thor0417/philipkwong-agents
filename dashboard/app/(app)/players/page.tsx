@@ -176,9 +176,18 @@ export default function PlayersPage() {
         </div>
 
         {players.isPending ? (
-          <p className={styles.dim}>Loading...</p>
+          <p className={styles.dim}>Reading the company graph...</p>
         ) : rows.length === 0 ? (
-          <p className={styles.dim}>No company matches that.</p>
+          /* TWO DIFFERENT EMPTIES, AND THEY WERE PRINTING THE SAME SENTENCE.
+             "No company matches that" is right when a search found nothing and
+             false when the corpus itself is empty - there is no "that" to
+             match, and the operator is told their search failed when the
+             capture did. */
+          <p className={styles.dim}>
+            {term.trim()
+              ? `No company name contains "${term.trim()}". The match is on the stored name only, so a firm filed under a different spelling will not appear; try a shorter fragment.`
+              : 'No company has been extracted from any record yet. Companies are derived from the applicant and representative fields on filings, so an empty graph means those fields are empty rather than that no firm is filing.'}
+          </p>
         ) : (
           rows.map((p) => (
             <Link

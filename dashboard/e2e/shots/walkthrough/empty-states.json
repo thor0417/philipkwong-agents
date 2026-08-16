@@ -1,0 +1,37 @@
+[
+  {
+    "name": "search matches nothing",
+    "url": "/projects?view=all&country=any&q=zzzznomatch",
+    "text": "No project satisfies this.search\"zzzznomatch\"clear",
+    "constraints": [
+      "search\"zzzznomatch\"clear"
+    ]
+  },
+  {
+    "name": "a market nothing matches, inside a country and a stage",
+    "url": "/projects?view=all&country=United+States&region=California&market=Atlantis&stage=approved",
+    "text": "No project satisfies all 4 of these at once.countryUnited StatesremovestateCaliforniaremovemarketAtlantisremovestageapprovedremove",
+    "constraints": [
+      "countryUnited Statesremove",
+      "stateCaliforniaremove",
+      "marketAtlantisremove",
+      "stageapprovedremove"
+    ]
+  },
+  {
+    "name": "a view nobody has filled",
+    "url": "/projects?view=client_ready&country=any",
+    "text": "Nothing has been marked client ready. Open a project and set its status; this is the list a client document is built from, so it stays empty until somebody judges a project fit to send.viewClient readyshow all",
+    "constraints": [
+      "viewClient readyshow all"
+    ]
+  },
+  {
+    "name": "a period nothing arrived in",
+    "url": "/projects?view=all&country=any&period=m:2019-01&axis=arrived",
+    "text": "No project satisfies this.periodCaptured, January 2019all time",
+    "constraints": [
+      "periodCaptured, January 2019all time"
+    ]
+  }
+]

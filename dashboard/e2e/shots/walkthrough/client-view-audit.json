@@ -20,7 +20,7 @@
     "withReason": 15,
     "withoutReason": 0,
     "unconstrained": false,
-    "bar": "CLIENT SCOPE 15 projects proposed by the stored scope. Confirmed membership is not switched on: migration 033 has not been run, so nothing here has been confirmed or excluded yet. CLEAR",
+    "bar": "CLIENT SCOPE 15 projects proposed by the stored scope. 0 confirmed, 0 excluded. 2 of them will not print: 2 carry a name taken from an agenda line, which you can fix by opening the project and renaming it. CLEAR",
     "sample": [
       "stage approved, market Las Vegas / Clark County, venue type Integrated Resort / Casino/Gaming",
       "stage approved, market Anaheim, venue type Mixed-Use Development / Theme Park / Entertainment District / Arena/Stadium",

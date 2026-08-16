@@ -251,6 +251,30 @@ const COLUMNS: { key: string; label: string; sort?: string; numeric?: boolean; h
 ];
 
 /**
+ * WHAT AN EMPTY REGISTER MEANS WHEN NOTHING IS FILTERING IT.
+ *
+ * An empty screen is often the correct answer here, and the useful version of
+ * it names the state and the action that changes it. "No projects match this
+ * view" was neither: it described the query rather than the situation, and its
+ * one piece of advice - "try All, or clear the geography filter" - was given
+ * whether or not a geography filter was applied.
+ */
+function emptyViewSentence(view: ViewKey): string {
+  switch (view) {
+    case 'new':
+      return 'Nothing is untriaged. Every project has been watched, dismissed or marked client ready.';
+    case 'watchlist':
+      return 'Nothing is being watched. Press W on a row, or use Watch in the detail pane; the watchlist is a flag you set, not a stage a project reaches.';
+    case 'client_ready':
+      return 'Nothing has been marked client ready. Open a project and set its status; this is the list a client document is built from, so it stays empty until somebody judges a project fit to send.';
+    case 'trash':
+      return 'Nothing has been dismissed. Press E on a row to dismiss it - it lands here, and nothing is ever deleted.';
+    default:
+      return 'The register holds no project at all. That is a capture problem rather than a filter one: check Health for a source that has stopped, and Inbox for records attached to nothing.';
+  }
+}
+
+/**
  * THE ONE MARK A ROW CAN CARRY THAT SAYS IT CANNOT BE SOLD.
  *
  * Two facts hold a project out of every client document: the market's source has
@@ -655,6 +679,11 @@ export default function ProjectsPage() {
   const rows = list.data?.rows ?? [];
   const total = list.data?.total ?? 0;
   const pageCount = list.data?.pageCount ?? 1;
+
+  // THE ONE CONDITION UNDER WHICH NOTHING ON THIS SCREEN IS AN ANSWER YET.
+  // Named once and read by the rows, the count and the pager's data attribute,
+  // so the three cannot disagree about whether the register has settled.
+  const settling = facetsPending || list.isPending || list.isPlaceholderData;
 
   // View counts share every filter EXCEPT the status axis, so a view's count is
   // exactly the rows it shows when clicked.
@@ -1160,6 +1189,55 @@ export default function ProjectsPage() {
       ? ''
       : `, ${(BUCKETS.find((b) => b.key === bucketMode)?.label ?? '').toLowerCase()}`);
 
+  // EVERY CONSTRAINT THE REGISTER IS UNDER, WITH THE WAY OUT OF EACH.
+  //
+  // The toolbar's chips cover the six filter axes; this adds the three that
+  // are not chips - the view, the period and the search - so an empty register
+  // can list what produced it rather than guessing which one to blame.
+  const constraints = useMemo(() => {
+    const out = activeFilters.map((f) => ({ ...f, undo: 'remove' }));
+    if (viewKey !== 'all') {
+      out.unshift({
+        key: 'view',
+        axis: 'view',
+        label: VIEWS.find((v) => v.key === viewKey)?.label ?? viewKey,
+        undo: 'show all',
+        clear: () => {
+          void setView('all');
+          void setPage(1);
+        },
+      });
+    }
+    if (period.key !== 'all') {
+      out.push({
+        key: 'period',
+        axis: 'period',
+        label: periodStatement,
+        undo: 'all time',
+        clear: () => {
+          setPeriod(null);
+          void setPage(1);
+        },
+      });
+    }
+    if (search.trim()) {
+      out.push({
+        key: 'search',
+        axis: 'search',
+        label: `"${search.trim()}"`,
+        undo: 'clear',
+        clear: () => {
+          setSearchDraft('');
+          void setSearch(null);
+          void setPage(1);
+        },
+      });
+    }
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeFilters, viewKey, period.key, periodStatement, search]);
+
+
   return (
     <div className={styles.screen}>
       <ProjectsRail
@@ -1452,6 +1530,31 @@ export default function ProjectsPage() {
                     } confirmed, ${
                       [...client.data.membership.values()].filter((s) => s === 'excluded').length
                     } excluded.`}
+                {/* WHAT THIS LIST SHOWS AND THE DOCUMENT WILL NOT.
+                    The register marks a provisional name and a frozen market on
+                    the row; the report path drops those projects entirely. So a
+                    client's list can look healthy while their document comes
+                    out a third shorter, and until now the only place that gap
+                    appeared was inside the generated PDF. Said here, with the
+                    action that closes the half of it that can be closed. */}
+                {client.data.heldOut.either > 0 && (
+                  <span data-testid="client-held-out">
+                    {' '}
+                    <span className="mono">{client.data.heldOut.either}</span> of them will not
+                    print:{' '}
+                    {[
+                      client.data.heldOut.unnamed
+                        ? `${client.data.heldOut.unnamed} carry a name taken from an agenda line, which you can fix by opening the project and renaming it`
+                        : '',
+                      client.data.heldOut.frozen
+                        ? `${client.data.heldOut.frozen} sit in a market whose source has stopped publishing, which you cannot`
+                        : '',
+                    ]
+                      .filter(Boolean)
+                      .join(', and ')}
+                    .
+                  </span>
+                )}
               </span>
             )}
             <button
@@ -1511,7 +1614,23 @@ export default function ProjectsPage() {
           </div>
         )}
 
-        <div className={styles.table} ref={listRef} data-testid="register-scroll">
+        {/* A LOADING STATE THAT COULD BE MISTAKEN FOR AN ANSWER IS A DEFECT.
+            Every query on this screen carries `placeholderData: (prev) => prev`
+            so the register never blinks empty while a filter resolves - which
+            is right, and which means the rows on screen are the PREVIOUS
+            filter's answer while the new one is in flight. Rendered at full
+            fidelity under a chip that has already changed, they read as the
+            answer to a question nobody asked yet.
+            The pager has withheld its data-total in this state since the filter
+            work, because an audit that read it measured the filter it had just
+            navigated away from. The operator was given no such signal. Now the
+            rows dim and the count says so. */}
+        <div
+          className={styles.table}
+          ref={listRef}
+          data-testid="register-scroll"
+          data-settling={settling ? 'true' : undefined}
+        >
           <div className={styles.headRow} role="row" data-testid="register-head-row">
             <span />
             {COLUMNS.map((c) => (
@@ -1536,11 +1655,60 @@ export default function ProjectsPage() {
           </div>
 
           {list.isPending ? (
-            <p className={styles.dim}>Loading...</p>
+            <p className={styles.dim}>Reading the register...</p>
           ) : rows.length === 0 ? (
-            <p className={styles.dim}>
-              No projects match this view. {view !== 'all' && 'Try All, or clear the geography filter.'}
-            </p>
+            /* AN EMPTY REGISTER IS AN INVITATION, NEVER AN APOLOGY, and on this
+               product it is often the correct and important answer. So it says
+               what is true - which constraints are on, and what each one is -
+               and every line is the control that removes it. Nothing here
+               guesses: the old text advised clearing the geography filter
+               whether or not one was applied. */
+            <div className={styles.empty} data-testid="register-empty">
+              {/* WHEN THE ONLY THING FILTERING IS THE VIEW, THE VIEW IS THE
+                  ANSWER. "No project satisfies this" over a single line reading
+                  "view / Client ready" is true and useless: what the operator
+                  needs is what that view MEANS and how a project gets into it,
+                  which is a different sentence per view rather than one
+                  sentence about the query. */}
+              <p className={styles.emptyLead}>
+                {constraints.every((c) => c.key === 'view')
+                  ? emptyViewSentence(viewKey)
+                  : constraints.length === 1
+                    ? 'No project satisfies this.'
+                    : `No project satisfies all ${constraints.length} of these at once.`}
+              </p>
+
+              {constraints.length > 0 && (
+                <ul className={styles.emptyList}>
+                  {constraints.map((c) => (
+                    <li key={c.key} data-empty-constraint={c.key}>
+                      <span className={styles.emptyAxis}>{c.axis}</span>
+                      <span className={styles.emptyValue}>{c.label}</span>
+                      <button type="button" className={styles.chipMore} onClick={() => c.clear()}>
+                        {c.undo}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              {/* THE CLIENT CASE, WHICH IS THE ONE THAT MATTERS MOST. An empty
+                  client view has to distinguish "the scope proposes nothing"
+                  from "the scope proposes twelve and the filters above removed
+                  all of them", because the first is a scope to widen on Clients
+                  and the second is a chip to press here. */}
+              {clientId && client.data && (
+                <p className={styles.emptyNote} data-testid="register-empty-client">
+                  {client.data.ids.length === 0
+                    ? 'The stored scope for this client proposes no project at all. Widen it on Clients: a scope that matches nothing produces a document with nothing in it.'
+                    : `The stored scope proposes ${client.data.ids.length} project${
+                        client.data.ids.length === 1 ? '' : 's'
+                      }, and the constraints above remove ${
+                        client.data.ids.length === 1 ? 'it' : 'all of them'
+                      }.`}
+                </p>
+              )}
+            </div>
           ) : (
             rows.map((r, i) => (
               <Fragment key={r.id}>
@@ -1695,17 +1863,19 @@ export default function ProjectsPage() {
           <span
             className={`${styles.dim} mono`}
             data-testid="pager-total"
-            {...(facetsPending || list.isPending || list.isPlaceholderData
-              ? {}
-              : { 'data-total': total })}
+            {...(settling ? {} : { 'data-total': total })}
           >
-            {total === 0
-              ? 'No projects'
-              : `${(page - 1) * DEFAULT_PROJECT_PAGE_SIZE + 1}-${Math.min(
-                  page * DEFAULT_PROJECT_PAGE_SIZE,
-                  total
-                )} of ${total}`}
-            {list.data ? ` | ${list.data.rowsMs} ms rows, ${list.data.countMs} ms count` : ''}
+            {settling
+              ? 'resolving...'
+              : total === 0
+                ? 'No projects'
+                : `${(page - 1) * DEFAULT_PROJECT_PAGE_SIZE + 1}-${Math.min(
+                    page * DEFAULT_PROJECT_PAGE_SIZE,
+                    total
+                  )} of ${total}`}
+            {!settling && list.data
+              ? ` | ${list.data.rowsMs} ms rows, ${list.data.countMs} ms count`
+              : ''}
           </span>
           <div className={styles.pagerBtns}>
             <button type="button" disabled={page <= 1} onClick={() => void setPage(page - 1)}>

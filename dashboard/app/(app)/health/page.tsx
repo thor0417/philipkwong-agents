@@ -67,11 +67,28 @@ export default function HealthPage() {
       {coverage.isPending ? (
         <p className={styles.dim}>Reading the corpus...</p>
       ) : coverage.isError ? (
+        /* AN ERROR SAYS WHAT HAPPENED AND WHAT TO DO. On this screen it also
+           has to say what the failure means, because a Health screen that
+           cannot read is indistinguishable from a Health screen with nothing to
+           report, and the second reads as good news. */
         <p className={styles.error} role="alert">
-          Coverage could not be read: {(coverage.error as Error).message}
+          Coverage could not be read: {(coverage.error as Error).message}. Nothing below is a
+          statement about the sources - this screen is blank because the query
+          failed, not because everything is healthy. Reload; if it persists, the
+          projects or leads table is unreadable to this session and every other
+          screen is affected too.
         </p>
       ) : !data ? (
-        <p className={styles.dim}>Nothing to report.</p>
+        /* "Nothing to report" read as an all-clear. It is the opposite: the
+           coverage query answered with nothing at all, which on a screen about
+           whether sources are still producing is the most alarming state it
+           has. */
+        <p className={styles.dim}>
+          The coverage query answered, and it holds no market and no source for this
+          pipeline. That is not an all-clear: it means nothing has been captured
+          into it. Check Inbox for records attached to no project, and the run log
+          for a lane that has stopped.
+        </p>
       ) : (
         <>
           {/* WHAT THE RUN LOG CANNOT TELL YOU, said before anything derived from

@@ -515,6 +515,75 @@
   margin: 0;
 }
 
+/* ---------------------------------------------------------- the empty state */
+/* An empty register is often the correct answer, so it is written as one: what
+   is true, and the control that changes it. No illustration, no apology and no
+   advice that does not apply - the old text offered to clear the geography
+   filter whether or not one was applied. */
+.empty {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+  padding: var(--space-32) var(--space-16);
+  max-width: 62ch;
+}
+
+.emptyLead {
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--type-body);
+  line-height: var(--leading-body);
+}
+
+.emptyList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+}
+
+.emptyList li {
+  display: grid;
+  grid-template-columns: 84px 1fr auto;
+  align-items: baseline;
+  gap: var(--space-12);
+  padding: var(--space-4) 0;
+  border-bottom: var(--border-hairline);
+  font-size: var(--type-meta);
+}
+
+.emptyAxis {
+  color: var(--ink-muted);
+  font-size: var(--type-caption);
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+}
+
+.emptyValue {
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.emptyNote {
+  margin: 0;
+  color: var(--ink-secondary);
+  font-size: var(--type-meta);
+  line-height: var(--leading-body);
+}
+
+/* THE PREVIOUS ANSWER, MARKED AS PREVIOUS. See the note in page.tsx: the rows
+   are kept on screen while a new filter resolves so the register never blinks
+   empty, which means they are stale rather than wrong, and a stale row shown at
+   full fidelity is a control that appears to have done nothing. Opacity on the
+   rows only - the sticky header and the pager stay crisp, because the pager is
+   where the word "resolving" is. */
+.table[data-settling='true'] .row {
+  opacity: 0.45;
+}
+
 .dot {
   width: 2px;
   height: 2px;
@@ -592,6 +661,18 @@
   color: var(--ink-disabled);
   white-space: nowrap;
   flex: none;
+}
+
+/* A rail section still reading. Declared rather than assumed: this class was
+   referenced by the covered-markets placeholder and did not exist, so the one
+   loading state in the rail rendered as unstyled body text at full ink - the
+   loudest thing in the column, for the least informative thing in it. */
+.railLegend {
+  margin: 0;
+  padding: var(--space-4) var(--space-16);
+  color: var(--ink-disabled);
+  font-size: var(--type-caption);
+  line-height: 1.35;
 }
 
 /* The two numbers on a geography node: projects, then records.

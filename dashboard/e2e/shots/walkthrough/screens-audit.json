@@ -4,7 +4,7 @@
     "url": "/today",
     "ok": true,
     "primary": "h1",
-    "rows": 128,
+    "rows": 56,
     "consoleErrors": [],
     "pageErrors": [],
     "failedRequests": [],
@@ -18,13 +18,9 @@
     "ok": true,
     "primary": "[data-testid=\"pager-total\"]",
     "rows": 50,
-    "consoleErrors": [
-      "Failed to load resource: the server responded with a status of 400 ()"
-    ],
+    "consoleErrors": [],
     "pageErrors": [],
-    "failedRequests": [
-      "400 https://ifpbvuclzjoxblgywibi.supabase.co/rest/v1/rpc/project_facet_counts"
-    ],
+    "failedRequests": [],
     "notes": []
   },
   {
@@ -43,7 +39,7 @@
     "url": "/players",
     "ok": true,
     "primary": "[data-testid=\"players-stats\"]",
-    "rows": 182,
+    "rows": 267,
     "consoleErrors": [],
     "pageErrors": [],
     "failedRequests": [],
@@ -143,13 +139,9 @@
     "ok": true,
     "primary": "[data-testid=\"pager-total\"]",
     "rows": 50,
-    "consoleErrors": [
-      "Failed to load resource: the server responded with a status of 400 ()"
-    ],
+    "consoleErrors": [],
     "pageErrors": [],
-    "failedRequests": [
-      "400 https://ifpbvuclzjoxblgywibi.supabase.co/rest/v1/rpc/project_facet_counts"
-    ],
+    "failedRequests": [],
     "notes": []
   },
   {

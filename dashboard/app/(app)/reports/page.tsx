@@ -308,6 +308,17 @@ export default function ReportsPage() {
   const tally = doc ? provenanceTally(doc) : null;
   // Mirrors assertBasis in lib/report-model, which is what actually refuses.
   const contradictoryBasis = !!doc && doc.projectCount > 0 && doc.recordCount === 0;
+  // A DOCUMENT OF NOTHING, AND THE ONE REASON THAT LOOKS LIKE A BUG.
+  //
+  // Once migration 033 is applied the report enforces confirmed membership: it
+  // keeps only the projects somebody has marked `included` for this client
+  // (see the gate in report-build). The table is applied and empty today, so
+  // every client's preview reads 0 projects over a scope that holds dozens, and
+  // nothing on this screen said why - the composer never surfaced
+  // membershipGate at all. An empty document is the correct output of that
+  // state; an empty document with no explanation is a screen that looks broken.
+  const membershipEmpty =
+    built.data?.membershipGate === 'enforced' && !!doc && doc.projectCount === 0;
   // Nothing may be generated while the scope is unknown, for the same reason
   // nothing is built.
   const blocked = contradictoryBasis || scopeUnresolved;
@@ -811,6 +822,17 @@ export default function ReportsPage() {
             {client?.name} has no stored scope, so this document covers the whole
             register. That is what an empty scope means; set one on Clients to
             narrow it.
+          </p>
+        )}
+
+        {membershipEmpty && (
+          <p className={styles.hint} data-testid="membership-empty">
+            Confirmed membership is switched on and nothing has been confirmed for
+            this client, so this document covers 0 projects however wide their
+            scope is. That is the gate working, not a failure: a report prints
+            only what somebody has judged fit to send. Open this client from the
+            register - they are in the rail under Saved views - and confirm the
+            projects that belong in it.
           </p>
         )}
 
