@@ -31,6 +31,7 @@ import { bestDate } from './cluster';
 import { deriveProjectName } from './project-naming';
 import { classifyVenueType, governmentGate, provenStage } from '../../lib/taxonomy';
 import { resolveGeography } from '../../lib/geography';
+import { inCorpusScope } from '../../lib/corpus-scope';
 
 const CASES_FILE = 'agents/scraper/fixtures/golden.jsonl';
 
@@ -177,6 +178,17 @@ const INLINE: Record<string, () => string | null> = {
       if (got !== want) wrong.push(`${place} -> ${got ?? 'null'} (should be ${want})`);
     }
     return wrong.length ? wrong.join('; ') : null;
+  },
+
+  'press-stays-inside-the-corpus-countries': () => {
+    if (inCorpusScope('Saudi Arabia')) return 'a resolved foreign country was admitted';
+    if (!inCorpusScope('United States')) return 'the United States was refused';
+    // The one that is easy to "fix" wrongly. Null must pass.
+    if (!inCorpusScope(null)) {
+      return 'an unresolved country was treated as foreign, which discards US coverage';
+    }
+    if (!inCorpusScope('  united states  ')) return 'case and whitespace defeat the check';
+    return null;
   },
 
   'junk-never-enters': () => {

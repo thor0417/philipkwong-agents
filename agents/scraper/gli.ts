@@ -43,6 +43,7 @@ import { classifyVenueType, categoryForVenue } from '../../lib/taxonomy';
 import { configuredPrimaryDocument } from './sources/govdocs';
 import { deriveLeadDates, objectFields, shouldDelete } from './lead-date';
 import { geographyFields } from '../../lib/geography';
+import { CORPUS_COUNTRIES, inCorpusScope } from '../../lib/corpus-scope';
 import { hostOf, isJunkDomain } from './junk-domains';
 import { guardedUpsert, emptyWriteReport, printWriteReport } from './write-guard';
 import { selectAllPaged } from './page-select';
@@ -545,6 +546,10 @@ export interface GliReport {
   // Dropped at the gate for a high-risk / sanctioned location (separate from
   // noise drops).
   droppedHighRisk: number;
+  // Dropped because the project's own geography resolved outside the countries
+  // this system covers. See lib/corpus-scope. Counted separately from the
+  // high-risk screen because it is a coverage decision, not a safety one.
+  droppedOutOfCountry: number;
   projectDuplicates: number;
   written: number;
   writeFailed: number;
@@ -693,6 +698,7 @@ export async function runGliLane(rawLeads: NormalizedLead[]): Promise<GliReport>
   const kept: Array<{ lead: NormalizedLead; c: GliClassification }> = [];
   let droppedNoise = 0;
   let droppedHighRisk = 0;
+  let droppedOutOfCountry = 0;
   let projectDuplicates = 0;
 
   for (let i = 0; i < fresh.length; i++) {
@@ -706,6 +712,19 @@ export async function runGliLane(rawLeads: NormalizedLead[]): Promise<GliReport>
     // determined, counted separately from noise.
     if (isHighRiskLocation(c.location)) {
       droppedHighRisk++;
+      continue;
+    }
+    // THE COUNTRY SCREEN. The lane searches the open web, so it returns whatever
+    // is out there: 216 of 451 live press records had resolved to somewhere we
+    // have no adapter pointed at, which is a headline with no filing behind it.
+    //
+    // Resolved through the SAME call the write path uses a few lines below, so
+    // what is admitted and what is stored cannot disagree about where a project
+    // is. Null passes: see inCorpusScope - an unresolved country is not a
+    // foreign one, and "Fort Wayne" resolves to null.
+    const scopeGeo = geographyFields(c.location ?? lead.location, lead.country);
+    if (!inCorpusScope(scopeGeo.country)) {
+      droppedOutOfCountry++;
       continue;
     }
     const key = projectKey(c, lead);
@@ -728,6 +747,7 @@ export async function runGliLane(rawLeads: NormalizedLead[]): Promise<GliReport>
     kept: kept.length,
     droppedNoise,
     droppedHighRisk,
+    droppedOutOfCountry,
     projectDuplicates,
     written: 0,
     writeFailed: 0,
@@ -905,6 +925,7 @@ export function printGliReport(r: GliReport): void {
   console.log(`Kept after inclusion rule:    ${r.kept}`);
   console.log(`Dropped as noise:             ${r.droppedNoise}`);
   console.log(`Dropped as high-risk location:${r.droppedHighRisk}`);
+  console.log(`Dropped outside ${CORPUS_COUNTRIES.join(', ')}:${r.droppedOutOfCountry}`);
   console.log(`Dropped as project duplicate: ${r.projectDuplicates}`);
   console.log(`Written to Supabase:          ${r.written}${r.writeFailed ? `  (write failures: ${r.writeFailed})` : ''}`);
   console.log(
@@ -1022,6 +1043,7 @@ async function main(): Promise<void> {
       droppedStale: report.droppedStale,
       droppedNoise: report.droppedNoise,
       droppedHighRisk: report.droppedHighRisk,
+      droppedOutOfCountry: report.droppedOutOfCountry,
       projectDuplicates: report.projectDuplicates,
       tombstoneSkips: report.skippedDismissed,
       overridesProtected: report.protectedByOverride,

@@ -160,6 +160,19 @@ Push and confirm each ref. No em dashes anywhere, including in generated text. N
 hardcoded keys. Targeted edits only; never rewrite working code to fix something
 unrelated to it.
 
+## Coverage
+
+**This system is United States only, and that is a system setting rather than a
+client one.** `lib/corpus-scope.ts` is the single declaration; the intelligence
+lane refuses a record whose project resolves outside it. Reopening a country is
+one line there. An unresolved country is NOT a foreign one and is admitted, so
+"Fort Wayne" is not thrown away to enforce a rule about Riyadh.
+
+Records already captured from outside it are TOMBSTONED, never deleted: they
+carry `status = 'dismissed'` and `score_reason = 'outside the countries this
+system covers'`, so what we held before a market opens can be read back rather
+than re-scraped.
+
 ## Dead ends, so they are not rebuilt
 
 - **Lead sources:** Upwork RSS, Indeed Job-Search API, GitHub Jobs and Workopolis
