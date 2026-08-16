@@ -60,6 +60,71 @@ The projects table, clustering by normalized project key, stage taxonomy, the Pr
 ### 3B. Dashboard redesign, Brief 5 (after 3A)
 Designed around the project register and the triage workflow, not the flat feed. Government and opportunities primary, intelligence subordinate as context. Design session before the brief is written.
 
+### 3C. A record-text axis on client_scopes (MEDIUM, costed 2026-08-16, for Brief P)
+
+**Why, in one sentence.** A client scope can say WHERE a project sits and WHAT
+LABEL our classifier gave it, and cannot say what the project IS. For any client
+whose buyer is defined by the second, geography plus venue type is the wrong
+shape, and there is nothing else to reach for.
+
+**Measured on Simtec, whose buyer is a project building an attraction.**
+
+| scope shape (expressible today)          | proposes | of 5 wanted | of 20 wanted | noise |
+|------------------------------------------|----------|-------------|--------------|-------|
+| as stored                                | 14       | 5           | 5            | 9     |
+| drop market, keep venues, widen stages    | 76       | 5           | 17           | 59    |
+| drop market and venue, stage only         | 164      | 5           | 19           | 145   |
+| **a record-text signal, no other axis**   | **19**   | 4           | **19**       | **0** |
+
+Every shape the model can express buys coverage with 30 to 145 wrong rows. The
+text axis buys 19 of 20 with none. It cannot be stored.
+
+Fifteen projects Simtec would actually want are unreachable today, including Top
+Gun Las Vegas, Sphere Abu Dhabi and Genting SkyWorlds. Seven of the twenty carry
+NO market on any record, so no market list reaches them however long: this is
+not a matter of picking better markets.
+
+**watch_terms is not this axis and must not be mistaken for it.** It is issued
+as a search string to the intelligence lane and never compared to anything, so
+it changes what gets CAPTURED, not what gets PROPOSED. Putting attraction
+vocabulary there widens the corpus for one client.
+
+**The three pieces, costed:**
+
+1. **The migration.** One column, `client_scopes.record_terms text[] not null
+   default '{}'`. Same shape as the seven arrays beside it, so the intake form,
+   `SCOPE_VALUE_FIELDS` normalisation and `scopeIsEmpty` pick it up with a name
+   added to a list. DDL, so printed for Philip and blocking. No backfill: an
+   empty array constrains nothing, which is what every existing scope means.
+
+2. **The resolveScope branch.** `record_terms` joins `recordFacets` rather than
+   `query`, because it is a property of a RECORD and not of the project row -
+   the same reason market, venue and category are already resolved there. Six
+   lines: `nonEmpty`, an `unconstrained` entry so a scope that constrains
+   nothing still says so, and the field on the returned `recordFacets`.
+
+3. **projectsMatchingRecordFacets.** The one real piece of work. The existing
+   axes compare a column with `ilike` on a whole string; this matches a term
+   ANYWHERE in `title` or `raw_content`. Options, in order of preference:
+   `websearch_to_tsquery` against a stored tsvector (needs a GIN index, which is
+   more DDL), or `or(title.ilike.*term*,raw_content.ilike.*term*)` per term with
+   the results unioned, which needs no DDL and costs one query per term. Simtec
+   would carry about seventeen terms, so the second is one round trip per term
+   against a 553-record table and is fine at this size. Say which was chosen and
+   why, and state the cap.
+
+**Two things it must inherit from the axes beside it.** A term nothing matches
+must return the empty set, never the parent's rows (golden case
+`unresolvable-facet-returns-nothing`). And the client bar's matched-axes line
+must name the terms that matched, or the client view stops answering "why is
+this here" for the axis that put it there.
+
+**Do not build the term list into the product.** Terms are per client and belong
+in that client's scope row. Simtec's would come from the corpus scan, not from a
+domain vocabulary: 28 of 49 obvious candidates - ride, dark ride, flying
+theatre, simulator, ride system - score ZERO in this corpus, and the terms that
+work are attraction, theme park, immersive, entertainment district, amusement.
+
 ## TRACK 4: THE DELIVERABLE ENGINE (automate the brief)
 
 ### 4A. This month: manual prototype (DONE pending review)
@@ -87,6 +152,8 @@ The full pipeline on schedule: capture, attach to projects, decay via liveness, 
 3. 2A triage brief
 4. 1C Anaheim Planning, 1E Nevada regulators, 1G legacy purge (one cleanup session)
 5. 3A project clustering
+5b. 3C record-text scope axis (Brief P; unblocks every client whose buyer is
+    defined by what a project is rather than where it sits)
 6. 4B brief generator
 7. 3B dashboard redesign
 8. 4C weekly agent
