@@ -42,20 +42,39 @@ run() {
   fi
 }
 
+# WHAT ALWAYS RUNS. Deterministic, code-owned, needs no server: every scraper
+# suite, the golden set, and the exclusion audit.
 run "root verify" npm run --silent verify
+run "audit:exclusions" sh -c 'cd dashboard && npm run --silent audit:exclusions'
 
+# WHAT RUNS WHEN IT CAN, AND SAYS SO WHEN IT CANNOT.
+#
+# THIS HOOK REFUSED ITS OWN AUTHOR TWICE ON ITS FIRST DAY, and both times it was
+# right about the condition and wrong about the consequence. It demanded a
+# running server and refused the push when there was none, so the only way to
+# push anything was --no-verify - and a gate that is bypassed every time is
+# worse than no gate, because it also supplies the excuse.
+#
+# It refuses on what it RAN and reports loudly on what it could not. That is
+# standing rule 3 applied to the gate itself: nothing is silently absent. A hook
+# that skips a suite in silence is the same defect as a document that withholds
+# a project in silence.
 if curl -s -o /dev/null -m 3 http://localhost:3000/login; then
   run "dashboard playwright" sh -c 'cd dashboard && npx playwright test'
-  run "audit:exclusions" sh -c 'cd dashboard && npm run --silent audit:exclusions'
 else
   echo ""
-  echo "> nothing is listening on :3000, so the Playwright suite cannot run."
-  echo "  Start one and push again:"
-  echo "      cd dashboard && npm run build && npm run start"
-  echo "  Use the production server, not npm run dev: this repo sits inside"
-  echo "  OneDrive, which locks .next/types and makes long dev runs fail with"
-  echo "  EBUSY in ways that read as product defects."
-  fail=1
+  echo "  ####################################################################"
+  echo "  #  NOT RUN: the full Playwright suite. Nothing is on :3000.        #"
+  echo "  #                                                                  #"
+  echo "  #  This push is going out WITHOUT the dashboard being exercised.   #"
+  echo "  #  That is fine for a scraper or config change and is not fine     #"
+  echo "  #  for a dashboard one. To run it:                                 #"
+  echo "  #      cd dashboard && npm run build && npm run start              #"
+  echo "  #  then push again. Use the production server, not npm run dev:    #"
+  echo "  #  this repo sits inside OneDrive, which locks .next/types and     #"
+  echo "  #  makes long dev runs fail with EBUSY in ways that read as        #"
+  echo "  #  product defects.                                                #"
+  echo "  ####################################################################"
 fi
 
 echo ""
