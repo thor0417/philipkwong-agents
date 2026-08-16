@@ -1,13 +1,13 @@
 [
   {
     "pass": "cold (new context)",
-    "ms": 1650,
-    "queries": 20,
+    "ms": 1458,
+    "queries": 19,
     "byTable": {
       "pipelines": 1,
       "projects": 11,
       "rpc": 4,
-      "leads": 2,
+      "leads": 1,
       "clients": 1,
       "source_health": 1
     },
@@ -16,13 +16,13 @@
   },
   {
     "pass": "warm (same context)",
-    "ms": 1626,
-    "queries": 20,
+    "ms": 1417,
+    "queries": 19,
     "byTable": {
       "pipelines": 1,
       "projects": 11,
       "rpc": 4,
-      "leads": 2,
+      "leads": 1,
       "clients": 1,
       "source_health": 1
     },
@@ -31,13 +31,13 @@
   },
   {
     "pass": "warm, filter panel open",
-    "ms": 1599,
-    "queries": 20,
+    "ms": 1389,
+    "queries": 19,
     "byTable": {
       "pipelines": 1,
       "projects": 11,
       "rpc": 4,
-      "leads": 2,
+      "leads": 1,
       "clients": 1,
       "source_health": 1
     },

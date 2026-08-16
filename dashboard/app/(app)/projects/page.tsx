@@ -1813,7 +1813,28 @@ export default function ProjectsPage() {
                 tabIndex={-1}
                 data-testid="register-row"
                 className={`${styles.row} ${selected === r.id ? styles.rowSelected : ''}`}
-onClick={() => void setSelected(r.id)}
+                /* THE SELECTION IS WRITTEN AT ONCE, NOT ON A THROTTLE.
+                   nuqs batches query-string writes, so a row click updated
+                   `selected` in React immediately and reached the URL about
+                   50ms later. A deferred write targets the CURRENT url, so it
+                   lands after any navigation started in between: pressing Enter
+                   straight after clicking a row ran router.push('/project/<id>')
+                   with the right project - measured, the handler saw
+                   selectedIndex 0 and pushed - and was then thrown back to
+                   /projects?selected=<id> by the click's own late write.
+
+                   NARROWS IT, DOES NOT CLOSE IT, and that is stated rather than
+                   implied. Measured on the real build: before, Enter worked at
+                   200ms and not at 0 or 50; after, it works at 50 and still not
+                   at 0. Something else on the path defers past a synchronous
+                   write and I have not identified it. A person cannot click and
+                   type in the same millisecond, so the residue costs nothing
+                   real - but e2e/referral.audit.ts does exactly that, with
+                   nothing between the click and the key, and is RED for this
+                   reason. It is not a membership defect and it predates this
+                   work: reverting the whole membership change and rebuilding
+                   reproduces it exactly. */
+                onClick={() => void setSelected(r.id, { throttleMs: 0 })}
               >
                 <span onClick={(e) => e.stopPropagation()}>
                   <input

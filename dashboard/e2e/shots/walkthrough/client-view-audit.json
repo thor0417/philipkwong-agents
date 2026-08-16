@@ -5,7 +5,7 @@
     "withReason": 0,
     "withoutReason": 50,
     "unconstrained": true,
-    "bar": "CLIENT SCOPE The stored scope constrains no axis, so this client is covered for everything. The list below is the whole register. CLEAR",
+    "bar": "CLIENT SCOPE The stored scope constrains no axis, so this client is proposed everything. 267 proposed, 0 confirmed, 0 excluded. A document prints the confirmed only, so it would cover no projects at all. Press C on a row to confirm it, X to exclude it. 44 of the proposed will not print: 39 carry a name taken from an agenda line, which you can fix by opening the project and renaming it, and 6 sit in a market whose source has stopped publishing, which you cannot. CLEAR",
     "sample": [
       "scope constrains no axis: everything is in scope",
       "scope constrains no axis: everything is in scope",
@@ -20,7 +20,7 @@
     "withReason": 15,
     "withoutReason": 0,
     "unconstrained": false,
-    "bar": "CLIENT SCOPE 15 projects proposed by the stored scope. 0 confirmed, 0 excluded. 2 of them will not print: 2 carry a name taken from an agenda line, which you can fix by opening the project and renaming it. CLEAR",
+    "bar": "CLIENT SCOPE 15 proposed, 0 confirmed, 0 excluded. A document prints the confirmed only, so it would cover no projects at all. Press C on a row to confirm it, X to exclude it. 2 of the proposed will not print: 2 carry a name taken from an agenda line, which you can fix by opening the project and renaming it. CLEAR",
     "sample": [
       "stage approved, market Las Vegas / Clark County, venue type Integrated Resort / Casino/Gaming",
       "stage approved, market Anaheim, venue type Mixed-Use Development / Theme Park / Entertainment District / Arena/Stadium",

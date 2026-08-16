@@ -75,7 +75,7 @@
       "state": "live",
       "projects": 93,
       "named": 89,
-      "records": 206,
+      "records": 199,
       "published": "23d",
       "captured": "4d",
       "why": "93 live projects, 89 naming a party, newest document 23 days old"
@@ -95,10 +95,10 @@
       "state": "live",
       "projects": 19,
       "named": 17,
-      "records": 78,
-      "published": "8d",
+      "records": 77,
+      "published": "20d",
       "captured": "4d",
-      "why": "19 live projects, 17 naming a party, newest document 8 days old"
+      "why": "19 live projects, 17 naming a party, newest document 20 days old"
     },
     {
       "market": "Phoenix",
@@ -189,7 +189,7 @@
     {
       "source": "nyc-ceqr",
       "quiet": false,
-      "records": 64,
+      "records": 63,
       "published": "24d",
       "captured": "6d",
       "thisRun": "unknown",
@@ -198,7 +198,7 @@
     {
       "source": "nyc-city-record",
       "quiet": false,
-      "records": 94,
+      "records": 88,
       "published": "23d",
       "captured": "6d",
       "thisRun": "unknown",
@@ -243,7 +243,7 @@
     {
       "source": "gli_serper",
       "quiet": false,
-      "records": 484,
+      "records": 451,
       "published": "6d",
       "captured": "4d",
       "thisRun": "unknown",
