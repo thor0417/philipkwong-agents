@@ -456,6 +456,47 @@ export async function buildReport(req: BuildRequest): Promise<BuiltReport> {
   }
   records = records.slice(0, RECORD_CAP);
 
+  // ---- THE PARTIES ARE A PROPERTY OF THE PROJECT, NOT OF THE PERIOD. --------
+  //
+  // The read above is period-scoped, because record LINES are what happened in
+  // the window. Building the PEOPLE section from the same set made a project
+  // anonymous whenever its only filings inside the period were press: the
+  // August report said of OCVibe "No party is named in any of the 5 records
+  // captured for this project" while the register held Anaheim Real Estate
+  // Partners, LLC, two named contacts and their email addresses, and the
+  // referral brief printed all of them.
+  //
+  // That is the opposite of the product. A reader concluded we do not know who
+  // is behind one of the largest entertainment developments in California.
+  //
+  // So a second read, unfiltered by period, used ONLY for parties. Same
+  // projects, same lanes, same dismissal rule - the period is the only thing
+  // dropped. Each party still carries the date of the record that named it, so
+  // a current representative and one on a 2024 filing are distinguishable.
+  const partyRecords: typeof records = [];
+  if (ids.length) {
+    for (let i = 0; i < ids.length && partyRecords.length < RECORD_CAP; i += ID_CHUNK) {
+      let q = supabase
+        .from('leads')
+        .select(RECORD_COLUMNS)
+        .in('project_id', ids.slice(i, i + ID_CHUNK))
+        .neq('status', 'dismissed')
+        .order('published_date', { ascending: false, nullsFirst: false })
+        .limit(RECORD_CAP);
+      if (streams) q = q.in('stream', streams);
+      const { data, error } = await q;
+      if (error) throw new Error(`report party records query failed: ${error.message}`);
+      partyRecords.push(...((data ?? []) as unknown as typeof records));
+    }
+  }
+  const partyRecordsByProject = new Map<string, typeof records>();
+  for (const r of partyRecords.slice(0, RECORD_CAP)) {
+    const id = r.project_id ?? '';
+    if (!id) continue;
+    if (!partyRecordsByProject.has(id)) partyRecordsByProject.set(id, []);
+    partyRecordsByProject.get(id)!.push(r);
+  }
+
   // Events in the period, for What moved.
   //
   // EVERY PROJECT, NOT THE FIRST 150. This read was `.in('project_id',
@@ -611,6 +652,8 @@ export async function buildReport(req: BuildRequest): Promise<BuiltReport> {
     const built = buildEntry(p, recordsByProject.get(p.id) ?? [], {
       history: partyHistory,
       cap: entryCap,
+      // Every record the project holds, whenever filed. See the note above.
+      partyRecords: partyRecordsByProject.get(p.id) ?? [],
     });
     // Eligibility was settled before selection, so every detailed project has a
     // filing in the period and this cannot normally fire. It stays because

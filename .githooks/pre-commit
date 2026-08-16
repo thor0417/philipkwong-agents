@@ -60,7 +60,14 @@ case "$staged" in
     # GATED SEPARATELY, deliberately. A green typecheck and a red build have
     # happened on the same tree here.
     run "dashboard typecheck" sh -c 'cd dashboard && npx tsc --noEmit'
-    run "dashboard build" sh -c 'cd dashboard && npm run --silent build >/dev/null 2>&1'
+    # CLEAN FIRST, AND IT IS NOT BELT AND BRACES. This repository sits inside
+    # OneDrive, which keeps handles open on files a previous build wrote, so a
+    # build over a warm .next fails with EBUSY on edge-runtime-webpack.js or
+    # functions-config-manifest.json. It has cost time three times now, and each
+    # time it reads as a code failure rather than as a sync client.
+    # A cold build is the same 19 seconds, because next build rewrites nearly all
+    # of it anyway.
+    run "dashboard build" sh -c 'cd dashboard && npm run --silent clean && npm run --silent build >/dev/null 2>&1'
     ;;
   *)
     echo ""

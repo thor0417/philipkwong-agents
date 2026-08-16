@@ -914,7 +914,7 @@ export default function ReportsPage() {
                     a preview that silently shows less than it will print is the
                     same silent-omission failure at a smaller scale. */}
                 {(sec.entries ?? []).slice(0, 12).map((e) => (
-                  <div key={e.id} className={styles.entry} data-entry={e.id}>
+                  <div key={e.id} className={styles.entry} data-entry={e.id} data-entry-name={e.name}>
                     <div className={styles.entryHead}>
                       <h4 className={styles.entryName}>{e.name}</h4>
                       {e.meta && <span className={styles.entryMeta}>{e.meta}</span>}
@@ -932,7 +932,7 @@ export default function ReportsPage() {
                       <div className={styles.people}>
                         <p className={styles.peopleHead}>The people</p>
                         {e.people.map((party, i) => (
-                          <div key={i} className={styles.entryRec}>
+                          <div key={i} className={styles.entryRec} data-entry-party>
                             <span className={styles.tag}>[{party.provenance}]</span>
                             <span className={styles.entryRecBody}>
                               <b>{party.name}</b>
@@ -949,7 +949,17 @@ export default function ReportsPage() {
                               {party.alsoOn && (
                                 <div className={styles.entryRecDetail}>{party.alsoOn}</div>
                               )}
-                              <div className={styles.lineSource}>{party.sourceLabel}</div>
+                              {/* WHEN THE RECORD NAMING THEM WAS FILED. The
+                                  people section covers the project's whole
+                                  history rather than the period, so a reader
+                                  needs to tell a current representative from
+                                  one on a 2024 filing. Printed only where the
+                                  record carries a date, per the design rule
+                                  that a null field is hidden rather than shown
+                                  empty. */}
+                              <div className={styles.lineSource}>
+                                {[party.sourceLabel, party.date].filter(Boolean).join(' | ')}
+                              </div>
                             </span>
                           </div>
                         ))}

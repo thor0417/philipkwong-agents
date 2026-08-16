@@ -555,7 +555,16 @@ export interface BuiltEntry {
 export function buildEntry(
   project: Project,
   records: ScopedRecord[],
-  opts: { cap?: number; history?: Map<string, PartyHistory> } = {}
+  opts: {
+    cap?: number;
+    history?: Map<string, PartyHistory>;
+    // EVERY record the project holds, whenever filed. The PEOPLE section is
+    // built from these rather than from the period-scoped set: parties are what
+    // is true of the project, record lines are what happened in the window.
+    // Falls back to the scoped records when absent, so a caller that has not
+    // been updated degrades to the old behaviour rather than to no parties.
+    partyRecords?: ScopedRecord[];
+  } = {}
 ): BuiltEntry | null {
   const cap = opts.cap ?? ENTRY_RECORD_CAP;
   const { records: usable, merged } = dedupe(records.filter((r) => !!r.url));
@@ -573,9 +582,12 @@ export function buildEntry(
   const brands = brandCasing(project.name);
   // Built from the records the entry PRINTS, so the people section and the
   // filings under it cannot describe different sets.
+  // NOT `shown`. See the note on opts.partyRecords: a project whose only
+  // in-period filings are press was reported as having no party at all.
+  const forParties = opts.partyRecords?.length ? opts.partyRecords : shown;
   const people = opts.history
-    ? withPartyHistory(buildParties(project, shown), opts.history)
-    : buildParties(project, shown);
+    ? withPartyHistory(buildParties(project, forParties), opts.history)
+    : buildParties(project, forParties);
   const entryRecords: EntryRecord[] = shown.map((r) => {
     const reference = referenceOf(r);
     const text = actionText(r, reference, brands);
@@ -625,7 +637,7 @@ export function buildEntry(
           : null,
       assembled: assembleSentence(entryRecords),
       people,
-      noPeopleNote: people.length === 0 ? noPartiesNote(shown) : null,
+      noPeopleNote: people.length === 0 ? noPartiesNote(forParties) : null,
       records: entryRecords,
     },
     held: ordered.length - shown.length,
