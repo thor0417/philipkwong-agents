@@ -44,15 +44,68 @@ Two packages, and the split is not cosmetic. `npm run typecheck` at the root doe
 not see the dashboard, and `npm run verify` in the dashboard does not see the
 agents. Both gates are needed and neither substitutes for the other.
 
-- **Root** — the agent runtime (Node + tsx). Its `tsconfig.json` covers `agents/`
+- **Root**: the agent runtime (Node + tsx). Its `tsconfig.json` covers `agents/`
   and `lib/` only.
-- **`dashboard/`** — a self-contained Next.js project with its own
+- **`dashboard/`**: a self-contained Next.js project with its own
   `package.json` and `tsconfig.json`. Next's App Router must be rooted where
   `app/` lives, so it cannot share the root package.
 
 `lib/dead-feeds.ts` is read across the split by both packages deliberately: a
 mirrored copy is a copy that goes stale, and the stale half decides what a client
 is told.
+
+## Where things are
+
+So a session does not open with fifteen greps. Measured on this one: nine shell
+commands and eleven file reads before the first edit, and every one of the nine
+was answering a question this section answers.
+
+**The agent runtime** (`agents/scraper/`)
+- `orchestrator.ts` runs the lanes. `government.ts`, `gli.ts`, `opportunity.ts`.
+- `cluster.ts` turns records into projects. `bestDate` is here and is why a
+  dateless record is never a project's latest activity.
+- `targets.ts` is the named-project list, with `districtWide` for terms that
+  name a place rather than a project.
+- `project-naming.ts` derives a name. `verify-naming.ts` is its test.
+- `fixtures/golden.jsonl` + `verify-golden.ts` are the golden set.
+
+**Shared taxonomy** (`lib/taxonomy.ts`, 1400 lines, the single densest file)
+- `governmentGate` admits or refuses a record. `GOV_GATE_OUT_OF_VERTICAL` is the
+  junk list, `BORROWED_CONTEXT` neutralises boilerplate that is not a subject.
+- `classifyVenueType` and `venueReadableText` read the same neutralised text.
+- `provenStage` is the stage ladder, `HIGHEST_UNPROVEN_STAGE` its bar.
+- `isProvisionalName` decides whether a project may be printed to a client.
+- `lib/dead-feeds.ts` is read across the package split by both packages.
+
+**The dashboard** (`dashboard/`)
+- `app/(app)/projects/` is the register, and is the working surface: `page.tsx`,
+  `ProjectsRail.tsx`, `ProjectsDetail.tsx`, `page.module.css`.
+- `components/shell/` is the chrome every screen shares. `navigation.ts` is the
+  one nav list the rail and the palette both read.
+- `app/tokens.css` is the design system. Every value the interface may use is
+  there and nothing else is allowed. `/design` renders it.
+- `lib/report-build.ts` builds every document; `lib/use-client-view.ts` is the
+  client view and the membership gate's proposal path.
+
+**The harnesses** (`dashboard/e2e/`)
+- `filters.audit.ts` is the largest and covers the filter axes end to end.
+- `rail.shots.ts` MEASURES as well as photographs: rail height, controls above
+  the first row, rows per viewport.
+- `screens.shots.ts` enforces the accent budget per screen. Exceeding it fails.
+- `report.shots.ts` generates real documents into `e2e/shots/documents/`.
+- `scripts/exclusion-audit.ts` checks that every withheld thing is stated.
+
+**Running it**
+- The dashboard needs a server on :3000. Use `npm run build && npm run start`,
+  not `npm run dev`: this repo lives inside OneDrive, which locks `.next/types`
+  and makes long dev runs fail with EBUSY in ways that read as product defects.
+- Playwright reuses an existing server, so start one first and leave it up.
+
+**Send to a subagent, not to the main context**
+Any question of the form "where is X handled", "is this asserted anywhere",
+"find every place this shape appears". The answer is a list; the forty file
+excerpts that produced it are not needed again and should not be in the
+conversation. Use the `sweep` skill for defect shapes.
 
 ## Environment
 
