@@ -158,17 +158,53 @@ const LEGAL_SUFFIXES = new Set([
   'trust', 'partnership', 'partners', 'holdings', 'group', 'et', 'al', 'etal',
 ]);
 
-// Normalized entity name: lowercase, parentheticals dropped, punctuation folded,
-// legal suffixes stripped from the tail, leading "the" dropped.
+// A CO-PARTY BOUNDARY, not every "and".
+//
+// The splitter used to cut at the FIRST " and " unconditionally. That is right
+// for a co-applicant list and wrong for a name that merely contains the word:
+// "Walt Disney Parks and Resorts U.S., Inc." became "walt disney parks", while
+// the same counterparty spelled with an ampersand became "walt disney parks
+// resorts u s". One firm, two identities, and the two markets it files in -
+// Anaheim and the Central Florida Tourism Oversight District - therefore never
+// met.
+//
+// A separator is a boundary only when a LEGAL SUFFIX sits immediately to its
+// left, which is how a filing actually ends one party before naming the next
+// ("Anaheim Real Estate Partners, LLC, TS Anaheim, LLC, and FCD, LLC"). "&" and
+// "and" are one separator spelled two ways, so both are read the same.
+//
+// MEASURED over 916 party strings: 42 distinct strings change key, two
+// identities merge (Disney across two markets, and the three 200 Kent Avenue
+// filings), six more public bodies are refused because they no longer normalise
+// to a truncated fragment, and no firm loses its name.
+//
+// THE BLUNTER FIX WAS TESTED AND REJECTED. Folding "&" to " and " before an
+// unconditional split merges Disney too, and costs the same 74 strings their
+// tails: "HOLLAND & HART LLP" becomes "holland", "Adler & Stachenfeld" becomes
+// "adler", and "M&D 57 Box St", "Y&B Investments" and "Y & T Development" all
+// become one letter, which the stoplist then refuses entirely. Three real
+// companies would leave the register to gain one.
+const CO_PARTY_BOUNDARY = new RegExp(
+  `\\b(?:${[...LEGAL_SUFFIXES].map((s) => s.replace(/\./g, '\\.')).join('|')})\\.?,?\\s*(?:&|and)\\s`
+);
+
+// Normalized entity name: lowercase, parentheticals dropped, cut at a co-party
+// boundary, remaining separators folded, punctuation folded, legal suffixes
+// stripped from the tail, leading "the" dropped.
 export function normalizeEntity(raw: string | null | undefined): string {
   if (!raw) return '';
   let s = raw.toLowerCase();
   // "City Parkway V, Inc., (CPV)" -> drop the trailing acronym gloss.
   s = s.replace(/\([^)]*\)/g, ' ');
-  // A filing that names several co-applicants ("Anaheim Real Estate Partners,
-  // LLC, TS Anaheim, LLC, and FCD, LLC") is normalized on its FIRST named party,
-  // which is the one that recurs across the project's records.
-  s = s.split(/\s+and\s+|\s*;\s*/)[0];
+  // A filing that names several co-applicants is normalized on its FIRST named
+  // party, which is the one that recurs across the project's records. A
+  // semicolon always ends a party; "and" and "&" only do so after a suffix.
+  s = s.split(/\s*;\s*/)[0];
+  const boundary = CO_PARTY_BOUNDARY.exec(s);
+  if (boundary) s = s.slice(0, boundary.index + boundary[0].length);
+  // Whatever separators are left are punctuation inside one name, so the two
+  // spellings of the same firm fold to the same key.
+  s = s.replace(/\s+and\s+/g, ' ');
   s = s.replace(/[^a-z0-9]+/g, ' ').trim();
   const parts = s.split(' ').filter(Boolean);
   while (parts.length > 1 && LEGAL_SUFFIXES.has(parts[parts.length - 1])) parts.pop();

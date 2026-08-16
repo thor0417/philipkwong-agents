@@ -126,10 +126,10 @@ const GENERIC_PARTY_PATTERNS: RegExp[] = [
   /\bunited states\b|\bu\.?s\.? (department|government|army|navy)\b/,
   // A bare public-body noun with no distinguishing name in front of it.
   /^(town advisory board|advisory board|planning commission|city clerk)$/,
-  // Tourism and civic promotion bodies. Caught separately because
-  // normalizeEntity splits on " and " and keeps the FIRST party, so "Las Vegas
-  // Convention and Visitors Authority" normalises to "las vegas convention" -
-  // with the word 'authority' already gone before any pattern above can see it.
+  // Tourism and civic promotion bodies. Caught on their own noun rather than on
+  // "authority", because the word is not reliably present by the time a pattern
+  // can see it: an ampersand spelling ("Anaheim/Orange County Visitor &
+  // Convention Bureau") never carries it at all.
   /\b(convention|visitors bureau|chamber of commerce|tourism board)\b/,
 ];
 
@@ -142,12 +142,14 @@ export function isGenericParty(normalized: string): boolean {
 // TS Anaheim, LLC, and FCD, LLC"). normalizeEntity takes the FIRST named party,
 // and this deliberately does the same rather than splitting.
 //
-// Splitting looks easy and is not: " and " sits inside "Brown, Brown &
-// Premsrirut" as punctuation, and a comma separates a company from its own legal
-// suffix as often as it separates two companies. A wrong split invents a company
-// that does not exist, which is worse than recording one of two real ones. The
-// backfill reports how many records carried a co-applicant list so the size of
-// what is skipped is visible rather than silent.
+// Splitting looks easy and is not: "and" sits inside "Walt Disney Parks and
+// Resorts" as part of the name, "&" sits inside "Brown, Brown & Premsrirut" as
+// punctuation, and a comma separates a company from its own legal suffix as
+// often as it separates two companies. That is why normalizeEntity ends a party
+// only at a LEGAL SUFFIX followed by a separator: a wrong split invents a
+// company that does not exist, which is worse than recording one of two real
+// ones. The backfill reports how many records carried a co-applicant list so
+// the size of what is skipped is visible rather than silent.
 export function hasCoParties(value: string | null | undefined): boolean {
   if (!value) return false;
   return /,\s*(?:llc|l\.l\.c|inc|lp|llp|ltd|corp)\b.*\b(?:and|&)\b/i.test(value) || /;\s*\S/.test(value);
