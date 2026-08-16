@@ -166,6 +166,34 @@ async function main(): Promise<void> {
   console.log(`\nTombstoned ${done} press records. Nothing deleted; every row keeps its url,`);
   console.log('title, resolved geography and project link, and can be read back if a');
   console.log('market outside the United States opens later.');
+
+  // ---- AND REPAIR THE CACHED COUNT. ---------------------------------------
+  //
+  // projects.record_count is denormalised, and dismissing a record invalidates
+  // it. The first run of this pass left eight projects with a count of two or
+  // three over zero live rows, and verify-curation caught it at the push gate -
+  // which is the gate doing its job and this pass not doing its own.
+  //
+  // Repaired here rather than in a follow-up script, because a migration that
+  // leaves the database failing its own verification is a migration that is not
+  // finished.
+  const touched = [...new Set(doomed.map((r) => r.project_id).filter(Boolean) as string[])];
+  let repaired = 0;
+  for (const id of touched) {
+    const { count, error } = await supabaseAdmin
+      .from('leads')
+      .select('id', { count: 'exact', head: true })
+      .eq('project_id', id)
+      .neq('status', 'dismissed');
+    if (error) throw new Error(`recount failed: ${error.message}`);
+    const { error: up } = await supabaseAdmin
+      .from('projects')
+      .update({ record_count: count ?? 0 })
+      .eq('id', id);
+    if (up) throw new Error(`recount write failed: ${up.message}`);
+    repaired++;
+  }
+  console.log(`Recounted ${repaired} project${repaired === 1 ? '' : 's'} whose cached record_count this pass invalidated.`);
 }
 
 main().catch((e) => {
