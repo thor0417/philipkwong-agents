@@ -22,6 +22,7 @@ import { useProject, useProjectTimeline, useProjectMutations } from '@/lib/use-p
 import { useProjectPeople } from '@/lib/use-people';
 import { PROJECT_STAGES } from '@/lib/taxonomy';
 import { projectOverriddenFields } from '@/lib/project-mutations';
+import type { MembershipStatus } from '@/lib/client-projects';
 import styles from './page.module.css';
 
 function ymd(iso: string | null | undefined): string {
@@ -32,10 +33,26 @@ export default function ProjectsDetail({
   id,
   onClose,
   onError,
+  // ---- MEMBERSHIP, PASSED IN RATHER THAN READ HERE.
+  //
+  // The pane is rendered for one project at a time and the membership map is a
+  // property of the CLIENT VIEW, which the register already holds. Reading it
+  // again here would be a second query answering the same question, and the two
+  // could disagree about whether a row is confirmed - which is the one thing on
+  // this screen that must never be ambiguous. All four are null or undefined
+  // when no client is open, and the block does not render.
+  clientName = null,
+  membershipStatus = null,
+  onMembership,
+  membershipBusy = false,
 }: {
   id: string;
   onClose: () => void;
   onError: (message: string) => void;
+  clientName?: string | null;
+  membershipStatus?: MembershipStatus | null;
+  onMembership?: (status: MembershipStatus) => void;
+  membershipBusy?: boolean;
 }) {
   const project = useProject(id);
   const timeline = useProjectTimeline(id);
@@ -205,6 +222,68 @@ export default function ProjectsDetail({
           Generate referral brief
         </Link>
       </div>
+
+      {/* ---- IS THIS PROJECT IN THIS CLIENT'S DOCUMENT. --------------------
+          The one question the pane could not answer, and the reason every
+          client document covered nothing: the scope proposed, the report
+          demanded confirmation, and no screen could confirm.
+          It sits directly under the actions rather than at the foot of the pane
+          because it is the decision the pane exists to support in a client
+          view - everything below it (people, timeline, notes) is the evidence
+          for making it.
+          BOTH DIRECTIONS ARE A WRITE and pressing the current one returns the
+          project to `proposed`. Nothing is deleted: an excluded row is a
+          tombstone, or the next scope resolution proposes it again and the same
+          question gets asked forever. */}
+      {onMembership && (
+        <section className={styles.detailBlock} data-testid="detail-membership">
+          <h3 className={styles.blockTitle}>
+            {clientName ?? 'This client'}
+          </h3>
+          <p className={styles.dim} data-testid="detail-membership-state">
+            {membershipStatus === 'included'
+              ? 'Confirmed. This project will appear in their document.'
+              : membershipStatus === 'excluded'
+                ? 'Excluded. It stays on this list and out of the document, and the scope will not propose it again.'
+                : 'Proposed by the scope and not yet judged. A document prints the confirmed only, so as it stands this project is not in one.'}
+          </p>
+          <div className={styles.detailActions}>
+            <button
+              type="button"
+              className={`${styles.watchBtn} ${membershipStatus === 'included' ? styles.watchOn : ''}`}
+              disabled={membershipBusy}
+              data-testid="detail-confirm"
+              title="Confirm for this client (C)"
+              onClick={() =>
+                onMembership(membershipStatus === 'included' ? 'proposed' : 'included')
+              }
+            >
+              {membershipStatus === 'included' ? 'Confirmed' : 'Confirm'}
+            </button>
+            <button
+              type="button"
+              className={`${styles.watchBtn} ${membershipStatus === 'excluded' ? styles.watchOn : ''}`}
+              disabled={membershipBusy}
+              data-testid="detail-exclude"
+              title="Exclude from this client (X)"
+              onClick={() =>
+                onMembership(membershipStatus === 'excluded' ? 'proposed' : 'excluded')
+              }
+            >
+              {membershipStatus === 'excluded' ? 'Excluded' : 'Exclude'}
+            </button>
+          </div>
+          {membershipStatus === 'included' &&
+            (isProvisionalName(p.name_source) || deadFeedForMarket(p.market, p.region_state)) && (
+              <p className={styles.dim} data-testid="detail-membership-held">
+                Confirmed, and it will still not print:{' '}
+                {isProvisionalName(p.name_source)
+                  ? 'its name was taken from an agenda line. Rename it and it will.'
+                  : 'its market has stopped publishing, and no confirmation changes that.'}
+              </p>
+            )}
+        </section>
+      )}
 
       {overridden.length > 0 && (
         <p className={styles.override}>

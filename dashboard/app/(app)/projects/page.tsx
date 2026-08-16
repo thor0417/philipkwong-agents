@@ -45,7 +45,7 @@ import {
 // The one copy, read across the package split. See lib/dead-feeds.
 import { deadFeedForMarket } from '../../../../lib/dead-feeds';
 import { useCoverage } from '@/lib/use-coverage';
-import { useClientView } from '@/lib/use-client-view';
+import { useClientView, useMembershipMutation } from '@/lib/use-client-view';
 import { useClients } from '@/lib/use-clients';
 import ProjectsRail from './ProjectsRail';
 import ProjectsDetail from './ProjectsDetail';
@@ -843,6 +843,9 @@ export default function ProjectsPage() {
   );
 
   const { watch, status: statusMutation, busy } = useProjectMutations({ onError: setError });
+  // Confirm and exclude. Inert with no client open: see the C and X cases in
+  // the keyboard handler.
+  const membership = useMembershipMutation(clientId, setError);
 
   // ---- Navigation within the list.
   const selectedIndex = rows.findIndex((r) => r.id === selected);
@@ -993,6 +996,41 @@ export default function ProjectsPage() {
             watch.mutate({ id: current.id, watch: !current.watch });
           }
           break;
+        // ---- CONFIRM AND EXCLUDE, IN A CLIENT VIEW ONLY. -------------------
+        //
+        // The register is where a row is judged, so it is where the judgement
+        // is recorded - the alternative was a screen that does not exist, which
+        // is why every client document covered nothing.
+        //
+        // BOUND ONLY WHEN A CLIENT IS OPEN, because "confirm" has no meaning
+        // outside one: confirmed FOR WHOM. Pressed on the plain register these
+        // do nothing at all rather than guessing a client, and the key legend
+        // under the list only offers them when they are live.
+        //
+        // Both write, and pressing the same key twice returns the row to
+        // `proposed`. That is the way back, and it is still a write: an
+        // excluded row is a tombstone, never a deletion, or the next scope
+        // resolution re-proposes it and asks the same question forever.
+        case 'c':
+          if (current && clientId) {
+            e.preventDefault();
+            membership.mutate({
+              projectId: current.id,
+              status:
+                client.data?.membership.get(current.id) === 'included' ? 'proposed' : 'included',
+            });
+          }
+          break;
+        case 'x':
+          if (current && clientId) {
+            e.preventDefault();
+            membership.mutate({
+              projectId: current.id,
+              status:
+                client.data?.membership.get(current.id) === 'excluded' ? 'proposed' : 'excluded',
+            });
+          }
+          break;
         case 'escape':
           if (selected) {
             e.preventDefault();
@@ -1004,7 +1042,20 @@ export default function ProjectsPage() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rows, selectedIndex, selected, move, router, watch, filtersOpen, periodOpen, closePanels]);
+  }, [
+    rows,
+    selectedIndex,
+    selected,
+    move,
+    router,
+    watch,
+    filtersOpen,
+    periodOpen,
+    closePanels,
+    clientId,
+    membership,
+    client.data,
+  ]);
 
   const toggleCheck = (id: string) =>
     setChecked((prev) => {
@@ -1513,48 +1564,75 @@ export default function ProjectsPage() {
                 This client stores no scope, so nothing is narrowed and the list below is
                 every project.
               </span>
-            ) : client.data.unconstrained ? (
-              <span className={styles.dim}>
-                The stored scope constrains no axis, so this client is covered for
-                everything. The list below is the whole register.
-              </span>
             ) : (
+              /* THE THREE COUNTS, AND WHAT EACH ONE MEANS FOR THE DOCUMENT.
+                 The bar used to lead with what the SCOPE proposes, which is the
+                 number that feels like the answer and is not: the report prints
+                 the CONFIRMED set and nothing else. A client bar reading "15
+                 projects proposed" over a document covering zero is the exact
+                 shape of confusion this gate was added to prevent.
+                 So: three counts, then the sentence that turns them into a page
+                 count, then what will still not print. */
               <span className={styles.dim}>
-                <span className="mono">{client.data.ids.length}</span> projects proposed by the
-                stored scope
-                {client.data.capped ? ' (CAPPED)' : ''}.{' '}
-                {client.data.membershipNotApplied
-                  ? 'Confirmed membership is not switched on: migration 033 has not been run, so nothing here has been confirmed or excluded yet.'
-                  : `${
-                      [...client.data.membership.values()].filter((s) => s === 'included').length
-                    } confirmed, ${
-                      [...client.data.membership.values()].filter((s) => s === 'excluded').length
-                    } excluded.`}
+                {client.data.unconstrained && (
+                  <span>
+                    The stored scope constrains no axis, so this client is proposed
+                    everything.{' '}
+                  </span>
+                )}
+                <span data-testid="client-counts">
+                  <span className="mono">{client.data.counts.proposed}</span> proposed,{' '}
+                  <span className="mono">{client.data.counts.included}</span> confirmed,{' '}
+                  <span className="mono">{client.data.counts.excluded}</span> excluded
+                  {client.data.capped ? ' (CAPPED)' : ''}.
+                </span>{' '}
+                {client.data.membershipNotApplied ? (
+                  'Confirmed membership is not switched on: migration 033 has not been run, so nothing here has been confirmed or excluded yet.'
+                ) : (
+                  <span data-testid="client-document-line">
+                    {client.data.counts.included === 0
+                      ? 'A document prints the confirmed only, so it would cover no projects at all. Press C on a row to confirm it, X to exclude it.'
+                      : `A document would cover ${
+                          client.data.counts.included - client.data.heldOut.confirmed.either
+                        } of the ${client.data.counts.included} confirmed.`}
+                  </span>
+                )}
                 {/* WHAT THIS LIST SHOWS AND THE DOCUMENT WILL NOT.
                     The register marks a provisional name and a frozen market on
                     the row; the report path drops those projects entirely. So a
                     client's list can look healthy while their document comes
                     out a third shorter, and until now the only place that gap
                     appeared was inside the generated PDF. Said here, with the
-                    action that closes the half of it that can be closed. */}
-                {client.data.heldOut.either > 0 && (
-                  <span data-testid="client-held-out">
-                    {' '}
-                    <span className="mono">{client.data.heldOut.either}</span> of them will not
-                    print:{' '}
-                    {[
-                      client.data.heldOut.unnamed
-                        ? `${client.data.heldOut.unnamed} carry a name taken from an agenda line, which you can fix by opening the project and renaming it`
-                        : '',
-                      client.data.heldOut.frozen
-                        ? `${client.data.heldOut.frozen} sit in a market whose source has stopped publishing, which you cannot`
-                        : '',
-                    ]
-                      .filter(Boolean)
-                      .join(', and ')}
-                    .
-                  </span>
-                )}
+                    action that closes the half of it that can be closed.
+                    Counted over the CONFIRMED set once anything is confirmed,
+                    because that is the set the document is built from; over the
+                    proposal before then, because that is the size of the naming
+                    job standing between here and a document. */}
+                {(() => {
+                  const confirmed = client.data.counts.included > 0;
+                  const h = confirmed
+                    ? client.data.heldOut.confirmed
+                    : client.data.heldOut.proposed;
+                  if (h.either === 0) return null;
+                  return (
+                    <span data-testid="client-held-out">
+                      {' '}
+                      <span className="mono">{h.either}</span>{' '}
+                      {confirmed ? 'of the confirmed' : 'of the proposed'} will not print:{' '}
+                      {[
+                        h.unnamed
+                          ? `${h.unnamed} carry a name taken from an agenda line, which you can fix by opening the project and renaming it`
+                          : '',
+                        h.frozen
+                          ? `${h.frozen} sit in a market whose source has stopped publishing, which you cannot`
+                          : '',
+                      ]
+                        .filter(Boolean)
+                        .join(', and ')}
+                      .
+                    </span>
+                  );
+                })()}
               </span>
             )}
             <button
@@ -1735,7 +1813,7 @@ export default function ProjectsPage() {
                 tabIndex={-1}
                 data-testid="register-row"
                 className={`${styles.row} ${selected === r.id ? styles.rowSelected : ''}`}
-                onClick={() => void setSelected(r.id)}
+onClick={() => void setSelected(r.id)}
               >
                 <span onClick={(e) => e.stopPropagation()}>
                   <input
@@ -1790,6 +1868,28 @@ export default function ProjectsPage() {
                       third would change the density of every screen. */}
                   {clientId ? (
                     <span className={styles.cellReason} data-row-reason>
+                      {/* WHAT HAS BEEN DECIDED ABOUT THIS ROW, BEFORE WHY IT IS
+                          HERE. `proposed` is the default and stays silent, the
+                          same rule the rail's `live` coverage state follows: a
+                          mark on every row is not a mark. Only a decision shows,
+                          because only a decision changes the document. */}
+                      {(() => {
+                        const status = client.data?.membership.get(r.id);
+                        if (status !== 'included' && status !== 'excluded') return null;
+                        return (
+                          <span
+                            className={styles.memberMark}
+                            data-membership={status}
+                            title={
+                              status === 'included'
+                                ? 'Confirmed for this client. Press C to put it back to proposed.'
+                                : 'Excluded from this client. Press X to put it back to proposed.'
+                            }
+                          >
+                            {status === 'included' ? 'confirmed' : 'excluded'}
+                          </span>
+                        );
+                      })()}
                       {(() => {
                         const axes = client.data?.reasons.get(r.id) ?? [];
                         if (!client.data?.scope) return 'no stored scope: not narrowed';
@@ -1902,13 +2002,36 @@ export default function ProjectsPage() {
           <span className="mono">E</span> dismiss
           <span className={styles.dot} aria-hidden="true" />
           <span className="mono">W</span> watch
+          {/* OFFERED ONLY WHERE THEY DO SOMETHING. Confirm and exclude are
+              meaningless outside a client view - confirmed for whom - so the
+              legend does not advertise two keys that would be inert. */}
+          {clientId && (
+            <>
+              <span className={styles.dot} aria-hidden="true" />
+              <span className="mono">C</span> confirm
+              <span className={styles.dot} aria-hidden="true" />
+              <span className="mono">X</span> exclude
+            </>
+          )}
           <span className={styles.dot} aria-hidden="true" />
           <span className="mono">Esc</span> close
         </p>
       </div>
 
       {selected && (
-        <ProjectsDetail id={selected} onClose={() => void setSelected(null)} onError={setError} />
+        <ProjectsDetail
+          id={selected}
+          onClose={() => void setSelected(null)}
+          onError={setError}
+          // The membership controls appear in the pane only when a client is
+          // open, for the same reason the keys are bound only then.
+          clientName={clientId ? (clients.data ?? []).find((c) => c.id === clientId)?.name ?? null : null}
+          membershipStatus={clientId ? (client.data?.membership.get(selected) ?? null) : null}
+          onMembership={
+            clientId ? (status) => membership.mutate({ projectId: selected, status }) : undefined
+          }
+          membershipBusy={membership.isPending}
+        />
       )}
     </div>
   );

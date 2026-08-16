@@ -965,6 +965,36 @@
   white-space: nowrap;
 }
 
+/* WHAT HAS BEEN DECIDED ABOUT THIS ROW FOR THIS CLIENT.
+   Leads the reason line, because "is this in the document" outranks "why did
+   the scope find it". `proposed` is the default and is deliberately silent -
+   the same rule the rail's `live` coverage state follows, and for the same
+   reason: a mark on every row is not a mark.
+   Confirmed and excluded are one kind of statement in two directions, so they
+   share one treatment and are separated by their word rather than by a colour.
+   No accent: the accent on this screen belongs to the selected row, and this
+   can appear on fifty rows at once. */
+.memberMark {
+  margin-right: var(--space-8);
+  padding: 0 var(--space-4);
+  border: var(--border-hairline);
+  border-radius: var(--radius-sm, 2px);
+  font-size: var(--type-caption);
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+  color: var(--ink-secondary);
+  white-space: nowrap;
+}
+/* Excluded is the quieter of the two: it is a row you have finished with. */
+.memberMark[data-membership='excluded'] {
+  color: var(--ink-disabled);
+  border-color: var(--line);
+}
+.memberMark[data-membership='included'] {
+  color: var(--ink);
+  border-color: var(--ink-secondary);
+}
+
 /* WHY THIS PROJECT IS IN THIS CLIENT'S LIST. Takes the second line of the name
    cell in a client view, where it is the more urgent of the two questions. Mono
    would be wrong - these are words, not identifiers - but it is dimmed and

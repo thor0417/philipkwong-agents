@@ -831,8 +831,8 @@ export default function ReportsPage() {
             this client, so this document covers 0 projects however wide their
             scope is. That is the gate working, not a failure: a report prints
             only what somebody has judged fit to send. Open this client from the
-            register - they are in the rail under Saved views - and confirm the
-            projects that belong in it.
+            register - they are in the rail under Saved views - and press C on
+            each project that belongs in it, or X on the ones that do not.
           </p>
         )}
 
