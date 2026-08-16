@@ -15,8 +15,8 @@
       "state": "dead",
       "projects": 3,
       "named": 2,
-      "records": 22,
-      "published": "31d",
+      "records": 20,
+      "published": "40d",
       "captured": "6d",
       "why": "the source has published nothing for over a year; declared in lib/dead-feeds"
     },
@@ -75,10 +75,10 @@
       "state": "live",
       "projects": 93,
       "named": 89,
-      "records": 208,
-      "published": "12d",
+      "records": 206,
+      "published": "23d",
       "captured": "4d",
-      "why": "93 live projects, 89 naming a party, newest document 12 days old"
+      "why": "93 live projects, 89 naming a party, newest document 23 days old"
     },
     {
       "market": "Clark County",
@@ -243,7 +243,7 @@
     {
       "source": "gli_serper",
       "quiet": false,
-      "records": 504,
+      "records": 484,
       "published": "6d",
       "captured": "4d",
       "thisRun": "unknown",
