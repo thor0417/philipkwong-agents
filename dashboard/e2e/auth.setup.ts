@@ -113,17 +113,34 @@ setup('authenticate', async ({ page, context }) => {
   const session = verified.session;
   if (!session) throw new Error('verifyOtp returned no session.');
 
-  // Hand the session to the browser as a fragment and let the app's own client
-  // persist it. /login is the landing spot deliberately: it is the one route
-  // that renders immediately and does not redirect on mount, so the client has
-  // time to consume the fragment before anything navigates away.
-  const fragment = new URLSearchParams({
-    access_token: session.access_token,
-    refresh_token: session.refresh_token,
-    expires_in: String(session.expires_in ?? 3600),
-    token_type: 'bearer',
-    type: 'magiclink',
-  }).toString();
+  // SEED THE SESSION INTO STORAGE. This used to hand the tokens over as a URL
+  // fragment and let the app's client consume them via detectSessionInUrl. That
+  // stopped working at auth-js 2.108: the client now defaults to the PKCE flow,
+  // which looks for a `code` QUERY parameter and ignores an implicit-grant
+  // fragment entirely. The symptom was a bare "Supabase never persisted a
+  // session" with a valid session in hand, which reads as a rate limit or an
+  // expired key and is neither.
+  //
+  // NOTHING IN THE APP REGRESSED, and that is why this is fixed here rather than
+  // in lib/supabase.ts: the dashboard signs in with signInWithPassword and never
+  // parses a fragment, so detectSessionInUrl was only ever load-bearing for this
+  // harness. Changing the app's flowType to keep a test path alive would be the
+  // tail wagging the dog.
+  //
+  // The storage key and value are exactly what the client writes for itself, so
+  // the client adopts the session on init and refreshes it normally. If that
+  // shape ever drifts, the /pipeline assertion below fails, which is the point:
+  // the key existing is not the proof, not being bounced to /login is.
+  const projectRef = new URL(url).hostname.split('.')[0];
+  const storageKey = `sb-${projectRef}-auth-token`;
+  const stored = JSON.stringify({
+    ...session,
+    expires_at: session.expires_at ?? Math.floor(Date.now() / 1000) + (session.expires_in ?? 3600),
+  });
+  await page.addInitScript(
+    ([k, v]) => window.localStorage.setItem(k, v),
+    [storageKey, stored] as const
+  );
 
   // WAIT FOR THE ROUTE TO ACTUALLY RENDER, and retry if it does not.
   //
@@ -138,8 +155,8 @@ setup('authenticate', async ({ page, context }) => {
   //     loaded, so polling localStorage against a page that has not run yet
   //     just burns the timeout.
   //
-  // Re-navigating to the same URL preserves the fragment, so a retry is free.
-  const target = `/login#${fragment}`;
+  // The init script re-runs on every navigation, so a retry is free.
+  const target = '/login';
   let rendered = false;
   for (let attempt = 1; attempt <= 4 && !rendered; attempt++) {
     await page.goto(target, { waitUntil: 'domcontentloaded' });
