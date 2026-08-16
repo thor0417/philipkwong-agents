@@ -170,6 +170,9 @@ export async function buildReport(req: BuildRequest): Promise<BuiltReport> {
     postFilters
   ) as unknown as Project[];
 
+  // ONE PROJECT MEANS A REFERRAL BRIEF, and a brief is not period-scoped. See
+  // the record read below and the cover line.
+  const singleProject = !!req.projectId;
   if (req.projectId) projects = projects.filter((p) => p.id === req.projectId);
   if (req.watchlistOnly) projects = projects.filter((p) => p.watch);
 
@@ -241,7 +244,15 @@ export async function buildReport(req: BuildRequest): Promise<BuiltReport> {
   // project from a document that dropped forty. Narrowed on the project's own
   // stored geography for the same reason the hollow count is - see below.
   let dormantExcluded: Project[] = [];
-  if (!req.includeDormant) {
+  // A BRIEF YOU ASKED FOR BY NAME IS NOT DROPPED BY A DOCUMENT-LEVEL FILTER.
+  //
+  // Dormancy selects WHICH projects a market report is worth spending pages on.
+  // A referral brief has already been pointed at one, by a person, from that
+  // project's own page - so applying the selection rule to it produces a
+  // document about nothing: The Coney is dormant, and its brief read "No
+  // project in this scope has a filing in the period, so there is nothing to
+  // describe" over a project holding five records.
+  if (!req.includeDormant && !singleProject) {
     const keep: Project[] = [];
     for (const p of projects) {
       if (p.stage === 'dormant') {
@@ -447,8 +458,17 @@ export async function buildReport(req: BuildRequest): Promise<BuiltReport> {
       // The same lanes, now on the records themselves: an out-of-scope filing
       // must not be cited in a document that says it does not cover that lane.
       if (streams) q = q.in('stream', streams);
-      if (req.period.since) q = q.gte('first_seen', req.period.since);
-      if (req.period.until) q = q.lt('first_seen', req.period.until);
+      // A SINGLE-PROJECT BRIEF IS NOT PERIOD-SCOPED.
+      //
+      // Period is a market-report concept: it answers "what happened in your
+      // markets this month". A referral brief is a document about ONE project's
+      // whole history, written to be forwarded to somebody who will act on it,
+      // and the question it answers is "what is this". Applying a month to it
+      // produced The Coney's brief reading "No project in this scope has a
+      // filing in the period, so there is nothing to describe", and Heart
+      // Hotel's showing 13 records where the project holds 23.
+      if (!singleProject && req.period.since) q = q.gte('first_seen', req.period.since);
+      if (!singleProject && req.period.until) q = q.lt('first_seen', req.period.until);
       const { data, error } = await q;
       if (error) throw new Error(`report records query failed: ${error.message}`);
       records.push(...((data ?? []) as unknown as typeof records));
@@ -712,6 +732,19 @@ export async function buildReport(req: BuildRequest): Promise<BuiltReport> {
     watchlistOnly: req.watchlistOnly,
   };
 
+  // The first and last dated record, as the cover line for a brief.
+  function recordSpan(rs: { published_date?: string | null; deadline?: string | null }[]): string {
+    const dates = rs
+      .map((r) => r.deadline ?? r.published_date ?? null)
+      .filter((d): d is string => !!d)
+      .map((d) => d.slice(0, 10))
+      .sort();
+    if (dates.length === 0) return 'Every record held; none carries a date';
+    return dates[0] === dates[dates.length - 1]
+      ? `Every record held, filed ${dates[0]}`
+      : `Every record held, ${dates[0]} to ${dates[dates.length - 1]}`;
+  }
+
   const doc: ReportDocument = {
     title: req.title,
     brandName: req.brandName,
@@ -720,7 +753,11 @@ export async function buildReport(req: BuildRequest): Promise<BuiltReport> {
     generatedAt: new Date().toISOString(),
     scope: {
       geography: req.geographyLabel,
-      period: req.period.label,
+      // THE COVER STATES THE SPAN OF WHAT IT HOLDS, NOT A FILTER IT DID NOT
+      // APPLY. A referral brief covers the project's whole history, so printing
+      // "August 2026" on it would describe a filter that is not there and would
+      // make a reader think the thirteen records below are all of them.
+      period: singleProject ? recordSpan(records) : req.period.label,
       pipeline: req.scope.pipeline_id,
       filters: [
         req.watchlistOnly ? 'watch list only' : '',
