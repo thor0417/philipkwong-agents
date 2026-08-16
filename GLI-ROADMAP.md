@@ -44,6 +44,62 @@ JS application, POST-only API, no automation path found. Keep as a documented ma
 ### 1G. Legacy row purity purge (SMALL, needs explicit authorization)
 Roughly 76 government rows predate the strict two-tier gate. Re-gate them: rows failing the current gate move to Archive or are listed for dismissal. Requires the deletion-authorization pattern: list first, act second, reconcile counts.
 
+### 1H. Geography resolution: a place name is not a country code (SMALL, measured 2026-08-16)
+
+**The shape: a place named in the text read as the project's own country.**
+
+**The instance.** "Third Regional Development Project" is three World Bank
+tenders for museum work at Stepantsminda and Mtskheta, both in the Republic of
+Georgia. Every record's `location` field says exactly `Georgia`. The project is
+filed as **country=United States, region_state=Georgia**, so it sits inside
+every US-scoped client scope. `client-scope.audit` cannot see it, because the
+composer and the database agree about the wrong country.
+
+**Two branches produce it, and the second is a defect already thought fixed.**
+
+1. `resolveGeography` scans for a US state or Canadian province BEFORE it
+   consults the sovereign-country list, so a bare `Georgia` is the state.
+2. The code-like branch reads the first two letters of any 3-6 character place
+   as an ISO-2 country code. Measured, all live today:
+
+   | input   | resolves to  | should be     |
+   |---------|--------------|---------------|
+   | Georgia | United States | Georgia       |
+   | Austin  | Australia     | United States |
+   | Fiji    | Finland       | Fiji          |
+   | Malawi  | Morocco       | Malawi        |
+   | Chad    | Switzerland   | Chad          |
+
+   That second branch is the **Bronx -> Brazil** defect. Its fix consulted the
+   configured-jurisdiction table first, which covers Bronx and Queens and
+   nothing else, so every unconfigured place still falls through. The comment in
+   lib/geography.ts says the fix was placed "where it covers every configured
+   jurisdiction rather than special-casing the one that happened to collide" -
+   and every place we do not configure is still special-cased by luck.
+
+**What the pass must do.**
+
+- Fix the precedence: a bare name that is both a US state and a sovereign
+  country needs a rule, and the rule cannot be "always the state". A country
+  hint, a sibling segment, or the source's own jurisdiction should decide it;
+  say which and why.
+- Fix the code-like branch so a plain word is never read as a code. The existing
+  test `/^[A-Z]{2}[0-9A-Z]{1,4}$/` matches ordinary English words; requiring a
+  digit, or requiring the whole string to be uppercase in the source, are the
+  two obvious candidates. MEASURE both against the corpus before choosing: this
+  branch exists to read legacy TED strings and must keep doing so.
+- Re-resolve the affected rows. A fix that leaves the wrong countries stored is
+  a fix a client still receives.
+- Extend `verify-geography.ts`, which already pins about thirty location
+  strings, with the five above.
+- Then flip the golden case `a-place-name-is-not-a-country-code` from `pending`
+  to `inline`.
+
+**Why it outranks the client-scope question it was found under.** A wrong market
+narrows a document. A wrong country puts a foreign project inside every domestic
+client's scope, and the audit that exists to catch scope leaks is blind to it by
+construction.
+
 ## TRACK 2: CURATION (make Philip the quality filter)
 
 ### 2A. Triage controls (NEXT BRIEF, unlocks everything after it)
@@ -149,6 +205,8 @@ The full pipeline on schedule: capture, attach to projects, decay via liveness, 
 ## THE ORDER, FLAT
 1. Review and send the July partner brief (in flight)
 2. 1D miss diagnosis, 1A Clark bodies audit, 1B anchor terms (one small combined session)
+2b. 1H geography resolution (SMALL, and it leaks into every US-scoped client
+    scope, so it goes before anything that generates a client document)
 3. 2A triage brief
 4. 1C Anaheim Planning, 1E Nevada regulators, 1G legacy purge (one cleanup session)
 5. 3A project clustering

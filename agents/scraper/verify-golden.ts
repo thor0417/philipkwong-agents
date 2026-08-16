@@ -30,6 +30,7 @@ import { bestTargetForClustering } from './targets';
 import { bestDate } from './cluster';
 import { deriveProjectName } from './project-naming';
 import { classifyVenueType, governmentGate, provenStage } from '../../lib/taxonomy';
+import { resolveGeography } from '../../lib/geography';
 
 const CASES_FILE = 'agents/scraper/fixtures/golden.jsonl';
 
@@ -40,13 +41,22 @@ interface GoldenCase {
   input: string;
   assertion: string;
   origin?: string;
-  guard: 'inline' | { file: string; needle: string };
+  // 'pending' is the acceptance test for a defect that has NEVER been fixed.
+  // It runs, it reports what the system does today, and it does not fail the
+  // gate - because there is nothing to regress from yet.
+  guard: 'inline' | 'pending' | { file: string; needle: string };
+  // Required on a pending case: the roadmap item that closes it. A pending case
+  // with nowhere to be closed is a known issue with better manners.
+  closedBy?: string;
 }
 
 interface Result {
   id: string;
   ok: boolean;
   detail: string;
+  // A pending case that has started passing. The fix has landed and the case
+  // should be promoted to a real guard.
+  promote?: boolean;
 }
 
 // ---- THE INLINE CASES -------------------------------------------------------
@@ -151,6 +161,24 @@ const INLINE: Record<string, () => string | null> = {
     return `a zoning district classified as venue_type "${v}"`;
   },
 
+  // PENDING. Not fixed. See GLI-ROADMAP 1H.
+  'a-place-name-is-not-a-country-code': () => {
+    const wrong: string[] = [];
+    // Every one of these is a real place in the corpus or one letter from one.
+    const cases: [string, string][] = [
+      ['Georgia', 'Georgia'],     // the country, not the US state
+      ['Austin', 'United States'],
+      ['Fiji', 'Fiji'],
+      ['Malawi', 'Malawi'],
+      ['Chad', 'Chad'],
+    ];
+    for (const [place, want] of cases) {
+      const got = resolveGeography(place).country;
+      if (got !== want) wrong.push(`${place} -> ${got ?? 'null'} (should be ${want})`);
+    }
+    return wrong.length ? wrong.join('; ') : null;
+  },
+
   'junk-never-enters': () => {
     // Each carries real entitlement vocabulary, which is exactly why they used
     // to get in: the gate was reading the instrument, not the subject.
@@ -225,7 +253,7 @@ async function main(): Promise<void> {
     }
     seen.add(c.id);
 
-    if (c.guard === 'inline') {
+    if (c.guard === 'inline' || c.guard === 'pending') {
       const fn = INLINE[c.id];
       if (!fn) {
         // NOT A SKIP. A case listed as covered and not run is a case that lies.
@@ -242,6 +270,29 @@ async function main(): Promise<void> {
       } catch (e) {
         failure = `threw: ${(e as Error).message}`;
       }
+      if (c.guard === 'pending') {
+        // A PENDING CASE RUNS AND NEVER FAILS THE GATE. It is the acceptance
+        // test for a defect that has never been fixed, so there is nothing to
+        // regress from - and a red gate nobody can turn green is a gate that
+        // gets bypassed. The one hard requirement is that it names the work
+        // that closes it; a pending case with nowhere to go is a known issue
+        // with better manners.
+        if (!c.closedBy) {
+          results.push({
+            id: c.id,
+            ok: false,
+            detail: 'pending with no closedBy: name the work that closes it',
+          });
+          continue;
+        }
+        results.push({
+          id: c.id,
+          ok: true,
+          detail: failure ?? 'PASSES NOW',
+          promote: failure === null,
+        });
+        continue;
+      }
       results.push({
         id: c.id,
         ok: failure === null,
@@ -255,7 +306,8 @@ async function main(): Promise<void> {
   const byId = new Map(cases.map((c) => [c.id, c]));
   for (const r of results) {
     const c = byId.get(r.id)!;
-    const mark = r.ok ? 'ok  ' : 'FAIL';
+    const pending = c.guard === 'pending';
+    const mark = !r.ok ? 'FAIL' : pending ? 'OPEN' : 'ok  ';
     console.log(`${mark} ${r.id.padEnd(38)} ${c.shape}`);
     if (!r.ok) {
       console.log(`       ${c.assertion}`);
@@ -263,11 +315,37 @@ async function main(): Promise<void> {
     }
   }
 
+  // ---- THE OPEN CASES, SAID LOUDLY. -----------------------------------------
+  //
+  // Standing rule 3 applied to the golden set: a defect recorded and not yet
+  // guarded must not be quieter than one that is.
+  const open = results.filter((r) => byId.get(r.id)!.guard === 'pending');
+  if (open.length > 0) {
+    console.log(`\n  ${'#'.repeat(70)}`);
+    console.log(`  #  ${open.length} OPEN CASE${open.length === 1 ? '' : 'S'}: recorded defects that are NOT fixed.`);
+    console.log('  #  They run and report. They do not fail the gate, because there is');
+    console.log('  #  nothing to regress from until the fix lands.');
+    for (const r of open) {
+      const c = byId.get(r.id)!;
+      console.log('  #');
+      console.log(`  #  ${c.id}`);
+      console.log(`  #    want : ${c.assertion}`);
+      console.log(`  #    today: ${r.detail}`);
+      console.log(`  #    closed by: ${c.closedBy}`);
+      if (r.promote) {
+        console.log('  #    *** THIS NOW PASSES. Change its guard to "inline" and it becomes');
+        console.log('  #        a real guard. A case that has passed may never go back.');
+      }
+    }
+    console.log(`  ${'#'.repeat(70)}`);
+  }
+
   const failed = results.filter((r) => !r.ok);
   const inline = results.filter((r) => byId.get(r.id)!.guard === 'inline').length;
+  const pointed = results.filter((r) => typeof byId.get(r.id)!.guard === 'object').length;
   console.log(
-    `\n${results.length - failed.length} of ${results.length} hold. ` +
-      `${inline} asserted here, ${results.length - inline} pointed at an existing suite.`
+    `\n${results.length - failed.length - open.length} of ${results.length - open.length} guarded cases hold. ` +
+      `${inline} asserted here, ${pointed} pointed at an existing suite, ${open.length} open.`
   );
 
   if (failed.length > 0) {

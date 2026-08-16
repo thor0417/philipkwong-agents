@@ -135,7 +135,12 @@ The service role key bypasses RLS. Server-side only, never shipped to the browse
 7. A DEFECT PRODUCES A PERMANENT RULE AND A GOLDEN CASE, not a one-time cleanup.
    A case is added by appending one entry to `agents/scraper/fixtures/golden.jsonl`
    naming the shape it guards, the input, the assertion and the date, and pointing
-   `id` at the suite that proves it.
+   `id` at the suite that proves it. A defect found but NOT yet fixed is added as
+   `guard: "pending"` with a `closedBy` naming the work that closes it: it runs,
+   it reports what the system does today, and it does not fail the gate, because
+   there is nothing to regress from. A case that has ever passed may never be
+   moved back to pending, which is the line between an open case and a known
+   issue.
 8. WHEN A DEFECT IS FOUND, FIND EVERY OTHER INSTANCE OF ITS SHAPE before fixing
    the one. Six defects this month were the same shape found separately: a label
    read as the thing it names.
