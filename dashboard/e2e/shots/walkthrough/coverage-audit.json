@@ -25,7 +25,7 @@
       "state": "degraded",
       "projects": 33,
       "named": 31,
-      "records": 73,
+      "records": 72,
       "published": "15d",
       "captured": "4d",
       "why": "the adapter is failing in a known way; declared in the known-degraded register"
@@ -75,7 +75,7 @@
       "state": "live",
       "projects": 93,
       "named": 89,
-      "records": 215,
+      "records": 208,
       "published": "12d",
       "captured": "4d",
       "why": "93 live projects, 89 naming a party, newest document 12 days old"
@@ -85,7 +85,7 @@
       "state": "live",
       "projects": 27,
       "named": 27,
-      "records": 82,
+      "records": 81,
       "published": "5d",
       "captured": "4d",
       "why": "27 live projects, 27 naming a party, newest document 5 days old"
@@ -198,7 +198,7 @@
     {
       "source": "nyc-city-record",
       "quiet": false,
-      "records": 101,
+      "records": 94,
       "published": "23d",
       "captured": "6d",
       "thisRun": "unknown",
@@ -212,6 +212,15 @@
       "captured": "17d",
       "thisRun": "unknown",
       "feeds": "Anaheim, Las Vegas"
+    },
+    {
+      "source": "ceqanet",
+      "quiet": false,
+      "records": 6,
+      "published": "18d",
+      "captured": "17d",
+      "thisRun": "unknown",
+      "feeds": "Anaheim"
     },
     {
       "source": "uktenders",
@@ -232,13 +241,13 @@
       "feeds": ""
     },
     {
-      "source": "ceqanet",
+      "source": "gli_serper",
       "quiet": false,
-      "records": 7,
-      "published": "10d",
-      "captured": "6d",
+      "records": 504,
+      "published": "6d",
+      "captured": "4d",
       "thisRun": "unknown",
-      "feeds": "Anaheim"
+      "feeds": "Anaheim, Clark County, Las Vegas, Nashville, New York City, Phoenix, San Antonio"
     },
     {
       "source": "clark-tab",
@@ -250,18 +259,9 @@
       "feeds": "Clark County"
     },
     {
-      "source": "gli_serper",
-      "quiet": false,
-      "records": 515,
-      "published": "5d",
-      "captured": "4d",
-      "thisRun": "unknown",
-      "feeds": "Anaheim, Clark County, Las Vegas, Nashville, New York City, Phoenix, San Antonio"
-    },
-    {
       "source": "legistar",
       "quiet": false,
-      "records": 115,
+      "records": 114,
       "published": "ahead",
       "captured": "6d",
       "thisRun": "unknown",

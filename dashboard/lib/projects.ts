@@ -295,6 +295,32 @@ export async function countProjects(q: ProjectQuery): Promise<number> {
 // interim cost is visible rather than hidden.
 export type ProjectFacetField = 'stage' | 'country' | 'region_state' | 'market' | 'development_category' | 'venue_type' | 'status';
 
+// THE FIELDS MIGRATION 017's FUNCTION WILL ACTUALLY GROUP BY, AND THE 400 THEY
+// EXPLAIN.
+//
+// project_facet_counts whitelists its p_field argument and raises for anything
+// else - the parameter names a column, so it cannot be interpolated without
+// that check. The whitelist was written before venue_type was a facet on this
+// screen, so every load of the register asked the database to group by a column
+// the function refuses, PostgREST turned the raised exception into HTTP 400,
+// and the code below fell through to the client-side path and rendered
+// correctly. One 400 in the console on every page load, a wasted round trip on
+// every load, and nothing broken enough for anybody to chase it.
+//
+// This is the same shape as the three bypasses below: the RPC is not called
+// with an argument it cannot answer. Adding venue_type to the function is one
+// line of DDL and DDL is Philip's to run, not something to depend on silently -
+// so this list is what 017 DECLARES, and widening it means widening the
+// migration first.
+const RPC_FACET_FIELDS: readonly ProjectFacetField[] = [
+  'stage',
+  'country',
+  'region_state',
+  'market',
+  'development_category',
+  'status',
+];
+
 export interface FacetCount {
   value: string;
   count: number;
@@ -331,8 +357,11 @@ export async function projectFacetCounts(
   // venue type" constraint entirely and count the whole register beside a list
   // showing 64.
   const periodScoped = scoped.firstSeenFrom !== undefined || scoped.firstSeenTo !== undefined || scoped.ids !== undefined;
-  const { data, error } = periodScoped || (scoped.loose ?? []).length > 0 || (scoped.nullFields ?? []).length > 0
-    ? { data: null, error: { message: 'period- or loosely-scoped facets bypass the RPC' } }
+  // The fourth bypass, and the one that was answering with a 400 instead: a
+  // field migration 017's function does not whitelist. See RPC_FACET_FIELDS.
+  const unsupportedField = !RPC_FACET_FIELDS.includes(field);
+  const { data, error } = periodScoped || unsupportedField || (scoped.loose ?? []).length > 0 || (scoped.nullFields ?? []).length > 0
+    ? { data: null, error: { message: 'period-scoped, loosely-scoped or unsupported-field facets bypass the RPC' } }
     : await supabase.rpc('project_facet_counts', {
         p_field: field,
         p_module: scoped.module ?? LIVE_PIPELINE_STORAGE_KEY,
