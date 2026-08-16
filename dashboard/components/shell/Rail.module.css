@@ -37,7 +37,9 @@
   scrollbar-gutter: stable;
   display: flex;
   flex-direction: column;
-  gap: var(--space-16);
+  /* 12 rather than 16. Six gaps between seven groups is 96px of a column that
+     was 407px short; the groups are already separated by their headings. */
+  gap: var(--space-12);
 }
 
 .section {
@@ -54,6 +56,33 @@
   white-space: nowrap;
 }
 
+/* A GROUP HEADING THAT FOLDS ITS GROUP. Same heading, made pressable, rather
+   than a control beside it: the label is already the only thing standing over
+   those rows and adding a second element would be one more mark in a column
+   that is short of room by 407px. */
+.rail .sectionToggle {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  width: 100%;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  padding: 0;
+  text-align: left;
+}
+.rail .sectionToggle:hover {
+  background: none;
+}
+.rail .sectionToggle:hover .sectionLabel {
+  color: var(--ink-secondary);
+}
+.sectionCaret {
+  padding-right: var(--space-16);
+  font-size: var(--type-caption);
+  color: var(--ink-disabled);
+}
+
 /* Stands in for the section label at 56px, so the grouping survives collapse. */
 .collapsedRule {
   height: var(--hairline-width);
@@ -66,7 +95,10 @@
   display: flex;
   align-items: center;
   gap: var(--space-12);
-  height: var(--row-h);
+  /* Dense, matching the contextual rows below it. A 36px destination beside a
+     26px market read as two different kinds of list, and ten of them cost 40px
+     the column does not have. */
+  height: var(--row-h-dense);
   padding: 0 var(--space-16);
   color: var(--ink-secondary);
   text-decoration: none;
@@ -124,9 +156,9 @@
 .contextual {
   display: flex;
   flex-direction: column;
-  gap: var(--space-16);
+  gap: var(--space-12);
   border-top: var(--border-hairline);
-  padding-top: var(--space-16);
+  padding-top: var(--space-12);
   margin-top: var(--space-4);
 }
 .contextual:empty {

@@ -13,6 +13,7 @@
 // and it lands here. A context setter would mean a screen writing to shell state
 // during render, which is a render-loop waiting to happen.
 
+import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import ThemeToggle from '@/components/ThemeToggle';
@@ -37,6 +38,10 @@ export default function Rail({
 }) {
   const pathname = usePathname();
   const current = activeHref(pathname ?? '');
+  // Folded groups, by label. Component state rather than storage: the shell is
+  // one instance across every navigation, so this survives moving between
+  // screens and resets on reload, which is the right lifetime for a fold.
+  const [open, setOpen] = useState<Record<string, boolean>>({});
 
   return (
     <nav
@@ -47,13 +52,42 @@ export default function Rail({
       data-collapsed={collapsed ? 'true' : 'false'}
     >
       <div className={styles.scroll}>
-        {NAV.map((section, i) => (
+        {NAV.map((section, i) => {
+          // A FOLDED GROUP STILL OPENS ITSELF WHEN YOU ARE INSIDE IT. Otherwise
+          // standing on /vocabulary would show no active item anywhere in the
+          // rail, which reads as "you are nowhere".
+          const holdsCurrent = section.items.some((item) => item.href === current);
+          const folded =
+            !!section.collapsible &&
+            !collapsed &&
+            !holdsCurrent &&
+            !(open[section.label ?? ''] ?? false);
+          return (
           <div key={section.label ?? `primary-${i}`} className={styles.section}>
-            {section.label && !collapsed && (
+            {section.label && !collapsed && !section.collapsible && (
               <span className={styles.sectionLabel}>{section.label}</span>
             )}
+            {section.label && !collapsed && section.collapsible && (
+              <button
+                type="button"
+                className={styles.sectionToggle}
+                data-nav-group={section.label}
+                aria-expanded={!folded}
+                onClick={() =>
+                  setOpen((prev) => ({
+                    ...prev,
+                    [section.label ?? '']: folded,
+                  }))
+                }
+              >
+                <span className={styles.sectionLabel}>{section.label}</span>
+                <span className={styles.sectionCaret} aria-hidden="true">
+                  {folded ? '▾' : '▴'}
+                </span>
+              </button>
+            )}
             {section.label && collapsed && <span className={styles.collapsedRule} />}
-            {section.items.map((item) => {
+            {!folded && section.items.map((item) => {
               const isActive = current === item.href;
               return (
                 <Link
@@ -75,7 +109,8 @@ export default function Rail({
               );
             })}
           </div>
-        ))}
+          );
+        })}
 
         {/* Contextual navigation for the active screen lands here. Hidden while
             collapsed: at 56px there is no room for it, and half a filter tree is

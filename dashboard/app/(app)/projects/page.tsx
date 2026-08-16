@@ -46,6 +46,7 @@ import {
 import { deadFeedForMarket } from '../../../../lib/dead-feeds';
 import { useCoverage } from '@/lib/use-coverage';
 import { useClientView } from '@/lib/use-client-view';
+import { useClients } from '@/lib/use-clients';
 import ProjectsRail from './ProjectsRail';
 import ProjectsDetail from './ProjectsDetail';
 import styles from './page.module.css';
@@ -787,6 +788,9 @@ export default function ProjectsPage() {
   // about coverage, and a coverage figure that moved when the operator clicked
   // Watchlist would be answering a different question again.
   const coverage = useCoverage(LIVE_PIPELINE_STORAGE_KEY);
+  // THE CLIENTS, IN THE RAIL, BESIDE THE SAVED VIEWS. A client is a saved view
+  // you open (see use-client-view), and the two sat on different screens.
+  const clients = useClients();
   const [pressOpen, setPressOpen] = useState(false);
   const coveredNodes = useMemo(
     () =>
@@ -1183,6 +1187,13 @@ export default function ProjectsPage() {
         savedViews={[...SAVED]}
         activeSaved={saved}
         onSaved={applySaved}
+        clientViews={(clients.data ?? []).map((c) => ({ id: c.id, name: c.name }))}
+        activeClient={clientId}
+        onClient={(id) => {
+          void setClientId(id);
+          void setPage(1);
+          void setSelected(null);
+        }}
       />
 
       <div className={`${styles.listPane} ${viewKey === 'trash' ? styles.trashView : ''}`}>

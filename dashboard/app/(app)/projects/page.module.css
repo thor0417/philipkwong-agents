@@ -538,8 +538,8 @@
   border: 0;
   border-radius: 0;
   background: none;
-  padding: var(--space-4) var(--space-16);
-  min-height: 26px;
+  padding: 2px var(--space-16);
+  min-height: 24px;
   font-family: var(--font-body);
   font-size: var(--type-meta);
   letter-spacing: var(--track-none);
@@ -576,6 +576,21 @@
 .railCount {
   font-size: var(--type-caption);
   color: var(--ink-disabled);
+  flex: none;
+}
+
+/* WHICH OF THE TWO KINDS OF SAVED VIEW THIS ROW IS. The four filter
+   combinations and the clients now share one list because they are one kind of
+   thing to use; they are not one kind of thing to SEND, and this is the mark
+   that keeps that difference on the screen rather than in someone's head.
+   Set like the coverage state beside it: a label, not a badge, and never the
+   accent - the accent in this rail belongs to the row you are standing on. */
+.railKind {
+  font-size: 9px;
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+  color: var(--ink-disabled);
+  white-space: nowrap;
   flex: none;
 }
 

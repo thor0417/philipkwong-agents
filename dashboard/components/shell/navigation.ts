@@ -20,6 +20,19 @@ export interface NavSection {
   /** Null for the primary group, which needs no heading. */
   label: string | null;
   items: NavItem[];
+  /**
+   * Whether the group folds away behind its own heading.
+   *
+   * MEASURED 2026-08-16: the rail holds 1335px of content in a 928px column at
+   * 1080, so 407px of it - the covered markets and the saved views - could only
+   * be reached by scrolling. Three of the ten destinations are reference
+   * material visited by name rather than by browsing, and they were costing
+   * 129px of a column that had none to spare. They are still in the rail, still
+   * in the palette, and one line rather than four.
+   *
+   * Only a labelled group can fold: an unlabelled one has nothing to fold into.
+   */
+  collapsible?: boolean;
 }
 
 export const NAV: NavSection[] = [
@@ -108,6 +121,7 @@ export const NAV: NavSection[] = [
   },
   {
     label: 'Reference',
+    collapsible: true,
     items: [
       {
         label: 'Design system',

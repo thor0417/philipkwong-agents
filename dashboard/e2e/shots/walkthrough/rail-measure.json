@@ -27,18 +27,6 @@
     {
       "label": "HHealth",
       "href": "/health"
-    },
-    {
-      "label": "DDesign system",
-      "href": "/design"
-    },
-    {
-      "label": "VVocabulary",
-      "href": "/vocabulary"
-    },
-    {
-      "label": "LLegacy pipeline",
-      "href": "/pipeline"
     }
   ],
   "firstRowTop": 133,
@@ -49,5 +37,35 @@
   "topbarControls": 2,
   "screenRows": 3,
   "rowHeight": 52,
-  "rowsPerViewport": 16
+  "rowsPerViewport": 16,
+  "rail": {
+    "visible": 928,
+    "content": 1005,
+    "sections": [
+      {
+        "name": "nav (Today...)",
+        "height": 160
+      },
+      {
+        "name": "nav (Inbox...)",
+        "height": 64
+      },
+      {
+        "name": "Reference",
+        "height": 18
+      },
+      {
+        "name": "Views",
+        "height": 141
+      },
+      {
+        "name": "Saved views",
+        "height": 165
+      },
+      {
+        "name": "Covered markets",
+        "height": 357
+      }
+    ]
+  }
 }

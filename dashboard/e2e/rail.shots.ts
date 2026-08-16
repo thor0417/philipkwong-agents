@@ -140,11 +140,103 @@ test('the rail', async ({ page }, testInfo) => {
       `${measured.rowsPerViewport} whole rows visible without scrolling.`
   );
 
+  // ---- 3. DOES THE RAIL FIT THE VIEWPORT ---------------------------------
+  //
+  // The rail is the most improved surface in the product and it is also the
+  // longest: views, covered markets, press coverage and saved views, under ten
+  // primary destinations. A rail that has to be scrolled to reach a market is a
+  // rail whose bottom half is not navigation, and nothing said how far over it
+  // was. This measures the overflow and attributes it section by section, so
+  // the answer to "what would have to go" is a number rather than a guess.
+  const rail = await page.evaluate(() => {
+    const nav = document.querySelector('nav[aria-label="Primary"]');
+    const scroll = nav?.querySelector('[class*="scroll"]') as HTMLElement | null;
+    const contextual = document.getElementById('rail-contextual-slot');
+    const sections = [...(scroll?.children ?? [])].flatMap((child) => {
+      if (child === contextual) {
+        return [...child.children].map((s) => ({
+          name: (s.querySelector('[class*="sectionLabel"]')?.textContent ?? 'contextual').trim(),
+          height: Math.round(s.getBoundingClientRect().height),
+        }));
+      }
+      const label = child.querySelector('[class*="sectionLabel"]')?.textContent?.trim();
+      const first = child.querySelector('a')?.textContent?.trim().slice(1) ?? '';
+      return [{ name: label || `nav (${first}...)`, height: Math.round(child.getBoundingClientRect().height) }];
+    });
+    return {
+      visible: scroll?.clientHeight ?? 0,
+      content: scroll?.scrollHeight ?? 0,
+      sections,
+    };
+  });
+  const over = rail.content - rail.visible;
+  console.log(
+    `[${mode}] rail: ${rail.content}px of content in ${rail.visible}px of column. ` +
+      (over > 0 ? `${over}px requires scrolling.` : 'It fits.')
+  );
+  for (const s of rail.sections) {
+    console.log(`[${mode}]   ${String(s.height).padStart(4)}px  ${s.name}`);
+  }
+
+  // ---- 4. ONLY THE STATES THAT MEAN "YOU CANNOT SELL THIS" ARE LEGIBLE -----
+  //
+  // Five coverage states, and a rail where all five are coloured is a rail
+  // where none of them reads. `live` is the default and the least informative
+  // thing in the list, so it must be the quietest; dead and degraded are the
+  // two that stop a market being sold and are the only two allowed the accent.
+  // Asserted rather than eyeballed, because this is one CSS rule away from
+  // silently inverting.
+  const states = await page.locator('[data-coverage-state]').evaluateAll((els) => {
+    const seen = new Map<string, string>();
+    for (const el of els) {
+      const state = el.getAttribute('data-coverage-state') ?? '';
+      // The state LABEL carries the colour; the row wrapper carries the same
+      // attribute and inherits, so read the innermost one.
+      if (el.children.length === 0) seen.set(state, getComputedStyle(el).color);
+    }
+    const probe = document.createElement('span');
+    probe.style.color = getComputedStyle(document.documentElement)
+      .getPropertyValue('--accent')
+      .trim();
+    document.body.appendChild(probe);
+    const accent = getComputedStyle(probe).color;
+    probe.remove();
+    return { byState: [...seen.entries()], accent };
+  });
+  const accented = states.byState.filter(([, c]) => c === states.accent).map(([s]) => s);
+  console.log(
+    `[${mode}] coverage states on the rail: ${states.byState
+      .map(([s, c]) => `${s}=${c === states.accent ? 'ACCENT' : c}`)
+      .join(', ')}`
+  );
+  expect(
+    accented.sort(),
+    `the accent is on ${accented.join(', ')}. Only dead and degraded may take it: ` +
+      'a rail where every state is coloured is a rail where none of them reads.'
+  ).toEqual(accented.filter((s) => s === 'dead' || s === 'degraded').sort());
+
+  // ---- 5. THE PRESS NODE DOES NOT OPEN ITSELF ------------------------------
+  //
+  // It is one collapsed node standing in for sixty-odd geographies a story
+  // landed on. Opening it on every navigation would put the whole country tree
+  // back in a rail this brief spent 330px getting out of.
+  const press = page.getByTestId('press-coverage-toggle');
+  await expect(press).toHaveAttribute('aria-expanded', 'false');
+  await press.click();
+  await expect(press).toHaveAttribute('aria-expanded', 'true');
+  await page.goto('/today', { waitUntil: 'domcontentloaded' });
+  await page.goto('/projects', { waitUntil: 'domcontentloaded' });
+  await expect(page.locator('[data-row-id]').first()).toBeVisible({ timeout: 120_000 });
+  await expect(
+    page.getByTestId('press-coverage-toggle'),
+    'the press node came back open after a navigation'
+  ).toHaveAttribute('aria-expanded', 'false');
+
   if (mode === 'light') {
     mkdirSync('e2e/shots/walkthrough', { recursive: true });
     writeFileSync(
       'e2e/shots/walkthrough/rail-measure.json',
-      JSON.stringify({ nav, ...measured }, null, 2)
+      JSON.stringify({ nav, ...measured, rail }, null, 2)
     );
   }
 

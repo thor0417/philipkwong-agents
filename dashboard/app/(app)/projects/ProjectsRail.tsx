@@ -65,6 +65,9 @@ export default function ProjectsRail({
   savedViews,
   activeSaved,
   onSaved,
+  clientViews,
+  activeClient,
+  onClient,
 }: {
   views: CountedView[];
   view: string;
@@ -81,6 +84,9 @@ export default function ProjectsRail({
   savedViews: { key: string; label: string }[];
   activeSaved: string;
   onSaved: (key: string) => void;
+  clientViews: { id: string; name: string }[];
+  activeClient: string | null;
+  onClient: (id: string | null) => void;
 }) {
   // The tree is collapsed except along the active branch: regions appear only
   // once a country is chosen, markets only once a region is. Rendering all
@@ -104,7 +110,68 @@ export default function ProjectsRail({
         </div>
       </RailSection>
 
-      {/* COVERED MARKETS ARE NOT THE SAME KIND OF THING AS EVERYWHERE ELSE.
+      {/* SAVED VIEWS AND CLIENT VIEWS ARE ONE SECTION, BECAUSE THEY ARE ONE
+          KIND OF THING. use-client-view.ts opens with the sentence this merge
+          is built on: a client is a saved view you open, not a screen you
+          visit. Both are a set of filters worth one click, both land on this
+          same table with the same columns and the same keyboard, and they sat
+          in two different places - the four combinations here, the clients on
+          another screen entirely.
+
+          THE ONE THING THAT MUST NOT MERGE IS WHAT THEY MEAN. "Anaheim" is a
+          filter; JKR & Associates is a person's coverage, with confirmed
+          membership behind it and a document generated from it. A row that
+          looked identical to Anaheim but could be sent to a client would be
+          the most expensive kind of sameness in this product, so a client row
+          is marked as one and says so on hover. */}
+      <RailSection title="Saved views">
+        <div className={styles.railList}>
+          {savedViews.map((s) => (
+            <button
+              key={s.key}
+              type="button"
+              className={`${styles.railItem} ${activeSaved === s.key ? styles.railItemActive : ''}`}
+              onClick={() => onSaved(s.key)}
+            >
+              <span className={styles.railLabel}>{s.label}</span>
+            </button>
+          ))}
+
+          {clientViews.map((c) => (
+            <button
+              key={c.id}
+              type="button"
+              data-client-view={c.id}
+              title={
+                `${c.name}'s stored scope. Unlike the filter combinations above, ` +
+                'this is a client\'s coverage: it carries confirmed membership and ' +
+                'is what their documents are built from.'
+              }
+              className={`${styles.railItem} ${activeClient === c.id ? styles.railItemActive : ''}`}
+              onClick={() => onClient(activeClient === c.id ? null : c.id)}
+            >
+              <span className={styles.railLabel}>{c.name}</span>
+              <span className={styles.railKind}>client</span>
+            </button>
+          ))}
+        </div>
+      </RailSection>
+
+      {/* COVERED MARKETS ARE LAST, AND THAT IS THE ANSWER TO THE OVERFLOW.
+          Measured at 1080: the rail held 1335px of content in a 928px column,
+          so 407px of it could only be reached by scrolling. Folding the
+          reference group, dissolving the press section into this list and
+          tightening the row height took it to 1005px, and the last 77px cannot
+          be taken without either dropping a market or shrinking a click target
+          below what a person can hit.
+          So it is not taken - it is ORDERED. Every other section is a fixed
+          length; this one grows with the business, and lib/coverage sorts it by
+          severity, so a dead market is at the top and the tail is the smallest
+          market that is working fine. Putting it last means what falls below
+          the fold is coverage nobody needs to be told about, and the same
+          principle that makes `live` quiet decides what scrolls.
+
+          COVERED MARKETS ARE NOT THE SAME KIND OF THING AS EVERYWHERE ELSE.
           A tree listing sixty-five countries with counts beside them reads as
           coverage. Thirteen of those places have a government-lane adapter
           pointed at them; every other entry is where a press story happened to
@@ -144,31 +211,31 @@ export default function ProjectsRail({
               </span>
             </button>
           ))}
-        </div>
-      </RailSection>
 
-      <RailSection title="Press coverage">
-        {/* ONE NODE, COLLAPSED, AND NAMED FOR WHAT IT IS. These are geographies
-            a story mentioned. Opening it gives the country tree the rail has
-            always had, which is the right tool for browsing them - it is simply
-            no longer presented as the map of what we watch. */}
-        <div className={styles.railList}>
+          {/* PRESS COVERAGE IS THE LAST ROW OF THIS LIST, NOT A SECTION OF ITS
+              OWN. It is one collapsed node, and it was carrying a heading, a
+              gap and three lines of legend - 180px of a column measured 407px
+              short. It belongs here anyway: the question it answers is "and
+              what about everywhere else", which is a question about this list.
+              The legend it lost said the same thing its label says, so it is
+              now the node's title rather than prose in the rail. */}
           <button
             type="button"
             data-testid="press-coverage-toggle"
             className={styles.railItem}
             aria-expanded={pressOpen}
+            title={
+              'Places a story landed on. No adapter is pointed at any of them, ' +
+              'so nothing here is a market we watch. Opening it gives the full ' +
+              'country tree.'
+            }
             onClick={onTogglePress}
           >
             <span className={styles.railLabel}>
-              {pressOpen ? 'Hide' : 'Show'} press-only geographies
+              {pressOpen ? 'Hide' : 'Show'} press-only
             </span>
             <span className={`${styles.railCount} mono`}>{pressCount ?? '--'}</span>
           </button>
-          <p className={styles.railLegend}>
-            Places a story landed on. No adapter is pointed at any of them, so
-            nothing here is a market we watch.
-          </p>
         </div>
       </RailSection>
 
@@ -261,20 +328,6 @@ export default function ProjectsRail({
       </RailSection>
       )}
 
-      <RailSection title="Saved views">
-        <div className={styles.railList}>
-          {savedViews.map((s) => (
-            <button
-              key={s.key}
-              type="button"
-              className={`${styles.railItem} ${activeSaved === s.key ? styles.railItemActive : ''}`}
-              onClick={() => onSaved(s.key)}
-            >
-              <span className={styles.railLabel}>{s.label}</span>
-            </button>
-          ))}
-        </div>
-      </RailSection>
     </>
   );
 }
