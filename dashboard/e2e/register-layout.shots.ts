@@ -132,7 +132,26 @@ test('projects opens ranked, with unread names marked', async ({ page }) => {
     ).toBeLessThanOrEqual(scores[i - 1]!);
   }
 
-  const marked = await page.locator('[data-testid="name-provisional-row"]').count();
+  // THE RANK MUST BE READABLE AS WELL AS ORDERED. The score is set on the ink
+  // ladder in four bands cut where the corpus divides, because 91/88/80 on their
+  // own are a number nobody knows the scale of - measured, four fifths of the
+  // register sits between 10 and 50. Page one is the top of a
+  // significance-sorted list, so the bands here must run downwards and must not
+  // all be the same.
+  const bands = await page
+    .locator('[data-testid="register-row"] [data-band]')
+    .evaluateAll((els) => els.map((e) => e.getAttribute('data-band') ?? ''));
+  const order = ['top', 'high', 'mid', 'low', 'none'];
+  console.log(`page 1 bands: ${bands.slice(0, 12).join(', ')}`);
+  expect(new Set(bands).size, 'every score on page one is in the same band').toBeGreaterThan(1);
+  for (let i = 1; i < bands.length; i++) {
+    expect(
+      order.indexOf(bands[i]),
+      `row ${i} is banded "${bands[i]}" under row ${i - 1}'s "${bands[i - 1]}", so the banding does not follow the score`
+    ).toBeGreaterThanOrEqual(order.indexOf(bands[i - 1]));
+  }
+
+  const marked = await page.locator('[data-held-unnamed]').count();
   const rows = scores.length;
   console.log(`page 1: ${rows} rows, ${marked} with a name we did not read`);
   // The mark must exist SOMEWHERE - a predicate that excludes 39 projects from
@@ -156,9 +175,19 @@ test('projects opens ranked, with unread names marked', async ({ page }) => {
       });
       await page.waitForTimeout(1500);
     }
-    seen = await page.locator('[data-testid="name-provisional-row"]').count();
+    seen = await page.locator('[data-held-unnamed]').count();
   }
   expect(seen, 'no row anywhere is marked as carrying a name we did not read').toBeGreaterThan(0);
+
+  // AND THE TWO REASONS ARE ONE MARK. A row held out for both its market and
+  // its name must show one tag carrying both, not two boxes in two columns.
+  // Measured 2026-08-16: 39 unnamed, 6 frozen, exactly 1 both.
+  const doubled = await page
+    .locator('[data-testid="register-row"]')
+    .evaluateAll((rows) =>
+      rows.filter((r) => r.querySelectorAll('[data-testid="row-held"]').length > 1).length
+    );
+  expect(doubled, 'a row is carrying more than one held-out mark').toBe(0);
 });
 
 // THE FILTER IS ONE CONTROL, AND WHAT IS APPLIED IS NEVER BEHIND IT.

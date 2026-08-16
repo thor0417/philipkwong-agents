@@ -152,6 +152,42 @@ function intersectIds(a: string[] | undefined, b: string[] | undefined): string[
   return a.filter((id) => inB.has(id));
 }
 
+// ---- THE SIGNIFICANCE SCALE, MEASURED RATHER THAN ASSUMED -------------------
+//
+// 91, 88 and 80 sit at the top of the register and they are the extreme tail.
+// Measured 2026-08-16 over the 267 live projects: min 0, p25 16.4, median 26.4,
+// p75 38.9, p90 48.1, max 90.5. Twenty-one projects score 50 or more and two
+// score above 80, so four fifths of the register lives between 10 and 50 - and
+// a person reading "38" has no way of knowing that is the top quarter.
+//
+// WHY NOT CUT AT THE ROUND QUARTERS OF 100. Because 75/50/25 would put 99% of
+// the register in one band and say nothing at all. The scale in use is not the
+// scale on the tin, and banding it as though it were is how a legend comes to
+// describe a distribution that does not exist.
+//
+// WHY THE INK LADDER AND NOT A BAR, A COLOUR OR A SECOND NUMBER. A bar is a
+// chart in a table cell; a colour would spend the accent on something that
+// appears on every row; a second number is more to read, not less. The ladder
+// costs no width and no new token: sorted by significance, which is the default,
+// the column runs from full ink at the top to muted at the bottom, so the shape
+// of the ranking is visible without anyone learning what 38 means. Sorted by
+// anything else, a dark number in a grey column is a row worth stopping on.
+//
+// THE CUTS ARE DATA AND WILL DRIFT. They are stated here with the date and the
+// distribution they were taken from, so a future reader can tell a deliberate
+// threshold from a stale one.
+const SIGNIFICANCE_BANDS: { min: number; key: string; label: string }[] = [
+  { min: 50, key: 'top', label: 'top tenth of the register' },
+  { min: 40, key: 'high', label: 'top quarter' },
+  { min: 16, key: 'mid', label: 'middle half' },
+  { min: 0, key: 'low', label: 'bottom quarter' },
+];
+
+function significanceBand(v: number | null | undefined): { key: string; label: string } {
+  if (v == null) return { key: 'none', label: 'not scored yet' };
+  return SIGNIFICANCE_BANDS.find((b) => v >= b.min) ?? { key: 'low', label: 'bottom quarter' };
+}
+
 // The score's own breakdown, on hover. Explainable at the point of use: a
 // ranking nobody can interrogate is a ranking nobody can trust.
 function significanceTitle(p: Project): string {
@@ -163,12 +199,26 @@ function significanceTitle(p: Project): string {
     .map(([k, v]) => `${k} ${v.points}/${v.of}  ${v.why}`);
   const pinned = (p.manual_overrides ?? {}) as Record<string, unknown>;
   const head = 'significance' in pinned ? `${p.significance} (pinned by you)` : `${p.significance} of 100`;
-  return [head, ...parts].join('\n');
+  // The band before the breakdown: the first question a score raises is "is
+  // that a big number", and it is the one the breakdown does not answer.
+  return [head, significanceBand(p.significance).label, ...parts].join('\n');
 }
 
 const COLUMNS: { key: string; label: string; sort?: string; numeric?: boolean; help?: string }[] = [
   { key: 'name', label: 'Project', sort: 'name' },
-  { key: 'significance', label: 'Sig', sort: 'significance' },
+  {
+    key: 'significance',
+    label: 'Sig',
+    sort: 'significance',
+    numeric: true,
+    help:
+      'Nine weighted signals, out of 100 - but the register does not use the ' +
+      'whole scale. Measured 2026-08-16 over 267 live projects: median 26, ' +
+      'top quarter above 39, top tenth above 48, highest 90. The number is set ' +
+      'in full ink in the top tenth, ink in the top quarter, secondary in the ' +
+      'middle half and muted in the bottom quarter, so the ranking can be read ' +
+      'without knowing the scale. Hover a score for its breakdown.',
+  },
   { key: 'applicant', label: 'Applicant', sort: 'primary_applicant' },
   { key: 'market', label: 'Market', sort: 'market' },
   { key: 'stage', label: 'Stage', sort: 'stage' },
@@ -198,6 +248,59 @@ const COLUMNS: { key: string; label: string; sort?: string; numeric?: boolean; h
       'the Arrived period filters on.',
   },
 ];
+
+/**
+ * THE ONE MARK A ROW CAN CARRY THAT SAYS IT CANNOT BE SOLD.
+ *
+ * Two facts hold a project out of every client document: the market's source has
+ * stopped publishing (lib/dead-feeds), or the name was assembled from an agenda
+ * line rather than read (isProvisionalName). They were marked separately, in two
+ * different cells, in the same hairline box - so a row carrying both showed two
+ * boxes, and a row carrying either showed a warning whose relationship to the
+ * other was left to the reader.
+ *
+ * ONE SLOT, ORDERED. The frozen market comes first because it outranks an
+ * unread name: a name can be fixed by typing one in, and a dead feed cannot be
+ * fixed at all. That is the precedence the detail pane already states in prose,
+ * so the row now agrees with it.
+ *
+ * Both reasons carry a `data-` attribute rather than only text, because two
+ * audits assert that these exclusions are visible SOMEWHERE - 39 of 267
+ * projects are refused by a client document on the name alone - and a selector
+ * that reads rendered words breaks the moment the wording improves.
+ */
+function heldMark(p: Project) {
+  const feed = deadFeedForMarket(p.market, p.region_state);
+  const unread = isProvisionalName(p.name_source);
+  if (!feed && !unread) return null;
+
+  const parts: string[] = [];
+  const why: string[] = [];
+  if (feed) {
+    parts.push(`frozen ${feed.frozenSince.slice(0, 4)}`);
+    why.push(
+      `Our source for ${feed.market} has published nothing since ${feed.frozenSince}.`
+    );
+  }
+  if (unread) {
+    parts.push('unnamed');
+    why.push(
+      'The name was taken from the agenda line rather than read from a published ' +
+        'name. Open the project to rename it by hand.'
+    );
+  }
+  return (
+    <span
+      className={styles.heldTag}
+      data-testid="row-held"
+      data-held-frozen={feed ? feed.frozenSince : undefined}
+      data-held-unnamed={unread ? 'true' : undefined}
+      title={`Held out of client documents. ${why.join(' ')}`}
+    >
+      {parts.join(' · ')}
+    </span>
+  );
+}
 
 /**
  * ONE AXIS INSIDE THE FILTER PANEL, WITH EVERY VALUE ON IT.
@@ -1473,30 +1576,26 @@ export default function ProjectsPage() {
                       <span className={styles.watchDot} title="Watched" aria-label="Watched" />
                     )}
                     {r.name}
-                    {/* A NAME WE DID NOT READ, MARKED WHERE THE LIST IS SCANNED.
-                        isProvisionalName is one predicate in lib/taxonomy and it
-                        is what a client document uses to REFUSE a project: 39 of
-                        267 are excluded from every report on this basis alone.
-                        The pane has said so since it was built, but the pane is
-                        opened one project at a time and the exclusion is
-                        invisible everywhere else, so the operator had no way to
-                        see the shape of it - a whole market can be provisional
-                        and the register would look complete. It is a mark, not a
-                        row of prose: the pane carries the sentence and the way
-                        to fix it. */}
-                    {isProvisionalName(r.name_source) && (
-                      <span
-                        className={styles.provisionalTag}
-                        data-testid="name-provisional-row"
-                        title={
-                          'Name taken from the agenda line rather than read from a published ' +
-                          'name. Projects named this way are held out of client documents. ' +
-                          'Open the project to rename it by hand.'
-                        }
-                      >
-                        unnamed
-                      </span>
-                    )}
+                    {/* ONE MARK, NOT TWO BOXES IN TWO COLUMNS.
+                        A row could carry an "unnamed" tag on this line and a
+                        "frozen 2018" tag in the market cell, in the same
+                        hairline box, and the two read as two unrelated warnings
+                        of equal weight. They are not two warnings. They are ONE
+                        statement - this project may not go in a client document
+                        - with two possible causes, and the causes are ordered:
+                        a market whose source has stopped outranks a name we
+                        assembled, which is the precedence the detail pane has
+                        always used.
+                        Measured 2026-08-16 over the 267 live projects: 39 are
+                        unnamed, 6 sit in a frozen market, 1 is both, and 1 is
+                        watched. So the marks barely collide in practice; what
+                        was wrong is that one vocabulary was being spelled two
+                        ways in two places.
+                        The watch dot stays where it is, before the name: it is
+                        the operator's own bookmark rather than a fact about the
+                        project, and it is the only mark here that says nothing
+                        about whether the row can be sold. */}
+                    {heldMark(r)}
                   </span>
                   {/* The name answers "which one". This answers "what is it".
                       Rendered even when null so every row is the same height.
@@ -1527,36 +1626,26 @@ export default function ProjectsPage() {
                     </span>
                   )}
                 </span>
-                <span className={`${styles.cell} ${styles.num} mono`} title={significanceTitle(r)}>
+                {/* THE RANK, WHICH IS THE FIRST THING AFTER THE NAME.
+                    Still the score, because the score is the thing that can be
+                    interrogated - hover it for the nine signals that made it -
+                    but set on the ink ladder so its STANDING is readable
+                    without anyone learning the scale. See SIGNIFICANCE_BANDS. */}
+                <span
+                  className={`${styles.cell} ${styles.num} ${styles.sig} mono`}
+                  data-band={significanceBand(r.significance).key}
+                  title={significanceTitle(r)}
+                >
                   {r.significance == null ? '--' : Math.round(r.significance)}
                 </span>
                 <span className={styles.cell}>{r.primary_applicant ?? '--'}</span>
-                {/* THE MARKET, AND WHETHER WE ARE STILL READING IT.
-                    A frozen market is the one thing about a row that cannot be
-                    inferred from anything else on it: the name, the stage and
-                    the applicant all look entirely healthy on a project whose
-                    source stopped publishing in 2018. Marked on the row rather
-                    than only in the pane, because the register is scanned far
-                    more often than it is opened, and this is the fact that
-                    decides whether a row can be sold as coverage. */}
-                <span className={styles.cell}>
-                  {r.market ?? r.region_state ?? '--'}
-                  {(() => {
-                    const feed = deadFeedForMarket(r.market, r.region_state);
-                    return feed ? (
-                      <span
-                        className={styles.frozenTag}
-                        data-testid="market-frozen"
-                        title={
-                          `Our source for ${feed.market} has published nothing since ` +
-                          `${feed.frozenSince}. Projects here are held out of client documents.`
-                        }
-                      >
-                        frozen {feed.frozenSince.slice(0, 4)}
-                      </span>
-                    ) : null;
-                  })()}
-                </span>
+                {/* The market, and nothing else. The fact that its source has
+                    stopped is a fact about whether the ROW can be sold, so it
+                    is stated once, with the name, alongside the other reason a
+                    row can be held out. It used to be marked here as well, in
+                    the identical hairline box, which is how one statement came
+                    to read as two warnings. */}
+                <span className={styles.cell}>{r.market ?? r.region_state ?? '--'}</span>
                 <span className={styles.cell}>{r.stage ?? '--'}</span>
                 <span className={`${styles.cell} ${styles.num} mono`}>{ymd(r.last_activity)}</span>
                 {viewKey === 'trash' && (

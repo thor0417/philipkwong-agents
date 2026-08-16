@@ -405,6 +405,31 @@
   white-space: nowrap;
 }
 
+/* THE SCORE, SET SO ITS STANDING IS READABLE WITHOUT THE SCALE.
+   Four steps of the ink ladder, cut where the corpus actually divides (see
+   SIGNIFICANCE_BANDS: median 26, top quarter above 39, top tenth above 48,
+   highest 90). No colour, no bar and no second number - sorted by significance,
+   which is the default, this column runs from full ink at the top of the list to
+   muted at the bottom, and that gradient IS the rank.
+   'none' keeps the disabled ink the '--' placeholder has everywhere else, so a
+   project nobody has scored never reads as a project that scored badly. */
+.sig[data-band='top'] {
+  color: var(--ink);
+  font-weight: var(--weight-medium);
+}
+.sig[data-band='high'] {
+  color: var(--ink);
+}
+.sig[data-band='mid'] {
+  color: var(--ink-secondary);
+}
+.sig[data-band='low'] {
+  color: var(--ink-muted);
+}
+.sig[data-band='none'] {
+  color: var(--ink-disabled);
+}
+
 .check {
   width: auto;
   accent-color: var(--accent);
@@ -624,12 +649,18 @@
   border-left: 2px solid var(--accent);
 }
 
-/* A MARKET WE HAVE STOPPED BEING ABLE TO READ. Deliberately NOT an accent: the
-   accent budget counts kinds of emphasis per screen, and this appears on every
-   row of a frozen market, which would make it the loudest thing on the page for
-   a fact that is true of the market rather than of the row. Tertiary ink and a
-   hairline box: legible when scanned for, silent when not. */
-.frozenTag {
+/* THE ONE MARK THAT SAYS A ROW CANNOT BE SOLD.
+   It was two: an "unnamed" box on the name line and an identical "frozen 2018"
+   box in the market cell, two columns apart. Same border, same size, same ink -
+   so a reader had no way to tell that they are one statement with two causes
+   rather than two independent warnings. One tag now, in one place, carrying
+   whichever reasons apply in precedence order.
+   Deliberately NOT an accent: the accent budget counts kinds of emphasis per
+   screen, and this appears on every row of a frozen market, which would make it
+   the loudest thing on the page for a fact that is true of the market rather
+   than of the row. Tertiary ink and a hairline box: legible when scanned for,
+   silent when not. */
+.heldTag {
   margin-left: var(--space-8);
   padding: 0 var(--space-4);
   border: var(--border-hairline);
@@ -637,20 +668,7 @@
   font-size: var(--type-caption);
   color: var(--ink-tertiary, var(--ink-secondary));
   white-space: nowrap;
-}
-
-/* A name we assembled rather than read. Same hairline tag as the frozen-market
-   mark, because it is the same kind of statement: a fact about the row that
-   nothing else on the row can reveal, and one that decides whether the project
-   may be printed to a client. */
-.provisionalTag {
-  margin-left: var(--space-8);
-  padding: 0 var(--space-4);
-  border: var(--border-hairline);
-  border-radius: var(--radius-sm, 2px);
-  font-size: var(--type-caption);
-  color: var(--ink-tertiary, var(--ink-secondary));
-  white-space: nowrap;
+  flex: none;
 }
 
 .summarySource {
