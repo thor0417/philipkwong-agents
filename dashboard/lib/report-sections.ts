@@ -32,7 +32,7 @@ import {
   type Subsection,
 } from './report-model';
 import { buildEntry, recordSentence } from './report-entry';
-import { categoriesForPipeline } from './taxonomy';
+import { categoriesForPipeline, classifyStageTransition } from './taxonomy';
 import { frozenMarketSentence, monthYear, type DeadFeed } from '../../lib/dead-feeds';
 import type { PartyHistory } from './people';
 
@@ -352,13 +352,35 @@ const cover: SectionDef = {
 
 // ---- 2. WHAT MOVED -----------------------------------------------------------
 
+/** First letter up, for a note assembled from clauses. */
+function capitalise(s: string): string {
+  return s.length ? s[0].toUpperCase() + s.slice(1) : s;
+}
+
+
 const whatMoved: SectionDef = {
   id: 'moved',
   label: 'What moved',
   description: 'Stage changes inside the period, most advanced first.',
   build: (ctx) => {
     const stageChanges = ctx.events.filter((e) => e.event_type === 'stage_changed');
-    const lines = stageChanges.map((e) =>
+
+    // ONLY AN ADVANCE IS A MOVEMENT. See classifyStageTransition: a step down
+    // the ladder is us revising a reading, and a step into stalled or dormant is
+    // a verdict about silence. Neither is something that happened, and printing
+    // them here told a reader that Heart Hotel had stalled three weeks after
+    // Clark County approved it.
+    const advanced = stageChanges.filter(
+      (e) => classifyStageTransition(e.from_value, e.to_value) === 'advanced'
+    );
+    const corrected = stageChanges.filter(
+      (e) => classifyStageTransition(e.from_value, e.to_value) === 'corrected'
+    );
+    const liveness = stageChanges.filter(
+      (e) => classifyStageTransition(e.from_value, e.to_value) === 'liveness'
+    );
+
+    const lines = advanced.map((e) =>
       recordLine(
         `${e.project?.name ?? 'Unnamed project'}: ${e.from_value ?? 'unknown'} to ${e.to_value ?? 'unknown'}`,
         e.lead?.url ?? '',
@@ -371,16 +393,38 @@ const whatMoved: SectionDef = {
     // unsourced, and the count of what was dropped is stated.
     const sourced = lines.filter((l) => l.source);
     const unsourced = lines.length - sourced.length;
+
+    // NOTHING IS SILENTLY ABSENT, so what was withheld is counted and named for
+    // what it is. A reader who wonders why a project they know changed is not
+    // here gets the answer instead of the impression that nothing happened.
+    const withheld: string[] = [];
+    if (unsourced > 0) {
+      withheld.push(
+        `${unsourced} advance${unsourced === 1 ? '' : 's'} had no linkable source record and ${unsourced === 1 ? 'is' : 'are'} not listed`
+      );
+    }
+    if (corrected.length > 0) {
+      withheld.push(
+        `${corrected.length} stage${corrected.length === 1 ? '' : 's'} moved DOWN the ladder, which is this system revising an earlier reading rather than a project going backwards, so ${corrected.length === 1 ? 'it is' : 'they are'} not listed as movement`
+      );
+    }
+    if (liveness.length > 0) {
+      withheld.push(
+        `${liveness.length} project${liveness.length === 1 ? '' : 's'} moved into or out of stalled or dormant, which is a verdict about how long a source has been quiet rather than something that happened`
+      );
+    }
+
     return withCommentary('moved', ctx, {
       id: 'moved',
       title: 'What moved',
-      lede: 'Projects that changed stage in this period.',
+      lede: 'Projects that advanced a stage in this period.',
       lines: sourced,
       emptyNote:
         sourced.length === 0
-          ? `No project in this scope changed stage during ${ctx.periodLabel}.`
-          : unsourced > 0
-            ? `${unsourced} further stage change${unsourced === 1 ? '' : 's'} had no linkable source record and ${unsourced === 1 ? 'is' : 'are'} not listed.`
+          ? `No project in this scope advanced a stage during ${ctx.periodLabel}.` +
+            (withheld.length ? ` ${capitalise(withheld.join('; '))}.` : '')
+          : withheld.length
+            ? `${capitalise(withheld.join('; '))}.`
             : undefined,
     });
   },

@@ -888,7 +888,7 @@ export default function ReportsPage() {
             </div>
 
             {doc.sections.map((sec) => (
-              <div key={sec.id} className={styles.docSection}>
+              <div key={sec.id} className={styles.docSection} data-doc-section={sec.id}>
                 <h3 className={styles.docSectionTitle}>{sec.title}</h3>
                 {sec.lede && <p className={styles.docLede}>{sec.lede}</p>}
                 {sec.lines.slice(0, 40).map((l, i) => (

@@ -203,3 +203,47 @@ export const STAGE_LADDER = PROJECT_STAGES.slice(0, 6) as readonly ProjectStage[
 export function isLadderStage(stage: string | null | undefined): boolean {
   return Boolean(stage && (STAGE_LADDER as readonly string[]).includes(stage));
 }
+
+export function ladderRank(stage: string | null | undefined): number {
+  return (STAGE_LADDER as readonly string[]).indexOf(String(stage ?? ''));
+}
+
+/**
+ * WHAT KIND OF THING A STAGE TRANSITION IS. Three kinds, and only one of them
+ * is news.
+ *
+ * The August report's first page said "Heart Hotel / Kulik River: approved to
+ * stalled", "OCVibe: under construction to approved" and "Disneyland Resort:
+ * approved to under construction", all dated the same day and all sourced from
+ * press. Two of the three are false statements about the world, and the reason
+ * is that the report printed every stored transition as a movement.
+ *
+ *   ADVANCED    a rung further up the ladder. This is the only one that is an
+ *               event: something happened and a document says so.
+ *
+ *   CORRECTED   a rung DOWN the ladder. The stage is recomputed from every
+ *               record on every run, so this is us revising a reading, not a
+ *               council un-approving anything. OCVibe went "under construction
+ *               to approved" because the earlier reading was borrowed from a
+ *               neighbouring record, and printing that as movement tells a
+ *               reader a project went backwards.
+ *
+ *   LIVENESS    to or from `stalled` or `dormant`. Those are not rungs; they
+ *               are verdicts about SILENCE, computed from how long it has been
+ *               since anything was filed. "Heart Hotel: approved to stalled"
+ *               is the system saying it has not heard anything lately, on a
+ *               project a county approved three weeks earlier and seven press
+ *               reports covered.
+ */
+export type StageTransition = 'advanced' | 'corrected' | 'liveness';
+
+export function classifyStageTransition(
+  from: string | null | undefined,
+  to: string | null | undefined
+): StageTransition {
+  const a = ladderRank(from);
+  const b = ladderRank(to);
+  // Either end off the ladder makes it a liveness verdict, not a movement.
+  if (a < 0 || b < 0) return 'liveness';
+  return b > a ? 'advanced' : 'corrected';
+}
