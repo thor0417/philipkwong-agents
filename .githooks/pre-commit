@@ -1,0 +1,83 @@
+#!/bin/sh
+#
+# THE GATE, ENFORCED RATHER THAN REQUESTED.
+#
+# "Gate the build separately" was a sentence in eight briefs. A commit landed on
+# a build that exited 1 anyway, because a sentence in a brief is a request and
+# this is not.
+#
+# BLOCKS AT SUBMIT TIME, NOT AT WRITE TIME. Blocking mid-edit breaks the
+# reasoning chain; validating the finished pass does not. Nothing here runs
+# while a file is being written.
+#
+# FAST ONLY. Everything in this hook is pure TypeScript: no database, no
+# network, no browser. Measured on this machine:
+#
+#   root verify:fast (typecheck, golden set, geography, naming, object model)  9s
+#   dashboard typecheck                                                        2s
+#   dashboard build                                                           19s
+#
+# so an agents-only commit pays 9 seconds and a dashboard commit pays 30. The
+# full Playwright suite is 13.5 minutes and is NOT here - it runs on push. A
+# 14-minute pre-commit hook is a hook people learn to pass --no-verify to, and
+# a gate that is routinely bypassed is worse than no gate because it also
+# provides an excuse.
+#
+# Install: npm run hooks:install   (sets core.hooksPath; per clone, not versioned)
+
+echo "--- pre-commit gate ---"
+
+fail=0
+
+run() {
+  label="$1"
+  shift
+  echo ""
+  echo "> $label"
+  "$@"
+  rc=$?
+  if [ $rc -ne 0 ]; then
+    echo "  $label EXIT $rc"
+    fail=1
+  else
+    echo "  $label ok"
+  fi
+}
+
+# 1. The agent runtime. Typecheck, the golden set, and the three pure-function
+#    suites. The golden set is first among equals: every case in it is a defect
+#    that has already reached a client document once.
+run "root verify:fast" npm run --silent verify:fast
+
+# 2. The dashboard, ONLY when the dashboard is being committed. A scraper commit
+#    does not need a Next build, and making it pay for one is how the number
+#    that matters (does this hook get bypassed) goes the wrong way.
+staged=$(git diff --cached --name-only --diff-filter=ACM)
+case "$staged" in
+  *dashboard/*)
+    echo ""
+    echo "> dashboard staged, so it is gated"
+    # GATED SEPARATELY, deliberately. A green typecheck and a red build have
+    # happened on the same tree here.
+    run "dashboard typecheck" sh -c 'cd dashboard && npx tsc --noEmit'
+    run "dashboard build" sh -c 'cd dashboard && npm run --silent build >/dev/null 2>&1'
+    ;;
+  *)
+    echo ""
+    echo "> no dashboard files staged, skipping the Next build"
+    ;;
+esac
+
+echo ""
+if [ $fail -ne 0 ]; then
+  echo "COMMIT REFUSED. The gate is red."
+  echo ""
+  echo "Nothing above is a known issue. A suite that has been failing for"
+  echo "several sessions is an ungated gate, not background noise."
+  echo ""
+  echo "The full suite - Playwright, exclusions, staleness - runs on push."
+  exit 1
+fi
+
+echo "pre-commit gate green."
+exit 0

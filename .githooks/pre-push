@@ -1,0 +1,73 @@
+#!/bin/sh
+#
+# THE OTHER HALF OF THE GATE. Everything the pre-commit hook is too slow to run.
+#
+# Measured on this machine:
+#
+#   root npm run verify        60s   (every scraper suite, incl. the live feeds)
+#   dashboard build            19s
+#   dashboard Playwright     13.5m   (63 tests, light + dark + walkthrough)
+#   audit:exclusions           32s
+#                            ------
+#                            ~15.5m
+#
+# That is the real cost of being sure, and it is why it is on push rather than
+# on commit: a push is a deliberate act a few times a day, and a commit is not.
+#
+# THE PLAYWRIGHT SUITE NEEDS A SERVER and this hook does not start one, because
+# a hook that leaves an orphaned Next server behind on failure is worse than a
+# hook that tells you to start one. If nothing is listening on :3000 it says so
+# and refuses, rather than reporting 63 failures that mean "no server".
+#
+# Skipping is possible - git push --no-verify - and there is one legitimate
+# reason: pushing a branch that is deliberately mid-work. Pushing to main with
+# --no-verify is not that.
+
+echo "--- pre-push gate ---"
+
+fail=0
+
+run() {
+  label="$1"
+  shift
+  echo ""
+  echo "> $label"
+  "$@"
+  rc=$?
+  if [ $rc -ne 0 ]; then
+    echo "  $label EXIT $rc"
+    fail=1
+  else
+    echo "  $label ok"
+  fi
+}
+
+run "root verify" npm run --silent verify
+
+if curl -s -o /dev/null -m 3 http://localhost:3000/login; then
+  run "dashboard playwright" sh -c 'cd dashboard && npx playwright test'
+  run "audit:exclusions" sh -c 'cd dashboard && npm run --silent audit:exclusions'
+else
+  echo ""
+  echo "> nothing is listening on :3000, so the Playwright suite cannot run."
+  echo "  Start one and push again:"
+  echo "      cd dashboard && npm run build && npm run start"
+  echo "  Use the production server, not npm run dev: this repo sits inside"
+  echo "  OneDrive, which locks .next/types and makes long dev runs fail with"
+  echo "  EBUSY in ways that read as product defects."
+  fail=1
+fi
+
+echo ""
+if [ $fail -ne 0 ]; then
+  echo "PUSH REFUSED. The gate is red."
+  echo ""
+  echo "Six client-document tests fail whenever client_projects holds no"
+  echo "confirmed row - that is the membership gate working, not a regression."
+  echo "Check it before diagnosing anything else:"
+  echo "    select status, count(*) from client_projects group by 1"
+  exit 1
+fi
+
+echo "pre-push gate green."
+exit 0

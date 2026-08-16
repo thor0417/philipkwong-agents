@@ -26,6 +26,18 @@ cd dashboard && npm run audit:exclusions   does every document state what it wit
 `audit:exclusions` is a DASHBOARD script, not a root one. Run from root it fails
 with "Missing script", which reads like the audit passing.
 
+```
+npm run hooks:install       ONCE PER CLONE. core.hooksPath is local config and
+                            is not versioned, so a fresh clone has no gate until
+                            this is run.
+npm run verify:fast         what the pre-commit hook runs. 9s, no DB or network.
+npm run verify:golden       the golden set on its own.
+```
+
+The gate is enforced by `.githooks/`: pre-commit runs the fast checks and refuses
+the commit on a non-zero exit, pre-push runs the full suite. See standing rule 7
+for how a case is added.
+
 ## Layout
 
 Two packages, and the split is not cosmetic. `npm run typecheck` at the root does
