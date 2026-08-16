@@ -32,6 +32,7 @@ import {
   type ProjectEventInput,
 } from '../project-events';
 import { selectAllPaged } from '../page-select';
+import { recordStage } from '../../../lib/taxonomy';
 
 // The pipeline this backfill operates on, from the registry rather than a
 // literal. See agents/scraper/pipelines.
@@ -90,23 +91,36 @@ export interface BackfillReport {
   events: EmitReport;
 }
 
-// THE RECORD THAT JUSTIFIES A STAGE CHANGE, so "approved by this filing" is
-// answerable rather than merely "approved on this date".
-//
-// The most recently dated member, because stage is derived from the most
-// ADVANCED evidence and the newest record is the one that most recently moved
-// it. This is a best attribution rather than a proof - the clusterer computes
-// stage over the whole member set, not from a single record - so it is written
-// to lead_id, which is nullable, and never presented as certainty.
-function latestRecordId(p: ClusteredProject): string | null {
+/**
+ * THE RECORD THAT CAUSED A STAGE, if any record did.
+ *
+ * The earliest DATED record of the project whose own text derives the stage in
+ * question. Earliest rather than latest, because "when did this happen" is
+ * answered by the first document that said so, not by the most recent one to
+ * repeat it.
+ *
+ * Returns null when nothing derives it, and null is a real answer: `stalled`
+ * and `dormant` are computed from silence rather than read from a document, and
+ * a ladder stage nothing supports was borrowed from a neighbouring record. See
+ * the note at the call site.
+ */
+function causingRecord(
+  p: ClusteredProject,
+  stage: string
+): { id: string; at: string } | null {
   let best: { id: string; at: string } | null = null;
   for (const m of p.members) {
     const id = m.record.id;
     const at = bestDate(m.record);
     if (!id || !at) continue;
-    if (!best || at > best.at) best = { id, at };
+    const derived = recordStage(
+      `${m.record.title ?? ''} ${m.record.raw_content ?? ''}`,
+      m.record.source_type
+    );
+    if (derived !== stage) continue;
+    if (!best || at < best.at) best = { id, at };
   }
-  return best?.id ?? null;
+  return best;
 }
 
 // Update a set of lead ids in chunks, so the query string cannot overflow.
@@ -211,14 +225,46 @@ export async function runBackfill(): Promise<{
       //     event on every run forever while the register never moved.
       const stageOverridden = heldBack.includes('stage');
       if (!stageOverridden && prior.stage && p.stage && prior.stage !== p.stage) {
-        const at = p.last_activity ?? p.first_seen;
-        if (at) {
+        // A STAGE CHANGE IS DATED FROM THE RECORD THAT CAUSED IT, NOT FROM THE
+        // NEWEST THING WE HOLD.
+        //
+        // This used to be `p.last_activity ?? p.first_seen` with the lead_id set
+        // to the project's latest record, and both are the same mistake: the
+        // most recent thing we have standing in for the thing that happened. It
+        // is the defect class bestDate already carries a note about, one level
+        // up - a proxy wearing the real value's name.
+        //
+        // Measured on the stored log before this changed: of eleven
+        // stage_changed events, four carried a date that is not their causing
+        // record's, and the August report's first page read
+        //
+        //   Heart Hotel / Kulik River: approved to stalled   2026-08-10  gli_serper
+        //   OCVibe: under construction to approved           2026-08-10  gli_serper
+        //   Disneyland Resort: approved to under construction 2026-08-10 gli_serper
+        //
+        // all three dated the day a press record arrived, and all three
+        // attributed to that press record. OCVibe's real cause is an Anaheim
+        // agenda item from 2025-07-21; Heart Hotel was approved by Clark County
+        // on 2026-07-21 and the event pointed at a LinkedIn post.
+        //
+        // THE CAUSING RECORD is the earliest DATED record whose own text derives
+        // the stage the project moved to. Earliest rather than latest, because
+        // the question is when the world first said so.
+        //
+        // WHEN NOTHING DERIVES IT, NO EVENT IS WRITTEN. That is the honest
+        // negative: a stage nothing supports is either a liveness verdict
+        // (`stalled`, `dormant`, computed from silence rather than read from a
+        // document) or a stage borrowed from a neighbouring record, and neither
+        // is an event. Both used to be written and dated at whatever arrived
+        // most recently.
+        const cause = causingRecord(p, p.stage);
+        if (cause) {
           addEvent(p.project_key, {
             event_type: 'stage_changed',
-            occurred_at: at,
+            occurred_at: cause.at,
             from_value: prior.stage,
             to_value: p.stage,
-            lead_id: latestRecordId(p),
+            lead_id: cause.id,
             detail: { project_key: p.project_key, market: p.market },
           });
         }
