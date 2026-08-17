@@ -93,8 +93,34 @@ const HEADER: HeaderField[] = [
 // A label is a label when it is followed by a colon. Nothing else distinguishes
 // one from an ordinary word, because these are English words: Actions, Agency,
 // Borough, Completed, Notice.
+// THE LIST MUST BE COMPLETE, and a missing entry does not degrade - it deletes.
+//
+// `CEQR lead agency` was missing, and the cost was the whole of `CEQR type`: 92
+// ZAP records carry the label and 1 stored the fact. In real raw_content the
+// fields are newline-separated, so the value pattern cannot cross into the next
+// field and the lookahead is the ONLY way the match can close. With the next
+// label absent from this list there is nothing to close on, so the field reads
+// as nothing at all rather than as too much.
+//
+// It survived the diagnostics because nyc-vocab counts `Label:` occurrences and
+// never runs the reader, and it survived a synthetic single-line test because
+// with spaces instead of newlines the value can run on and close at a LATER
+// label - swallowing "CEQR" but still matching. It was caught by comparing the
+// stored per-field rate against the measured one, which is the whole reason that
+// comparison is printed.
+//
+// So the list below is the FULL set of labels the three adapters write,
+// enumerated from the corpus by diagnostics/nyc-vocab rather than from memory.
 const NEXT_LABEL =
-  '(?=\\s+(?:Approved|Certified\\s*/\\s*referred|Application filed|Completed|Current milestone(?: date)?|Milestones|Project status|Project brief|Project description|Project page|Notice page|Notice document|Hearing\\s*/\\s*meeting date|Notice type|Notice|Published in the City Record|Latest environmental milestone|Review type|ULURP numbers|CEQR number|CEQR type|Actions|Lead agency|Agency|Borough|Community district|Council district|Address|Applicant type|Primary applicant|Public status|Record date taken from|Gate|Target-term hits|Section|Request id|Financing Amount)\\s*:|$)';
+  '(?=\\s+(?:Approved|Certified\\s*/\\s*referred|Application filed|Completed|' +
+  'Current milestone(?: date)?|Milestones|Project status|Project brief|' +
+  'Project description|Project page|Notice page|Notice document|' +
+  'Hearing\\s*/\\s*meeting date|Notice type|Notice|Published in the City Record|' +
+  'Latest environmental milestone|Review type|ULURP numbers|' +
+  'CEQR lead agency|CEQR number|CEQR type|Actions|Lead agency|Agency|Borough|' +
+  'Community district|Council district|Address|Applicant type|Primary applicant|' +
+  'Public status|Record date taken from|ZAP project id|Gate|Target-term hits|' +
+  'Section|Request id|Financing Amount)\\s*:|$)';
 
 function readHeader(text: string): FilingFact[] {
   const out: FilingFact[] = [];

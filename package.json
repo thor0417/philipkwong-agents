@@ -56,7 +56,9 @@
     "redate:stage-events": "node --env-file=.env.local --import tsx agents/scraper/migrations/redate-stage-events.ts",
     "capture:press": "node --env-file=.env.local --import tsx agents/scraper/migrations/capture-press-bodies.ts",
     "press:reach": "node --env-file=.env.local --import tsx agents/scraper/press-reach.ts",
-    "repair:petitioner": "node --env-file=.env.local --import tsx agents/scraper/migrations/repair-petitioner-applicants.ts"
+    "repair:petitioner": "node --env-file=.env.local --import tsx agents/scraper/migrations/repair-petitioner-applicants.ts",
+    "client:confirm": "node --env-file=.env.local --import tsx agents/scraper/migrations/client-confirm.ts",
+    "capture:filings": "node --env-file=.env.local --import tsx agents/scraper/migrations/capture-filing-facts.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.20.0",

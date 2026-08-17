@@ -239,7 +239,15 @@ export interface EntryFigure {
   sentence: string;
   url: string;
   sourceLabel: string;
-  provenance: 'PRESS';
+  // PRESS for a figure a publication printed, RECORD for one a filing states.
+  //
+  // ONE SHAPE FOR BOTH, TWO BLOCKS ON THE PAGE. A room count is a room count
+  // whoever said it, so the type is shared and the guard below is the same. What
+  // is NOT shared is where it prints: the entry keeps a RECORD block and a PRESS
+  // block apart, because "the county's staff report states 752 rooms" and "four
+  // publications reported 752 rooms" are different weights of evidence and the
+  // whole document is organised around a reader being able to tell.
+  provenance: 'PRESS' | 'RECORD';
 }
 
 export interface EntryPlayer {
@@ -320,6 +328,17 @@ export interface Entry {
   // Figures the per-entry cap held back, so the block can say so rather than
   // present a truncated list as the whole of what we hold.
   scaleHeld: number;
+  // WHAT THE FILINGS THEMSELVES STATE, read out of the documents the records
+  // already point at. Same shape as `scale` and a different provenance, printed
+  // in its own block ABOVE the press one: where a county staff report and a
+  // newspaper both give a room count, the reader should meet the staff report
+  // first.
+  //
+  // Each carries the document link and the LINE it was read from, and the gate
+  // holds it to the same test as a press figure - a value that does not appear
+  // in the line stored beside it does not print.
+  stated: EntryFigure[];
+  statedHeld: number;
   // WHO IS INVOLVED, ONCE, BEFORE THE FILINGS. Parties used to be printed inside
   // every record line, so a six-filing project named its applicant six times and
   // the reader had to notice a repetition to learn who was behind it. See
@@ -771,11 +790,18 @@ export function assertProvenance(doc: ReportDocument): void {
       // narrower thing that is still checkable: the number we print appears in
       // the text we cite for it. A reformatted display - "752 rooms" rendered
       // from a body that said "752-room" - fails here rather than shipping.
-      for (const f of entry.scale) {
-        if (f.provenance !== 'PRESS') {
+      //
+      // TWO BLOCKS, ONE TEST. `stated` carries what a filing says and `scale`
+      // what a publication reported. Each is checked for the provenance its own
+      // block is for, so a press figure cannot appear among the filings and a
+      // filing's figure cannot appear among the press.
+      for (const [block, want] of [[entry.stated, 'RECORD'], [entry.scale, 'PRESS']] as const) {
+      for (const f of block) {
+        if (f.provenance !== want) {
           throw new ProvenanceError(
-            `Figure "${f.display}" in entry "${entry.name}" is labelled ${String(f.provenance)}. ` +
-              `A figure lifted out of an article is press; the filings' own figures stay on their record lines.`
+            `Figure "${f.display}" in entry "${entry.name}" is labelled ${String(f.provenance)} ` +
+              `inside the ${want} block. A figure read out of a filing is a record; one lifted ` +
+              `out of an article is press; neither may sit in the other's block.`
           );
         }
         if (!f.url) {
@@ -785,10 +811,11 @@ export function assertProvenance(doc: ReportDocument): void {
         }
         if (!f.sentence.includes(f.display)) {
           throw new ProvenanceError(
-            `Figure "${f.display}" in entry "${entry.name}" does not appear in the sentence cited ` +
+            `Figure "${f.display}" in entry "${entry.name}" does not appear in the ${want === 'RECORD' ? 'line' : 'sentence'} cited ` +
               `for it: ${JSON.stringify(f.sentence).slice(0, 160)}`
           );
         }
+      }
       }
       // A NAMED PARTY IS A CLAIM ABOUT A PERSON, so it is held to the record
       // rule: labelled, and pointing at the filing that names them.
@@ -851,6 +878,7 @@ export function provenanceTally(doc: ReportDocument): Record<Provenance, number>
       // A figure is a claim carrying its own link, so it counts the way a line
       // does. Counting it as nothing would let a document whose press content
       // moved into the scale block read as though it had lost that content.
+      for (const f of e.stated) out[f.provenance]++;
       for (const f of e.scale) out[f.provenance]++;
       for (const party of e.people) out[party.provenance]++;
       for (const r of e.records) out[r.provenance]++;

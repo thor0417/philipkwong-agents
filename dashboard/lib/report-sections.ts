@@ -1101,6 +1101,33 @@ const referralProject: SectionDef = {
     // A [PRESS] figure printed between them cannot be mistaken for something the
     // county filed, and each line carries the article link so the reader can go
     // and check the number rather than take it.
+    // WHAT THE FILINGS STATE, directly under the filings that state it and above
+    // the press. The July brief put the record provenance first and the
+    // press-reported programme after it, and this is the same order for the same
+    // reason: a reader weighs the county's own numbers before a newspaper's.
+    if (e.stated.length) {
+      subsections.push({
+        title: 'Stated in the filings',
+        lines: e.stated.map((f) => {
+          // Same rule as the text renderer: the quote earns its place only where
+          // it says more than the label and the value already do.
+          const flat = (x: string) => x.replace(/[^a-z0-9]+/gi, ' ').trim().toLowerCase();
+          // The document's own value often ends its own sentence; a second full
+          // stop reads as a typo.
+          const stop = /[.!?]$/.test(f.display) ? '' : '.';
+          const head = `${f.label}: ${f.display}${stop}`;
+          const adds =
+            flat(f.sentence) !== flat(`${f.label}: ${f.display}`) &&
+            flat(f.sentence) !== flat(f.display);
+          return recordLine(adds ? `${head} "${f.sentence}"` : head, f.url, f.sourceLabel);
+        }),
+        emptyNote:
+          e.statedHeld > 0
+            ? `${e.statedHeld} further stated figure${e.statedHeld === 1 ? '' : 's'} held back ` +
+              `to keep this list readable.`
+            : undefined,
+      });
+    }
     if (e.scale.length) {
       subsections.push({
         title: 'Design and program (press-reported)',

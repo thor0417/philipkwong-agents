@@ -393,6 +393,18 @@ function scaleOf(
       // than merges.
       const key = `${f.kind}:${f.value ?? f.display.toLowerCase()}`;
       if (seen.has(key)) continue;
+      // ONE FACT, NOT SEVERAL READINGS OF IT - the same prefix rule the press
+      // block uses, and needed here for the same reason. Heart Hotel holds five
+      // agenda sheets and the board action wraps differently in each, so the
+      // entry printed "COUNTY COMMISSION ACTION: June 17, 2026 - HELD - To
+      // 07/22/26 - per the" and "COUNTY COMMISSION ACTION: June 17, 2026 -" as
+      // two facts. Where one display is a prefix of another the longer one is
+      // the same fact read more completely.
+      const superseded = out.findIndex(
+        (o) => o.kind === f.kind && f.display.startsWith(o.display)
+      );
+      if (superseded > -1) { out.splice(superseded, 1); }
+      else if (out.some((o) => o.kind === f.kind && o.display.startsWith(f.display))) continue;
       seen.add(key);
       out.push({
         kind: f.kind,
@@ -409,6 +421,145 @@ function scaleOf(
   return {
     figures: out.slice(0, ENTRY_FIGURE_CAP),
     held: Math.max(0, out.length - ENTRY_FIGURE_CAP),
+  };
+}
+
+// ---- WHAT THE FILINGS THEMSELVES STATE ---------------------------------------
+//
+// The RECORD half of the same idea. scaleOf above lifts what publications
+// reported; this lifts what the county, the city or the agency stated in its own
+// document, read by agents/scraper/readers and stored on the record by
+// `npm run capture:filings` (migration 035).
+//
+// NOTHING IS RE-READ HERE. The fact was verified at write time against the
+// document it came from - display present in the text AND in the line stored
+// beside it - and this reads the stored column. The gate re-checks the second
+// half at the document boundary for the same reason it does for press: a
+// reformatted display must fail rather than ship.
+//
+// NO PARTIES, EVER. The readers do not produce a party and this does not look
+// for one. `case_planner` is the closest thing and it is CITY STAFF: it is
+// excluded below by name, because a case officer printed among a project's facts
+// is one rendering away from being read as a party to it.
+const FILING_FACT_EXCLUDED = new Set([
+  // City staff, not a party. See readers/anaheim-agenda.
+  'case_planner',
+  // Already printed as its own thing: the entry's records carry the action, and
+  // the conditions get their own block rather than a figure line each.
+  'condition',
+]);
+
+// A project may hold many filings and each states the site again. Ten is above
+// anything the corpus produces per project today; the remainder is counted.
+export const ENTRY_STATED_CAP = 24;
+
+// AND AT MOST THIS MANY OF ANY ONE KIND, which matters more than the total.
+// Metropolitan Park holds 8 filings and 46 stated facts; ordered by importance
+// and capped only on the total, the entry printed FOUR hearing dates and two
+// project statuses and then ran out of room before the 250-room hotel, the
+// 25,000-seat stadium and the 2,098,000 gsf. Breadth is what a reader wants from
+// an entry - one of each thing the filings state - and depth is what the record
+// lines underneath are for.
+const PER_KIND_CAP = 2;
+
+// THE ORDER A CLIENT READS IN, not the order a clerk files in.
+//
+// The first cut of this list was the reader's own grouping - everything
+// procedural, then the site, then the size - and against Metropolitan Park's 46
+// facts it filled the whole block with hearing dates, milestones, ULURP numbers
+// and CEQR numbers and ran out before the 250-room hotel and the 25,000-seat
+// stadium. A client entry answers "what is it, where, how big, and what
+// happened" and the paperwork identifiers are the last of those, not the first.
+const STATED_ORDER = new Map(
+  [
+    // WHAT HAPPENED, in one or two lines.
+    'nyc_status', 'nyc_approved', 'staff_recommendation', 'commission_action',
+    'board_action', 'the_vote', 'held_to', 'next_hearing', 'tab_cac', 'protests',
+    // WHERE.
+    'site_address', 'cross_streets', 'apn', 'nyc_block_lot', 'town', 'nyc_borough',
+    'land_use_plan', 'zone', 'existing_land_use',
+    // HOW BIG, AND HOW MUCH. The half a client acts on.
+    'site_acreage', 'project_type', 'rooms', 'seats', 'units', 'stories',
+    'height_feet', 'floor_area', 'parking', 'lots', 'unit_size', 'density',
+    'open_space', 'purchase_price', 'money_other', 'nyc_financing', 'nyc_affordable',
+    'agreement', 'counterparty', 'nyc_co_applicants',
+    // THE PAPERWORK, last. Real, citable, and not what the entry is for.
+    'nyc_milestone', 'nyc_milestone_date', 'nyc_filed', 'nyc_certified',
+    'nyc_completed', 'nyc_milestones', 'nyc_environmental_milestone',
+    'nyc_notice_type', 'nyc_published', 'application_no', 'resolution',
+    'effective_date', 'nyc_review_type', 'nyc_ulurp', 'nyc_ceqr_number',
+    'nyc_ceqr_type', 'nyc_actions', 'nyc_agency', 'nyc_community_district',
+    'nyc_council_district', 'environmental', 'ceqa_class', 'sustainability',
+  ].map((k, i) => [k, i])
+);
+
+function statedOf(records: ScopedRecord[]): { figures: EntryFigure[]; held: number } {
+  const out: EntryFigure[] = [];
+  const seen = new Set<string>();
+  for (const r of records) {
+    if (!r.url) continue;
+    // A filing's facts, and only a filing's. A press record has no filing_facts
+    // and could not have any, but the check is written rather than assumed.
+    if (!isFiling(r.source, r.source_type, r.stream)) continue;
+    const facts = (r.filing_facts ?? []) as {
+      kind: string; label: string; display: string; line: string; value: number | null;
+    }[];
+    for (const f of facts) {
+      if (!f?.kind || !f.display || !f.line) continue;
+      if (FILING_FACT_EXCLUDED.has(f.kind)) continue;
+      // The same reader-side rule as the entry dedupe: one fact, not several
+      // readings of it, and a value beats a string where both exist.
+      const key = `${f.kind}:${f.value ?? f.display.toLowerCase()}`;
+      if (seen.has(key)) continue;
+      // ONE FACT, NOT SEVERAL READINGS OF IT - the same prefix rule the press
+      // block uses, and needed here for the same reason. Heart Hotel holds five
+      // agenda sheets and the board action wraps differently in each, so the
+      // entry printed "COUNTY COMMISSION ACTION: June 17, 2026 - HELD - To
+      // 07/22/26 - per the" and "COUNTY COMMISSION ACTION: June 17, 2026 -" as
+      // two facts. Where one display is a prefix of another the longer one is
+      // the same fact read more completely.
+      const superseded = out.findIndex(
+        (o) => o.kind === f.kind && f.display.startsWith(o.display)
+      );
+      if (superseded > -1) { out.splice(superseded, 1); }
+      else if (out.some((o) => o.kind === f.kind && o.display.startsWith(f.display))) continue;
+      // An unquotable fact is not printable. The writer's guard should have
+      // caught it; this is the reader-facing half, so one bad stored row cannot
+      // take out a document.
+      if (!f.line.includes(f.display)) continue;
+      seen.add(key);
+      out.push({
+        kind: f.kind,
+        label: f.label,
+        display: f.display,
+        // The LINE the document printed it on, which plays the part the press
+        // sentence plays: it is the evidence, and the gate checks the display
+        // against it.
+        sentence: f.line,
+        // THE DOCUMENT, not the record page. A reader checking "752 rooms"
+        // needs the staff report, not the Legistar index that links to it.
+        url: r.primary_document_url ?? r.url,
+        sourceLabel: citationLabel(r.source, r.primary_document_url ?? r.url, true),
+        provenance: 'RECORD',
+      });
+    }
+  }
+  // READ IN THE ORDER A PERSON ASKS THE QUESTIONS, not the order the records
+  // happened to be captured in: what was decided and when, then where it is,
+  // then how big it is.
+  out.sort((a, b) => (STATED_ORDER.get(a.kind) ?? 99) - (STATED_ORDER.get(b.kind) ?? 99));
+  const perKind = new Map<string, number>();
+  const spread: EntryFigure[] = [];
+  let dropped = 0;
+  for (const f of out) {
+    const n = (perKind.get(f.kind) ?? 0) + 1;
+    perKind.set(f.kind, n);
+    if (n > PER_KIND_CAP) { dropped++; continue; }
+    spread.push(f);
+  }
+  return {
+    figures: spread.slice(0, ENTRY_STATED_CAP),
+    held: dropped + Math.max(0, spread.length - ENTRY_STATED_CAP),
   };
 }
 
@@ -745,6 +896,10 @@ export function buildEntry(
   // reason. Each figure carries its own article link, so nothing here cites a
   // document the reader cannot open.
   const scale = scaleOf(forParties, project);
+  // The RECORD half, from the same whole-project set and for the same reason:
+  // a parcel number does not stop being this project's because the filing that
+  // stated it fell outside the window.
+  const stated = statedOf(forParties);
   const entryRecords: EntryRecord[] = shown.map((r) => {
     const reference = referenceOf(r);
     const text = actionText(r, reference, brands);
@@ -793,6 +948,8 @@ export function buildEntry(
           ? { text: tidy(project.summary), url: project.summary_url }
           : null,
       assembled: assembleSentence(entryRecords),
+      stated: stated.figures,
+      statedHeld: stated.held,
       scale: scale.figures,
       scaleHeld: scale.held,
       people,

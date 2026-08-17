@@ -36,7 +36,10 @@ const RECORD_COLUMNS =
   // in the timeline columns: an entry prints them, the register's timeline does
   // not, and article_body is deliberately never selected anywhere - it runs to
   // 20,000 characters and no document prints it.
-  'press_facts';
+  'press_facts,' +
+  // What the filing states about itself. Selected beside press_facts and for the
+  // same reason: an entry prints both and the register's timeline prints neither.
+  'filing_facts';
 
 // A PostgREST `in` list of 2,000 uuids overflows the URL, so every id-keyed read
 // below walks the list in chunks of this size.

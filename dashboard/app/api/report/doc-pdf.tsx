@@ -164,6 +164,34 @@ function EntryBlock({ e }: { e: Entry }) {
         carries it - and giving it its own type scale would put two visual
         languages inside one entry for no reason a reader benefits from.
       */}
+      {/* The filings' own figures, above the press ones. Same styles: it is the
+          same shape - a tag, a claim, the link that carries it. */}
+      {e.stated.length > 0 && (
+        <View style={s.people}>
+          <Text style={s.peopleHead}>What the filings state</Text>
+          {e.stated.map((f, i) => (
+            <View key={i} style={s.party} wrap={false}>
+              <Text style={s.partyTag}>[{f.provenance}]</Text>
+              <View style={s.partyBody}>
+                <Text style={s.partyName}>
+                  {f.label}: {f.display}
+                </Text>
+                <Text style={s.partyDetail}>&ldquo;{f.sentence}&rdquo;</Text>
+                <Link src={f.url} style={s.link}>
+                  {f.sourceLabel}
+                </Link>
+              </View>
+            </View>
+          ))}
+          {e.statedHeld > 0 ? (
+            <Text style={s.partyDetail}>
+              {e.statedHeld} further stated figure{e.statedHeld === 1 ? '' : 's'} held back to keep
+              this block readable.
+            </Text>
+          ) : null}
+        </View>
+      )}
+
       {e.scale.length > 0 && (
         <View style={s.people}>
           <Text style={s.peopleHead}>Scale, as reported in the press</Text>

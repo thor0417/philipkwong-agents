@@ -537,6 +537,15 @@ export interface TimelineRecord {
   // press-facts' own types, and the provenance gate refuses to render a figure
   // that is not a quotation from the sentence stored beside it.
   press_facts?: { kind: string; display: string; value: number | null; sentence: string }[] | null;
+  // WHAT THE FILING ITSELF STATES, read out of the document this record points
+  // at (migration 035, written by `npm run capture:filings`). Null on a press
+  // record and on any filing whose form no reader covers - which is most of
+  // them outside Clark County, Oakland, Anaheim and New York.
+  //
+  // Typed structurally rather than by importing FilingFact, for the same reason
+  // press_facts is: this interface is the PostgREST row shape. The shape is
+  // asserted where it is used.
+  filing_facts?: { kind: string; label: string; display: string; value: number | null; line: string; group?: string | null }[] | null;
 }
 
 const TIMELINE_COLUMNS = [

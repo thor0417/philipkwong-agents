@@ -37,6 +37,7 @@ import {
 } from './press-facts';
 import { contactsFromText } from './sources/contact-labels';
 import { readFilingFacts, verifyFilingFacts } from './filing-facts';
+import { readNycFacts } from './readers/nyc-records';
 
 const CASES_FILE = 'agents/scraper/fixtures/golden.jsonl';
 
@@ -354,6 +355,36 @@ const INLINE: Record<string, () => string | null> = {
     if (licence && /Fire Prevention Bureau/.test(licence.display)) {
       return 'the heading was left inside the condition above it';
     }
+    return null;
+  },
+
+  'a-field-list-with-a-hole-deletes-a-field': () => {
+    // NEWLINE-SEPARATED, which is what real raw_content is and what a
+    // single-line synthetic hid: the value cannot cross the break, so the
+    // next-label lookahead is the only way the match can close.
+    const zap = [
+      'NYC land use application (ZAP / ULURP): Willets Point Phase II',
+      'ULURP numbers: 240092ZSQ; N240093ZRQ',
+      'CEQR number: 23DME005Q',
+      'CEQR type: Type I',
+      'CEQR lead agency: DME',
+      'Actions: ZS; ZR',
+      'Approved: 2024-04-11',
+    ].join('\n');
+
+    const facts = readNycFacts(zap);
+    const type = facts.find((f) => f.kind === 'nyc_ceqr_type');
+    if (!type) return 'the CEQR type label was carried and no fact was read from it';
+    if (type.display !== 'Type I') {
+      return `the value ran past its own field: "${type.display}"`;
+    }
+    // The neighbours must be unharmed by the boundary that closes this one.
+    const num = facts.find((f) => f.kind === 'nyc_ceqr_number');
+    if (num?.display !== '23DME005Q') return `CEQR number read as "${num?.display}"`;
+    const agency = facts.find((f) => f.kind === 'nyc_agency');
+    if (agency?.display !== 'DME') return `lead agency read as "${agency?.display}"`;
+    const approved = facts.find((f) => f.kind === 'nyc_approved');
+    if (approved?.display !== '2024-04-11') return `approved read as "${approved?.display}"`;
     return null;
   },
 

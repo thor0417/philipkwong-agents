@@ -19,6 +19,19 @@ function lineText(l: Line): string {
   return `  [${l.provenance}] ${l.text}${meta}${src}`;
 }
 
+// THE EVIDENCE LINE, ONLY WHERE IT IS EVIDENCE. For a filing the line is very
+// often exactly "Label: value" - "Site Acreage: 11.95" - and printing the quote
+// under a line that already reads "site: 11.95" is the same words twice. Where
+// the line says MORE than the label and the value - "in a CR (Commercial Resort)
+// Zone" under "zone: CR (Commercial Resort)" - it is worth the row.
+function evidenceAdds(label: string, display: string, line: string): boolean {
+  // Punctuation-insensitive: "Staff Recommendation Approval." and
+  // "Staff Recommendation: Approval." are the same words, and the colon the
+  // label adds is not new information.
+  const flat = (x: string) => x.replace(/[^a-z0-9]+/gi, ' ').trim().toLowerCase();
+  return flat(line) !== flat(`${label}: ${display}`) && flat(line) !== flat(display);
+}
+
 function entryText(e: Entry): string {
   const out: string[] = [];
   out.push(`#### ${e.name}${e.meta ? `  -  ${e.meta}` : ''}`);
@@ -32,6 +45,23 @@ function entryText(e: Entry): string {
   // all. The heading names the provenance in words as well as in tags, because
   // the difference between what a filing states and what a publication reported
   // is the difference this whole document is organised around.
+  // THE FILINGS' OWN FIGURES FIRST. Where a county staff report and a newspaper
+  // both give a room count, the reader should meet the staff report first: it is
+  // the stronger evidence and it is the half a client can act on.
+  if (e.stated.length) {
+    out.push('  WHAT THE FILINGS STATE');
+    for (const f of e.stated) {
+      out.push(`    [RECORD] ${f.label}: ${f.display}`);
+      if (evidenceAdds(f.label, f.display, f.sentence)) out.push(`             "${f.sentence}"`);
+      out.push(`             ${f.sourceLabel}: ${f.url}`);
+    }
+    if (e.statedHeld > 0) {
+      out.push(
+        `    ${e.statedHeld} further stated figure${e.statedHeld === 1 ? '' : 's'} ` +
+          `held back to keep this block readable.`
+      );
+    }
+  }
   if (e.scale.length) {
     out.push('  SCALE, AS REPORTED IN THE PRESS');
     for (const f of e.scale) {
