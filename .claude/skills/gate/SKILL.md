@@ -39,6 +39,38 @@ npm run audit:exclusions; echo "EXCLUSIONS=$?"
 cd .. && npm run verify:staleness; echo "STALENESS=$?"
 ```
 
+## NEVER COMMIT A DASHBOARD FILE WHILE THE SERVER IS UP
+
+This cost two full gate runs, about 25 minutes, in one session, and both times
+it looked like a product failure.
+
+The pre-commit hook runs `npm run build` whenever a dashboard file is staged.
+That rewrites `.next` underneath the running `npm run start`, which does not
+notice and does not exit - it serves a half-written build. Every Playwright test
+from that moment fails with a 2-minute navigation timeout, and the suite reads as
+though the whole application is broken.
+
+This repo lives in OneDrive, which locks `.next` and makes the corruption worse
+and less deterministic. It is the same underlying trap CLAUDE.md warns about for
+`npm run dev`.
+
+So the order is not negotiable:
+
+```bash
+# 1. commit everything FIRST, with no server running
+git commit ...
+
+# 2. only then build, start, and push - and touch nothing in between
+cd dashboard && rm -rf .next && npm run build
+npm run start > /tmp/prod.log &
+until grep -q "Ready in" /tmp/prod.log; do sleep 1; done
+cd .. && git push
+```
+
+The tell that you have done it anyway: consecutive tests failing at exactly
+`2.0m` with navigation timeouts, starting partway through the run rather than at
+test 1. A real red fails fast; this fails at the timeout, every time, forever.
+
 ## Report the real exit code of each
 
 Print the six numbers. Not "all green" - the numbers. A suite whose output
