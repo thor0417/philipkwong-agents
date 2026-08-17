@@ -41,6 +41,20 @@ async function openClientView(page: Page): Promise<{ id: string; name: string }>
   return { id, name };
 }
 
+/**
+ * ONE ROW'S MEMBERSHIP, READ OFF THE REGISTER. A proposed row renders no mark at
+ * all - only a decision shows - so the absence of the mark is the third state.
+ */
+async function memberState(
+  page: Page,
+  id: string
+): Promise<'proposed' | 'included' | 'excluded'> {
+  const mark = page.locator(`[data-row-id="${id}"] [data-membership]`);
+  if ((await mark.count()) === 0) return 'proposed';
+  const v = await mark.first().getAttribute('data-membership');
+  return v === 'included' || v === 'excluded' ? v : 'proposed';
+}
+
 /** The bar's three counts, read off the text rather than off the database. */
 async function counts(page: Page): Promise<{ proposed: number; included: number; excluded: number }> {
   const text = ((await page.getByTestId('client-counts').textContent()) ?? '').replace(/\s+/g, ' ');
@@ -50,7 +64,7 @@ async function counts(page: Page): Promise<{ proposed: number; included: number;
 
 test('opening a client proposes, and the register can confirm', async ({ page }) => {
   test.setTimeout(600_000);
-  const touched: string[] = [];
+  const touched: { id: string; was: 'proposed' | 'included' | 'excluded' }[] = [];
   const out: Record<string, unknown> = {};
 
   try {
@@ -92,8 +106,43 @@ test('opening a client proposes, and the register can confirm', async ({ page })
     expect(second, 'opening the client a second time changed the membership').toEqual(first);
 
     // ---- 3. C CONFIRMS. ---------------------------------------------------
+    //
+    // REMEMBER THE STARTING STATE AND PUT IT BACK, rather than assuming one.
+    //
+    // This test took rows[0] and asserted C raised the confirmed count by one.
+    // That held for as long as the membership table held no decisions, and it
+    // stopped holding the day Simtec's were made: the first row WAS one of the
+    // confirmed five, C correctly toggled it back to proposed, the count went
+    // 5 -> 4, and the test failed.
+    //
+    // WORSE THAN A FAILING TEST, IT CHANGED A REAL DECISION. The cleanup below
+    // restored every touched row to Proposed - right when the row began
+    // proposed, wrong when it did not - so the run left Heart Hotel, a project
+    // confirmed for a paying client, sitting at proposed.
+    //
+    // Choosing an undecided row instead is not enough either: Simtec's fifteen
+    // are now all decided, so there would be none to choose. The only rule that
+    // holds whatever the table contains is to read the row's state, work from
+    // it, and restore it exactly.
     const target = rows[0];
-    touched.push(target);
+    const startState = await memberState(page, target);
+    touched.push({ id: target, was: startState });
+    console.log(`  target ${target} starts ${startState}`);
+
+    // Normalise to proposed so the assertions below can be written as deltas.
+    // Every step is itself a write the register performs, so nothing is skipped
+    // by doing this - it is the same C and X the test is here to exercise.
+    if (startState !== 'proposed') {
+      await page.locator(`[data-row-id="${target}"]`).click();
+      await page.keyboard.press(startState === 'included' ? 'c' : 'x');
+      await expect
+        .poll(async () => memberState(page, target), { timeout: 30_000 })
+        .toBe('proposed');
+      console.log(`  normalised ${target} to proposed for the run`);
+    }
+    // The baseline the deltas are measured from, AFTER normalising.
+    const base = await counts(page);
+
     await page.locator(`[data-row-id="${target}"]`).click();
     await page.keyboard.press('c');
     await expect(
@@ -102,7 +151,7 @@ test('opening a client proposes, and the register can confirm', async ({ page })
     ).toBeVisible({ timeout: 30_000 });
     await expect
       .poll(async () => (await counts(page)).included, { timeout: 30_000 })
-      .toBe(first.included + 1);
+      .toBe(base.included + 1);
     console.log(`  C on ${target} -> confirmed`);
 
     // The pane agrees with the row, because they read one map rather than two.
@@ -114,7 +163,7 @@ test('opening a client proposes, and the register can confirm', async ({ page })
     await page.keyboard.press('c');
     await expect
       .poll(async () => (await counts(page)).included, { timeout: 30_000 })
-      .toBe(first.included);
+      .toBe(base.included);
     console.log(`  C again -> back to proposed`);
 
     // ---- 5. X EXCLUDES, AND FROM THE PANE TOO. ----------------------------
@@ -125,13 +174,13 @@ test('opening a client proposes, and the register can confirm', async ({ page })
     ).toBeVisible({ timeout: 30_000 });
     await expect
       .poll(async () => (await counts(page)).excluded, { timeout: 30_000 })
-      .toBe(first.excluded + 1);
+      .toBe(base.excluded + 1);
     console.log(`  X on ${target} -> excluded`);
 
     await page.getByTestId('detail-confirm').click();
     await expect
       .poll(async () => (await counts(page)).included, { timeout: 30_000 })
-      .toBe(first.included + 1);
+      .toBe(base.included + 1);
     console.log(`  Confirm in the pane -> confirmed, from excluded, without a delete`);
 
     // ---- 6. THE BAR SAYS WHAT IT MEANS FOR THE DOCUMENT. ------------------
@@ -149,33 +198,33 @@ test('opening a client proposes, and the register can confirm', async ({ page })
     //
     // In a finally, so a failed assertion above does not leave a project
     // confirmed for a paying client because a test said so.
-    for (const id of touched) {
+    //
+    // RESTORED TO WHAT IT WAS, not to a hardcoded Proposed. The old version
+    // always drove the row to Proposed, which silently un-confirmed Heart Hotel
+    // the first time this test ran against a client whose membership had been
+    // decided. The starting state is captured above and put back here.
+    for (const { id, was } of touched) {
       await page.locator(`[data-row-id="${id}"]`).click().catch(() => {});
-      const state = await page
-        .getByTestId('detail-membership-state')
-        .textContent()
-        .catch(() => '');
-      if (/^Confirmed/.test((state ?? '').trim())) {
-        await page.getByTestId('detail-confirm').click().catch(() => {});
-      } else if (/^Excluded/.test((state ?? '').trim())) {
-        await page.getByTestId('detail-exclude').click().catch(() => {});
+      for (let attempt = 0; attempt < 4; attempt++) {
+        const now = await memberState(page, id).catch(() => 'proposed' as const);
+        if (now === was) break;
+        // C and X are each their own way back, so one press moves one step:
+        // whatever the row currently is, press the key that leaves it at `was`.
+        if (now === 'included') await page.keyboard.press('c').catch(() => {});
+        else if (now === 'excluded') await page.keyboard.press('x').catch(() => {});
+        else await page.keyboard.press(was === 'included' ? 'c' : 'x').catch(() => {});
+        // POLL, DO NOT WAIT AND READ. A fixed pause followed by one read is the
+        // stale-result defect this brief spent a part on: the first run of this
+        // block reported success for a row the database had already changed,
+        // because the read beat the invalidation. A cleanup that reports its own
+        // success wrongly is worse than one that does not report at all.
+        await expect
+          .poll(async () => memberState(page, id).catch(() => 'unknown'), { timeout: 15_000 })
+          .not.toBe(now);
       }
-      // POLL, DO NOT WAIT AND READ. A fixed pause followed by one read is the
-      // stale-result defect this brief spent a part on: the first run of this
-      // block printed "Confirmed. This project will appear in their document"
-      // for a row the database had already put back to proposed, because the
-      // read beat the invalidation. A cleanup that reports its own success
-      // wrongly is worse than one that does not report at all.
-      await expect
-        .poll(
-          async () =>
-            ((await page.getByTestId('detail-membership-state').textContent().catch(() => '')) ?? '')
-              .trim()
-              .slice(0, 8),
-          { timeout: 30_000 }
-        )
-        .toBe('Proposed');
-      console.log(`  restored ${id}: back to proposed`);
+      const final = await memberState(page, id).catch(() => 'unknown' as const);
+      expect(final, `cleanup left ${id} at ${final}, not the ${was} it started as`).toBe(was);
+      console.log(`  restored ${id}: back to ${was}`);
     }
   }
 });
