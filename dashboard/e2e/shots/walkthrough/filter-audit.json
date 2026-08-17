@@ -1,21 +1,21 @@
 {
-  "baseline": 267,
+  "baseline": 259,
   "defaultGeography": 217,
-  "clearedGeography": 267,
+  "clearedGeography": 259,
   "results": [
     {
       "filter": "View: New",
       "url": "/projects?view=new&country=any",
       "filtersOn": "projects.status = 'new'",
-      "before": 267,
-      "after": 267,
+      "before": 259,
+      "after": 259,
       "changed": "NO CHANGE"
     },
     {
       "filter": "View: Watchlist",
       "url": "/projects?view=watchlist&country=any",
       "filtersOn": "projects.watch = true AND status <> 'dismissed'",
-      "before": 267,
+      "before": 259,
       "after": 1,
       "changed": "changed"
     },
@@ -23,7 +23,7 @@
       "filter": "View: Client ready",
       "url": "/projects?view=client_ready&country=any",
       "filtersOn": "projects.status = 'client_ready'",
-      "before": 267,
+      "before": 259,
       "after": 0,
       "changed": "changed"
     },
@@ -31,23 +31,23 @@
       "filter": "View: Trash",
       "url": "/projects?view=trash&country=any",
       "filtersOn": "projects.status = 'dismissed'",
-      "before": 267,
-      "after": 0,
+      "before": 259,
+      "after": 8,
       "changed": "changed"
     },
     {
       "filter": "Stage chip: filed",
       "url": "/projects?view=all&country=any&stage=filed",
       "filtersOn": "projects.stage =",
-      "before": 267,
-      "after": 116,
+      "before": 259,
+      "after": 108,
       "changed": "changed"
     },
     {
       "filter": "Stage chip: hearing scheduled",
       "url": "/projects?view=all&country=any&stage=hearing%20scheduled",
       "filtersOn": "projects.stage =",
-      "before": 267,
+      "before": 259,
       "after": 7,
       "changed": "changed"
     },
@@ -55,7 +55,7 @@
       "filter": "Stage chip: approved",
       "url": "/projects?view=all&country=any&stage=approved",
       "filtersOn": "projects.stage =",
-      "before": 267,
+      "before": 259,
       "after": 40,
       "changed": "changed"
     },
@@ -63,7 +63,7 @@
       "filter": "Geography default (no parameter)",
       "url": "/projects?view=all",
       "filtersOn": "projects.country = 'United States' by default",
-      "before": 267,
+      "before": 259,
       "after": 217,
       "changed": "changed"
     },
@@ -71,7 +71,7 @@
       "filter": "Geography L1: United States",
       "url": "/projects?view=all&country=United+States",
       "filtersOn": "projects.country =",
-      "before": 267,
+      "before": 259,
       "after": 217,
       "changed": "changed"
     },
@@ -79,7 +79,7 @@
       "filter": "Geography L2: California",
       "url": "/projects?view=all&country=United+States&region=California",
       "filtersOn": "projects.country = AND projects.region_state =",
-      "before": 267,
+      "before": 259,
       "after": 27,
       "changed": "changed"
     },
@@ -87,7 +87,7 @@
       "filter": "Geography L3: Anaheim",
       "url": "/projects?view=all&country=United+States&region=California&market=Anaheim",
       "filtersOn": "country = AND region_state = AND market =",
-      "before": 267,
+      "before": 259,
       "after": 19,
       "changed": "changed"
     },
@@ -95,7 +95,7 @@
       "filter": "Search: \"resort\"",
       "url": "/projects?view=all&country=any&q=resort",
       "filtersOn": "ilike over name, primary_applicant, primary_representative",
-      "before": 267,
+      "before": 259,
       "after": 15,
       "changed": "changed"
     },
@@ -103,7 +103,7 @@
       "filter": "Saved view: Anaheim",
       "url": "/projects?view=all&saved=anaheim&country=United+States&region=California&market=Anaheim",
       "filtersOn": "country + region_state + market",
-      "before": 267,
+      "before": 259,
       "after": 19,
       "changed": "changed"
     },
@@ -111,7 +111,7 @@
       "filter": "Saved view: Approved, anywhere",
       "url": "/projects?view=all&saved=approved&country=any&stage=approved",
       "filtersOn": "projects.stage = 'approved'",
-      "before": 267,
+      "before": 259,
       "after": 40,
       "changed": "changed"
     },
@@ -119,7 +119,7 @@
       "filter": "Saved view: Hearing scheduled",
       "url": "/projects?view=all&saved=hearing&country=any&stage=hearing+scheduled",
       "filtersOn": "projects.stage = 'hearing scheduled'",
-      "before": 267,
+      "before": 259,
       "after": 7,
       "changed": "changed"
     },
@@ -127,12 +127,12 @@
       "filter": "Search: \"zzzznomatch\"",
       "url": "/projects?view=all&country=any&q=zzzznomatch",
       "filtersOn": "same three columns; proves the search is not ignored",
-      "before": 267,
+      "before": 259,
       "after": 0,
       "changed": "changed"
     }
   ],
-  "sortControl": 267,
+  "sortControl": 259,
   "hierarchy": [
     {
       "chain": "United States > California > Anaheim",
@@ -220,8 +220,8 @@
     {
       "axis": "venue",
       "value": "Hotel",
-      "chipCount": 32,
-      "total": 38,
+      "chipCount": 27,
+      "total": 33,
       "gap": 6,
       "escapees": 0
     },
@@ -236,16 +236,16 @@
     {
       "axis": "category",
       "value": "Entertainment/Attractions",
-      "chipCount": 82,
-      "total": 84,
-      "gap": 2,
+      "chipCount": 80,
+      "total": 81,
+      "gap": 1,
       "escapees": 0
     },
     {
       "axis": "category",
       "value": "Hospitality/Tourism",
-      "chipCount": 76,
-      "total": 86,
+      "chipCount": 70,
+      "total": 80,
       "gap": 10,
       "escapees": 0
     },
@@ -261,15 +261,15 @@
   "allChips": [
     {
       "axis": "stage",
-      "all": 267
+      "all": 259
     },
     {
       "axis": "venue",
-      "all": 267
+      "all": 259
     },
     {
       "axis": "category",
-      "all": 267
+      "all": 259
     }
   ],
   "noValueNodes": [

@@ -1,7 +1,7 @@
 [
   {
     "pass": "cold (new context)",
-    "ms": 1458,
+    "ms": 1445,
     "queries": 19,
     "byTable": {
       "pipelines": 1,
@@ -16,7 +16,7 @@
   },
   {
     "pass": "warm (same context)",
-    "ms": 1417,
+    "ms": 1429,
     "queries": 19,
     "byTable": {
       "pipelines": 1,
@@ -31,7 +31,7 @@
   },
   {
     "pass": "warm, filter panel open",
-    "ms": 1389,
+    "ms": 1401,
     "queries": 19,
     "byTable": {
       "pipelines": 1,
