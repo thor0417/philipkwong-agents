@@ -66,6 +66,28 @@ list before diagnosing anything:
   which is the gate working. `select status, count(*) from client_projects
   group by 1` before treating any of them as a regression.
 
+- `referral.audit` fails on a HARNESS-ONLY RACE, not on a product defect.
+  Recorded 2026-08-17. The test clicks a register row and presses Enter with
+  nothing in between. The click writes `selected` to the query string through
+  nuqs, which defers; the keypress runs `router.push('/project/<id>')` at once.
+  The deferred write targets the CURRENT url, so it lands after the navigation
+  and throws the page back to `/projects?selected=<id>`, and `waitForURL(/\/project\//)`
+  times out at 60s. Measured on the real build by the session that narrowed it:
+  Enter works at 50ms and still not at 0ms, and something else on the path
+  defers past a synchronous write that nobody has identified. A person cannot
+  click and type in the same millisecond, so the residue costs nothing real.
+  The whole account is in `app/(app)/projects/page.tsx` at the `register-row`
+  div, written by the session that measured it.
+
+  PROVED NOT TO BE THE CHANGE IN HAND, twice, the way this file requires:
+  stash the working tree, rebuild at HEAD, re-run `e2e/referral.audit.ts`, and
+  it fails identically. Do not let "it was already failing" stand in for that -
+  re-prove it, it takes one build.
+
+  It is a RED, not an accepted state. What closes it is finding the deferred
+  write on the path, not a `waitForTimeout` in the test: a test that sleeps
+  around a race stops testing the race.
+
 ## Before the commit itself
 
 `tsc --noEmit` clean and `npm run build` passing, gated separately. One commit
