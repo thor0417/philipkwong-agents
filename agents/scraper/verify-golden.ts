@@ -227,6 +227,44 @@ const INLINE: Record<string, () => string | null> = {
     return null;
   },
 
+  'a-figure-is-quoted-from-the-sentence-printed-beside-it': () => {
+    // A single run longer than the sentence cap, with the figure past the cut.
+    // This is the real shape: a press release whose navigation furniture and
+    // headline arrive as one unbroken line before the article starts.
+    const body =
+      'Back To News Press Releases Press Releases ' +
+      'OCVIBE and Award-Winning Art and Design Studio, FUTUREFORMS, Unveil a new work '.repeat(6) +
+      'on the 100-acre district in Anaheim.';
+
+    const facts = extractPressFacts(body);
+    const acres = facts.find((f) => f.kind === 'acres');
+    if (!acres) return 'the site figure printed in the article was not extracted';
+    if (!acres.sentence.includes(acres.display)) {
+      return `the sentence stored for "${acres.display}" does not contain it`;
+    }
+    // EVERY fact, not just this one. The cap applies to all kinds.
+    const unquoted = facts.filter((f) => !f.sentence.includes(f.display));
+    if (unquoted.length) {
+      return `${unquoted.length} fact(s) carry a sentence that does not contain them`;
+    }
+
+    // And the writer's guard must refuse one, rather than leaving it to the
+    // document to notice.
+    let threw = false;
+    try {
+      verifyNoInvention(
+        [{ kind: 'acres', display: '100-acre', value: 100, sentence: 'A sentence without it.' }],
+        body
+      );
+    } catch {
+      threw = true;
+    }
+    if (!threw) {
+      return 'verifyNoInvention accepted a figure its own sentence does not contain';
+    }
+    return null;
+  },
+
   'junk-never-enters': () => {
     // Each carries real entitlement vocabulary, which is exactly why they used
     // to get in: the gate was reading the instrument, not the subject.

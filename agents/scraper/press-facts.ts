@@ -39,13 +39,39 @@ export function sentencesOf(text: string): string[] {
     .filter(Boolean);
 }
 
+// A sentence is capped, because a "sentence" cut out of a scraped page is
+// sometimes a whole navigation menu that never met a full stop.
+const SENTENCE_CAP = 400;
+
 function sentenceFor(text: string, index: number): string {
   // Walk out from the match to the nearest sentence boundaries rather than
   // re-splitting the whole document for every match.
   const start = Math.max(0, text.lastIndexOf('. ', index) + 1, text.lastIndexOf('\n', index) + 1);
   let end = text.indexOf('. ', index);
   if (end === -1) end = text.length;
-  return text.slice(start, Math.min(end + 1, text.length)).trim().slice(0, 400);
+  const sentence = text.slice(start, Math.min(end + 1, text.length)).trim();
+  if (sentence.length <= SENTENCE_CAP) return sentence;
+
+  // THE CAP IS TAKEN AROUND THE FIGURE, NOT FROM THE FRONT.
+  //
+  // It was `.slice(0, 400)`, and that quietly produced facts whose own sentence
+  // does not contain them. Measured: OCVibe's "100-acre" came out of a press
+  // release whose first unbroken run is 600 characters of "Back To News Press
+  // Releases Press Releases OCVIBE and Award-Winning Art and Design Studio,
+  // FUTUREFORMS, Unveil...", with the figure past the cut. The stored fact was
+  // a real number attached to a quotation that does not contain it, which is the
+  // one shape a reader cannot check and therefore the one shape that must not
+  // exist. The report's provenance gate refused to render it, which is how it
+  // was found.
+  //
+  // verifyNoInvention did not catch it because it asks the right question of the
+  // wrong text: it checks the display against the ARTICLE BODY, where the number
+  // genuinely is.
+  const at = index - start;
+  const room = Math.floor(SENTENCE_CAP / 2);
+  const from = Math.max(0, at - room);
+  const to = Math.min(sentence.length, from + SENTENCE_CAP);
+  return `${from > 0 ? '...' : ''}${sentence.slice(from, to).trim()}${to < sentence.length ? '...' : ''}`;
 }
 
 // ---- numbers ----------------------------------------------------------------
@@ -82,10 +108,33 @@ const PATTERNS: Pattern[] = [
     kind: 'rooms',
     // "752 rooms", "752-room", "752 guest rooms", "752 keys". Plural or hyphenated
     // only: "a room" is not a count.
-    re: /\b([\d,]{1,7})[\s-]?(?:guest[\s-]?)?(?:rooms?|keys)\b/gi,
+    //
+    // THE QUALIFIER LIST IS NOT COSMETIC. Only "guest" was allowed between the
+    // number and the noun, and "hotel" is the commoner word by far. Measured on
+    // Resorts World Aqueduct: the entry printed "rooms: 400 rooms" - the count of
+    // the EXISTING Hyatt attached to the racetrack - while the sentence stating
+    // the proposal, "a $5 billion project that would add a 350,000-square-foot
+    // casino floor, 1,600 hotel rooms and a 7,000-seat entertainment venue", was
+    // read for its floor area and its seats and not for its rooms. A client
+    // reading that entry is told a $5B expansion is 400 rooms.
+    //
+    // AN EXPLICIT LIST RATHER THAN A WILDCARD, because `\w+` between the digits
+    // and the noun matches "1,600 parking spaces and 40 rooms" as 1,600 rooms.
+    re: /\b([\d,]{1,7})[\s-]?(?:(?:guest|hotel|luxury|resort|new|additional|branded|keyed)[\s-]?){0,2}(?:rooms?|keys)\b/gi,
     // A single room is a room, not a scale figure, and "1 room" is nearly always
     // a fragment of something else.
-    reject: (m) => (num(m[1]) ?? 0) < 2,
+    //
+    // AND AN UPPER BOUND, which the qualifier list above made necessary: "150,234
+    // hotel rooms" is the CITY's inventory, and it turned up in Heart Hotel's
+    // coverage the moment "hotel" was allowed between the digits and the noun.
+    // The largest hotel on earth is under 8,000 rooms, so above 20,000 the number
+    // is a market statistic rather than a building. Attribution would have held
+    // it back anyway; a figure that is wrong on its face should not depend on a
+    // second rule to be caught.
+    reject: (m) => {
+      const n = num(m[1]) ?? 0;
+      return n < 2 || n > 20_000;
+    },
     value: (m) => num(m[1]),
   },
   {
@@ -213,6 +262,21 @@ export function verifyNoInvention(facts: PressFact[], text: string): PressFact[]
         bad.map((f) => `${f.kind}="${f.display}"`).join(', ')
     );
   }
+  // AND THE SENTENCE HAS TO CONTAIN IT TOO.
+  //
+  // Checking only the body asks the right question of the wrong text. The
+  // sentence is what a client document PRINTS as the evidence for the figure, so
+  // a fact whose sentence does not contain its own display is a quotation that
+  // does not support the number printed beside it - and it happened, through a
+  // sentence cap taken from the front rather than around the match. The stored
+  // rows looked fine and the defect only surfaced at the document boundary.
+  const unquoted = facts.filter((f) => !f.sentence.includes(f.display));
+  if (unquoted.length) {
+    throw new Error(
+      `press-facts stored ${unquoted.length} value(s) whose own sentence does not contain them: ` +
+        unquoted.map((f) => `${f.kind}="${f.display}"`).join(', ')
+    );
+  }
   return facts;
 }
 
@@ -318,10 +382,21 @@ export function factsForEntry(facts: PressFact[], terms: string[]): PressFact[] 
 }
 
 // ---- presentation -----------------------------------------------------------
+// A LABEL THAT DOES NOT SAY WHAT THE NUMBER IS FOR.
+//
+// 'money' was labelled "value", and it is the one label here that made a claim.
+// The $70 million on Heart Hotel is what the PARCEL sold for; printing "value:
+// $70 million" beside a resort tells a client the project is a $70 million
+// development, which no article says and which is wrong by an order of magnitude.
+// An extractor that requires "$" next to the digits knows an amount was printed
+// and nothing whatever about what it was for, so the label says only that.
+//
+// The sentence printed beneath the figure is what carries the meaning. That is
+// the design, not a compensation for a weak label.
 export function factLabel(kind: FactKind): string {
   return {
     rooms: 'rooms', floors: 'storeys', sqft: 'floor area', seats: 'seats',
-    money: 'value', acres: 'site', firm: 'named firm',
+    money: 'amount reported', acres: 'site', firm: 'named firm',
   }[kind];
 }
 
