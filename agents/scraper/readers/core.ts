@@ -37,7 +37,14 @@ export type FilingFactKind =
   | 'nyc_review_type' | 'nyc_ulurp' | 'nyc_ceqr_number' | 'nyc_ceqr_type'
   | 'nyc_actions' | 'nyc_agency' | 'nyc_borough' | 'nyc_community_district'
   | 'nyc_council_district' | 'nyc_block_lot' | 'nyc_financing'
-  | 'nyc_affordable' | 'nyc_co_applicants';
+  | 'nyc_affordable' | 'nyc_co_applicants'
+  // ANAHEIM and OAKLAND. Prose jurisdictions: the item, the request, the CEQA
+  // determination, the deal. case_planner is CITY STAFF and is named as such so
+  // no entry can print them as a party.
+  | 'application_no' | 'action_sought' | 'environmental' | 'ceqa_class'
+  | 'resolution' | 'case_planner'
+  | 'purchase_price' | 'agreement' | 'counterparty' | 'money_other'
+  | 'effective_date' | 'the_vote';
 
 export interface FilingFact {
   kind: FilingFactKind;
@@ -224,5 +231,17 @@ export function filingFactLabel(kind: FilingFactKind): string {
     nyc_financing: 'financing',
     nyc_affordable: 'affordable share',
     nyc_co_applicants: 'co-applicants',
+    application_no: 'application',
+    action_sought: 'request',
+    environmental: 'environmental determination',
+    ceqa_class: 'CEQA',
+    resolution: 'resolution',
+    case_planner: 'case planner (city staff)',
+    purchase_price: 'purchase price',
+    agreement: 'agreement',
+    counterparty: 'agreement between',
+    money_other: 'amount',
+    effective_date: 'effective date',
+    the_vote: 'vote',
   }[kind];
 }
