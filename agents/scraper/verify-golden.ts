@@ -36,6 +36,7 @@ import {
   extractPressFacts, verifyNoInvention, attributionTerms, factsForEntry,
 } from './press-facts';
 import { contactsFromText } from './sources/contact-labels';
+import { readFilingFacts, verifyFilingFacts } from './filing-facts';
 
 const CASES_FILE = 'agents/scraper/fixtures/golden.jsonl';
 
@@ -299,6 +300,60 @@ const INLINE: Record<string, () => string | null> = {
       return `the real applicant was lost; got "${b.applicant}"`;
     }
     if (b.applicant.includes('Ammennan')) return 'the petitioner overwrote the applicant';
+    return null;
+  },
+
+  'a-condition-is-not-split-by-a-department-it-mentions': () => {
+    // The real form: a heading glued to the tail of the wrapped bullet above it,
+    // and a department named inside a condition of a different department.
+    const sheet = [
+      '07/22/26 PC AGENDA SHEET',
+      'APP. NUMBER/OWNER/DESCRIPTION OF REQUEST',
+      'RELATED INFORMATION:',
+      'PRELIMINARY STAFF CONDITIONS:',
+      'Comprehensive Planning',
+      '• Applicant is advised within 4 years from the approval date a final map',
+      '  must be recorded or it will expire.',
+      'Public Works - Development Review',
+      '• Drainage study and compliance;',
+      '• Applicant to coordinate with Public Works - Development Review for all',
+      '  driveways on Las Vegas Boulevard;',
+      '• Execute a License and Maintenance Agreement for any non-standard',
+      '  improvements within the right-of-way. Fire Prevention Bureau',
+      '• Provide a Fire Apparatus Access Road in accordance with Section 503.',
+      'TAB/CAC: Paradise - approval.',
+    ].join('\n');
+
+    const facts = readFilingFacts(sheet);
+    verifyFilingFacts(facts, sheet);
+    const conds = facts.filter((f) => f.kind === 'condition');
+    // Five bullets in, five conditions out. The count is asserted because the
+    // two failure modes this case guards both change it: a swallowed heading
+    // merges two, and a wrongly split condition makes six.
+    if (conds.length !== 5) {
+      return `expected 5 conditions, got ${conds.length}: ${conds.map((c) => c.display.slice(0, 30)).join(' | ')}`;
+    }
+
+    // THE DEFECT: a department named inside a condition must not cut it.
+    const coordinate = conds.find((c) => c.display.startsWith('Applicant to coordinate'));
+    if (!coordinate) return 'the coordination condition was lost entirely';
+    if (!coordinate.display.includes('Las Vegas Boulevard')) {
+      return `the condition was truncated at a department it mentions: "${coordinate.display}"`;
+    }
+    if (coordinate.group !== 'Public Works - Development Review') {
+      return `wrong department: "${coordinate.group}"`;
+    }
+
+    // THE OTHER HALF: a real heading glued to a wrapped bullet must still split.
+    const fire = conds.find((c) => c.display.startsWith('Provide a Fire Apparatus'));
+    if (!fire) return 'the condition after a glued heading was lost';
+    if (fire.group !== 'Fire Prevention Bureau') {
+      return `a heading glued to the previous bullet was not split off; got group "${fire.group}"`;
+    }
+    const licence = conds.find((c) => c.display.startsWith('Execute a License'));
+    if (licence && /Fire Prevention Bureau/.test(licence.display)) {
+      return 'the heading was left inside the condition above it';
+    }
     return null;
   },
 
