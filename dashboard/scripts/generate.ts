@@ -89,6 +89,21 @@ function emptyScope(): ClientScope {
 interface Resolved {
   scope: ClientScope;
   label: string;
+  // THE CLIENT'S ID, NOT JUST THEIR NAME, AND THE DIFFERENCE IS THE WHOLE GATE.
+  //
+  // This script existed to answer "what does a client's document contain" and
+  // for a client target it answered a different question, because buildReport
+  // enforces confirmed membership only when it is given a clientId and this
+  // passed the name, the addressee and the brand and not the id.
+  //
+  // Measured the day Simtec's membership was first confirmed: 5 included and 10
+  // excluded, and this script generated a 13-project document containing EIGHT
+  // of the excluded ones - and printed "gate: passed" over it. The provenance
+  // gate had indeed passed; the membership gate had never run.
+  //
+  // A read-back tool that builds a different document from the composer is worse
+  // than no read-back tool, because it is trusted.
+  clientId: string | null;
   clientName: string | null;
   addressee: string;
   brandName: string;
@@ -99,6 +114,7 @@ interface Resolved {
 async function resolveTarget(): Promise<Resolved> {
   const base: Resolved = {
     scope: emptyScope(),
+    clientId: null,
     label: 'the whole register',
     clientName: null,
     addressee: 'Philip Kwong',
@@ -137,6 +153,7 @@ async function resolveTarget(): Promise<Resolved> {
     return {
       scope,
       label: `client ${client.name}`,
+      clientId: client.id,
       clientName: client.name,
       addressee: client.addressee ?? client.name,
       brandName: client.brand_name ?? 'JKR & Associates',
@@ -167,6 +184,7 @@ async function main(): Promise<void> {
     title: REFERRAL ? 'Project Referral Brief' : 'Government Intelligence Report',
     brandName: t.brandName,
     addressee: t.addressee,
+    clientId: t.clientId,
     clientName: t.clientName,
     watchlistOnly: false,
     includeDormant: false,
@@ -196,6 +214,12 @@ async function main(): Promise<void> {
   console.log(`SCOPE: ${t.label}    period: ${period.label}    detail cap: ${DETAIL}`);
   console.log('='.repeat(74));
   console.log(`  gate: ${gate}`);
+  // WHICH GATE PASSED, SAID OUT LOUD. "gate: passed" is the PROVENANCE gate, and
+  // printing it alone over a client document read as though every gate had run.
+  // The membership gate is the one that decides which projects a client is
+  // covered for, and a document built with it 'no-client' or 'not-applied' is a
+  // scope preview rather than a client's document. It now says which it is.
+  console.log(`  membership gate: ${built.membershipGate}`);
   console.log(`  pages (estimate): ${built.pages}`);
   console.log(
     `  projects in scope: ${built.selection.inScope}   detailed: ${built.selection.detailed}   ` +
