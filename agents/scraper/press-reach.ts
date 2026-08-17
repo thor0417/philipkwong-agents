@@ -78,6 +78,33 @@ async function main(): Promise<void> {
     console.log(`body length stored      : min ${lens[0]}  median ${lens[Math.floor(lens.length / 2)]}  max ${lens[lens.length - 1]}`);
   }
 
+  // ---- EVERY PUBLISHER, NOT JUST THE BUSY ONES ------------------------------
+  //
+  // capture:press reports by host only where a host was tried five or more
+  // times, which is right for its own progress output and wrong as a coverage
+  // fact: the refusals are spread thin. 14 blocked across 14 different
+  // publishers reads as "no publisher refuses us" under a five-attempt floor.
+  // This lists every host that failed, because "which publishers will not serve
+  // us" is a standing question about what we can and cannot cover.
+  const byHost = new Map<string, Map<string, number>>();
+  for (const r of tried) {
+    if (!r.project_id || !liveById.has(r.project_id)) continue;
+    let h = '(bad url)';
+    try { h = new URL(r.url!).hostname.replace(/^www\./, ''); } catch { /* keep */ }
+    const m = byHost.get(h) ?? new Map<string, number>();
+    m.set(r.article_status!, (m.get(r.article_status!) ?? 0) + 1);
+    byHost.set(h, m);
+  }
+  const failed = [...byHost.entries()].filter(([, m]) => [...m.keys()].some((k) => k !== 'ok'));
+  console.log(`\npublishers tried  : ${byHost.size}`);
+  console.log(`  serve us fully  : ${byHost.size - failed.length}`);
+  console.log(`  refuse or fail  : ${failed.length}`);
+  console.log('\npublisher                          ok   failure');
+  for (const [h, m] of failed.sort((a, b) => a[0].localeCompare(b[0]))) {
+    const fails = [...m.entries()].filter(([k]) => k !== 'ok').map(([k, v]) => `${k} ${v}`).join(', ');
+    console.log(`${h.slice(0, 32).padEnd(34)}${String(m.get('ok') ?? 0).padStart(3)}   ${fails}`);
+  }
+
   // ---- REACH ----------------------------------------------------------------
   // A project gains a figure when a press record attached to it carries a fact
   // whose own sentence names the project or a party to it. Anything weaker is
