@@ -35,6 +35,7 @@ import { inCorpusScope } from '../../lib/corpus-scope';
 import {
   extractPressFacts, verifyNoInvention, attributionTerms, factsForEntry,
 } from './press-facts';
+import { contactsFromText } from './sources/contact-labels';
 
 const CASES_FILE = 'agents/scraper/fixtures/golden.jsonl';
 
@@ -262,6 +263,42 @@ const INLINE: Record<string, () => string | null> = {
     if (!threw) {
       return 'verifyNoInvention accepted a figure its own sentence does not contain';
     }
+    return null;
+  },
+
+  'the-government-mover-is-not-the-party': () => {
+    // The real shape, as Clark County prints it on a Redevelopment Agency sheet:
+    // the only labelled name in the document is the officer who brought it.
+    const moverOnly = [
+      'CLARK COUNTY REDEVELOPMENT AGENCY AGENDA ITEM',
+      'PETITIONER: Denis Cederburg, Director of Public Works',
+      '',
+      'RECOMMENDATION: Approve and authorize the Chair to sign Supplemental No. 8.',
+    ].join('\n');
+
+    const a = contactsFromText(moverOnly);
+    if (!a) return 'a document naming a petitioner yielded no contact block at all';
+    if (a.applicant !== null) {
+      return `a county officer was stored as the applicant: "${a.applicant}"`;
+    }
+    if (!a.presented_by || !a.presented_by.includes('Cederburg')) {
+      return 'the petitioner was dropped instead of being kept as the presenter';
+    }
+
+    // And the control: where the document DOES name a party, the party wins and
+    // the petitioner cannot displace it.
+    const both = [
+      'APP. NUMBER/OWNER/DESCRIPTION OF REQUEST',
+      'APPLICANT: GREYSTONE NEVADA, LLC',
+      '',
+      'PETITIONER: Jennifer Ammennan, Deputy Director, Department of Comprehensive Planning',
+    ].join('\n');
+    const b = contactsFromText(both);
+    if (!b) return 'a document naming both a party and a petitioner yielded nothing';
+    if (!b.applicant || !b.applicant.includes('GREYSTONE')) {
+      return `the real applicant was lost; got "${b.applicant}"`;
+    }
+    if (b.applicant.includes('Ammennan')) return 'the petitioner overwrote the applicant';
     return null;
   },
 

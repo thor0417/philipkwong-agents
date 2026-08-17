@@ -55,7 +55,8 @@
     "dismiss:out-of-country": "node --env-file=.env.local --import tsx agents/scraper/migrations/dismiss-out-of-country-press.ts",
     "redate:stage-events": "node --env-file=.env.local --import tsx agents/scraper/migrations/redate-stage-events.ts",
     "capture:press": "node --env-file=.env.local --import tsx agents/scraper/migrations/capture-press-bodies.ts",
-    "press:reach": "node --env-file=.env.local --import tsx agents/scraper/press-reach.ts"
+    "press:reach": "node --env-file=.env.local --import tsx agents/scraper/press-reach.ts",
+    "repair:petitioner": "node --env-file=.env.local --import tsx agents/scraper/migrations/repair-petitioner-applicants.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.20.0",
