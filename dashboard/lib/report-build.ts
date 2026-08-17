@@ -31,7 +31,12 @@ import { normaliseParty, type PartyHistory } from './people';
 const RECORD_COLUMNS =
   'id,title,url,source,source_type,published_date,deadline,first_seen,date_source,' +
   'cluster_reason,status,applicant,representative,presented_by,action_sought,' +
-  'contact_name,contact_email,contact_phone,primary_document_url,project_id,market,stream';
+  'contact_name,contact_email,contact_phone,primary_document_url,project_id,market,stream,' +
+  // The figures read out of the article behind a press URL. Selected here and NOT
+  // in the timeline columns: an entry prints them, the register's timeline does
+  // not, and article_body is deliberately never selected anywhere - it runs to
+  // 20,000 characters and no document prints it.
+  'press_facts';
 
 // A PostgREST `in` list of 2,000 uuids overflows the URL, so every id-keyed read
 // below walks the list in chunks of this size.

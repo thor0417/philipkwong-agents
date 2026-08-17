@@ -526,6 +526,17 @@ export interface TimelineRecord {
   // rather than an incidental column. Optional because fetchProjectTimeline
   // does not select it; report-build does.
   stream?: string | null;
+  // FIGURES READ OUT OF THE ARTICLE BEHIND A PRESS URL, each carrying the
+  // verbatim string and the sentence it was printed in (migration 034, written by
+  // `npm run capture:press`). Null on every filing, and on any press record whose
+  // publisher refused us - which is 17 of the 62 we hold on live projects.
+  //
+  // Typed structurally rather than by importing PressFact, because this interface
+  // is the PostgREST row shape and jsonb arrives as whatever the column holds.
+  // The shape is asserted where it is USED: report-entry reads it through
+  // press-facts' own types, and the provenance gate refuses to render a figure
+  // that is not a quotation from the sentence stored beside it.
+  press_facts?: { kind: string; display: string; value: number | null; sentence: string }[] | null;
 }
 
 const TIMELINE_COLUMNS = [

@@ -27,6 +27,27 @@ function entryText(e: Entry): string {
     out.push(`     quoted from the filing: ${e.summary.url}`);
   }
   if (e.assembled) out.push(`  ${e.assembled}`);
+  // SCALE BEFORE PEOPLE, AND BEFORE THE FILINGS. It is the first thing a reader
+  // asks and it used to be the last thing the document said, if it said it at
+  // all. The heading names the provenance in words as well as in tags, because
+  // the difference between what a filing states and what a publication reported
+  // is the difference this whole document is organised around.
+  if (e.scale.length) {
+    out.push('  SCALE, AS REPORTED IN THE PRESS');
+    for (const f of e.scale) {
+      out.push(`    [PRESS] ${f.label}: ${f.display}`);
+      // The sentence the publication printed, because the label cannot say what
+      // an amount was for and the sentence can.
+      out.push(`             "${f.sentence}"`);
+      out.push(`             ${f.sourceLabel}: ${f.url}`);
+    }
+    if (e.scaleHeld > 0) {
+      out.push(
+        `    ${e.scaleHeld} further reported figure${e.scaleHeld === 1 ? '' : 's'} ` +
+          `held back to keep this block readable.`
+      );
+    }
+  }
   if (e.people.length) {
     out.push('  THE PEOPLE');
     for (const p of e.people) {

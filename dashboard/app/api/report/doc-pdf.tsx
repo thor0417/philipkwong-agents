@@ -157,6 +157,41 @@ function EntryBlock({ e }: { e: Entry }) {
       ) : null}
       {e.assembled ? <Text style={s.entryAssembled}>{e.assembled}</Text> : null}
 
+      {/*
+        SCALE, ABOVE THE PEOPLE AND ABOVE THE FILINGS. How big the thing is, once,
+        instead of on a record line six filings down. The block reuses the people
+        styles deliberately: it is the same shape - a tag, a claim, the link that
+        carries it - and giving it its own type scale would put two visual
+        languages inside one entry for no reason a reader benefits from.
+      */}
+      {e.scale.length > 0 && (
+        <View style={s.people}>
+          <Text style={s.peopleHead}>Scale, as reported in the press</Text>
+          {e.scale.map((f, i) => (
+            <View key={i} style={s.party} wrap={false}>
+              <Text style={s.partyTag}>[{f.provenance}]</Text>
+              <View style={s.partyBody}>
+                <Text style={s.partyName}>
+                  {f.label}: {f.display}
+                </Text>
+                {/* What the publication actually said. The label cannot say what
+                    an amount was for; this can. */}
+                <Text style={s.partyDetail}>&ldquo;{f.sentence}&rdquo;</Text>
+                <Link src={f.url} style={s.link}>
+                  {f.sourceLabel}
+                </Link>
+              </View>
+            </View>
+          ))}
+          {e.scaleHeld > 0 ? (
+            <Text style={s.partyDetail}>
+              {e.scaleHeld} further reported figure{e.scaleHeld === 1 ? '' : 's'} held back to keep
+              this block readable.
+            </Text>
+          ) : null}
+        </View>
+      )}
+
       {e.people.length > 0 && (
         <View style={s.people}>
           <Text style={s.peopleHead}>The people</Text>

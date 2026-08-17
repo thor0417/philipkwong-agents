@@ -1091,6 +1091,33 @@ const referralProject: SectionDef = {
           ? 'We hold no captured filing for this project. Everything below is press-sourced.'
           : undefined,
     });
+    // DESIGN AND PROGRAM, THE JULY BRIEF'S OWN SECTION, and the one the generated
+    // brief did not have. The reader of a referral wants the shape of the thing -
+    // how many rooms, how tall, what it cost - and until now that was scattered
+    // across fifteen press lines whose headlines carry no numbers at all.
+    //
+    // IT SITS BETWEEN THE TWO PROVENANCE SUBSECTIONS DELIBERATELY. Above it are
+    // the filings; below it are the press reports these figures were read out of.
+    // A [PRESS] figure printed between them cannot be mistaken for something the
+    // county filed, and each line carries the article link so the reader can go
+    // and check the number rather than take it.
+    if (e.scale.length) {
+      subsections.push({
+        title: 'Design and program (press-reported)',
+        // The figure, then the sentence the publication printed it in. Both, on
+        // one line, because a Line is one string and the quotation is what says
+        // what the number is for: "amount reported: $70 million" alone would let
+        // a reader take a land price for a development cost.
+        lines: e.scale.map((f) =>
+          pressLine(`${f.label}: ${f.display}. "${f.sentence}"`, f.url, f.sourceLabel)
+        ),
+        emptyNote:
+          e.scaleHeld > 0
+            ? `${e.scaleHeld} further reported figure${e.scaleHeld === 1 ? '' : 's'} held back ` +
+              `to keep this list readable.`
+            : undefined,
+      });
+    }
     if (press.length) {
       subsections.push({
         title: 'Reported beyond our record (press)',

@@ -24,6 +24,14 @@
 // negative is the whole truth of it.
 
 import { cleanRecordText } from '../../agents/scraper/project-summary';
+// Read across the package split for the same reason project-summary is, and it
+// is import-free for the same reason: the rules that decide whether a figure is
+// about THIS project must be one implementation. A mirrored copy in the dashboard
+// would drift, and the half that drifted would be the half printing numbers to
+// clients. See next.config.js.
+import {
+  attributionTerms, factLabel, isAttributed, type PressFact,
+} from '../../agents/scraper/press-facts';
 import type { Project, TimelineRecord } from './projects';
 import {
   buildParties,
@@ -34,8 +42,10 @@ import {
 } from './people';
 import {
   assembleSentence,
+  citationLabel,
   isFiling,
   type Entry,
+  type EntryFigure,
   type EntryPlayer,
   type EntryRecord,
 } from './report-model';
@@ -260,6 +270,146 @@ function figuresOf(r: ScopedRecord, printed: string): string[] {
     }
   }
   return out.slice(0, 4);
+}
+
+// ---- SCALE, LIFTED TO THE TOP OF THE ENTRY -----------------------------------
+//
+// figuresOf() above is the RECORD half and is unchanged: it reads the record's
+// own title and action_sought, prints on the record's own line, and cannot see an
+// article. What follows is the PRESS half, and it is a property of the PROJECT
+// rather than of a filing - the same argument the people block is built on. A
+// reader looking for how big the thing is should find it once, at the top, not by
+// reading six filings for a number that is in none of them.
+//
+// THE THREE RULES THIS BLOCK IS BUILT ON.
+//
+// 1. PRESS RECORDS ONLY. isFiling decides, the same call the record lines use, so
+//    a figure can never be sourced from a filing and printed as press or the
+//    reverse.
+// 2. ATTRIBUTED ONLY. Reading 11 articles about Heart Hotel produced 73 figures
+//    of which 66 describe other Las Vegas developments; every one was correctly
+//    read out of real text, which is what makes it dangerous. A figure reaches
+//    the entry only when its own sentence names the project or a party to it.
+// 3. A FIRM IS NOT A FIGURE. press-facts also extracts corporate names, and they
+//    are deliberately dropped here. A name printed under a project entry is a
+//    claim that the company is a party to it, and press-facts cannot say what
+//    party - it says so itself, and standing rule 1 forbids guessing. The people
+//    block is where a party goes, with the role a record gives it. So the press
+//    firms stay stored and unprinted, which is a stated gap rather than a silent
+//    one.
+const FIGURE_KINDS = ['rooms', 'floors', 'seats', 'sqft', 'acres', 'money'] as const;
+
+// READ IN THE ORDER A PERSON ASKS THE QUESTIONS. How many rooms, how tall, how
+// many seats, how much floor, how much land, how much money. Not the order the
+// extractor happens to run its patterns in.
+const FIGURE_ORDER = new Map(FIGURE_KINDS.map((k, i) => [k as string, i]));
+
+// AN ENTRY IS A DESCRIPTION, NOT AN INVENTORY. Ten is above everything the corpus
+// holds today - the richest project carries eight - so it does not bite now, and
+// when it does the remainder is COUNTED in the block rather than dropped
+// (standing rule 3).
+export const ENTRY_FIGURE_CAP = 10;
+
+// THE EVIDENCE, NOT A LABEL FOR IT.
+//
+// "value: $70 million" is a claim about what the money WAS, and press-facts
+// cannot make it: the $70 million on Heart Hotel is the price of the parcel, not
+// the cost of the resort, and a label calling it the value states something no
+// article says. Standing rule 1 covers exactly this.
+//
+// So the sentence the publication printed goes on the page beneath the figure,
+// and it is what carries the meaning. The label is only there to let a reader
+// scan the block.
+//
+// TRIMMED AROUND THE FIGURE, NEVER AWAY FROM IT. Bodies extracted from a page
+// carry navigation furniture, so a "sentence" can run 400 characters with the
+// number in the middle. The window is centred on the display string, which keeps
+// the printed figure inside its own printed evidence - and the provenance gate
+// asserts that, so a window that cut the number out would fail generation rather
+// than print a quotation that does not contain the thing it is quoted for.
+const EVIDENCE_CAP = 240;
+
+function evidenceWindow(sentence: string, display: string): string {
+  const s = tidy(sentence);
+  if (s.length <= EVIDENCE_CAP) return s;
+  const at = s.indexOf(display);
+  if (at === -1) return s.slice(0, EVIDENCE_CAP);
+  // Room on both sides, then pulled back to word boundaries so the quotation
+  // does not begin or end mid-word.
+  const room = Math.floor((EVIDENCE_CAP - display.length) / 2);
+  let start = Math.max(0, at - room);
+  let end = Math.min(s.length, at + display.length + room);
+  if (start > 0) {
+    const space = s.indexOf(' ', start);
+    if (space > -1 && space < at) start = space + 1;
+  }
+  if (end < s.length) {
+    const space = s.lastIndexOf(' ', end);
+    if (space > at + display.length) end = space;
+  }
+  return `${start > 0 ? '...' : ''}${s.slice(start, end)}${end < s.length ? '...' : ''}`;
+}
+
+function scaleOf(
+  records: ScopedRecord[],
+  project: Project
+): { figures: EntryFigure[]; held: number } {
+  const terms = attributionTerms(project.name, project.primary_applicant);
+  const out: EntryFigure[] = [];
+  const seen = new Set<string>();
+  // CITED TO THE FIRST PUBLICATION THAT REPORTED IT. Fifteen outlets carried the
+  // Heart Hotel approval and the deduper keeps whichever it met first, which
+  // without this is whatever order the query returned - so "29-story" was cited
+  // to a news3lv TOPIC INDEX rather than to the article that broke it, and
+  // "$70 million" to a July approval write-up rather than to the April sale
+  // report that stated the price. Oldest first, undated last, because a record
+  // with no date cannot be shown to be the first anything.
+  const ordered = [...records].sort((a, b) => {
+    const da = recordDate(a);
+    const db = recordDate(b);
+    if (!da && !db) return 0;
+    if (!da) return 1;
+    if (!db) return -1;
+    return da.localeCompare(db);
+  });
+  for (const r of ordered) {
+    if (isFiling(r.source, r.source_type, r.stream)) continue;
+    if (!r.url) continue;
+    for (const f of (r.press_facts ?? []) as PressFact[]) {
+      if (!FIGURE_ORDER.has(f.kind)) continue;
+      if (!isAttributed(f, terms)) continue;
+      // A FIGURE WE CANNOT QUOTE IS A FIGURE WE DO NOT PRINT. The sentence is the
+      // evidence; a stored row whose sentence does not contain its own display is
+      // an extraction defect, and it existed - press-facts capped the sentence
+      // from the front and cut the number off the end of it. That is fixed at the
+      // source and re-captured, and this stays as the reader-facing half of the
+      // guard: one bad row in the table must not be able to take out every
+      // document, and it must not be able to print an unevidenced number either.
+      if (!f.sentence.includes(f.display)) continue;
+      // ONE FIGURE, NOT TWO RENDERINGS OF IT. Three outlets print the same room
+      // count as "752 rooms", "752-room" and "752 keys"; the normalised value is
+      // what makes them one fact. Where a kind normalises to nothing the display
+      // string is the key, which is the conservative direction: it splits rather
+      // than merges.
+      const key = `${f.kind}:${f.value ?? f.display.toLowerCase()}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({
+        kind: f.kind,
+        label: factLabel(f.kind as PressFact['kind']),
+        display: f.display,
+        sentence: evidenceWindow(f.sentence, f.display),
+        url: r.url,
+        sourceLabel: citationLabel(r.source, r.url, false),
+        provenance: 'PRESS',
+      });
+    }
+  }
+  out.sort((a, b) => (FIGURE_ORDER.get(a.kind) ?? 99) - (FIGURE_ORDER.get(b.kind) ?? 99));
+  return {
+    figures: out.slice(0, ENTRY_FIGURE_CAP),
+    held: Math.max(0, out.length - ENTRY_FIGURE_CAP),
+  };
 }
 
 // ---- PLAYERS -----------------------------------------------------------------
@@ -588,6 +738,13 @@ export function buildEntry(
   const people = opts.history
     ? withPartyHistory(buildParties(project, forParties), opts.history)
     : buildParties(project, forParties);
+  // FROM THE PROJECT'S WHOLE RECORD SET, not from the eight the entry prints and
+  // not from the period. Scale is what the thing IS; a room count does not stop
+  // being true because the article that carried it fell outside the window or
+  // below the per-entry cap. Same set the people block uses, and for the same
+  // reason. Each figure carries its own article link, so nothing here cites a
+  // document the reader cannot open.
+  const scale = scaleOf(forParties, project);
   const entryRecords: EntryRecord[] = shown.map((r) => {
     const reference = referenceOf(r);
     const text = actionText(r, reference, brands);
@@ -610,7 +767,7 @@ export function buildEntry(
       contact: contactOf(r),
       provenance: isRecord ? 'RECORD' : 'PRESS',
       url: r.url,
-      sourceLabel: r.source ?? (host(r.url) || 'source'),
+      sourceLabel: citationLabel(r.source, r.url, isRecord),
     };
   });
 
@@ -636,6 +793,8 @@ export function buildEntry(
           ? { text: tidy(project.summary), url: project.summary_url }
           : null,
       assembled: assembleSentence(entryRecords),
+      scale: scale.figures,
+      scaleHeld: scale.held,
       people,
       noPeopleNote: people.length === 0 ? noPartiesNote(forParties) : null,
       records: entryRecords,

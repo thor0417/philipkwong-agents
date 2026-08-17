@@ -28,7 +28,7 @@
 // thing.
 
 import type { Project, TimelineRecord } from './projects';
-import { isFiling } from './report-model';
+import { citationLabel, isFiling } from './report-model';
 
 type ScopedRecord = TimelineRecord & { project_id?: string | null; market?: string | null };
 
@@ -330,7 +330,10 @@ export function buildParties(project: Project, records: ScopedRecord[]): Project
         roles: new Set([role]),
         isFiling: filing,
         url: r.url,
-        label: r.source ?? host(r.url) ?? 'source',
+        // The publisher for a press party, the record system for a filed one.
+        // See citationLabel: this line used to print "gli_serper" under a
+        // document promising to attribute press to its publisher.
+        label: citationLabel(r.source, r.url, filing),
         date,
         mentions: 1,
         email: contact?.email ?? null,

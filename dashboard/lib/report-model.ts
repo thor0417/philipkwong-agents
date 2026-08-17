@@ -110,6 +110,39 @@ export function isFiling(
   return false;
 }
 
+// ---- WHO TO NAME AS THE SOURCE OF A LINE -------------------------------------
+//
+// A DOCUMENT THAT PROMISES A PUBLISHER MUST PRINT ONE. Every generated report
+// carries the sentence "The press reports listed here are beyond that record and
+// are attributed to their publisher", and beneath it every press line was
+// attributed to "gli_serper" - the name of our own search lane. A client reading
+// the July brief sees "Las Vegas Review-Journal"; a client reading the generated
+// one saw an internal identifier three times on every project.
+//
+// FOUND IN THREE PLACES AT ONCE, which is why it is fixed here rather than at any
+// of them: the entry's record lines, the entry's press-sourced parties, and the
+// scale block. All three wrote `source ?? host(url)` - the source name FIRST -
+// and for an intelligence row the source name is always the lane.
+//
+// THE RULE IS PROVENANCE, NOT PREFERENCE. For a filing the source name IS the
+// record system a reader would ask for - "legistar", "clark-tab", "ceqanet" - and
+// its host is an anonymous government CDN. For press the publisher is the host
+// and the source name is our plumbing. So the answer differs by provenance, which
+// is the same distinction isFiling above already draws.
+export function citationLabel(
+  source: string | null | undefined,
+  url: string | null | undefined,
+  filing: boolean
+): string {
+  let publisher = '';
+  try {
+    publisher = url ? new URL(url).hostname.replace(/^www\./, '') : '';
+  } catch {
+    publisher = '';
+  }
+  return filing ? source || publisher || 'source' : publisher || source || 'press';
+}
+
 // ---- THE SAME RULE, AS A LABEL ON A ROW --------------------------------------
 //
 // THE THREE STREAM TABS ON /records ARE GONE AND THIS IS WHAT REPLACED THEM.
@@ -176,6 +209,38 @@ export interface Line {
 //
 // Commentary still exists and is still Philip's; it lives on the Section, set
 // apart, exactly where it did before.
+
+// ---- SCALE, WHERE A READER LOOKS FOR IT --------------------------------------
+//
+// A room count sat on a record line six filings down, or nowhere at all, and the
+// first question anyone asks about a development is how big it is. So the figures
+// are lifted to the top of the entry, once, deduplicated.
+//
+// PRESS BY TYPE, NOT BY CONVENTION. `provenance` is the literal 'PRESS' and
+// nothing else is assignable to it, because the whole point of this block is that
+// it is the press half of the entry: an article's number is not a filing's
+// number, and the reader has to be able to see which one they are weighing. The
+// figures the FILINGS carry stay on their own record lines, labelled [RECORD],
+// and no press value is ever written into one - figuresOf() in report-entry reads
+// title and action_sought and has no access to an article body.
+//
+// EVERY FIGURE CARRIES ITS OWN LINK, and the sentence it was printed in. The
+// sentence is not decoration: it is what the gate below checks the figure against,
+// so a display string that is not a quotation from the text beside it cannot be
+// rendered.
+export interface EntryFigure {
+  /** rooms, floors, sqft, seats, money, acres. */
+  kind: string;
+  /** How the label reads to a client: 'rooms', 'storeys', 'floor area', 'value'. */
+  label: string;
+  /** Verbatim, exactly as the publication printed it. Never reformatted. */
+  display: string;
+  /** The sentence the publication printed it in. */
+  sentence: string;
+  url: string;
+  sourceLabel: string;
+  provenance: 'PRESS';
+}
 
 export interface EntryPlayer {
   name: string;
@@ -247,6 +312,14 @@ export interface Entry {
   summary: { text: string; url: string } | null;
   // SENTENCE TWO: assembled from the record set below it.
   assembled: Assembled | null;
+  // HOW BIG THE THING IS, before the reader has to read anything. Press-sourced
+  // by type; see EntryFigure. Empty for the great majority of projects, and empty
+  // is the honest state rather than a gap to fill: 12 of 267 live projects carry
+  // a press figure that survives attribution.
+  scale: EntryFigure[];
+  // Figures the per-entry cap held back, so the block can say so rather than
+  // present a truncated list as the whole of what we hold.
+  scaleHeld: number;
   // WHO IS INVOLVED, ONCE, BEFORE THE FILINGS. Parties used to be printed inside
   // every record line, so a six-filing project named its applicant six times and
   // the reader had to notice a repetition to learn who was behind it. See
@@ -686,6 +759,37 @@ export function assertProvenance(doc: ReportDocument): void {
           `Entry "${entry.name}" in section "${section.id}" prints a summary with no filing to cite.`
         );
       }
+      // A FIGURE IS A SPECIFIC CLAIM ABOUT A REAL BUILDING, and it is the claim
+      // in a client document most likely to be checked by a reader who knows the
+      // real number. So it is held to the strictest test in this gate: it must be
+      // press, it must carry the link, and IT MUST BE A QUOTATION FROM THE
+      // SENTENCE PRINTED BESIDE IT.
+      //
+      // That last check is the document-boundary half of press-facts'
+      // verifyNoInvention, which runs at write time against the article body. The
+      // body is not available here and the sentence is, so this asserts the
+      // narrower thing that is still checkable: the number we print appears in
+      // the text we cite for it. A reformatted display - "752 rooms" rendered
+      // from a body that said "752-room" - fails here rather than shipping.
+      for (const f of entry.scale) {
+        if (f.provenance !== 'PRESS') {
+          throw new ProvenanceError(
+            `Figure "${f.display}" in entry "${entry.name}" is labelled ${String(f.provenance)}. ` +
+              `A figure lifted out of an article is press; the filings' own figures stay on their record lines.`
+          );
+        }
+        if (!f.url) {
+          throw new ProvenanceError(
+            `Figure "${f.display}" in entry "${entry.name}" has no article to cite.`
+          );
+        }
+        if (!f.sentence.includes(f.display)) {
+          throw new ProvenanceError(
+            `Figure "${f.display}" in entry "${entry.name}" does not appear in the sentence cited ` +
+              `for it: ${JSON.stringify(f.sentence).slice(0, 160)}`
+          );
+        }
+      }
       // A NAMED PARTY IS A CLAIM ABOUT A PERSON, so it is held to the record
       // rule: labelled, and pointing at the filing that names them.
       for (const party of entry.people) {
@@ -744,6 +848,10 @@ export function provenanceTally(doc: ReportDocument): Record<Provenance, number>
     for (const l of lines) out[l.provenance]++;
     for (const e of s.entries ?? []) {
       if (e.summary) out.RECORD++;
+      // A figure is a claim carrying its own link, so it counts the way a line
+      // does. Counting it as nothing would let a document whose press content
+      // moved into the scale block read as though it had lost that content.
+      for (const f of e.scale) out[f.provenance]++;
       for (const party of e.people) out[party.provenance]++;
       for (const r of e.records) out[r.provenance]++;
     }
