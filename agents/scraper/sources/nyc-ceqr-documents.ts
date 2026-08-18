@@ -435,3 +435,83 @@ export async function fetchCeqrInventory(
   }
   return out;
 }
+
+// ---- THE BYTE CACHE, KEYED ON stored_path -----------------------------------
+//
+// THE DOWNLOAD IS THE WHOLE COST. Measured on two documents: 217s to fetch
+// 7.79MB and 236.7s to fetch 7.78MB, about 33-35 KB/s, against 0.2s to parse the
+// first three pages of either. A thousand to one. At that rate an exhaustive
+// pass over the 330 documents in the inventory does not fit in a working day,
+// and - worse - every re-run pays it again, so an iteration on the READER costs
+// as much as the first fetch did.
+//
+// So bytes are cached on disk keyed on stored_path, which migration 036 already
+// makes the identity for exactly this reason: the URL is signed per search
+// session and expires, the path does not. A second run over the same document
+// costs a stat.
+//
+// NOT IN THE REPO. It runs to hundreds of megabytes and every byte is
+// re-fetchable. .ceqr-cache/ is gitignored, and the comment there says why.
+//
+// A ZIP IS NEVER FETCHED BY THIS. There are 34 of them, an unzip step does not
+// exist, and downloading 34 archives to not read them would spend the schedule
+// on nothing. Refused by name rather than skipped silently, so the count of what
+// an archive step would add stays visible.
+import { createHash } from 'node:crypto';
+import { existsSync, mkdirSync, readFileSync, writeFileSync, statSync } from 'node:fs';
+import { join } from 'node:path';
+
+export const CEQR_CACHE_DIR = '.ceqr-cache';
+
+/** The cache file for a document. The hash is of the stable path, never the URL. */
+export function cachePathFor(storedPath: string): string {
+  return join(CEQR_CACHE_DIR, `${createHash('sha1').update(storedPath).digest('hex')}.bin`);
+}
+
+export interface FetchedBytes {
+  bytes: Buffer | null;
+  /** 'cache' | 'network' | a named negative. */
+  how: string;
+  seconds: number;
+}
+
+export async function fetchDocumentBytes(
+  doc: CeqrDocument,
+  opts: { timeoutMs?: number; allowZip?: boolean } = {}
+): Promise<FetchedBytes> {
+  const started = Date.now();
+  const secs = () => (Date.now() - started) / 1000;
+  if (doc.extension === 'zip' && !opts.allowZip) {
+    return { bytes: null, how: 'refused: archive, and no unzip step exists', seconds: secs() };
+  }
+  const file = cachePathFor(doc.storedPath);
+  if (existsSync(file) && statSync(file).size > 0) {
+    return { bytes: readFileSync(file), how: 'cache', seconds: secs() };
+  }
+  try {
+    const res = await fetch(doc.url, {
+      headers: { 'user-agent': UA },
+      signal: AbortSignal.timeout(opts.timeoutMs ?? 300_000),
+    });
+    if (!res.ok) return { bytes: null, how: `HTTP ${res.status}`, seconds: secs() };
+    const type = res.headers.get('content-type') ?? '';
+    const buf = Buffer.from(await res.arrayBuffer());
+    // THE HANDLER SERVES ITS ERROR PAGE AS 200. See the header: a status check
+    // alone would cache an HTML error page as a PDF and every later run would
+    // read it from disk without ever hitting the network again. The cache makes
+    // a soft failure permanent, so the body is checked BEFORE it is written.
+    if (/html/i.test(type) || buf.subarray(0, 5).toString('latin1') === '<!DOC') {
+      return { bytes: null, how: 'the handler returned an HTML error page as HTTP 200', seconds: secs() };
+    }
+    mkdirSync(CEQR_CACHE_DIR, { recursive: true });
+    writeFileSync(file, buf);
+    return { bytes: buf, how: 'network', seconds: secs() };
+  } catch (e) {
+    const timedOut = e instanceof Error && /timed?\s*out|abort/i.test(e.name + e.message);
+    return {
+      bytes: null,
+      how: timedOut ? `timed out after ${secs().toFixed(0)}s` : String(e).slice(0, 120),
+      seconds: secs(),
+    };
+  }
+}

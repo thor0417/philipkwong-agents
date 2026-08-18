@@ -2,14 +2,14 @@
   "today": {
     "What moved": "01 What moved Stage changes, most advanced destination first. A project reaching construction matters more than one reaching a scheduled hearing, so this is not ordered by time. Nothing changed stage in this window. Stage history only began when event capture shipped, so this section is genuinely thin for now and will ",
     "What came in": "02 What came in New projects first, then new records on projects you already had. Grouped by project, so six records on one project is one line, not six. NEW PROJECTS 3 858 Glenferrie Road hotel Melbourne filed 2026-08-12 Disney / CFTOD ((unknown market)) (2026-07-11) -- filed 2026-08-12 Las Vegas corridor anchors Las ",
-    "Needs you": "03 Needs you Each of these is a count and a place to go. 605 Record triage backlog Records still at status new, on Records 0 Watchlist activity Events on projects you watch 3 New projects to review Captured in this window",
-    "Attention": "04 Attention The machine, not the market. Red only where something is genuinely wrong. SOURCES sfwmd 21d silent 25 records govdoc 19d silent 2 records agenda-portal 18d silent 161 records cftod-pdf 18d silent 14 records nyc-ceqr 7d silent 122 records nyc-zap 7d silent 104 records ceqanet 7d silent 10 records iadb 7d si"
+    "Needs you": "03 Needs you Each of these is a count and a place to go. 705 Record triage backlog Records still at status new, on Records 0 Watchlist activity Events on projects you watch 3 New projects to review Captured in this window",
+    "Attention": "04 Attention The machine, not the market. Red only where something is genuinely wrong. SOURCES sfwmd 22d silent 25 records govdoc 20d silent 2 records agenda-portal 18d silent 161 records cftod-pdf 18d silent 14 records nyc-city-record 7d silent 154 records clark-tab 7d silent 58 records legistar 7d silent 79 records n"
   },
   "todayPeriod": {
-    "7d": 15,
-    "30d": 171,
-    "m:2026-07": 149,
-    "m:2026-01": 38
+    "7d": 18,
+    "30d": 174,
+    "m:2026-07": 152,
+    "m:2026-01": 41
   },
   "records": {
     "rows": 52,
@@ -21,7 +21,7 @@
       "Auto",
       "Sign out",
       "‹Collapse",
-      "Active61",
+      "Active60",
       "Archive21",
       "All39",
       "Entertainment/Attractions29",
@@ -36,7 +36,7 @@
       "Arena/Stadium2",
       "Export XLSX",
       "Generate Report",
-      "All55",
+      "All54",
       "Armenia5",
       "Russia5",
       "Uganda5",

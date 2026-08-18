@@ -69,3 +69,11 @@ dashboard/playwright-report/
 # Playwright's failure artefacts. Regenerated per run; never source.
 dashboard/test-results/
 test-results/
+
+# THE CEQR BYTE CACHE. Documents fetched from CEQR Access, keyed on the
+# server-side path. Not versioned: it runs to hundreds of megabytes and every
+# byte of it is re-fetchable. It exists because the handler serves at about
+# 33 KB/s - 217 seconds for one 7.8MB draft scope against 0.2 to parse it - so a
+# re-run that had to fetch again would cost the whole schedule. See migration
+# 036: ceqr_documents.read_at is the durable half of the same idea.
+.ceqr-cache/

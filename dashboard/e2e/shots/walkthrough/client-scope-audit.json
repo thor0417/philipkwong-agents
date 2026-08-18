@@ -1,20 +1,15 @@
 {
-  "shown": 13,
-  "unscoped": 141,
-  "inScope": 13,
+  "shown": 5,
+  "unscoped": 139,
+  "inScope": 5,
   "marketsShown": [
     "Anaheim",
     "Central Florida Tourism Oversight District",
-    "Clark County",
-    "Las Vegas",
-    "Phoenix"
+    "Clark County"
   ],
   "venuesShown": [
     "Casino/Gaming",
     "Downtown Redevelopment",
-    "Family Entertainment Center",
-    "Mixed-Use Development",
-    "Museum",
     "Theme Park"
   ]
 }

@@ -167,11 +167,34 @@ The service role key bypasses RLS. Server-side only, never shipped to the browse
 ## Commit discipline
 
 One commit per component. `tsc --noEmit` clean and `npm run build` passing before
-every commit, GATED SEPARATELY rather than in a compound command. Use pipefail on
-any piped command: a verify piped to `tail` has produced a false green twice here.
+every commit, GATED SEPARATELY rather than in a compound command.
 Push and confirm each ref. No em dashes anywhere, including in generated text. No
 hardcoded keys. Targeted edits only; never rewrite working code to fix something
 unrelated to it.
+
+### NEVER PIPE A GATE. CAPTURE ITS EXIT CODE.
+
+A verify piped to `tail` has now produced a false green FOUR times, twice in one
+session, and both of those were used to justify a push. `cmd | tail` exits with
+`tail`'s status, which is 0 whatever the gate did. Reading more carefully does not
+fix this, because there is nothing on screen to read: the failing lines are the
+ones `tail` discarded.
+
+    (npm run verify > /tmp/verify.log 2>&1; echo "NPM_EXIT=$?" >> /tmp/verify.log)
+    grep NPM_EXIT /tmp/verify.log
+
+Redirect to a file, capture `$?` on its own line, read that line. Not the last
+lines of output, which on a Playwright run are a passing test that happened to
+finish last.
+
+AND A BACKGROUND TASK'S REPORTED EXIT CODE IS THE SHELL'S, NOT THE COMMAND'S. For
+a compound command it reports success while the gate inside failed: three
+notifications in one session said "exit code 0" over `NPM_EXIT=1`. The captured
+line is the answer; the notification is not evidence of anything.
+
+Both are the same shape as standing rule 11 - a thing that stands in for the work
+gets checked instead of the work - which is why they are written here rather than
+left to care.
 
 ## Coverage
 

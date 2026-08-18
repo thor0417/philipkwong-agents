@@ -1,26 +1,31 @@
 {
   "baseline": {
-    "projects": 13,
-    "filters": "dormant excluded | context records included | stage: hearing scheduled | stage: approved | stage: permitted | stage: under construction | venue: Theme Park | venue: Amusement Park | venue: Waterpark | venue: Family Entertainment Center | venue: Museum | venue: Aquarium | venue: Science Center | venue: Heritage/Cultural Site | venue: Arena/Stadium | venue: Integrated Resort | venue: Casino/Gaming | venue: Entertainment District | venue: Entertainment Destination | venue: Mixed-Use Development"
+    "projects": 5,
+    "filters": "dormant excluded | context records included | stage: hearing scheduled | stage: approved | stage: permitted | stage: under construction | venue: Theme Park | venue: Amusement Park | venue: Family Entertainment Center | venue: Museum | venue: Aquarium | venue: Science Center | venue: Heritage/Cultural Site | venue: Integrated Resort | venue: Casino/Gaming | venue: Entertainment District | venue: Entertainment Destination | venue: Mixed-Use Development"
   },
   "category:Hospitality/Tourism": {
-    "shown": 7,
-    "expected": 7,
-    "filters": "dormant excluded | context records included | stage: hearing scheduled | stage: approved | stage: permitted | stage: under construction | venue: Theme Park | venue: Amusement Park | venue: Waterpark | venue: Family Entertainment Center | venue: Museum | venue: Aquarium | venue: Science Center | venue: Heritage/Cultural Site | venue: Arena/Stadium | venue: Integrated Resort | venue: Casino/Gaming | venue: Entertainment District | venue: Entertainment Destination | venue: Mixed-Use Development | category: Hospitality/Tourism"
+    "shown": 5,
+    "expected": 5,
+    "filters": "dormant excluded | context records included | stage: hearing scheduled | stage: approved | stage: permitted | stage: under construction | venue: Theme Park | venue: Amusement Park | venue: Family Entertainment Center | venue: Museum | venue: Aquarium | venue: Science Center | venue: Heritage/Cultural Site | venue: Integrated Resort | venue: Casino/Gaming | venue: Entertainment District | venue: Entertainment Destination | venue: Mixed-Use Development | category: Hospitality/Tourism"
   },
   "venue:Theme Park": {
-    "shown": 6,
-    "expected": 6,
+    "shown": 4,
+    "expected": 4,
     "filters": "dormant excluded | context records included | stage: hearing scheduled | stage: approved | stage: permitted | stage: under construction | venue: Theme Park"
   },
   "stream:intelligence": {
     "shown": 3,
     "expected": 3,
-    "filters": "dormant excluded | context records included | stage: hearing scheduled | stage: approved | stage: permitted | stage: under construction | venue: Theme Park | venue: Amusement Park | venue: Waterpark | venue: Family Entertainment Center | venue: Museum | venue: Aquarium | venue: Science Center | venue: Heritage/Cultural Site | venue: Arena/Stadium | venue: Integrated Resort | venue: Casino/Gaming | venue: Entertainment District | venue: Entertainment Destination | venue: Mixed-Use Development | stream: Intelligence"
+    "filters": "dormant excluded | context records included | stage: hearing scheduled | stage: approved | stage: permitted | stage: under construction | venue: Theme Park | venue: Amusement Park | venue: Family Entertainment Center | venue: Museum | venue: Aquarium | venue: Science Center | venue: Heritage/Cultural Site | venue: Integrated Resort | venue: Casino/Gaming | venue: Entertainment District | venue: Entertainment Destination | venue: Mixed-Use Development | stream: Intelligence"
   },
   "stream:opportunity": {
     "shown": 0,
     "expected": 0,
-    "filters": "dormant excluded | context records included | stage: hearing scheduled | stage: approved | stage: permitted | stage: under construction | venue: Theme Park | venue: Amusement Park | venue: Waterpark | venue: Family Entertainment Center | venue: Museum | venue: Aquarium | venue: Science Center | venue: Heritage/Cultural Site | venue: Arena/Stadium | venue: Integrated Resort | venue: Casino/Gaming | venue: Entertainment District | venue: Entertainment Destination | venue: Mixed-Use Development | stream: Tenders and RFPs"
-  }
+    "filters": "dormant excluded | context records included | stage: hearing scheduled | stage: approved | stage: permitted | stage: under construction | venue: Theme Park | venue: Amusement Park | venue: Family Entertainment Center | venue: Museum | venue: Aquarium | venue: Science Center | venue: Heritage/Cultural Site | venue: Integrated Resort | venue: Casino/Gaming | venue: Entertainment District | venue: Entertainment Destination | venue: Mixed-Use Development | stream: Tenders and RFPs"
+  },
+  "reduced": [
+    "venue=Theme Park",
+    "stream=intelligence",
+    "stream=opportunity"
+  ]
 }
