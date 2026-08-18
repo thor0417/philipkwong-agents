@@ -147,7 +147,20 @@ The service role key bypasses RLS. Server-side only, never shipped to the browse
 9. DONE MEANS A GENERATED DOCUMENT READ BACK, or a live query pasted. A commit is
    never done.
 10. REPORT ANYTHING FOUND THAT THE BRIEF DID NOT ASK ABOUT.
-11. NO OUTREACH IS SENT AUTOMATICALLY FROM THIS REPO. The scrapers are
+11. A THING IS DONE WHEN IT EXISTS ON DISK AND HAS BEEN READ BACK, NOT WHEN IT
+    HAS BEEN DESCRIBED. Before reporting anything as done, name the path and open
+    it. Three in one session, each of which passed its own checks:
+    - a comment saying "the conditions get their own block" with no block
+      anywhere, so 36 conditions reached no page;
+    - `referral-brief.pdf`, generated and read back for weeks, built from the
+      market-report section set and containing no referral section at all;
+    - "migration 036 is printed and blocking" when 036 was a `console.log` and
+      `migrations/` stopped at 035.
+    The shape is the same each time: a description of the work stands in for the
+    work, and every check passes because the checks test what exists. A generator
+    that PRINTS an artefact must read it off disk, so a missing file fails the
+    run instead of manufacturing the appearance of one.
+12. NO OUTREACH IS SENT AUTOMATICALLY FROM THIS REPO. The scrapers are
     scrape-and-display; the intake agent drafts replies, and every draft queues as
     `pending` in Supabase `outreach` for manual review. Nothing sends.
 

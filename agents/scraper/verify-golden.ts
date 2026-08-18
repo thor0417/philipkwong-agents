@@ -168,6 +168,29 @@ const INLINE: Record<string, () => string | null> = {
     return `a zoning district classified as venue_type "${v}"`;
   },
 
+  // PENDING. Not fixed. See the Lane A note in nyc-ceqr-documents.
+  //
+  // OFFLINE, DELIBERATELY. The defect is a live-host behaviour and this suite is
+  // the pre-commit gate: 9 seconds, no database, no network. So the check asserts
+  // on the CODE rather than on the city's server - that nyc-ceqr still takes the
+  // dataset's URL as given and still verifies it on status alone. That is exactly
+  // the condition that has to change for the case to close, and it is knowable
+  // without a request.
+  //
+  // The measurement itself is in the case's origin and was taken by hand on
+  // 2026-08-18: three of three published ProjectDetail URLs returned HTTP 200
+  // with "Page Not Found - Error Code 404" in the body.
+  'a-200-is-not-a-live-page': () => {
+    const src = readFileSync('agents/scraper/sources/nyc-ceqr.ts', 'utf8');
+    const verifiesBody = /Page Not Found|Error Code 404|bodyLooksLikeAnError|soft.?404/i.test(src);
+    const usesDetailsRoute = /ceqr\/Details/.test(src);
+    if (verifiesBody && usesDetailsRoute) return null;
+    const missing: string[] = [];
+    if (!usesDetailsRoute) missing.push('nyc-ceqr still uses the dataset ProjectDetail URL, which is a dead route');
+    if (!verifiesBody) missing.push('its fetch-verification still checks the status only, and this host serves errors as 200');
+    return missing.join('; ');
+  },
+
   // PENDING. Not fixed. See GLI-ROADMAP 1H.
   'a-place-name-is-not-a-country-code': () => {
     const wrong: string[] = [];
