@@ -127,8 +127,29 @@ function flatValues(text: string, key: string): string[] {
   const out: string[] = [];
   // Escaped, because the keys contain an apostrophe and a #.
   const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const stop = FLAT_TERMINATORS.map(esc).join('|');
-  const re = new RegExp(`${esc(key)}:\\s*([\\s\\S]{1,200}?)(?=(?:${stop})\\s*:|$)`, 'g');
+  // ---- NOT EVERY LABEL ENDS IN A COLON, AND ONE OF THEM IS THE NEXT FIELD ---
+  //
+  // This required a colon after the terminator. "Application #" has none, so it
+  // terminated nothing and the value ran straight into it. Measured output:
+  //
+  //     Applicant's Administrator: Carol Rosenthal Application # 250085MMX
+  //
+  // The enumeration pass had ALREADY reported that "Application # carries no
+  // colon at all, so a colon-keyed detector has a hole in it before anyone
+  // writes one" - and then this was written with that hole. The finding was
+  // made and not applied, which is rule 8 in miniature.
+  //
+  // So a terminator may match with or without a trailing colon, and the
+  // colonless alternative is restricted BY NAME to the labels that genuinely
+  // have none. Left open to all of them, a bare "Date" would cut any value
+  // containing the word.
+  const COLONLESS = new Set(['Application #']);
+  const withColon = FLAT_TERMINATORS.filter((l) => !COLONLESS.has(l)).map(esc).join('|');
+  const colonless = [...COLONLESS].map(esc).join('|');
+  const re = new RegExp(
+    `${esc(key)}:\\s*([\\s\\S]{1,200}?)(?=(?:${withColon})\\s*:|(?:${colonless})|$)`,
+    'g'
+  );
   for (const m of t.matchAll(re)) {
     const v = m[1].replace(/\s+/g, ' ').trim().replace(/[;,]$/, '');
     if (v) out.push(v);
@@ -216,9 +237,12 @@ async function readDocument(d: CeqrDocument): Promise<Found | { d: CeqrDocument;
     for (const [shape, values] of [['flat', flatValues(text, key)], ['line', lineValues(text, key)]] as const) {
       for (const name of values) {
         if (isOfficial(name)) { officialsRefused.push(`${key}=${name}`); continue; }
-        if (!parties.some((p) => p.key === key && p.name === name)) {
-          parties.push({ key, name, shape });
-        }
+        // ONE PERSON, ONCE. A CPC report appends a Borough President form and
+        // three Community/Borough Board forms, and every one names the same
+        // primary contact. Deduped on the NAME across keys rather than on
+        // key+name, so Carol Rosenthal is not printed four times under two
+        // labels. The first key that produced her is the one recorded.
+        if (!parties.some((p) => p.name === name)) parties.push({ key, name, shape });
       }
     }
   }
