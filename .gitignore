@@ -77,3 +77,8 @@ test-results/
 # re-run that had to fetch again would cost the whole schedule. See migration
 # 036: ceqr_documents.read_at is the durable half of the same idea.
 .ceqr-cache/
+
+# Corpus snapshots are generated artefacts, timestamped per run. The generator
+# is versioned; its output is not, or every run adds a file nobody reads.
+# npm run corpus:snapshot
+snapshots/
