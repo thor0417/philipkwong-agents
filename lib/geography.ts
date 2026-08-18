@@ -294,15 +294,70 @@ function countryFromName(raw: string): string | null {
   return null;
 }
 
+// ---- A PLACE NAME IS NOT A CODE, AND THE NAME TABLE GOES FIRST -------------
+//
+// ONE DEFECT, EIGHT INSTANCES, ALL THE SAME SHAPE: a place name matched against
+// a country or NUTS code by its LEADING CHARACTERS.
+//
+//   Austin -> AU -> Australia          Zambia -> ZA -> South Africa
+//   Fiji   -> FI -> Finland            Malawi -> MA -> Morocco
+//   Chad   -> CH -> Switzerland        Gambia, The -> TH -> Thailand
+//   Bronx  -> BR -> Brazil             Georgia -> the US state, not the country
+//
+// THE BRANCH THAT DID IT was not the one the earlier Bronx fix patched. It is
+// `parts.every(codeLike)`, the legacy TED path, and it fires on a SINGLE-WORD
+// place name because one word trivially satisfies "every". The Bronx fix put a
+// configured-jurisdiction lookup in front of it, which is why Bronx and Queens
+// resolve today and Austin still does not: Austin is not a market we cover, so
+// no table rescued it.
+//
+// THE FIX IS THE SHAPE OF A REAL CODE, NOT A LIST OF EXCLUSIONS. Measured
+// against the pattern that was there:
+//
+//   Austin Fiji Chad Zambia Malawi Gambia The Queens Bronx   all codeLike=true
+//   CZ010 PL637 HU322                                        codeLike=true
+//   US GB                                                    codeLike=FALSE
+//
+// The old pattern accepted every one of those words and REJECTED the two-letter
+// ISO2 codes it was supposedly there for. A real identifier is one of exactly
+// three things and nothing else:
+//
+//   ISO2   exactly two letters                       US, GB
+//   ISO3   exactly three letters                     CZE, ROU, FIN
+//   NUTS   two letters then 1-3 more CONTAINING A DIGIT   CZ010, PL637, HU322
+//
+// The digit is what separates a region code from an English word. Every real
+// NUTS code in this corpus carries one; no place name does.
+//
+// AND THE NAME TABLE IS CONSULTED FIRST regardless, so a token that names a
+// country can never be read as a code even if it were code-shaped.
+const ISO2 = /^[A-Z]{2}$/;
+const ISO3_SHAPE = /^[A-Z]{3}$/;
+// The digit is what separates a region code from an English word - with ONE
+// standard exception. NUTS marks "extra-regio", the rest of a country outside
+// any named region, as ZZZ: HRZZZ, DEZZZ, ESZZZ, BEZZZ are all real and carry no
+// digit. Measured: requiring a digit lost 6 live records across four countries.
+// ZZZ is admitted by name rather than by loosening the shape, because it is one
+// literal and any other all-letter suffix is a word.
+const NUTS = /^[A-Z]{2}(?:ZZZ|(?=[0-9A-Z]{1,3}$)[0-9A-Z]*[0-9][0-9A-Z]*)$/;
+
+export function looksLikeCode(raw: string): boolean {
+  const k = clean(raw).toUpperCase();
+  return ISO2.test(k) || ISO3_SHAPE.test(k) || NUTS.test(k);
+}
+
 // "CZE" -> Czechia; "CZ010" -> Czechia (NUTS region code, country from prefix).
 function countryFromCode(raw: string): string | null {
   const k = clean(raw).toUpperCase();
-  if (/^[A-Z]{3}$/.test(k) && ISO3[k]) return ISO3[k];
-  if (/^[A-Z]{2}[0-9A-Z]{1,4}$/.test(k)) {
+  // THE NAME TABLE FIRST. "Chad" is a country before it is CH + AD.
+  if (countryFromName(raw)) return null;
+  if (!looksLikeCode(k)) return null;
+  if (ISO3_SHAPE.test(k) && ISO3[k]) return ISO3[k];
+  if (NUTS.test(k)) {
     const iso3 = ISO2_TO_ISO3[k.slice(0, 2)];
     if (iso3 && ISO3[iso3]) return ISO3[iso3];
   }
-  if (/^[A-Z]{2}$/.test(k) && ISO2_TO_ISO3[k]) return ISO3[ISO2_TO_ISO3[k]];
+  if (ISO2.test(k) && ISO2_TO_ISO3[k]) return ISO3[ISO2_TO_ISO3[k]];
   return null;
 }
 
@@ -355,7 +410,10 @@ export function resolveGeography(
   // because "Chicago, Illinois, USA" also ends in a three-letter country code
   // and must NOT be treated as a code string: it has a state and a market in it.
   const last = parts[parts.length - 1];
-  const codeLike = (s: string): boolean => /^[A-Z]{2}[0-9A-Z]{1,4}$/.test(s.toUpperCase());
+  // The same shape test the code lookup uses. See looksLikeCode: a word is not
+  // a code, and this branch used to fire on any single word because one word
+  // trivially satisfies `every`.
+  const codeLike = looksLikeCode;
   if (parts.every(codeLike)) {
     // The ISO3 code is not always last: sources also write "HUN, HU322" and
     // "PL637, POL, PL417". Any segment that is a country code names the country.
@@ -366,8 +424,20 @@ export function resolveGeography(
   }
   if (parts.length === 1) {
     const codeOnly = countryFromCode(parts[0]);
-    if (codeOnly && /^[A-Z]{2,5}[0-9]*$/.test(parts[0].toUpperCase())) {
+    if (codeOnly && looksLikeCode(parts[0])) {
       return { country: codeOnly, region_state: null, market: null };
+    }
+  }
+
+  // ---- A BARE TOKEN THAT IS BOTH A COUNTRY AND A US STATE IS THE COUNTRY ----
+  //
+  // "Georgia" on its own is the country. "Atlanta, Georgia" is the state, and it
+  // has two segments, so the state scan below still gets it. The rule is narrow
+  // on purpose: one segment, and the name is in both tables.
+  if (parts.length === 1) {
+    const asCountry = countryFromName(parts[0]);
+    if (asCountry && US_STATE_NAMES.has(parts[0].toLowerCase())) {
+      return { country: asCountry, region_state: null, market: null };
     }
   }
 

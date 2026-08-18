@@ -191,20 +191,43 @@ const INLINE: Record<string, () => string | null> = {
     return missing.join('; ');
   },
 
-  // PENDING. Not fixed. See GLI-ROADMAP 1H.
+  // CLOSED 2026-08-18. Was pending; see the case's origin for the branch.
   'a-place-name-is-not-a-country-code': () => {
     const wrong: string[] = [];
-    // Every one of these is a real place in the corpus or one letter from one.
-    const cases: [string, string][] = [
-      ['Georgia', 'Georgia'],     // the country, not the US state
-      ['Austin', 'United States'],
-      ['Fiji', 'Fiji'],
-      ['Malawi', 'Malawi'],
-      ['Chad', 'Chad'],
+    // A PLACE NAME IS NOT A CODE. Every one of these is a real place in the
+    // corpus, and every one used to resolve to a country chosen by its leading
+    // two letters.
+    const places: [string, string | null][] = [
+      ['Georgia', 'Georgia'],          // the country, not the US state
+      ['Fiji', 'Fiji'],                // was Finland
+      ['Malawi', 'Malawi'],            // was Morocco
+      ['Chad', 'Chad'],                // was Switzerland
+      ['Zambia', 'Zambia'],            // was South Africa
+      ['Gambia, The', 'Gambia'],       // was Thailand
+      ['Bronx', 'United States'],      // was Brazil
+      // AUSTIN IS NOT AUSTRALIA, AND IT IS NOT A COVERED MARKET EITHER. null is
+      // the honest answer: unresolved, and admitted by the US-only rule, which
+      // is the same treatment Fort Wayne gets.
+      ['Austin', null],
     ];
-    for (const [place, want] of cases) {
+    for (const [place, want] of places) {
       const got = resolveGeography(place).country;
-      if (got !== want) wrong.push(`${place} -> ${got ?? 'null'} (should be ${want})`);
+      if (got !== want) wrong.push(`${place} -> ${got ?? 'null'} (should be ${want ?? 'null'})`);
+    }
+    // AND THE OTHER HALF: every genuine code string still resolves. A fix that
+    // stopped reading codes would pass the list above and break the lane it was
+    // written for.
+    const codes: [string, string][] = [
+      ['CZ010, CZE', 'Czechia'],
+      ['ROU', 'Romania'],
+      ['FIN', 'Finland'],
+      ['HUN, HU322', 'Hungary'],
+      ['HRZZZ, HRV', 'Croatia'],       // extra-regio: a real NUTS code with no digit
+      ['Chicago, Illinois, USA', 'United States'],
+    ];
+    for (const [code, want] of codes) {
+      const got = resolveGeography(code).country;
+      if (got !== want) wrong.push(`${code} -> ${got ?? 'null'} (should be ${want})`);
     }
     return wrong.length ? wrong.join('; ') : null;
   },
