@@ -98,7 +98,6 @@ export default function ReportsPage() {
   const { period, setToken: setPeriod } = usePeriodState('last-month');
   const periodNow = useMemo(() => new Date(), []);
 
-  const [title, setTitle] = useState('Market intelligence report');
   const [brandOverride, setBrandOverride] = useState('');
   const [addresseeOverride, setAddresseeOverride] = useState('');
   // GEOGRAPHY IS THREE MULTI-SELECT AXES, NOT ONE DROPDOWN. It used to be a
@@ -129,6 +128,15 @@ export default function ReportsPage() {
   // default one. Read once, on mount: it seeds the section list rather than
   // pinning it, so every section control stays usable afterwards.
   const [mode] = useQueryState('mode', parseAsString.withDefault(''));
+  // THE DOCUMENT'S OWN NAME FOLLOWS THE DOCUMENT IT IS. This was the fixed
+  // string 'Market intelligence report' whatever the mode, so every brief
+  // reached by "Generate referral brief" was titled as a market report, and the
+  // one word on the page a recipient reads first said the document was
+  // something other than what it is. Seeded rather than pinned, exactly like
+  // the section list below it: the field stays editable afterwards.
+  const [title, setTitle] = useState(
+    mode === 'referral' ? 'Project Referral Brief' : 'Market intelligence report'
+  );
   // HOW MANY PROJECTS THE DOCUMENT DESCRIBES. Held as a string because a number
   // input that coerces on every keystroke cannot be cleared to retype it: the
   // field snaps back to 1 the moment it empties. Parsed at the point of use.
@@ -444,7 +452,12 @@ export default function ReportsPage() {
 
         <label className={styles.field}>
           <span className={styles.label}>Title</span>
-          <input className={styles.input} value={title} onChange={(e) => setTitle(e.target.value)} />
+          <input
+            className={styles.input}
+            data-testid="report-title-input"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+          />
         </label>
 
         <div className={styles.field}>

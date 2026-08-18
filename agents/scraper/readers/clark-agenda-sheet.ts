@@ -209,6 +209,28 @@ function readWhere(text: string): FilingFact[] {
 // corpus holds 242 deadlines and every one is a foreign tender closing date; not
 // one government record carries a future date of any kind. The date is in the
 // document or it is nowhere.
+// A VALUE IS TERMINATED BY THE DOCUMENT'S SENTENCE, NOT BY THE PDF'S LINE BOX.
+//
+// Every pattern below captured `[^\n]{4,160}` - the rest of the physical line -
+// and a PDF has no logical lines, only boxes that a text extractor turns into
+// newlines wherever the typesetter wrapped. Clark County's agenda sheet wraps
+// the board action at 78 characters, so what reached the client document was
+//
+//   COUNTY COMMISSION ACTION: June 17, 2026 - HELD - To 07/22/26 - per the.
+//
+// with our own full stop appended to a dangling article. The document says "per
+// the \napplicant." and the fact is "per the applicant". THREE VARIANTS EXIST IN
+// ONE PROJECT because the three staff reports wrap in three different places:
+// "June 17,", "June 17, 2026 -" and "per the" were stored as three readings of
+// one sentence.
+//
+// So a flowed value runs on past a wrap and stops where the DOCUMENT stops it:
+// at a sentence end, at a blank line, or at the next ALL-CAPS field label. That
+// last one is the same rule the CEQR label enumeration turns on, and it is here
+// for the same reason: in flattened text a value can only be terminated by
+// something that is not part of it.
+const FLOWED = String.raw`([\s\S]{4,240}?)(?=[.;](?:\s|$)|\n[ \t]*\n|\n[ \t]*[A-Z][A-Z0-9 /&'.-]{2,}\s*:)`;
+
 const DECISION_PATTERNS: { kind: FilingFactKind; label: string; re: RegExp }[] = [
   {
     kind: 'staff_recommendation',
@@ -223,12 +245,15 @@ const DECISION_PATTERNS: { kind: FilingFactKind; label: string; re: RegExp }[] =
   {
     kind: 'commission_action',
     label: 'PLANNING COMMISSION ACTION',
-    re: /PLANNING COMMISSION ACTION\s*:?\s*([^\n]{4,160})/i,
+    re: new RegExp(String.raw`PLANNING COMMISSION ACTION\s*:?\s*${FLOWED}`, 'i'),
   },
   {
     kind: 'board_action',
     label: 'COUNTY COMMISSION ACTION',
-    re: /(?:BOARD OF COUNTY COMMISSIONERS?|COUNTY COMMISSION|BCC)\s+ACTION\s*:?\s*([^\n]{4,160})/i,
+    re: new RegExp(
+      String.raw`(?:BOARD OF COUNTY COMMISSIONERS?|COUNTY COMMISSION|BCC)\s+ACTION\s*:?\s*${FLOWED}`,
+      'i'
+    ),
   },
   {
     kind: 'held_to',
@@ -238,7 +263,7 @@ const DECISION_PATTERNS: { kind: FilingFactKind; label: string; re: RegExp }[] =
   {
     kind: 'tab_cac',
     label: 'TAB/CAC',
-    re: /TAB\/CAC\s*:?\s*([^\n]{3,120})/i,
+    re: new RegExp(String.raw`TAB\/CAC\s*:?\s*${FLOWED}`, 'i'),
   },
   {
     kind: 'protests',

@@ -61,13 +61,26 @@ test('the project page starts a referral brief for that project', async ({ page 
   // THE JULY STRUCTURE, in order. The two assessment sections are seeded even
   // though they render nothing until Philip writes commentary: their presence in
   // this list is what puts a commentary box in front of him for each.
+  //
+  // 'cover' USED TO BE FIRST AND WAS THE MARKET REPORT'S COVER. It printed
+  // "GEOGRAPHY one project", "1 is described in full, selected by significance"
+  // and a period the brief does not apply, on every referral this button
+  // produced. 'referral-cover' replaces it. The conditions of approval and the
+  // press are now sections of their own, and the press sits AFTER the people: it
+  // was a subsection of the project block, so fifteen headlines pushed the
+  // parties onto page 3 of a three-page brief.
   expect(sections, 'the referral preset did not seed the section list').toEqual([
-    'cover',
+    'referral-cover',
     'referral-project',
     'referral-people',
+    'referral-conditions',
+    'referral-press',
     'referral-opportunity',
     'referral-risk',
   ]);
+  // AND THE DOCUMENT IS NOT TITLED AS A MARKET REPORT. Same defect, one field
+  // along: the title was a fixed string whatever the mode.
+  await expect(page.getByTestId('report-title-input')).toHaveValue('Project Referral Brief');
 
   await expect
     .poll(async () => await page.getByTestId('preview-projects-count').textContent(), { timeout: 60_000 })

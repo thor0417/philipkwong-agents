@@ -6,9 +6,11 @@
   "url": "http://localhost:3000/reports?project=2bc81605-e639-4a95-8353-026bd7808b23&mode=referral",
   "composerSelection": "Heart Hotel / Kulik River (Clark County)",
   "sections": [
-    "cover",
+    "referral-cover",
     "referral-project",
     "referral-people",
+    "referral-conditions",
+    "referral-press",
     "referral-opportunity",
     "referral-risk"
   ],

@@ -1,8 +1,8 @@
 {
   "afterOpening": {
-    "proposed": 15,
-    "included": 0,
-    "excluded": 0
+    "proposed": 0,
+    "included": 5,
+    "excluded": 10
   },
-  "documentLine": "A document would cover 1 of the 1 confirmed."
+  "documentLine": "A document would cover 5 of the 5 confirmed."
 }

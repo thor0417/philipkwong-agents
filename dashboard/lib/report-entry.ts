@@ -45,6 +45,7 @@ import {
   citationLabel,
   isFiling,
   type Entry,
+  type EntryConditionSet,
   type EntryFigure,
   type EntryPlayer,
   type EntryRecord,
@@ -449,6 +450,74 @@ const FILING_FACT_EXCLUDED = new Set([
   'condition',
 ]);
 
+// ---- WHAT THE APPROVAL IS CONDITIONAL ON -------------------------------------
+//
+// The conditions were read, verified and stored, and then dropped on the floor
+// by FILING_FACT_EXCLUDED above, whose comment promised a block that nobody
+// wrote. Heart Hotel holds 36 distinct conditions across three simultaneous
+// applications and not one of them appeared in any document this system
+// generates.
+//
+// EVERY CONDITION IS A QUOTATION, AND THE STORED `line` IS THE QUOTATION.
+// `display` is what the reader keyed on and it is sometimes cut at the reader's
+// own width - "the order of vacation must be recorded in the Office of the
+// County Recorder or the application will e" - while `line` is the whole
+// sentence the document printed. So this prints the line and never the display,
+// which is the opposite of what a figure does and is right for the same reason:
+// a figure is a value with a sentence around it, a condition IS the sentence.
+//
+// GROUPED BY THE DOCUMENT THEY WERE READ FROM. Heart Hotel is three concurrent
+// matters, VS-26-0218, TM-26-500056 and UC-26-0219, each with its own staff
+// report and its own conditions. Flattened into one list they would read as one
+// set of requirements on one approval, which is a claim about what the county
+// bound and is false: the FAA determination binds the use permit, not the
+// vacation of the easement.
+//
+// Generous rather than tight, because a referral brief prints all of them and
+// this is a runaway guard rather than an editorial cut. Stated when it binds.
+const CONDITIONS_PER_MATTER_CAP = 60;
+
+function conditionsOf(records: ScopedRecord[]): { sets: EntryConditionSet[]; held: number } {
+  // Keyed on the DOCUMENT, not the record. Heart Hotel's three matters were
+  // captured five times between them - the same staff report reached us through
+  // two Legistar routes - so keying on the record would print the same condition
+  // set twice under two identical headings.
+  const byDoc = new Map<string, EntryConditionSet & { seen: Set<string> }>();
+  for (const r of records) {
+    if (!isFiling(r.source, r.source_type, r.stream)) continue;
+    const facts = (r.filing_facts ?? []) as { kind: string; display: string; line: string }[];
+    const conditions = facts.filter((f) => f?.kind === 'condition' && f.line);
+    if (conditions.length === 0) continue;
+    const doc = r.primary_document_url ?? r.url;
+    if (!doc) continue;
+    let set = byDoc.get(doc);
+    if (!set) {
+      set = {
+        // THE MATTER AS THE FILING NAMES IT, or nothing. A composed heading over
+        // a county's conditions would be us captioning a legal instrument.
+        matter: referenceOf(r) ?? 'this matter',
+        url: doc,
+        sourceLabel: citationLabel(r.source, doc, true, { sourceType: r.source_type, market: r.market, date: recordDate(r) }),
+        date: recordDate(r),
+        conditions: [],
+        held: 0,
+        seen: new Set<string>(),
+      };
+      byDoc.set(doc, set);
+    }
+    for (const f of conditions) {
+      const text = String(f.line).trim();
+      const key = text.toLowerCase().replace(/\s+/g, ' ');
+      if (set.seen.has(key)) continue;
+      set.seen.add(key);
+      if (set.conditions.length >= CONDITIONS_PER_MATTER_CAP) { set.held++; continue; }
+      set.conditions.push(text);
+    }
+  }
+  const sets = [...byDoc.values()].map(({ seen: _seen, ...s }) => s);
+  return { sets, held: sets.reduce((n, s) => n + s.held, 0) };
+}
+
 // A project may hold many filings and each states the site again. Ten is above
 // anything the corpus produces per project today; the remainder is counted.
 export const ENTRY_STATED_CAP = 24;
@@ -539,8 +608,11 @@ function statedOf(records: ScopedRecord[]): { figures: EntryFigure[]; held: numb
         // THE DOCUMENT, not the record page. A reader checking "752 rooms"
         // needs the staff report, not the Legistar index that links to it.
         url: r.primary_document_url ?? r.url,
-        sourceLabel: citationLabel(r.source, r.primary_document_url ?? r.url, true),
+        sourceLabel: citationLabel(r.source, r.primary_document_url ?? r.url, true, { sourceType: r.source_type, market: r.market, date: recordDate(r) }),
         provenance: 'RECORD',
+        // The case this filing is, so a kind stated by two concurrent
+        // applications can say which is which. See the attribution pass below.
+        matter: referenceOf(r),
       });
     }
   }
@@ -548,10 +620,70 @@ function statedOf(records: ScopedRecord[]): { figures: EntryFigure[]; held: numb
   // happened to be captured in: what was decided and when, then where it is,
   // then how big it is.
   out.sort((a, b) => (STATED_ORDER.get(a.kind) ?? 99) - (STATED_ORDER.get(b.kind) ?? 99));
+
+  // ---- ONE FACT PRINTED ONCE, ACROSS KINDS AS WELL AS WITHIN ONE -------------
+  //
+  // The prefix rule above dedupes within a kind, and the readers extract the
+  // same fact under two kinds whenever a document states it in a sentence and
+  // again as a field. Heart Hotel printed
+  //
+  //   COUNTY COMMISSION ACTION: June 17, 2026 - HELD - To 07/22/26 - per the applicant.
+  //   HELD: 07/22/26. "HELD - To 07/22/26"
+  //
+  // one line apart. Two labels, two kinds, one decision, and a reader counting
+  // hold dates finds two.
+  //
+  // THE CONTAINED ONE GOES, NOT THE SHORTER ONE. The test is whether this fact's
+  // whole display appears inside another fact's display: "07/22/26" is inside
+  // the board action's sentence, so the board action is the same fact read more
+  // completely and the field is a second copy of part of it.
+  //
+  // GUARDED THREE WAYS, because a containment test over short strings is exactly
+  // how a real fact gets deleted. It only fires on displays of 6 characters or
+  // more, so "1" lot is never swallowed by "11.95" acres; only within one
+  // document, so a number stated by the use permit cannot delete the same number
+  // stated by the tentative map; and only when the container is strictly longer,
+  // so two identical displays do not delete each other.
+  const survives = out.filter(
+    (f) =>
+      f.display.length < 6 ||
+      !out.some(
+        (o) =>
+          o !== f &&
+          o.url === f.url &&
+          o.display.length > f.display.length &&
+          o.display.includes(f.display)
+      )
+  );
+
+  // ---- A KIND STATED TWICE IS ATTRIBUTED, NOT LEFT TO LOOK CONTRADICTORY -----
+  //
+  // Heart Hotel is three concurrent applications on one site, and two of them
+  // state a project type: the tentative map creates a "Commercial subdivision"
+  // and the use permit approves a "Resort Hotel & Recreational Facility". Both
+  // are true, of different instruments. Printed as two bare "Project Type" lines
+  // one after the other they read as the county contradicting itself, and a
+  // reader has no way to tell which is which - the two links differ and nothing
+  // on the page says so.
+  //
+  // So where one kind carries more than one distinct value, each line's LABEL
+  // names the matter it came from. Where a kind carries one value the label is
+  // untouched, which is every kind on almost every project.
+  const distinctByKind = new Map<string, Set<string>>();
+  for (const f of survives) {
+    if (!distinctByKind.has(f.kind)) distinctByKind.set(f.kind, new Set());
+    distinctByKind.get(f.kind)!.add(f.display);
+  }
+  const attributed = survives.map((f) =>
+    (distinctByKind.get(f.kind)?.size ?? 0) > 1 && f.matter
+      ? { ...f, label: `${f.label} (${f.matter})` }
+      : f
+  );
+
   const perKind = new Map<string, number>();
   const spread: EntryFigure[] = [];
   let dropped = 0;
-  for (const f of out) {
+  for (const f of attributed) {
     const n = (perKind.get(f.kind) ?? 0) + 1;
     perKind.set(f.kind, n);
     if (n > PER_KIND_CAP) { dropped++; continue; }
@@ -900,6 +1032,10 @@ export function buildEntry(
   // a parcel number does not stop being this project's because the filing that
   // stated it fell outside the window.
   const stated = statedOf(forParties);
+  // From the same whole-project set, for the same reason: a condition attached
+  // to an approval does not stop binding because the filing that carried it fell
+  // outside the period.
+  const conditions = conditionsOf(forParties);
   const entryRecords: EntryRecord[] = shown.map((r) => {
     const reference = referenceOf(r);
     const text = actionText(r, reference, brands);
@@ -922,7 +1058,7 @@ export function buildEntry(
       contact: contactOf(r),
       provenance: isRecord ? 'RECORD' : 'PRESS',
       url: r.url,
-      sourceLabel: citationLabel(r.source, r.url, isRecord),
+      sourceLabel: citationLabel(r.source, r.url, isRecord, { sourceType: r.source_type, market: r.market, date: recordDate(r) }),
     };
   });
 
@@ -950,6 +1086,8 @@ export function buildEntry(
       assembled: assembleSentence(entryRecords),
       stated: stated.figures,
       statedHeld: stated.held,
+      conditions: conditions.sets,
+      conditionsHeld: conditions.held,
       scale: scale.figures,
       scaleHeld: scale.held,
       people,

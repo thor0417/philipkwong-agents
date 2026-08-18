@@ -330,10 +330,15 @@ export function buildParties(project: Project, records: ScopedRecord[]): Project
         roles: new Set([role]),
         isFiling: filing,
         url: r.url,
-        // The publisher for a press party, the record system for a filed one.
-        // See citationLabel: this line used to print "gli_serper" under a
-        // document promising to attribute press to its publisher.
-        label: citationLabel(r.source, r.url, filing),
+        // The publisher for a press party, the issuing body and the date of the
+        // filing for a filed one. See citationLabel: this line printed
+        // "gli_serper" under a document promising to attribute press to its
+        // publisher, and then "legistar" under one promising the filing itself.
+        label: citationLabel(r.source, r.url, filing, {
+          sourceType: r.source_type,
+          market: (r as { market?: string | null }).market ?? null,
+          date,
+        }),
         date,
         mentions: 1,
         email: contact?.email ?? null,

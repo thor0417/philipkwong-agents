@@ -11,7 +11,7 @@
 // actually inspects and therefore the parts a check has to cover.
 
 import type { Entry, ReportDocument, Line, Section } from './report-model';
-import { basisLine } from './report-model';
+import { basisLine, evidenceAdds } from './report-model';
 
 function lineText(l: Line): string {
   const meta = l.meta ? `  (${l.meta})` : '';
@@ -19,18 +19,11 @@ function lineText(l: Line): string {
   return `  [${l.provenance}] ${l.text}${meta}${src}`;
 }
 
-// THE EVIDENCE LINE, ONLY WHERE IT IS EVIDENCE. For a filing the line is very
-// often exactly "Label: value" - "Site Acreage: 11.95" - and printing the quote
-// under a line that already reads "site: 11.95" is the same words twice. Where
-// the line says MORE than the label and the value - "in a CR (Commercial Resort)
-// Zone" under "zone: CR (Commercial Resort)" - it is worth the row.
-function evidenceAdds(label: string, display: string, line: string): boolean {
-  // Punctuation-insensitive: "Staff Recommendation Approval." and
-  // "Staff Recommendation: Approval." are the same words, and the colon the
-  // label adds is not new information.
-  const flat = (x: string) => x.replace(/[^a-z0-9]+/gi, ' ').trim().toLowerCase();
-  return flat(line) !== flat(`${label}: ${display}`) && flat(line) !== flat(display);
-}
+// THE EVIDENCE LINE, ONLY WHERE IT IS EVIDENCE. Moved to report-model beside
+// the entry types, because this file and the referral section builder each held
+// a copy and the copies disagreed about "in a CR (Commercial Resort) Zone" under
+// "Zone: CR (Commercial Resort)". See evidenceAdds there for what the test is
+// now and why the old string-equality version passed that case.
 
 function entryText(e: Entry): string {
   const out: string[] = [];

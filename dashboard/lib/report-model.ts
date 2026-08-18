@@ -129,10 +129,50 @@ export function isFiling(
 // its host is an anonymous government CDN. For press the publisher is the host
 // and the source name is our plumbing. So the answer differs by provenance, which
 // is the same distinction isFiling above already draws.
+// THE SOURCE NAME IS NOT A CITATION, AND THIS IS THE CORRECTION TO THE PARAGRAPH
+// ABOVE.
+//
+// The rule above says that for a filing the source name is what a reader would
+// ask for. That was right about press and wrong about filings, and the Heart
+// Hotel brief is the demonstration: eighteen consecutive lines each attributed
+// to "legistar", under a legend promising "the link to the filing itself".
+// "Legistar" is Granicus's agenda product. It is the software the county happens
+// to publish through - our plumbing at one remove, the same category of fact as
+// "gli_serper" - and it names neither the body that issued the document, nor the
+// document, nor when. A reader cannot cite it and cannot tell two of the
+// eighteen apart.
+//
+// WHAT A CITATION HAS TO CARRY. Enough for the recipient of a forwarded brief to
+// (a) tell one line from the next, (b) weigh it - a staff report and a newspaper
+// are different evidence, and so are minutes from May and minutes from July -
+// and (c) go and find it. That is the issuing body, what the document is, its
+// date, and the link. Every one of those is already on the record and none of
+// them reached the page.
+//
+// BUILT ONLY FROM STORED VALUES, never composed. Where a record carries no
+// market or no type, the citation is shorter rather than invented, and if it
+// carries neither this falls back to exactly the old behaviour.
+export interface CitationDetail {
+  sourceType?: string | null;
+  /** The issuing body, as the record stores it. */
+  market?: string | null;
+  /** ISO date of the record; rendered as a date, never as a timestamp. */
+  date?: string | null;
+}
+
+/** "21 July 2026" from an ISO date, or '' when there is not one. */
+function citationDate(iso: string | null | undefined): string {
+  if (!iso) return '';
+  const d = new Date(String(iso).slice(0, 10));
+  if (Number.isNaN(d.getTime())) return '';
+  return `${d.getUTCDate()} ${d.toLocaleString('en-GB', { month: 'long', timeZone: 'UTC' })} ${d.getUTCFullYear()}`;
+}
+
 export function citationLabel(
   source: string | null | undefined,
   url: string | null | undefined,
-  filing: boolean
+  filing: boolean,
+  detail?: CitationDetail
 ): string {
   let publisher = '';
   try {
@@ -140,7 +180,13 @@ export function citationLabel(
   } catch {
     publisher = '';
   }
-  return filing ? source || publisher || 'source' : publisher || source || 'press';
+  // PRESS IS UNCHANGED. The publisher is the host and that is a real citation.
+  if (!filing) return publisher || source || 'press';
+  const what = [detail?.market, detail?.sourceType].filter(Boolean).join(' ').trim();
+  const when = citationDate(detail?.date);
+  if (what && when) return `${what}, ${when}`;
+  if (what) return what;
+  return source || publisher || 'source';
 }
 
 // ---- THE SAME RULE, AS A LABEL ON A ROW --------------------------------------
@@ -248,6 +294,54 @@ export interface EntryFigure {
   // publications reported 752 rooms" are different weights of evidence and the
   // whole document is organised around a reader being able to tell.
   provenance: 'PRESS' | 'RECORD';
+  // THE MATTER THAT STATES IT, as the filing names the case. Set only for a
+  // stated figure and used only to disambiguate: where one project has three
+  // concurrent applications and two of them state a project type, the two lines
+  // read as a contradiction until each says which instrument it came from. See
+  // statedOf. Null where the record carries no case reference, in which case the
+  // line is left unattributed rather than given a composed one.
+  matter?: string | null;
+}
+
+// ---- DOES THE QUOTATION SAY ANYTHING THE LINE ABOVE IT DID NOT? --------------
+//
+// A stated figure prints as "label: value", and under it the line the document
+// printed, as evidence. The line earns its row only when it says MORE than the
+// label and the value already do, and the test for that was string equality
+// after flattening punctuation. It let this through:
+//
+//   Zone: CR (Commercial Resort). "in a CR (Commercial Resort) Zone"
+//
+// The quotation is the label and the value with "in a" in front of it, and the
+// flattened strings are not equal, so it printed. A reader gets the same six
+// words twice and learns that our evidence for the zone is the zone.
+//
+// THE TEST IS WHETHER ANY CONTENT WORD SURVIVES. Take the words of the line,
+// remove the words of the value and the words of the label once each, and see
+// whether what remains is anything but connectives. "in a CR (Commercial Resort)
+// Zone" leaves "in a" and does not print; "the applicant proposes 752 rooms in a
+// 29-storey tower" leaves "applicant proposes storey tower" and does.
+//
+// ONE IMPLEMENTATION, TWO RENDERERS. This existed twice, once in report-text and
+// once inside the referral section builder, which is two definitions of what
+// counts as evidence and eventually two answers. Both now call this.
+const EVIDENCE_CONNECTIVES = new Set([
+  'a', 'an', 'the', 'in', 'on', 'at', 'of', 'to', 'for', 'from', 'within', 'is',
+  'are', 'was', 'were', 'and', 'or', 'with', 'by', 'per', 'shall', 'be', 'this',
+  'that', 'it', 'as', 'no',
+]);
+
+export function evidenceAdds(label: string, display: string, line: string): boolean {
+  const words = (x: string): string[] => x.toLowerCase().match(/[a-z0-9]+/g) ?? [];
+  const rest = words(line);
+  // Once each, not globally: a line that genuinely repeats a word keeps the
+  // second one, which is the difference between "Zone: CR" quoting itself and a
+  // sentence that happens to contain the value twice.
+  for (const w of [...words(display), ...words(label)]) {
+    const i = rest.indexOf(w);
+    if (i > -1) rest.splice(i, 1);
+  }
+  return rest.some((w) => !EVIDENCE_CONNECTIVES.has(w));
 }
 
 export interface EntryPlayer {
@@ -298,6 +392,29 @@ export type Assembled = string & { readonly [ASSEMBLED]: true };
 // market judgement, and one that does not begin this way never reaches a page.
 const ASSEMBLED_OPENER = 'Records show';
 
+/**
+ * THE CONDITIONS ATTACHED TO ONE MATTER, with the document they were read from.
+ *
+ * `matter` is the case the conditions belong to as the filing names it -
+ * "UC-26-0219" - and never a name we composed. `url` is the document itself, so
+ * a reader who wants the full wording of condition 22 can open the staff report
+ * rather than take ours.
+ *
+ * Every condition is a QUOTATION. The text is the line stored by the reader and
+ * verified against the document at write time; nothing here is summarised,
+ * shortened or rephrased, because a paraphrased condition is a claim about what
+ * a county requires and this system does not make those.
+ */
+export interface EntryConditionSet {
+  matter: string;
+  url: string;
+  sourceLabel: string;
+  date: string | null;
+  conditions: string[];
+  /** Held back by the per-set cap, counted so the block can say so. */
+  held: number;
+}
+
 export interface Entry {
   id: string;
   // The name of the thing, not a case number and not a bare address.
@@ -339,6 +456,26 @@ export interface Entry {
   // in the line stored beside it does not print.
   stated: EntryFigure[];
   statedHeld: number;
+  // WHAT THE APPROVAL IS CONDITIONAL ON.
+  //
+  // Read out of the same staff reports as `stated` and stored under the same
+  // column, and then excluded from the figure list by name because a condition
+  // is not a figure: it is a sentence, there are dozens of them, and one per
+  // figure line would have filled the block. The comment doing the excluding
+  // said "the conditions get their own block" and no block existed, so 36
+  // conditions on Heart Hotel reached no page at all. This is that block.
+  //
+  // AN ENTITLEMENT'S CONDITIONS ARE THE PRODUCT, NOT A FOOTNOTE. "Approved" and
+  // "approved subject to a Performance Agreement, a decommissioning bond, an FAA
+  // determination and no east-facing balconies" are different facts, and the
+  // second one is what a person receiving a referral needs.
+  //
+  // GROUPED BY THE MATTER THAT CARRIES THEM, because a project under three
+  // simultaneous applications has three separate condition sets and merging them
+  // into one list asserts that a use permit condition binds a tentative map.
+  conditions: EntryConditionSet[];
+  // Conditions the cap held back, across all sets, so the block can say so.
+  conditionsHeld: number;
   // WHO IS INVOLVED, ONCE, BEFORE THE FILINGS. Parties used to be printed inside
   // every record line, so a six-filing project named its applicant six times and
   // the reader had to notice a repetition to learn who was behind it. See

@@ -22,6 +22,7 @@ import {
   absenceSentence,
   captureSentence,
   commentaryLines,
+  evidenceAdds,
   isFiling,
   pressLine,
   reconcileSentence,
@@ -1034,10 +1035,6 @@ const coverage: SectionDef = {
     // the document's limits and not only on the cover. A reader who reaches
     // this section without having read the cover still learns that what they
     // have is the top of a longer list.
-    // THE SELECTION IS A LIMIT ON THE DOCUMENT, so it belongs in the list of
-    // the document's limits and not only on the cover. A reader who reaches
-    // this section without having read the cover still learns that what they
-    // have is the top of a longer list.
     // A CAP CANNOT SELECT FROM AN EMPTY SET, AND MUST NOT CLAIM TO HAVE. On the
     // emptied document this read "This document describes the 15 most
     // significant projects in scope. Every project in scope is described." over
@@ -1224,6 +1221,69 @@ function recordLineFor(r: Entry['records'][number]): Line {
     : pressLine(text, r.url, r.sourceLabel);
 }
 
+// ---- THE REFERRAL COVER ------------------------------------------------------
+//
+// A BRIEF IS NOT A REPORT ABOUT A GEOGRAPHY OF ONE.
+//
+// The referral section set opened with the market report's own cover, and every
+// sentence in it was written for a document that selects projects out of a
+// market. On Heart Hotel it produced, in order: "GEOGRAPHY one project", "Of
+// those projects, 1 is described in full, selected by significance", and "covers
+// one project for July 2026" above a period line reading every record held since
+// April. Three statements about a selection process that did not happen: nothing
+// was selected, nothing was ranked, and no period was applied - a brief is
+// deliberately not period-scoped, which is why the cover's own period line reads
+// the record span instead. The scoping was right and every sentence describing
+// it was wrong.
+//
+// So the referral gets its own cover, and it answers the questions a referral
+// reader actually has: what matter is this, on whose record, over what span, and
+// what is NOT in here.
+const referralCover: SectionDef = {
+  id: 'referral-cover',
+  label: 'Cover (referral)',
+  description: 'What this brief is about, on what record, and what it is not.',
+  build: (ctx) => {
+    const e = soleEntry(ctx);
+    const filings = e ? e.records.filter((r) => r.provenance === 'RECORD').length : 0;
+    const press = e ? e.records.filter((r) => r.provenance === 'PRESS').length : 0;
+    // THE SPAN OF WHAT IS HELD, NOT A PERIOD FILTER. buildReport already prints
+    // this on the document's own scope block for exactly the same reason; saying
+    // "July 2026" here over records reaching back to April is the document
+    // describing a filter it did not apply.
+    const dates = (e?.records ?? [])
+      .map((r) => r.date)
+      .filter((d): d is string => !!d)
+      .sort();
+    const span =
+      dates.length === 0
+        ? 'None of them carries a date'
+        : dates[0] === dates[dates.length - 1]
+          ? `All of them dated ${dates[0]}`
+          : `Dated between ${dates[0]} and ${dates[dates.length - 1]}`;
+    return withCommentary('referral-cover', ctx, {
+      id: 'referral-cover',
+      title: 'About this brief',
+      lede: 'One matter, the record behind it, and the limits of that record.',
+      lines: commentaryLines(
+        e
+          ? `This is a referral brief on ${e.name}${e.meta ? ` in ${e.meta.split('|')[0].trim()}` : ''}. ` +
+            `It is about that one matter and is written to be forwarded to someone who will act on ` +
+            `it, so it is not scoped to a period: it sets out everything we hold. ` +
+            `That is ${filings} captured filing${filings === 1 ? '' : 's'} and ` +
+            `${press} press report${press === 1 ? '' : 's'}, ${span.charAt(0).toLowerCase()}${span.slice(1)}. ` +
+            `The filings are what we can show you and each carries the link to the document itself. ` +
+            `The press is reported elsewhere, attributed to its publisher, and is not our record. ` +
+            `Any judgement in this brief is Philip's, is labelled as his, and appears only under a ` +
+            `heading that says so.`
+          : `A referral brief is about one matter. This document has ` +
+            `${ctx.entries.length === 0 ? 'no project selected' : `${ctx.entries.length} projects in scope`}, ` +
+            `so there is nothing to brief on. Choose a single project in the composer.`
+      ),
+    });
+  },
+};
+
 const referralProject: SectionDef = {
   id: 'referral-project',
   label: 'The project (referral)',
@@ -1246,7 +1306,6 @@ const referralProject: SectionDef = {
     }
 
     const filings = e.records.filter((r) => r.provenance === 'RECORD');
-    const press = e.records.filter((r) => r.provenance === 'PRESS');
 
     const subsections: Subsection[] = [];
     subsections.push({
@@ -1275,16 +1334,14 @@ const referralProject: SectionDef = {
       subsections.push({
         title: 'Stated in the filings',
         lines: e.stated.map((f) => {
-          // Same rule as the text renderer: the quote earns its place only where
-          // it says more than the label and the value already do.
-          const flat = (x: string) => x.replace(/[^a-z0-9]+/gi, ' ').trim().toLowerCase();
+          // ONE RULE, IN ONE PLACE. This was a second copy of the text
+          // renderer's test and it passed the case the renderer passed:
+          // Zone quoting itself. See report-model/evidenceAdds.
           // The document's own value often ends its own sentence; a second full
           // stop reads as a typo.
           const stop = /[.!?]$/.test(f.display) ? '' : '.';
           const head = `${f.label}: ${f.display}${stop}`;
-          const adds =
-            flat(f.sentence) !== flat(`${f.label}: ${f.display}`) &&
-            flat(f.sentence) !== flat(f.display);
+          const adds = evidenceAdds(f.label, f.display, f.sentence);
           return recordLine(adds ? `${head} "${f.sentence}"` : head, f.url, f.sourceLabel);
         }),
         emptyNote:
@@ -1311,12 +1368,10 @@ const referralProject: SectionDef = {
             : undefined,
       });
     }
-    if (press.length) {
-      subsections.push({
-        title: 'Reported beyond our record (press)',
-        lines: press.map(recordLineFor),
-      });
-    }
+    // THE PRESS HEADLINES ARE NOT IN THIS SECTION ANY MORE. See referralPress
+    // below: fifteen of them sat between the filings and THE PEOPLE and pushed
+    // the parties onto page 3 of a three-page document. In a referral the
+    // parties are the reason the document is being forwarded.
 
     // THE SUMMARY IS THE ONLY PROSE, AND IT IS A QUOTATION. Same rule as
     // everywhere else: a derived summary carries the link to the filing it was
@@ -1389,6 +1444,92 @@ const referralPeople: SectionDef = {
   },
 };
 
+// ---- WHAT THE APPROVAL IS CONDITIONAL ON -------------------------------------
+//
+// THE BLOCK THE EXCLUSION COMMENT PROMISED. See report-entry/conditionsOf and
+// the note on FILING_FACT_EXCLUDED: conditions were read out of the staff
+// reports, verified against them, stored, then excluded from the figure list by
+// name with a comment saying they got their own block, and the block did not
+// exist. Thirty-six conditions on Heart Hotel reached no page of any document.
+//
+// THIRD, AFTER THE PROJECT AND THE PEOPLE. A referral is forwarded to somebody
+// who will act on the matter, and "approved" against "approved subject to a
+// decommissioning bond, an FAA no-hazard determination, a Performance Agreement
+// and no east-facing balconies" is the difference between a document that is
+// worth forwarding and one that is not.
+//
+// ONE SUBSECTION PER MATTER. Never one merged list: see conditionsOf.
+const referralConditions: SectionDef = {
+  id: 'referral-conditions',
+  label: 'Conditions of approval (referral)',
+  description: 'Every condition the filings attach, quoted, grouped by the matter that carries it.',
+  build: (ctx) => {
+    const e = soleEntry(ctx);
+    const sets = e?.conditions ?? [];
+    const total = sets.reduce((n, s) => n + s.conditions.length, 0);
+    const subsections: Subsection[] = sets.map((s) => ({
+      title: `${s.matter}${s.date ? ` (${s.date})` : ''}: ${s.conditions.length} condition${s.conditions.length === 1 ? '' : 's'}`,
+      // NUMBERED, because a condition is referred to by its number in every
+      // conversation that follows, and QUOTED, because a paraphrased condition
+      // is a claim about what a public body required.
+      lines: s.conditions.map((text, i) => recordLine(`${i + 1}. ${text}`, s.url, s.sourceLabel)),
+      emptyNote:
+        s.held > 0
+          ? `${s.held} further condition${s.held === 1 ? '' : 's'} on this matter ${s.held === 1 ? 'is' : 'are'} in the document and not printed here.`
+          : undefined,
+    }));
+    return withCommentary('referral-conditions', ctx, {
+      id: 'referral-conditions',
+      title: 'Conditions of approval',
+      lede:
+        sets.length > 1
+          ? `${total} conditions across ${sets.length} concurrent matters. Each set binds its own application.`
+          : 'Quoted from the filing. Each condition binds the application it is listed under.',
+      lines: [],
+      subsections,
+      // NOTHING IS SILENTLY ABSENT, and an absence here is a real finding: it
+      // means either the approval was unconditional or we have not read the
+      // conditions out of the document. Those are different, and the sentence
+      // says which one we can support.
+      emptyNote:
+        total === 0
+          ? 'We have read no conditions out of the filings we hold for this matter. That is a ' +
+            'statement about our capture, not a statement that the approval is unconditional: ' +
+            'check the staff report linked under the filings above before relying on it.'
+          : undefined,
+    });
+  },
+};
+
+// ---- WHAT WAS REPORTED ELSEWHERE ---------------------------------------------
+//
+// ITS OWN SECTION, AFTER THE PEOPLE, AND THAT IS THE WHOLE POINT OF THE SPLIT.
+//
+// These fifteen headlines were a subsection of "The project", between the
+// filings and everything else, so on Heart Hotel THE PEOPLE landed on page 3 of
+// a three-page brief, under fifteen press lines. In a referral the parties are
+// the reason the document is being forwarded at all: somebody is going to call
+// one of them. Press is context and belongs after the thing it is context for.
+const referralPress: SectionDef = {
+  id: 'referral-press',
+  label: 'Reported beyond our record (referral)',
+  description: 'What publications have reported, attributed to them and separated from our filings.',
+  build: (ctx) => {
+    const e = soleEntry(ctx);
+    const press = (e?.records ?? []).filter((r) => r.provenance === 'PRESS');
+    return withCommentary('referral-press', ctx, {
+      id: 'referral-press',
+      title: 'Reported beyond our record',
+      lede: 'Press coverage, attributed to its publisher. This is not our filing record.',
+      lines: press.map(recordLineFor),
+      emptyNote:
+        press.length === 0
+          ? 'We hold no press coverage of this matter. Everything above is from the filings.'
+          : undefined,
+    });
+  },
+};
+
 /**
  * A COMMENTARY-ONLY SECTION, WHICH DOES NOT EXIST WHEN THERE IS NO COMMENTARY.
  *
@@ -1433,8 +1574,11 @@ export const SECTION_REGISTRY: SectionDef[] = [
   remainder,
   appendix,
   coverage,
+  referralCover,
   referralProject,
   referralPeople,
+  referralConditions,
+  referralPress,
   referralOpportunity,
   referralRisk,
 ];
@@ -1445,10 +1589,17 @@ export const SECTION_REGISTRY: SectionDef[] = [
 // usually render nothing: their presence in the composer's section list is what
 // puts a commentary box in front of Philip for each of them. A section he
 // cannot see is a section he will not write.
+// THE ORDER IS THE ARGUMENT THE DOCUMENT MAKES: what the matter is, who is
+// behind it, what the approval is conditional on, what has been said about it
+// elsewhere, and then Philip's read of it. The people used to be fourth by the
+// time fifteen press headlines had been printed inside the project section, and
+// press used to be the thing a reader met before the parties.
 export const REFERRAL_SECTION_IDS = [
-  'cover',
+  'referral-cover',
   'referral-project',
   'referral-people',
+  'referral-conditions',
+  'referral-press',
   'referral-opportunity',
   'referral-risk',
 ];

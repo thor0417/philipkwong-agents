@@ -1,15 +1,15 @@
 {
   "today": {
-    "What moved": "01 What moved Stage changes, most advanced destination first. A project reaching construction matters more than one reaching a scheduled hearing, so this is not ordered by time. Disneyland Resort approved → under construction Anaheim -- 2026-08-10 Hilton Resorts filed → approved Clark County 3. UC-26-0373-HILTON RESORT",
-    "What came in": "02 What came in New projects first, then new records on projects you already had. Grouped by project, so six records on one project is one line, not six. NEW PROJECTS 43 858 Glenferrie Road hotel Melbourne filed 2026-08-12 Disney / CFTOD ((unknown market)) (2026-07-11) -- filed 2026-08-12 Las Vegas corridor anchors Las",
-    "Needs you": "03 Needs you Each of these is a count and a place to go. 725 Record triage backlog Records still at status new, on Records 0 Watchlist activity Events on projects you watch 43 New projects to review Captured in this window",
-    "Attention": "04 Attention The machine, not the market. Red only where something is genuinely wrong. SOURCES sfwmd 20d silent 25 records govdoc 18d silent 2 records agenda-portal 17d silent 161 records cftod-pdf 17d silent 14 records RUNS No failed runs. COST AGAINST CEILING Not instrumented. Nothing in this database records spend p"
+    "What moved": "01 What moved Stage changes, most advanced destination first. A project reaching construction matters more than one reaching a scheduled hearing, so this is not ordered by time. Nothing changed stage in this window. Stage history only began when event capture shipped, so this section is genuinely thin for now and will ",
+    "What came in": "02 What came in New projects first, then new records on projects you already had. Grouped by project, so six records on one project is one line, not six. NEW PROJECTS 3 858 Glenferrie Road hotel Melbourne filed 2026-08-12 Disney / CFTOD ((unknown market)) (2026-07-11) -- filed 2026-08-12 Las Vegas corridor anchors Las ",
+    "Needs you": "03 Needs you Each of these is a count and a place to go. 605 Record triage backlog Records still at status new, on Records 0 Watchlist activity Events on projects you watch 3 New projects to review Captured in this window",
+    "Attention": "04 Attention The machine, not the market. Red only where something is genuinely wrong. SOURCES sfwmd 21d silent 25 records govdoc 19d silent 2 records agenda-portal 18d silent 161 records cftod-pdf 18d silent 14 records nyc-ceqr 7d silent 122 records nyc-zap 7d silent 104 records ceqanet 7d silent 10 records iadb 7d si"
   },
   "todayPeriod": {
-    "7d": 55,
-    "30d": 166,
-    "m:2026-07": 144,
-    "m:2026-01": 33
+    "7d": 15,
+    "30d": 171,
+    "m:2026-07": 149,
+    "m:2026-01": 38
   },
   "records": {
     "rows": 52,
@@ -21,24 +21,22 @@
       "Auto",
       "Sign out",
       "‹Collapse",
-      "Active63",
+      "Active61",
       "Archive21",
-      "All40",
+      "All39",
       "Entertainment/Attractions29",
-      "Mixed-Use/Real Estate1",
       "Infrastructure2",
       "Hospitality/Tourism8",
-      "All40",
+      "All39",
       "Aquarium1",
       "Museum20",
       "Heritage/Cultural Site8",
       "Hotel6",
       "Resort2",
-      "Waterfront Development1",
       "Arena/Stadium2",
       "Export XLSX",
       "Generate Report",
-      "All56",
+      "All55",
       "Armenia5",
       "Russia5",
       "Uganda5",
@@ -53,7 +51,9 @@
       "South Africa2",
       "Ethiopia1",
       "Finland1",
-      "Ghana1"
+      "Ghana1",
+      "Ivory Coast1",
+      "Jamaica1"
     ]
   },
   "register": {

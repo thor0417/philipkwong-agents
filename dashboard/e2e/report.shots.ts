@@ -225,13 +225,47 @@ test('composer generates three documents', async ({ page }, testInfo) => {
     }
   }
   expect(chosen, 'no project in this scope has a filing in the period to write a brief about').not.toBeNull();
-  // Trim to the two sections a referral needs.
-  for (const id of ['moved', 'categories', 'hearings', 'watchlist', 'coverage']) {
+  // ---- AND IT IS BUILT FROM THE REFERRAL SECTION SET ------------------------
+  //
+  // THE FILE CALLED referral-brief.pdf WAS NOT A REFERRAL BRIEF. This block used
+  // to delete the market sections from the DEFAULT set and add the appendix, so
+  // the artefact this harness produced, named as a brief and read back as one,
+  // contained the market report's cover, its headline list and its appendix and
+  // not one of referral-project, referral-people, referral-conditions or
+  // referral-press. Every referral defect in the shipped brief was invisible
+  // here by construction, because the document being photographed was a
+  // different document from the one the button generates.
+  //
+  // Same shape as the golden case a-read-back-tool-builds-the-clients-document.
+  // A verification tool that builds a different document from the one it
+  // verifies is worse than no tool, because it reports green.
+  for (const id of ['cover', 'moved', 'headlines', 'categories', 'hearings', 'watchlist', 'coverage']) {
     const remove = page.locator(`[data-section="${id}"] button`);
     if (await remove.count()) await remove.click();
   }
-  const addAppendix = page.locator('[data-add-section="appendix"]');
-  if (await addAppendix.count()) await addAppendix.click();
+  for (const id of [
+    'referral-cover',
+    'referral-project',
+    'referral-people',
+    'referral-conditions',
+    'referral-press',
+  ]) {
+    const add = page.locator(`[data-add-section="${id}"]`);
+    expect(await add.count(), `the composer offers no ${id} section to add`).toBeGreaterThan(0);
+    await add.click();
+  }
+  // The document must actually contain them, or the clicks did nothing and the
+  // brief is silently a market report again.
+  const built = await page
+    .locator('[data-section]')
+    .evaluateAll((els) => els.map((e) => e.getAttribute('data-section')));
+  expect(built, 'the referral brief was not built from the referral section set').toEqual([
+    'referral-cover',
+    'referral-project',
+    'referral-people',
+    'referral-conditions',
+    'referral-press',
+  ]);
   // No commentary. A referral brief without Philip's read is a thin document,
   // and the composer says so on screen; a thin document is still better than
   // one carrying a judgement he never made.
