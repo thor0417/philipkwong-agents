@@ -119,6 +119,30 @@ test('the three axes the composer used to drop', async ({ page }) => {
   // out produced an "expected" of 37 against a correct 4 and read as the filter
   // being broken - the audit lying about the code rather than the other way
   // round, which is the more dangerous direction.
+  // ---- AND THE FOURTH: CONFIRMED MEMBERSHIP ---------------------------------
+  //
+  // The fourth harness in this repo to reconstruct a client's scope without the
+  // membership gate, after exclusion-audit, scripts/client-reports and
+  // client-scope.audit. A scope PROPOSES and only a confirmed project may be
+  // printed, so a composer that applies the gate and a reconstruction that does
+  // not will always disagree.
+  //
+  // NULL IS NOT AN EMPTY SET. An absent table means confirmation is not switched
+  // on and nothing is subtracted; an empty set means nothing is confirmed and
+  // the document is legitimately empty. See lib/client-projects.
+  //
+  // Applied to BOTH filters below. byMode exists to compare mode-column matching
+  // against record matching, and that comparison is only about facets - so both
+  // sides have to differ in the facet rule and in nothing else.
+  const { data: confirmedRows } = await admin
+    .from('client_projects')
+    .select('project_id')
+    .eq('client_id', clientId)
+    .eq('status', 'included');
+  const confirmedIds = confirmedRows ? new Set(confirmedRows.map((r) => r.project_id as string)) : null;
+  const isConfirmed = (id: string) => confirmedIds === null || confirmedIds.has(id);
+  console.log(`  confirmed membership: ${confirmedIds ? `${confirmedIds.size} projects` : 'gate not applied'}`);
+
   const inScope = (rows ?? []).filter(
     (r) =>
       anyOf(r.id as string, 'market', markets) &&
@@ -138,7 +162,9 @@ test('the three axes the composer used to drop', async ({ page }) => {
       // of every client document, stated in the coverage note. Same reason as
       // the two above - this audit is about whether the SCOPE leaks, not about
       // re-discovering the document rules.
-      !deadFeedForMarket(r.market as string | null)
+      !deadFeedForMarket(r.market as string | null) &&
+      // AND THE FOURTH, confirmed membership. See above.
+      isConfirmed(r.id as string)
   );
   console.log(`  database says the stored scope covers ${inScope.length} projects`);
 
@@ -165,7 +191,9 @@ test('the three axes the composer used to drop', async ({ page }) => {
       // of every client document, stated in the coverage note. Same reason as
       // the two above - this audit is about whether the SCOPE leaks, not about
       // re-discovering the document rules.
-      !deadFeedForMarket(r.market as string | null)
+      !deadFeedForMarket(r.market as string | null) &&
+      // AND THE FOURTH, confirmed membership. See above.
+      isConfirmed(r.id as string)
   );
   console.log(
     `  matching the mode column would cover ${byMode.length}; matching any record covers ` +
@@ -211,6 +239,9 @@ test('the three axes the composer used to drop', async ({ page }) => {
   expect(base.projects, 'the stored scope matched nothing').toBe(inScope.length);
 
   const out: Record<string, unknown> = { baseline: base };
+  // Which axes actually cut the set. Asserted once at the end rather than per
+  // axis: see the note in narrow().
+  const reduced: string[] = [];
 
   // ---- ONE AXIS AT A TIME. Each chip is toggled on, measured, toggled off, so
   // the axes cannot mask one another.
@@ -222,8 +253,27 @@ test('the three axes the composer used to drop', async ({ page }) => {
     console.log(
       `  ${axis} = ${value.padEnd(22)} -> ${String(after.projects).padStart(3)} projects (database: ${expected}) | cover: ${after.filters}`
     );
-    expect(after.projects, `narrowing by ${axis} did not reduce the report`).toBeLessThan(base.projects);
+    // NEVER MORE THAN THE BASELINE, AND EXACTLY WHAT THE DATABASE SAYS.
+    //
+    // This asserted a STRICT reduction on every axis, which is a claim about the
+    // data rather than about the composer. With the membership gate live,
+    // Simtec's confirmed set is 5 projects and all 5 are Hospitality/Tourism, so
+    // narrowing to that category correctly removes nothing and the test failed
+    // on a composer that was working - the chip was applied, the cover said so,
+    // and the count matched the database exactly.
+    //
+    // A narrowing that legitimately changes nothing is not a defect. A chip that
+    // does nothing IS, and that is caught by the two assertions that follow: the
+    // count must equal the database's own answer for that axis, and the cover
+    // must name the narrowing. Those are the real guards; the inequality was a
+    // proxy for them that happened to hold while the corpus was larger.
+    //
+    // The whole-run guard below still requires that at least one axis reduced,
+    // so a composer that ignores every chip cannot pass by having each axis
+    // individually excused.
+    expect(after.projects, `narrowing by ${axis} produced MORE than the baseline`).toBeLessThanOrEqual(base.projects);
     expect(after.projects, `${axis}=${value} did not match the database exactly`).toBe(expected);
+    if (after.projects < base.projects) reduced.push(`${axis}=${value}`);
     // THE COVER HAS TO SAY SO. A document that quietly narrowed is the same
     // defect as one that quietly did not.
     //
@@ -284,6 +334,21 @@ test('the three axes the composer used to drop', async ({ page }) => {
       inScope.filter((r) => streamsByProject.get(r.id as string)?.has(STREAM)).length
     );
   }
+
+  // ---- AT LEAST ONE AXIS MUST HAVE CUT THE SET ------------------------------
+  //
+  // The per-axis assertion no longer demands a strict reduction, because a
+  // narrowing can legitimately change nothing when every confirmed project
+  // shares the value. This is what stops that concession from letting a
+  // composer that ignores EVERY chip pass: across four narrowings - a category,
+  // a venue and two streams - at least one has to have removed something, or
+  // the chips are not being applied at all.
+  console.log(`  axes that actually reduced the set: ${reduced.length ? reduced.join(', ') : 'NONE'}`);
+  out.reduced = reduced;
+  expect(
+    reduced.length,
+    'no axis reduced the report at all, so the composer is not applying its chips'
+  ).toBeGreaterThan(0);
 
   mkdirSync('e2e/shots/walkthrough', { recursive: true });
   writeFileSync('e2e/shots/walkthrough/report-scope-audit.json', JSON.stringify(out, null, 2));

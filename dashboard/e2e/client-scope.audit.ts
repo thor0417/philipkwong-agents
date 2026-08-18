@@ -142,6 +142,31 @@ test('a scoped client sees nothing outside their scope', async ({ page }) => {
   const anyOf = (id: string, key: 'market' | 'venue' | 'category', values: string[]) =>
     values.length === 0 || values.map(fold).some((v) => facets.get(id)?.[key].has(v));
 
+  // ---- AND THE FOURTH: CONFIRMED MEMBERSHIP ---------------------------------
+  //
+  // The newest document rule, and the third harness in this repo to reconstruct
+  // a client's scope without it. exclusion-audit and scripts/client-reports had
+  // the same defect and were fixed the same day; this file and report-scope.audit
+  // are the other two instances of the shape, found by the suite going red rather
+  // than by the sweep, which is the wrong way round.
+  //
+  // A scope PROPOSES and only a confirmed project may be printed, so a composer
+  // that applies the gate and a reconstruction that does not will always
+  // disagree - by 8 projects on Simtec the day this was written. Subtracted here
+  // for exactly the reason the three rules above it are: this audit is about
+  // whether the SCOPE LEAKS, not about re-discovering the document rules.
+  const { data: confirmed } = await admin
+    .from('client_projects')
+    .select('project_id')
+    .eq('client_id', clientId)
+    .eq('status', 'included');
+  // NULL WOULD BE A DIFFERENT STATEMENT. An absent table means confirmation is
+  // not switched on and the gate does not run, so the reconstruction must not
+  // subtract anything. An empty array means nothing is confirmed and the
+  // document is legitimately empty. See lib/client-projects.
+  const confirmedIds = confirmed ? new Set(confirmed.map((r) => r.project_id as string)) : null;
+  console.log(`confirmed membership: ${confirmedIds ? `${confirmedIds.size} projects` : 'gate not applied'}`);
+
   const inScope = (projects ?? []).filter(
     (p) =>
       (countries.length === 0 || countries.map(fold).includes(fold(p.country))) &&
@@ -164,6 +189,7 @@ test('a scoped client sees nothing outside their scope', async ({ page }) => {
       // the two above - this audit is about whether the SCOPE leaks, not about
       // re-discovering the document rules.
       && !deadFeedForMarket(p.market as string | null)
+      && (confirmedIds === null || confirmedIds.has(p.id as string))
   );
   console.log(`database says the scope covers ${inScope.length} projects`);
   expect(shown, 'the composer and the database disagree about this scope').toBe(inScope.length);
@@ -251,9 +277,21 @@ test('scoped, unscoped, and a narrowing that does not write back', async ({ page
   const simtec = await settle();
   console.log(`1. Simtec, stored scope                 ${simtec} projects`);
 
-  await page.getByTestId('report-client').selectOption({ label: 'JKR & Associates' });
+  // THE COMPARISON IS AGAINST NO CLIENT, NOT AGAINST ANOTHER CLIENT.
+  //
+  // This selected JKR and labelled it "no stored scope", using one client as a
+  // stand-in for the whole register. That premise is now false twice over: JKR
+  // has a stored scope, and with the membership gate live JKR's document covers
+  // 0 projects because nothing has been confirmed for them - so the assertion
+  // read "5 < 0" and failed on a product that was behaving correctly.
+  //
+  // "No client (internal)" is what the sentence below actually means, and it is
+  // what the other test in this file already compares against. A client
+  // document should be smaller than the internal one; whether ANOTHER client's
+  // document is bigger is not a fact about scoping at all.
+  await page.getByTestId('report-client').selectOption({ label: 'No client (internal)' });
   const jkr = await settle();
-  console.log(`2. JKR, no stored scope                 ${jkr} projects`);
+  console.log(`2. No client, the whole register        ${jkr} projects`);
 
   await page.getByTestId('report-client').selectOption({ label: CLIENT_NAME });
   await settle();

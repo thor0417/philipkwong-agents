@@ -40,8 +40,38 @@ async function download(page: import('@playwright/test').Page, testId: string, f
   const dl = await wait;
   mkdirSync(OUT, { recursive: true });
   const dest = path.join(OUT, filename);
-  await dl.saveAs(dest);
-  return { dest, size: statSync(dest).size };
+  // ---- ONEDRIVE HOLDS THE FILE IT IS SYNCING --------------------------------
+  //
+  // saveAs copies onto a path inside the repo, and this repo lives in OneDrive,
+  // which takes a handle on a file the moment it changes. The copy then fails
+  // with EBUSY - not always, and not on the same document twice - and the run
+  // goes red on the one thing in it that is nothing to do with the product.
+  // Same root cause as the .next EBUSY the CLAUDE.md run note already warns
+  // about, one directory over.
+  //
+  // A FLAKY GATE IS A GATE NOBODY BELIEVES, and that is the real cost: a suite
+  // that fails for environmental reasons is a suite whose next real failure gets
+  // waved through. So the write is retried on EBUSY and EPERM only - a genuinely
+  // missing download or a bad path still fails immediately, first time - and the
+  // retries are reported, because a document that took four attempts to write is
+  // worth knowing about even when it succeeds.
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= 5; attempt++) {
+    try {
+      await dl.saveAs(dest);
+      if (attempt > 1) console.log(`  ${filename} written on attempt ${attempt} (OneDrive held it)`);
+      return { dest, size: statSync(dest).size };
+    } catch (e) {
+      const code = (e as { code?: string })?.code ?? '';
+      const locked = /EBUSY|EPERM/.test(code) || /EBUSY|EPERM/.test(String(e));
+      if (!locked) throw e;
+      lastError = e;
+      await new Promise((r) => setTimeout(r, attempt * 750));
+    }
+  }
+  throw new Error(
+    `${filename} could not be written after 5 attempts; OneDrive held the file. Last error: ${String(lastError).slice(0, 200)}`
+  );
 }
 
 // THE GUARD. Every commentary box must be empty at the moment a document is
