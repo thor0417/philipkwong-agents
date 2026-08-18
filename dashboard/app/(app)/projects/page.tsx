@@ -419,6 +419,20 @@ export default function ProjectsPage() {
   const [search, setSearch] = useQueryState('q', parseAsString.withDefault(''));
   const [page, setPage] = useQueryState('page', parseAsInteger.withDefault(1));
   const [selected, setSelected] = useQueryState('selected', parseAsString);
+  // THE ROW CLICK'S URL WRITE, HELD SO A NAVIGATION CAN WAIT FOR IT.
+  //
+  // nuqs updates React state at once and the query string a moment later, and
+  // the deferred write targets the url as it was when the write was queued. So
+  // clicking a row and pressing Enter before that write flushed pushed
+  // /project/<id> correctly and was then thrown straight back to
+  // /projects?selected=<id> by the click's own late write. Enter awaits this
+  // before pushing, so the clobbering write lands FIRST and the push wins.
+  //
+  // A person cannot click and type in the same millisecond, so this cost
+  // nothing a client would see - but it left e2e/referral.audit.ts red, and a
+  // failing test explained by a comment is an ungated gate rather than a known
+  // issue.
+  const pendingSelection = useRef<Promise<unknown> | null>(null);
   const [saved, setSaved] = useQueryState('saved', parseAsString.withDefault('none'));
   // A CLIENT IS A SAVED VIEW YOU OPEN. ?client=<id> narrows this list to that
   // client's stored scope - same table, same columns, same sort, same keyboard -
@@ -977,7 +991,19 @@ export default function ProjectsPage() {
             e.preventDefault();
             // Enter is "go and read this properly", which is the full page.
             // Selecting alone is what J and K already do.
-            router.push(`/project/${current.id}`);
+            //
+            // Awaits any URL write the row click queued. See pendingSelection.
+            const target = current.id;
+            void (async () => {
+              try {
+                await pendingSelection.current;
+              } catch {
+                // A failed selection write must not stop the navigation: the
+                // reader asked for the page, and the query string is a detail.
+              }
+              pendingSelection.current = null;
+              router.push(`/project/${target}`);
+            })();
           }
           break;
         case 'e':
@@ -1813,28 +1839,24 @@ export default function ProjectsPage() {
                 tabIndex={-1}
                 data-testid="register-row"
                 className={`${styles.row} ${selected === r.id ? styles.rowSelected : ''}`}
-                /* THE SELECTION IS WRITTEN AT ONCE, NOT ON A THROTTLE.
-                   nuqs batches query-string writes, so a row click updated
-                   `selected` in React immediately and reached the URL about
-                   50ms later. A deferred write targets the CURRENT url, so it
-                   lands after any navigation started in between: pressing Enter
-                   straight after clicking a row ran router.push('/project/<id>')
-                   with the right project - measured, the handler saw
-                   selectedIndex 0 and pushed - and was then thrown back to
-                   /projects?selected=<id> by the click's own late write.
+                /* THE SELECTION IS WRITTEN AT ONCE, NOT ON A THROTTLE, AND
+                   THE WRITE IS HELD so a navigation can wait for it.
 
-                   NARROWS IT, DOES NOT CLOSE IT, and that is stated rather than
-                   implied. Measured on the real build: before, Enter worked at
-                   200ms and not at 0 or 50; after, it works at 50 and still not
-                   at 0. Something else on the path defers past a synchronous
-                   write and I have not identified it. A person cannot click and
-                   type in the same millisecond, so the residue costs nothing
-                   real - but e2e/referral.audit.ts does exactly that, with
-                   nothing between the click and the key, and is RED for this
-                   reason. It is not a membership defect and it predates this
-                   work: reverting the whole membership change and rebuilding
-                   reproduces it exactly. */
-                onClick={() => void setSelected(r.id, { throttleMs: 0 })}
+                   nuqs batches query-string writes: a row click updates
+                   `selected` in React immediately and reaches the URL about
+                   50ms later, and the deferred write targets the url as it was
+                   when queued. Pressing Enter in that window pushed
+                   /project/<id> with the right project and was thrown back to
+                   /projects?selected=<id> by the click's own late write.
+                   throttleMs 0 narrowed the window and did not close it.
+
+                   CLOSED BY ORDERING RATHER THAN BY TIMING. The promise goes in
+                   pendingSelection and Enter awaits it before pushing, so the
+                   late write lands first and cannot overtake the navigation.
+                   There is no interval left to lose a race in. */
+                onClick={() => {
+                  pendingSelection.current = setSelected(r.id, { throttleMs: 0 });
+                }}
               >
                 <span onClick={(e) => e.stopPropagation()}>
                   <input

@@ -128,11 +128,33 @@ async function restore(ids: string[]): Promise<number> {
   // dashboard's env, because a second copy of a service key is a second place to
   // leak it from. Parsed rather than dotenv'd: this needs one name out of one
   // file and must not depend on load order.
-  const url = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
+  //
+  // THE URL IS READ OUT OF THE FILE TOO, AND THAT IS THE WHOLE BUG THIS BLOCK
+  // ONCE HAD. The key was looked up in the environment AND in the file; the url
+  // was looked up in the environment only, and `npx playwright test` sets
+  // neither - the dashboard's env is loaded by Next at runtime, not into the
+  // test process. So `url` was null, the guard fired, and the message it threw
+  // named the KEY, which was sitting in the file exactly where it was supposed
+  // to be. Two runs were diagnosed against the wrong variable before the message
+  // was made to name the one that is actually absent.
+  //
+  // The root file spells it NEXT_PUBLIC_SUPABASE_URL. Both spellings are tried
+  // because the agent runtime and the dashboard disagree about the name and
+  // this test has to work under either.
+  const url =
+    process.env.SUPABASE_URL ??
+    process.env.NEXT_PUBLIC_SUPABASE_URL ??
+    readRootEnv('SUPABASE_URL') ??
+    readRootEnv('NEXT_PUBLIC_SUPABASE_URL');
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? readRootEnv('SUPABASE_SERVICE_ROLE_KEY');
   if (!url || !key) {
+    // NAME THE ONE THAT IS MISSING. A guard that reports the wrong variable
+    // sends the next reader to look for a value that is already there.
+    const missing = [!url ? 'the Supabase URL' : null, !key ? 'SUPABASE_SERVICE_ROLE_KEY' : null]
+      .filter(Boolean)
+      .join(' and ');
     throw new Error(
-      'inbox restore cannot find SUPABASE_SERVICE_ROLE_KEY in the environment or in ../.env.local, ' +
+      `inbox restore cannot find ${missing} in the environment or in ../.env.local, ` +
         'and refuses to leave records dismissed. Run npm run inbox:restore from the repo root.'
     );
   }

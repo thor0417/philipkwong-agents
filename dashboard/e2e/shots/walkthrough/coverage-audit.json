@@ -46,9 +46,9 @@
       "projects": 1,
       "named": 1,
       "records": 11,
-      "published": "207d",
+      "published": "208d",
       "captured": "25d",
-      "why": "the newest document we hold is 207 days old, past the 90-day line"
+      "why": "the newest document we hold is 208 days old, past the 90-day line"
     },
     {
       "market": "Nashville",
@@ -73,22 +73,22 @@
     {
       "market": "New York City",
       "state": "live",
-      "projects": 93,
-      "named": 89,
+      "projects": 94,
+      "named": 90,
       "records": 180,
       "published": "14d",
       "captured": "6d",
-      "why": "93 live projects, 89 naming a party, newest document 14 days old"
+      "why": "94 live projects, 90 naming a party, newest document 14 days old"
     },
     {
       "market": "Clark County",
       "state": "live",
-      "projects": 27,
-      "named": 27,
+      "projects": 26,
+      "named": 26,
       "records": 79,
-      "published": "7d",
+      "published": "8d",
       "captured": "6d",
-      "why": "27 live projects, 27 naming a party, newest document 7 days old"
+      "why": "26 live projects, 26 naming a party, newest document 8 days old"
     },
     {
       "market": "Anaheim",
@@ -154,7 +154,7 @@
       "source": "govdoc",
       "quiet": true,
       "records": 1,
-      "published": "229d",
+      "published": "230d",
       "captured": "26d",
       "thisRun": "unknown",
       "feeds": "Central Florida Tourism Oversight District"
@@ -163,7 +163,7 @@
       "source": "cftod-pdf",
       "quiet": true,
       "records": 10,
-      "published": "207d",
+      "published": "208d",
       "captured": "25d",
       "thisRun": "unknown",
       "feeds": "Central Florida Tourism Oversight District"
@@ -181,7 +181,7 @@
       "source": "adb",
       "quiet": true,
       "records": 1,
-      "published": "118d",
+      "published": "119d",
       "captured": "26d",
       "thisRun": "unknown",
       "feeds": ""
@@ -190,7 +190,7 @@
       "source": "nyc-ceqr",
       "quiet": false,
       "records": 63,
-      "published": "26d",
+      "published": "27d",
       "captured": "8d",
       "thisRun": "unknown",
       "feeds": "New York City"
@@ -199,7 +199,7 @@
       "source": "nyc-city-record",
       "quiet": false,
       "records": 69,
-      "published": "25d",
+      "published": "26d",
       "captured": "8d",
       "thisRun": "unknown",
       "feeds": "New York City"
@@ -217,7 +217,7 @@
       "source": "ceqanet",
       "quiet": false,
       "records": 4,
-      "published": "20d",
+      "published": "21d",
       "captured": "19d",
       "thisRun": "unknown",
       "feeds": "Anaheim"
@@ -244,7 +244,7 @@
       "source": "clark-tab",
       "quiet": false,
       "records": 32,
-      "published": "7d",
+      "published": "8d",
       "captured": "8d",
       "thisRun": "unknown",
       "feeds": "Clark County"
@@ -252,7 +252,7 @@
     {
       "source": "gli_serper",
       "quiet": false,
-      "records": 189,
+      "records": 169,
       "published": "6d",
       "captured": "6d",
       "thisRun": "unknown",
@@ -340,35 +340,6 @@
     }
   ],
   "composerCountries": [
-    "United States",
-    "Albania",
-    "Armenia",
-    "Cabo Verde",
-    "Pakistan",
-    "Argentina",
-    "Australia",
-    "Brazil",
-    "Dominica",
-    "Ethiopia",
-    "Finland",
-    "Ghana",
-    "Ivory Coast",
-    "Jamaica",
-    "Kiribati",
-    "Kyrgyzstan",
-    "Lebanon",
-    "Mauritius",
-    "Morocco",
-    "Nepal",
-    "North Macedonia",
-    "Panama",
-    "Russia",
-    "Rwanda",
-    "South Africa",
-    "South Sudan",
-    "Sri Lanka",
-    "Tanzania",
-    "Thailand",
-    "Uganda"
+    "United States"
   ]
 }

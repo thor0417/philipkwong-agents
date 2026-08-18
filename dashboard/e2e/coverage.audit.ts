@@ -12,6 +12,9 @@
 
 import { test, expect } from '@playwright/test';
 import { writeFileSync, mkdirSync } from 'node:fs';
+// ONE COPY, READ ACROSS THE PACKAGE SPLIT. corpus-scope imports nothing, so it
+// is on the sanctioned dashboard -> agents list; see the CLAUDE.md split note.
+import { CORPUS_COUNTRIES } from '../../lib/corpus-scope';
 
 test('coverage and health', async ({ page }) => {
   test.setTimeout(300_000);
@@ -98,15 +101,26 @@ test('coverage and health', async ({ page }) => {
   await toggle.click();
   await expect(page.locator('[data-country]').first()).toBeVisible({ timeout: 30_000 });
 
-  // ---- NON-US GEOGRAPHY MUST BE REACHABLE IN A REPORT ----------------------
+  // ---- THE COMPOSER'S COUNTRIES ARE DERIVED, NOT HARDCODED ----------------
   //
-  // The brief calls for removing "the composer's hardcoded country=United
+  // The brief called for removing "the composer's hardcoded country=United
   // States, which makes every non-US geography unreachable in a report". There
   // is no such hardcode: the only literal 'United States' in the codebase is the
   // Projects screen's clearable default, and the composer builds its country
-  // options from a facet with no country constraint on it. A claim that
-  // something was removed is worth nothing without a check that the thing it
-  // would have broken works, so this is the check rather than the removal.
+  // options from a facet with no country constraint on it.
+  //
+  // THIS ASSERTION WAS INVERTED BY A DECISION, NOT BY A REGRESSION. It used to
+  // demand that a non-US country be on offer, and that was a fair proxy for
+  // "derived" while the corpus held foreign records. It is not one any more:
+  // this system is United States only (lib/corpus-scope), the foreign sources
+  // are retired and their records tombstoned, so the facet correctly returns one
+  // country and the old assertion could only be satisfied by re-admitting
+  // records the system is meant to refuse.
+  //
+  // So it now asserts DERIVATION directly, which is what the brief actually
+  // cared about: the composer offers exactly the countries the register holds.
+  // Reopen a country in corpus-scope and this test demands the composer follow;
+  // leave it closed and it demands the composer not invent one.
   await page.goto('/reports', { waitUntil: 'domcontentloaded' });
   const countryChips = page.getByTestId('report-country-chips');
   await expect(countryChips).toBeVisible({ timeout: 120_000 });
@@ -129,9 +143,27 @@ test('coverage and health', async ({ page }) => {
   );
 
   expect(
-    nonUs.length,
-    'the composer offers no country but the United States, so a non-US geography cannot be scoped into a report'
+    offered.length,
+    'the composer offers no country at all, so nothing can be scoped into a report'
   ).toBeGreaterThan(0);
+  // Every country the register holds is on offer. A composer that dropped one
+  // would make that geography unreachable in a report, which is the failure the
+  // brief named.
+  // Checked against lib/corpus-scope, which is the SINGLE declaration of which
+  // countries this system covers - not against a list restated here, because a
+  // restated list is a second copy that goes stale and the stale half decides
+  // what a client can be sent.
+  for (const c of CORPUS_COUNTRIES) {
+    expect(offered, `the corpus covers ${c} and the composer does not offer it`).toContain(c);
+  }
+  // And it invents none.
+  for (const c of offered) {
+    expect(
+      CORPUS_COUNTRIES,
+      `the composer offers ${c}, which lib/corpus-scope does not cover`
+    ).toContain(c);
+  }
+  console.log(`  countries: corpus-scope ${CORPUS_COUNTRIES.join(', ')} | composer ${offered.join(', ')}`);
 
   // ---- WHAT MUST BE TRUE OF THE SCREEN ------------------------------------
   expect(markets.length, 'the Health screen lists no markets').toBeGreaterThan(0);

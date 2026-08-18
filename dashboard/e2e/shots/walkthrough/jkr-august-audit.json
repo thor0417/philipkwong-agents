@@ -1,18 +1,18 @@
 {
   "register": {
-    "arrived": 142,
-    "resolution": "248 records, 142 projects"
+    "arrived": 118,
+    "resolution": "200 records, 118 projects"
   },
   "report": {
-    "scope": 0,
-    "records": 0,
-    "cover": "0 projects, 0 records",
-    "scoping": "This report covers all covered markets for August 2026. It draws on no project and no record. What follows is the account of why. 2 projects whose every record has been dismissed are excluded entirely, because they have no filing to cite. 6 projects in Miami-Dade County and San Antonio are held out entirely: the public source we read for those markets has stopped publishing, so what we hold is historical. The coverage note gives the dates. 165 projects this scope proposes are held out of this document because they have not been confirmed as part of JKR & Associates' coverage. A scope is a proposal: it finds projects that look like a match, and each one is confirmed by hand on the register before it may be printed. Those projects are on the register, unconfirmed, and are not a statement that they do not belong here. Anything outside that geography or period is not covered here."
+    "scope": 57,
+    "records": 78,
+    "cover": "57 projects, 78 records",
+    "scoping": "This report covers all covered markets for August 2026. It is drawn from 57 projects and 78 captured records. Of those projects, 15 are described in full, selected by significance; 24 further projects are counted but not described; 18 projects filed nothing in this period. A further 4 projects in this geography are excluded because our capture holds no published name for them; the coverage note says where. 6 projects in Miami-Dade County and San Antonio are held out entirely: the public source we read for those markets has stopped publishing, so what we hold is historical. The coverage note gives the dates. 76 projects this scope proposes are held out of this document because they have not been confirmed as part of JKR & Associates' coverage. A scope is a proposal: it finds projects that look like a match, and each one is confirmed by hand on the register before it may be printed. Those projects are on the register, unconfirmed, and are not a statement that they do not belong here. Anything outside that geography or period is not covered here."
   },
   "partition": {
-    "described": 0,
-    "counted": 0,
-    "silent": 0,
-    "active": 0
+    "described": 15,
+    "counted": 24,
+    "silent": 18,
+    "active": 39
   }
 }

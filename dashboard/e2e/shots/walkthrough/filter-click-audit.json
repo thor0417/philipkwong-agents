@@ -3,26 +3,26 @@
     {
       "axis": "venue",
       "value": "Museum",
-      "before": 259,
-      "expected": 37,
-      "afterClick": 37,
-      "requests": 13
+      "before": 218,
+      "expected": 28,
+      "afterClick": 28,
+      "requests": 14
     },
     {
       "axis": "category",
-      "value": "Entertainment/Attractions",
-      "before": 259,
-      "expected": 81,
-      "afterClick": 81,
+      "value": "Hospitality/Tourism",
+      "before": 218,
+      "expected": 72,
+      "afterClick": 72,
       "requests": 13
     },
     {
       "axis": "market",
       "value": "Anaheim",
-      "before": 27,
+      "before": 26,
       "expected": 19,
       "afterClick": 19,
-      "requests": 15
+      "requests": 16
     }
   ]
 }
