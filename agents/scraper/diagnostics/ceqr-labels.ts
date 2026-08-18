@@ -121,11 +121,81 @@ function normaliseQuotes(s: string): string {
 // nobody will revisit.
 const LABEL = /(?:^|[^a-z])((?:[A-Z][A-Za-z’'()\/.-]*(?:\s+(?:of|the|and|for|to|a|an)\s+|\s+)?){1,6}?):/g;
 
+// ---- AND A SECOND SHAPE, WHICH THE COLON-KEYED ONE CANNOT SEE ---------------
+//
+// TWO DOCUMENT SHAPES IN ONE CORPUS, and a detector for one is blind to the
+// other. The CPC recommendation forms flatten side by side and key on a colon:
+//
+//   Applicant: Christopher JewettApplicant’s Administrator: Carol Rosenthal
+//
+// The draft scope COVER is line-oriented and carries no colon at all:
+//
+//   Applicant
+//   Bally’s New York Operating Company, LLC
+//
+//   Prepared By
+//   Langan Engineering, Environmental, Surveying,
+//   Landscape Architecture, and Geology D.P.C.
+//   21 Penn Plaza
+//
+// The colon-keyed pass reported 9 labels across three draft scopes and not one
+// of Applicant, Prepared By or Lead Agency, because none of them has a colon.
+// That is the second reason the earlier "0 of N carry Applicant:" was wrong: the
+// page cap was one, and the detector was the other. A cap that looks in the
+// wrong place and a pattern that cannot match are indistinguishable in the
+// output, and both read as a fact about the corpus.
+//
+// A line label is a short capitalised line, alone on its line, followed by a
+// line that is not one. Enumerated separately and printed separately, because
+// merging the two lists would hide which shape a label came from - and the shape
+// decides how its value is terminated. A colon label ends at the next label; a
+// line label ends at the next blank line or the next line label.
+const LINE_LABEL = /^[ \t]*([A-Z][A-Za-z’'&/-]*(?:[ \t]+[A-Za-z’'&/-]+){0,4})[ \t]*$/;
+
+function lineLabelsIn(text: string): string[] {
+  const lines = normaliseQuotes(text).split('\n');
+  const out: string[] = [];
+  for (let i = 0; i < lines.length - 1; i++) {
+    const m = LINE_LABEL.exec(lines[i]);
+    if (!m) continue;
+    const label = m[1].trim();
+    if (label.length < 4 || label.length > 40) continue;
+    // A heading followed by nothing is not a field. The next non-blank line has
+    // to exist and has to not be another label, or this is a section title.
+    const next = lines.slice(i + 1).find((l) => l.trim().length > 0);
+    if (!next || LINE_LABEL.test(next)) continue;
+    out.push(label);
+  }
+  return out;
+}
+
 interface Doc { doc: CeqrDocument; text: string; pages: number }
 
+// ---- THE COST IS THE DOWNLOAD, NOT THE PARSE --------------------------------
+//
+// Measured on 25DPR014M_Draft_Scope_Of_Work, the document that stalled two runs
+// of this pass: 236.7 seconds to fetch 7.78MB, about 33 KB/s, then a parse in
+// seconds. The handler serves large files very slowly and does not time out.
+//
+// THIS IS WHY THE PAGE CAP DID NOT HELP. A page range is a parse-side limit and
+// the whole file has to arrive before any page can be read, so capping pages
+// saved nothing on exactly the documents that needed saving. The fix is to cache
+// the BYTES, keyed on stored_path, which is the pass ceqr_documents.read_at in
+// migration 036 is shaped for - not to read fewer pages.
+//
+// Until that exists, a per-document timeout, so one slow file cannot stall a
+// pass silently. It is reported as a named negative with the elapsed time rather
+// than as a skip, because "this document is slow to serve" and "we did not try"
+// are different facts about our coverage.
+const FETCH_TIMEOUT_MS = Number(arg('timeout') ?? 60_000);
+
 async function fetchText(d: CeqrDocument, pageCap: number): Promise<Doc | { doc: CeqrDocument; failure: string }> {
+  const started = Date.now();
   try {
-    const res = await fetch(d.url, { headers: { 'user-agent': 'philipkwong-agents/1.0' } });
+    const res = await fetch(d.url, {
+      headers: { 'user-agent': 'philipkwong-agents/1.0' },
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    });
     const type = res.headers.get('content-type') ?? '';
     const buf = Buffer.from(await res.arrayBuffer());
     if (!res.ok) return { doc: d, failure: `HTTP ${res.status}` };
@@ -161,7 +231,14 @@ async function fetchText(d: CeqrDocument, pageCap: number): Promise<Doc | { doc:
     const { text, numpages } = await pdfParse(buf, { max: pageCap });
     return { doc: d, text, pages: numpages };
   } catch (e) {
-    return { doc: d, failure: e instanceof Error ? e.message : String(e) };
+    const secs = ((Date.now() - started) / 1000).toFixed(0);
+    const timedOut = e instanceof Error && /timed?\s*out|abort/i.test(e.name + e.message);
+    return {
+      doc: d,
+      failure: timedOut
+        ? `download exceeded ${FETCH_TIMEOUT_MS / 1000}s (the handler serves large files at about 33 KB/s; cache the bytes, do not read fewer pages)`
+        : `${e instanceof Error ? e.message : String(e)} after ${secs}s`,
+    };
   }
 }
 
@@ -198,6 +275,7 @@ async function main(): Promise<void> {
     console.log('='.repeat(78));
 
     const labelCounts = new Map<string, number>();
+    const lineLabelCounts = new Map<string, number>();
     const docsWithLabel = new Map<string, Set<string>>();
     const read: Doc[] = [];
     const skipped: { doc: CeqrDocument; failure: string }[] = [];
@@ -214,6 +292,9 @@ async function main(): Promise<void> {
       }
       console.log(`read ${cap === 0 ? r.pages : Math.min(r.pages, cap)} of ${r.pages} pages, ${r.text.length} chars`);
       read.push(r);
+      for (const l of new Set(lineLabelsIn(r.text))) {
+        lineLabelCounts.set(l, (lineLabelCounts.get(l) ?? 0) + 1);
+      }
       for (const l of new Set(labelsIn(r.text))) {
         labelCounts.set(l, (labelCounts.get(l) ?? 0) + 1);
         if (!docsWithLabel.has(l)) docsWithLabel.set(l, new Set());
@@ -256,6 +337,20 @@ async function main(): Promise<void> {
       console.log(`    ${String(n).padStart(3)}/${read.length}  ${label}`);
     }
     console.log(`  ${sorted.length} distinct labels`);
+
+    // THE OTHER SHAPE, LISTED SEPARATELY. See LINE_LABEL: a cover's fields carry
+    // no colon, so they are invisible to the list above, and merging the two
+    // would hide which shape a label came from - which is what decides how its
+    // value is terminated.
+    const lineSorted = [...lineLabelCounts.entries()]
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+    console.log('');
+    console.log('  LINE LABELS (no colon: label on its own line, value on the next)');
+    for (const [label, n] of lineSorted.slice(0, 40)) {
+      const party = /^(Applicant|Prepared By|Lead Agency|Owner|Sponsor)$/i.test(label) ? '   <-- party or consultant' : '';
+      console.log(`    ${String(n).padStart(3)}/${read.length}  ${label}${party}`);
+    }
+    console.log(`  ${lineSorted.length} distinct line labels`);
 
     // ---- THE FLATTENING, SHOWN RATHER THAN ASSERTED ------------------------
     //
