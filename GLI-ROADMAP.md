@@ -385,13 +385,43 @@ documents.
 - ZAP types "Phipps Houses" as Other Public Agency. It is a private non-profit
   developer. We store what the source states, so it is gated; the source is
   wrong. Attached to no project, so no document changes today.
-- The W key double-toggle on the register reads `current.watch` from rows that
-  may not have refetched between two presses, so the second press can re-issue
-  the first mutation instead of reversing it. It made e2e/triage.shots.ts red on
-  one run and green on the one before, and it leaves a project on the watchlist
-  when it bites. Two projects are watched right now - Heart Hotel / Kulik River
-  and Nevada Palace - and I did not touch either, because I cannot tell which is
-  Philip's and which the failed run left.
+### L0. THE W KEY TOGGLES ONCE. THE SECOND PRESS DOES NOTHING.
+  FIRST THING TOMORROW. It is the reason the gate is red and the reason the
+  push of 2026-08-18 was made with --no-verify.
+
+  e2e/triage.shots.ts:68 presses W, waits for the detail pane's button to change,
+  presses W again and expects it back. The second press never lands. Reproduced
+  three times against a freshly built server with the port free, deterministic,
+  and it fails in BOTH directions - Watch -> Watching -> stuck, and Watching ->
+  Watch -> stuck - so it is not about which state the project starts in.
+
+  WHAT IS KNOWN. The handler is `watch.mutate({ id: current.id, watch:
+  !current.watch })` at page.tsx:1022, and `current` is `rows[selectedIndex]`.
+  The mutation carries NO optimistic update: `onSettled: invalidateAll`
+  (lib/use-projects.ts:182). `rows` IS in the keydown effect's dependency array,
+  so the closure is not permanently stale. The detail pane reflects the change
+  and the second press still reads the old value, which points at the pane and
+  the register reading two different queries and only one of them refetching.
+
+  WHAT IS NOT KNOWN. Whether the register's list query is invalidated at all by
+  invalidateAll, or invalidated under a key that does not match. Check that
+  before writing anything: if the list is not refetching, the watch DOT on the
+  row (page.tsx:1875) is also stale after a toggle, which is the same defect on
+  a surface nobody has looked at.
+
+  It leaves a project on the watchlist when it bites. Two are watched now, Heart
+  Hotel / Kulik River and Nevada Palace. Philip is clearing them by hand; do not
+  script it.
+
+- The verify script deleted .next BEFORE running the Playwright suite
+  (typecheck -> build -> clean -> shots), and Playwright reuses an existing
+  server that serves out of that .next. Whatever the server had already loaded
+  kept working and anything it needed afterwards did not, so tests failed one at
+  a time, on a different test each run, with errors that read exactly like
+  product defects: a page with no <header>, a register with no rows. FIXED
+  2026-08-18 - clean now runs after shots - and asserted in e2e/harness.audit.ts
+  so the order cannot drift back. It was NOT the cause of the W defect above;
+  that was reproduced after this was fixed.
 - `npm run build` while a server is up leaves the running server serving a
   half-replaced .next and every screen renders empty. Three tests failed on their
   first assertion that way and none of it was real. Belongs in CLAUDE.md next to
