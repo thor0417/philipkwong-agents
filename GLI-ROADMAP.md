@@ -306,3 +306,93 @@ The full pipeline on schedule: capture, attach to projects, decay via liveness, 
 
 ## THE STANDARD, UNCHANGED
 One brief at a time. Migrations printed for Philip, blocking, first. Done means data: live queries pasted, files generated and read back, URLs fetch-verified. Deletions listed before they happen. Honest gaps beat faked coverage. There are no shortcuts.
+
+## LOGGED 2026-08-18, NOT BUILT. TOMORROW, IN THIS ORDER.
+
+Each of these was found by reading a generated document back as its recipient,
+not by a test. None is started; this is the log, not the work.
+
+### L1. RDXNWP is hand-named, and that is deliberately not a rule
+`#### RDXNWP  -  Clark County | filed` is a heading in JKR's report. Its own
+filing states `Project Type = Recreation facility (ice rink)` and
+`Generally located = south of Russell Road and west of Decatur Boulevard within
+Spring Valley`, so "Spring Valley Ice Rink" is stated by the record twice over.
+
+HAND-NAME IT. Do not write a rule, and the measurement is the reason:
+
+    SHAPE A  name ends in a published entity suffix (LLC, Inc, LP)   1 project
+               "The Howard Hughes Company" - a real developer, not a shell
+    SHAPE B  single unspaced all-caps token, not a known initialism  1 project
+               RDXNWP, and nothing else in any market
+    SHAPE C  name is exactly the primary applicant string           17 projects
+               and it contains Neon Museum, Children's Museum of Phoenix,
+               The Smith Center for Performing Arts, Aloft Hotel Phoenix
+               Airport, National Lighthouse Museum, Centennial Park
+               Conservancy. Those names are CORRECT.
+    "six consonants"                                                 1 project
+
+The one discriminator that is not a name shape - does the name appear anywhere
+but the party field it came from - reaches 30 projects across four markets and
+MISSES RDXNWP, because the Clark County agenda line reads
+`UC-26-0302-RDXNWP, LLC: USE PERMIT...` and the token is therefore in the title.
+
+Every general rule tested either reaches one project, which is a hand-name
+wearing a rule's clothes, or reaches good names in five other markets.
+
+The SPV shape is real and will recur in New York and Florida, and when it does
+the honest fix is a STATED-FIELD NAMING PASS (project type + place), not a
+name-shape filter. That pass needs the Clark County reader's coverage extended
+to the other markets first: of the 19 projects in the union of all three shapes,
+exactly 1 carries a stated Project Type, and it is RDXNWP.
+
+### L2. `TAB/CAC: APPROVALS:` - a label captured as a value
+JKR report, line 90, on the RDXNWP entry:
+
+    [RECORD] TAB/CAC: APPROVALS:
+
+The extractor took `APPROVALS:` as the value of `TAB/CAC`. It is a label. The
+real value follows that colon in the source PDF
+(clark.legistar1.com/clark/attachments/584a7a4c-727d-42b0-aacf-5ed2d9319bdd.pdf).
+Sweep the shape before fixing the one instance, per standing rule 8: a value
+that is itself a label ending in a colon is checkable across every extracted
+field, not just this one.
+
+### L3. A referral brief's recipient is a parameter, not the operator
+The Heart Hotel brief prints `Prepared for Philip Kwong`. Heart Hotel is a JKR
+project lead, not a client, and the brief exists to be FORWARDED to someone who
+will act on the matter. The addressee is therefore an input to the document, and
+today it defaults to whoever generated it - which is wrong on the one document
+type designed to leave the building.
+
+AND THE SAME BRIEF HAS NO COVERAGE NOTE AT ALL. `REFERRAL_SECTION_IDS` runs
+referral-cover, referral-project, referral-people, referral-conditions,
+referral-press, referral-opportunity, referral-risk. Its limits live in "About
+this brief", which states the filing/press split and the date range but states
+no withheld count. For a one-project brief with nothing withheld that reads as
+adequate; it is a structural absence rather than a decision, and it would print
+nothing if something WERE withheld. Standing rule 3 has no exemption for short
+documents.
+
+### THEN: the fresh capture run across every live market, and the movement report.
+
+### ALSO OPEN, FOUND TODAY, NOT PART OF TOMORROW'S THREE
+- `an-agency-reaches-a-document-through-more-than-the-applicant-column` is a
+  PENDING golden case. The applicant_type gate reaches 7 records on 4 projects;
+  97 live records carry a government body in `presented_by` and 16 in an untyped
+  `applicant`, over 82 projects, 71 of them New York City. Of 11 sources on live
+  attached records, nyc-zap is the ONLY one that publishes a type. `City of
+  Anaheim - presented by` prints in Simtec's OCVibe entry today.
+- ZAP types "Phipps Houses" as Other Public Agency. It is a private non-profit
+  developer. We store what the source states, so it is gated; the source is
+  wrong. Attached to no project, so no document changes today.
+- The W key double-toggle on the register reads `current.watch` from rows that
+  may not have refetched between two presses, so the second press can re-issue
+  the first mutation instead of reversing it. It made e2e/triage.shots.ts red on
+  one run and green on the one before, and it leaves a project on the watchlist
+  when it bites. Two projects are watched right now - Heart Hotel / Kulik River
+  and Nevada Palace - and I did not touch either, because I cannot tell which is
+  Philip's and which the failed run left.
+- `npm run build` while a server is up leaves the running server serving a
+  half-replaced .next and every screen renders empty. Three tests failed on their
+  first assertion that way and none of it was real. Belongs in CLAUDE.md next to
+  the OneDrive .next note: kill the listener by PID first, `pkill` does not.

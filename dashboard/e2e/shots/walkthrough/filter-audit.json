@@ -16,7 +16,7 @@
       "url": "/projects?view=watchlist&country=any",
       "filtersOn": "projects.watch = true AND status <> 'dismissed'",
       "before": 218,
-      "after": 1,
+      "after": 2,
       "changed": "changed"
     },
     {
