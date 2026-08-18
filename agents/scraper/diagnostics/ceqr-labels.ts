@@ -35,11 +35,51 @@ const arg = (name: string): string | null => {
   const i = process.argv.indexOf(`--${name}`);
   return i > -1 ? (process.argv[i + 1] ?? null) : null;
 };
-const KINDS = (arg('kind') ?? 'draft_scope,eas,lead_agency_letter').split(',');
+// UNFILED FIRST, AND THAT ORDERING IS THE FINDING.
+//
+// A document filed at the project ROOT has no directory to type it by, so
+// kindFromPath calls it 'unfiled' - and those are the City Planning Commission
+// reports. A CPC report is a ULURP document sitting in CEQR Access, and it is
+// the ONLY kind that carries the named individuals: "Applicant:" and
+// "Applicant's Administrator:" are on the Borough President and Community Board
+// recommendation forms appended to the back of it.
+//
+// The enumeration found no party label in any draft scope or EAS because there
+// is none in them. Three kinds, three different yields:
+//
+//   unfiled (CPC reports)   the named individuals
+//   draft_scope covers      "Prepared By", the consultant
+//   lead_agency_letter      identity and geography, never a party
+const KINDS = (arg('kind') ?? 'unfiled,draft_scope,lead_agency_letter').split(',');
 const SAMPLE = Number(arg('sample') ?? 12);
 const IN = 'agents/scraper/fixtures/ceqr-inventory.jsonl';
 const MAX_PDF_BYTES = Number(arg('maxbytes') ?? 40_000_000);
-const PAGE_CAP = Number(arg('pages') ?? 6);
+
+// ---- HOW FAR INTO A DOCUMENT THE LABELS ARE, PER KIND -----------------------
+//
+// A FRONT-PAGE CAP IS RIGHT FOR A FORM AND WRONG FOR A REPORT, and the whole
+// point of measuring per kind is that one number cannot be both.
+//
+// Measured on Bally's 250085.pdf, 41 pages: the Borough President Recommendation
+// is on page 23 and the Community/Borough Board Recommendations are on pages 37,
+// 38 and 39. A six-page cap misses every one of them, and misses them SILENTLY -
+// the pass reports "0 of N documents carry Applicant:" and reads as a finding
+// about the corpus rather than about the cap.
+//
+// So an unfiled document is read WHOLE. It is the only kind where the value is
+// at the back, it is 1.4MB rather than 15MB, and there is one of them.
+const PAGE_CAP_BY_KIND: Record<string, number> = {
+  // 0 means every page. The forms are appended after the report body.
+  unfiled: 0,
+  // A cover sheet. "Prepared By" is on page 1.
+  draft_scope: 6,
+  // Two pages, and both of them are letterhead.
+  lead_agency_letter: 0,
+  eas: 12,
+};
+const PAGE_CAP_DEFAULT = Number(arg('pages') ?? 6);
+const pageCapFor = (kind: string): number =>
+  arg('pages') !== null ? PAGE_CAP_DEFAULT : (PAGE_CAP_BY_KIND[kind] ?? PAGE_CAP_DEFAULT);
 
 // ---- THE THREE LABELS THAT MAY EVER PRODUCE A PARTY -------------------------
 //
@@ -53,7 +93,23 @@ const PAGE_CAP = Number(arg('pages') ?? 6);
 // signature block, a letterhead, an addressee line or a title block. This list
 // is here rather than in a reader because the reader does not exist yet and this
 // is the file that measures whether the labels are even present.
-const PARTY_LABELS = ["Applicant:", "Applicant's Administrator:", "Applicant's Primary Contact:"];
+//
+// THE APOSTROPHE IS U+2019, NOT ASCII. The document prints
+//
+//   Applicant: Christopher JewettApplicant’s Administrator: Carol Rosenthal
+//
+// with a RIGHT SINGLE QUOTATION MARK. Matched with an ASCII apostrophe, two of
+// these three labels never fire, and the failure is silent and total: the value
+// they terminate runs on into the next field. That is the field-list-with-a-hole
+// shape one character wide, and it was in this file's first draft. So text and
+// labels are both normalised before comparison, and the normaliser is the only
+// place the two forms are allowed to meet.
+const PARTY_LABELS = ['Applicant:', "Applicant's Administrator:", "Applicant's Primary Contact:"];
+
+/** Curly quotes to straight, so a label list cannot miss on punctuation. */
+function normaliseQuotes(s: string): string {
+  return s.replace(/[‘’ʼʹ]/g, "'").replace(/[“”]/g, '"');
+}
 
 // ---- WHAT COUNTS AS A LABEL -------------------------------------------------
 //
@@ -67,7 +123,7 @@ const LABEL = /(?:^|[^a-z])((?:[A-Z][A-Za-z’'()\/.-]*(?:\s+(?:of|the|and|for|t
 
 interface Doc { doc: CeqrDocument; text: string; pages: number }
 
-async function fetchText(d: CeqrDocument): Promise<Doc | { doc: CeqrDocument; failure: string }> {
+async function fetchText(d: CeqrDocument, pageCap: number): Promise<Doc | { doc: CeqrDocument; failure: string }> {
   try {
     const res = await fetch(d.url, { headers: { 'user-agent': 'philipkwong-agents/1.0' } });
     const type = res.headers.get('content-type') ?? '';
@@ -102,7 +158,7 @@ async function fetchText(d: CeqrDocument): Promise<Doc | { doc: CeqrDocument; fa
     // This is a real limit on the enumeration and it is why the page count is
     // printed beside every document: if a label only ever appears on page 40, it
     // is not in this list, and the run says how far it looked.
-    const { text, numpages } = await pdfParse(buf, { max: PAGE_CAP });
+    const { text, numpages } = await pdfParse(buf, { max: pageCap });
     return { doc: d, text, pages: numpages };
   } catch (e) {
     return { doc: d, failure: e instanceof Error ? e.message : String(e) };
@@ -111,7 +167,7 @@ async function fetchText(d: CeqrDocument): Promise<Doc | { doc: CeqrDocument; fa
 
 function labelsIn(text: string): string[] {
   const out: string[] = [];
-  for (const m of text.matchAll(LABEL)) {
+  for (const m of normaliseQuotes(text).matchAll(LABEL)) {
     const raw = m[1].replace(/\s+/g, ' ').trim();
     if (!raw || raw.length < 3 || raw.length > 60) continue;
     // A sentence that happens to end in a colon is not a label. A label is a
@@ -135,8 +191,10 @@ async function main(): Promise<void> {
 
   for (const kind of KINDS) {
     const picks = projects.flatMap((p) => p.documents).filter((d) => d.kind === kind).slice(0, SAMPLE);
+    const cap = pageCapFor(kind);
     console.log('\n' + '='.repeat(78));
-    console.log(`${kind.toUpperCase()}: enumerating labels across ${picks.length} documents`);
+    console.log(`${kind.toUpperCase()}: enumerating labels across ${picks.length} documents` +
+      `, reading ${cap === 0 ? 'every page' : `the first ${cap} pages`}`);
     console.log('='.repeat(78));
 
     const labelCounts = new Map<string, number>();
@@ -148,13 +206,13 @@ async function main(): Promise<void> {
       // of work runs to hundreds of pages and the first run of this pass sat
       // silent for fifteen minutes, which is indistinguishable from a hang.
       process.stdout.write(`  [${i + 1}/${picks.length}] ${d.label} ... `);
-      const r = await fetchText(d);
+      const r = await fetchText(d, cap);
       if ('failure' in r) {
         console.log(r.failure);
         skipped.push(r);
         continue;
       }
-      console.log(`read ${Math.min(r.pages, PAGE_CAP)} of ${r.pages} pages, ${r.text.length} chars`);
+      console.log(`read ${cap === 0 ? r.pages : Math.min(r.pages, cap)} of ${r.pages} pages, ${r.text.length} chars`);
       read.push(r);
       for (const l of new Set(labelsIn(r.text))) {
         labelCounts.set(l, (labelCounts.get(l) ?? 0) + 1);
@@ -175,10 +233,19 @@ async function main(): Promise<void> {
     // buried in a frequency table.
     console.log('\n  THE THREE LABELS THAT MAY PRODUCE A PARTY');
     for (const p of PARTY_LABELS) {
-      const hits = read.filter((r) => r.text.includes(p));
+      const hits = read.filter((r) => normaliseQuotes(r.text).includes(p));
+      // HOW FAR IN, because that is what sets the page cap. A label at 56% of
+      // the way through a 41-page report is invisible to a front-pages read, and
+      // the run has to say so rather than report a zero.
+      const where = hits.length
+        ? (() => {
+            const t = normaliseQuotes(hits[0].text);
+            const at = t.indexOf(p);
+            return `  e.g. ${hits[0].doc.ceqr} at ${Math.round((at / t.length) * 100)}% of the text`;
+          })()
+        : '';
       console.log(
-        `    ${p.padEnd(30)} ${String(hits.length).padStart(3)} of ${read.length} documents` +
-          (hits.length ? `  e.g. ${hits[0].doc.ceqr}` : '')
+        `    ${p.padEnd(30)} ${String(hits.length).padStart(3)} of ${read.length} documents${where}`
       );
     }
 
@@ -198,10 +265,11 @@ async function main(): Promise<void> {
     console.log('\n  FLATTENED JOINS (a label glued to the end of the previous value)');
     let shown = 0;
     for (const r of read) {
-      for (const m of r.text.matchAll(/([a-z]{2,})((?:[A-Z][A-Za-z’']*\s*){1,4}:)/g)) {
+      for (const m of normaliseQuotes(r.text).matchAll(/([a-z0-9]{2,})((?:[A-Z][A-Za-z']*\s*){1,4}:)/g)) {
         if (shown >= 12) break;
         const at = m.index ?? 0;
-        console.log(`    ${r.doc.ceqr}  ...${r.text.slice(Math.max(0, at - 45), at + 60).replace(/\s+/g, ' ')}...`);
+        const t = normaliseQuotes(r.text);
+        console.log(`    ${r.doc.ceqr}  ...${t.slice(Math.max(0, at - 45), at + 70).replace(/\s+/g, ' ')}...`);
         shown++;
       }
       if (shown >= 12) break;
