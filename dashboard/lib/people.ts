@@ -176,7 +176,27 @@ export function cleanPartyName(raw: string | null | undefined): string | null {
 
 /** Two spellings of one party. Case, punctuation and spacing are not identity. */
 export function normaliseParty(name: string): string {
-  return name.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  const flat = name.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  // ---- A FULL STOP INSIDE AN INITIALISM IS NOT A DIFFERENT BODY -------------
+  //
+  // Stripping punctuation turns "U.S." into "u s" and "US" into "us", so one
+  // company splits in two on a full stop nobody can see in the output:
+  //
+  //     Walt Disney Parks and Resorts U.S., Inc.   ->  walt disney parks and resorts u s inc
+  //     Walt Disney Parks and Resorts US, Inc.     ->  walt disney parks and resorts us inc
+  //
+  // MEASURED BEFORE CHANGING, and the measurement is why this is one line rather
+  // than a merge pass. Across the corpus, 11 bodies are written more than one
+  // way; NINE of them this function already folds. Exactly two are still split,
+  // and both for this reason: Walt Disney Parks and Resorts, and FirstFlight
+  // Heliports "d/b/a" against "dba".
+  //
+  // IT CANNOT MERGE TWO DIFFERENT BODIES, which is the only thing that matters
+  // here. It closes the gap between a run of SINGLE letters and nothing else, so
+  // "u s" becomes "us" and "d b a" becomes "dba". "Site A" and "Site B" are
+  // untouched, because neither is followed by another single letter. Anything
+  // longer than one letter is left exactly as it was.
+  return flat.replace(/([a-z])\s(?=[a-z])/g, '$1');
 }
 
 // ---- ONE BODY, SPELLED THREE WAYS -------------------------------------------

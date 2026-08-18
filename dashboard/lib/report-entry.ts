@@ -39,6 +39,7 @@ import {
   noPartiesNote,
   withPartyHistory,
   type PartyHistory,
+  type ProjectParty,
 } from './people';
 import {
   assembleSentence,
@@ -98,6 +99,12 @@ function referenceOf(r: ScopedRecord): string | null {
   // Printed the way the source writes it, with the filler words normalised.
   return tidy(m[1]).replace(/\s+NO\.?\s*/i, ' No. ');
 }
+
+// A ULURP action-code list and nothing else: two-to-four capitals, separated by
+// semicolons or commas, repeated. Anchored at both ends, so a real sentence that
+// happens to contain codes is untouched - only a value that is NOTHING but codes
+// is refused. See actionText.
+const ACTION_CODE_LIST = /^\s*[A-Z]{2,4}(?:\s*[;,/]\s*[A-Z]{2,4})+[\s.;]*$/;
 
 // The longest complete sentence-ish span that fits. action_sought runs to 551
 // characters at the extreme (median 110, p90 242), and a record line that runs
@@ -176,8 +183,27 @@ function actionText(
   // is already plain language. The title is a fallback for the 11% of records
   // without one - press headlines, mostly, where the headline IS the statement.
   const rawTitle = tidy(r.title);
-  const fromTitle = !tidy(r.action_sought);
-  const raw = tidy(r.action_sought) || rawTitle;
+  // ---- AN ACTION-CODE LIST IS NOT A SENTENCE -------------------------------
+  //
+  // ZAP stores the ULURP actions sought as their codes, and for 18 records in
+  // the corpus - every one of them nyc-zap - that is the WHOLE of action_sought:
+  //
+  //     "ZC; ZC; ZC; LD; LD; LD"    "ZM; ZR; ZS; ZS; LD; ZC; ZA; ZA; ZA; LD"
+  //
+  // A record line reading that tells a client nothing at all, and it wins here
+  // only because action_sought beats the title 81% of the time. For these 18 the
+  // preference is backwards: every one of them ALREADY carries a real title -
+  // "70 Hudson Yards (ERY, DIB & Office Chair Certs)", "Willets Point Phase II",
+  // "Westshore Rezoning LSGD".
+  //
+  // SO THE TITLE IS USED, AND NOTHING IS EXPANDED. DCP publishes what the codes
+  // mean and this deliberately does not reach for it: an expansion invented here
+  // would be a claim about what a city agency was asked to do. If the mapping is
+  // ever wanted it comes from the published source, as its own pass, with the
+  // codes above measured against it.
+  const codeListOnly = ACTION_CODE_LIST.test(tidy(r.action_sought));
+  const fromTitle = !tidy(r.action_sought) || codeListOnly;
+  const raw = (codeListOnly ? '' : tidy(r.action_sought)) || rawTitle;
 
   // THE SCRAPER'S CLEANING, NOT A SECOND ONE. This used to be a local item
   // prefix regex plus an all-or-nothing deshout, and both were too weak: the
@@ -985,6 +1011,51 @@ export interface BuiltEntry {
  * opinion and told the client nothing. A project with nothing to cite is left
  * out of the section and counted in its note.
  */
+
+// ---- A DESCRIPTION THAT OPENS WITH THE APPLICANT'S OWN NAME ------------------
+//
+// Clark County files its agenda lines as "KULIK RIVER CAPITAL, LLC: TENTATIVE
+// MAP consisting of ...", and the derived summary is a quotation from that line,
+// so the description a client reads opens
+//
+//     Kulik river capital, LLC: Tentative map consisting of 1 commercial lot...
+//
+// The name is already printed twice on the same entry - as the applicant in THE
+// PEOPLE, and often in the project's own name - so this is the third time, in
+// the one sentence that is supposed to say what the thing IS. Measured: 17 of 92
+// derived summaries open with a "label: " prefix, 9 of them a company name.
+//
+// ONLY WHERE IT IS PROVABLY CIRCULAR, which is what makes this safe to do to a
+// quotation. The prefix is dropped ONLY when it normalises to a party this entry
+// already names, or to the project's own name. A prefix that is neither is
+// content - a cross-street, a case caption, a department - and is left alone.
+// Nothing is added, nothing is rephrased, and where the test does not hold the
+// sentence is untouched.
+//
+// The stored summary is NOT modified. This is a print-time rule: the register,
+// the detail pane and the project page still show what the filing said, and the
+// column remains a faithful quotation.
+function dropCircularPrefix(text: string, project: Project, people: ProjectParty[]): string {
+  const m = /^([^:]{3,70}):\s+(\S.*)$/s.exec(text);
+  if (!m) return text;
+  const prefix = m[1];
+  const rest = m[2];
+  // The rest has to still be a sentence. A prefix followed by three words is a
+  // caption, not a description with a name in front of it.
+  if (rest.length < 25) return text;
+  const norm = (x: string) =>
+    x.toLowerCase().replace(/[.,&]/g, ' ')
+      .replace(/(inc|llc|l l c|lp|llp|corp|co|company|ltd|dpc|pc|the)/g, ' ')
+      .replace(/\s+/g, ' ').trim();
+  const key = norm(prefix);
+  if (!key) return text;
+  const known = [norm(project.name), ...people.map((p) => norm(p.name))].filter(Boolean);
+  const circular = known.some((k) => k === key || (k.length > 5 && key.includes(k)) || (key.length > 5 && k.includes(key)));
+  if (!circular) return text;
+  // Raise the first letter, because the sentence used to start mid-line.
+  return rest.charAt(0).toUpperCase() + rest.slice(1);
+}
+
 export function buildEntry(
   project: Project,
   records: ScopedRecord[],
@@ -1081,7 +1152,7 @@ export function buildEntry(
       // can show.
       summary:
         project.summary_source === 'derived' && project.summary && project.summary_url
-          ? { text: tidy(project.summary), url: project.summary_url }
+          ? { text: dropCircularPrefix(tidy(project.summary), project, people), url: project.summary_url }
           : null,
       assembled: assembleSentence(entryRecords),
       stated: stated.figures,

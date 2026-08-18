@@ -575,7 +575,31 @@ export function assembleSentence(records: EntryRecord[]): Assembled | null {
     .filter((x) => x.n >= majority)
     .sort((a, b) => b.n - a.n)[0]?.phrase ?? null;
 
-  if (state && instrument) {
+  // ---- AN INSTRUMENT AND A STATE MAY NOT NAME THE SAME THING ---------------
+  //
+  // "public hearing" is in BOTH lists - it is a thing a matter is about and a
+  // thing that happens to a matter - so the two lookups can fire on one term and
+  // the template joins them into a tautology:
+  //
+  //     Records show the public hearing taken to public hearing more than once.
+  //
+  // Measured over the corpus: 6 live projects produce exactly that sentence,
+  // among them Bally's Bronx and the Metropolitan Museum of Art. Every one is
+  // mechanically derived, unlabelled, and printed as a statement of fact about
+  // the record set - which is the whole basis on which these sentences carry no
+  // provenance tag.
+  //
+  // The test is CONTENT WORDS, not string equality: the instrument adds nothing
+  // when every word of it is already inside the state phrase. "the development
+  // application amended more than once" survives; "the public hearing taken to
+  // public hearing more than once" does not, and falls back to the state alone,
+  // which is the half that says what happened.
+  const instrumentAddsNothing =
+    !!instrument &&
+    !!state &&
+    instrument.split(/\s+/).every((w) => w.length < 4 || state.includes(w));
+
+  if (state && instrument && !instrumentAddsNothing) {
     return `${ASSEMBLED_OPENER} the ${instrument} ${state}.` as Assembled;
   }
   if (state) {
