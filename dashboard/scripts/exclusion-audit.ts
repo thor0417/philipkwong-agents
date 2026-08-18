@@ -18,7 +18,14 @@ import { supabase } from '../lib/supabase';
 import { fetchClients, fetchAllScopes, type ClientScope } from '../lib/clients';
 import { buildReport, DETAIL_CAP_DEFAULT, geographyLabel } from '../lib/report-build';
 import { resolvePeriod } from '../lib/period';
-import { capNotes, DEFAULT_SECTION_IDS } from '../lib/report-sections';
+import {
+  capNotes,
+  DEFAULT_SECTION_IDS,
+  emptyDocumentSentence,
+  membershipSentence,
+  type SectionContext,
+} from '../lib/report-sections';
+import { fetchIncludedProjectIds } from '../lib/client-projects';
 import { renderDocumentText } from '../lib/report-text';
 import { HOSPITALITY_ID } from '../lib/pipelines';
 import { isProvisionalName } from '../lib/taxonomy';
@@ -95,7 +102,14 @@ async function scopeTotal(scope: ClientScope): Promise<Project[]> {
   return rows;
 }
 
-interface Case { label: string; scope: ClientScope; clientName?: string | null }
+// A CLIENT CASE CARRIES THE CLIENT ID, NOT ONLY THE NAME.
+//
+// This is why the audit passed on JKR's empty document. Every case was built
+// with clientName set and clientId unset, so buildReport's membership gate took
+// the 'no-client' branch and never ran: the harness was auditing a document that
+// no client would ever receive. The newest exclusion rule was the one rule the
+// audit could not see, which is the worst possible rule for that to be true of.
+interface Case { label: string; scope: ClientScope; clientName?: string | null; clientId?: string | null }
 
 async function main(): Promise<void> {
   await signIn();
@@ -119,7 +133,22 @@ async function main(): Promise<void> {
       scope: emptyScope({ markets: [f.market] }),
     })),
   ];
-  if (clientScope && client) cases.push({ label: `client = ${client.name}`, scope: clientScope, clientName: client.name });
+  // EVERY CLIENT THAT HAS A SCOPE, GENERATED THE WAY THEY RECEIVE IT.
+  //
+  // One active client was audited before, without its id. Both halves were
+  // wrong: the membership gate did not run, and the other client's document was
+  // never generated at all. Simtec withheld 10 projects in silence and JKR
+  // generated an empty document, and neither was in this harness's output.
+  for (const c of clients) {
+    const s = scopes.find((x) => x.client_id === c.id);
+    if (!s) continue;
+    cases.push({ label: `client = ${c.name}`, scope: s, clientName: c.name, clientId: c.id });
+  }
+  // Kept so a register with no client scopes at all still exercises the client
+  // shape, rather than the whole block above silently doing nothing.
+  if (clientScope && client && !clients.some((c) => scopes.some((s) => s.client_id === c.id))) {
+    cases.push({ label: `client = ${client.name}`, scope: clientScope, clientName: client.name, clientId: client.id });
+  }
 
   let failures = 0;
 
@@ -135,6 +164,7 @@ async function main(): Promise<void> {
       brandName: 'JKR & Associates',
       addressee: 'audit',
       clientName: c.clientName ?? null,
+      clientId: c.clientId ?? null,
       watchlistOnly: false,
       includeDormant: false,
       includeContext: false,
@@ -155,7 +185,19 @@ async function main(): Promise<void> {
     const live = readable.filter((p) => p.stage !== 'dormant');
     const hollow = live.filter((p) => (p.record_count ?? 0) <= 0);
     const withRecords = live.filter((p) => (p.record_count ?? 0) > 0);
-    const provisional = withRecords.filter((p) => isProvisionalName(p.name_source));
+    // THE MEMBERSHIP GATE, RECONSTRUCTED IN THE PLACE THE BUILDER RUNS IT:
+    // after the project rules and BEFORE the provisional-name rule. The order is
+    // not cosmetic. A project that is both unconfirmed and unnamed is attributed
+    // to whichever rule fires first, and an audit that reconstructed them in the
+    // other order would report a provisional exclusion the document does not
+    // make and call the document silent about it.
+    //
+    // Read from the same table the gate reads, not from the builder's own
+    // answer, so the two can disagree and be caught disagreeing.
+    const included = c.clientId ? await fetchIncludedProjectIds(c.clientId) : null;
+    const unconfirmed = included ? withRecords.filter((p) => !included.has(p.id)) : [];
+    const confirmed = included ? withRecords.filter((p) => included.has(p.id)) : withRecords;
+    const provisional = confirmed.filter((p) => isProvisionalName(p.name_source));
 
     console.log('='.repeat(78));
     console.log(`${c.label}    scope holds ${before.length} projects, document covers ${built.selection.inScope}`);
@@ -166,6 +208,7 @@ async function main(): Promise<void> {
       { name: 'dormant', lost: dormant, stated: built.selection.excludedDormant },
       { name: 'hollow (every record dismissed)', lost: hollow, stated: built.selection.excludedHollow },
       { name: 'provisional name', lost: provisional, stated: built.selection.provisionalNames },
+      { name: 'not confirmed for this client', lost: unconfirmed, stated: built.selection.unconfirmed ?? 0 },
     ];
     for (const r of rules) {
       if (r.lost.length === 0) continue;
@@ -226,6 +269,16 @@ async function main(): Promise<void> {
         needle: 'no market or region',
         found: text.includes('no market or region'),
       },
+      // THE COUNT AND THE REASON, the same bar every other rule is held to. The
+      // regex requires the NUMBER next to the reason rather than accepting the
+      // bare phrase, because "some projects await confirmation" is the half
+      // statement this harness already rejected once for dormancy.
+      {
+        rule: 'not confirmed for this client',
+        lost: unconfirmed.length,
+        needle: 'not been confirmed as part of',
+        found: /\d+ projects? this scope proposes (is|are) held out of this document because (it has|they have) not been confirmed as part of/.test(text),
+      },
     ];
     for (const k of checks) {
       if (k.lost === 0) {
@@ -249,6 +302,60 @@ async function main(): Promise<void> {
     if (dormant.length !== built.selection.excludedDormant) {
       failures++;
       console.log(`    MISMATCH  dormant: audit counts ${dormant.length}, document states ${built.selection.excludedDormant}`);
+    }
+    // ---- THE MEMBERSHIP GATE ----------------------------------------------
+    //
+    // NULL AND ZERO ARE CHECKED SEPARATELY, because they are the two states this
+    // whole gate was built to keep apart: null is "confirmation is not switched
+    // on", zero is "everything proposed was confirmed", and a document that
+    // printed one as the other would be lying in opposite directions.
+    if (c.clientId) {
+      if (built.membershipGate !== 'enforced') {
+        failures++;
+        console.log(
+          `    GATE OFF! client case ran with membershipGate '${built.membershipGate}': a client ` +
+            `document was generated without the confirmation gate running`
+        );
+      } else if (unconfirmed.length !== built.selection.unconfirmed) {
+        failures++;
+        console.log(
+          `    MISMATCH  unconfirmed: audit counts ${unconfirmed.length}, document states ` +
+            `${built.selection.unconfirmed}`
+        );
+      }
+    } else if (built.selection.unconfirmed !== null) {
+      failures++;
+      console.log(
+        `    MISMATCH  no client id, so the gate cannot have run, but the document states ` +
+          `${built.selection.unconfirmed} unconfirmed`
+      );
+    }
+    // A DOCUMENT EXCLUDED TO NOTHING SAYS SO, UNMISSABLY.
+    //
+    // This is the case that shipped: a cover reading "drawn from 0 projects and
+    // 0 records", every exclusion sentence absent because every count was zero
+    // after the gate, and nothing anywhere saying the scope had been emptied
+    // rather than the market being quiet. Every other check in this harness
+    // passes on that document, which is why this one is separate.
+    if (built.selection.inScope === 0) {
+      const said = text.includes('THIS DOCUMENT DESCRIBES NO PROJECTS');
+      if (!said) {
+        failures++;
+        console.log('    SILENT !  document covers 0 projects and never says it describes none');
+      } else {
+        console.log(`    STATED    document covers 0 projects and says so on the cover`);
+      }
+      // And the reason has to be there too. An empty document that announces
+      // itself and then does not say what emptied it has moved the silence one
+      // sentence along.
+      const scopeHeld = before.length;
+      if (said && scopeHeld > 0 && !/Its scope was not empty/.test(text)) {
+        failures++;
+        console.log(
+          `    SILENT !  scope held ${scopeHeld} projects and the empty-document sentence does ` +
+            `not say what removed them`
+        );
+      }
     }
     // A FROZEN MARKET MUST BE NAMED, NOT ONLY COUNTED. A client scoped to a
     // market that stopped publishing needs the market's name and the date in
@@ -321,6 +428,90 @@ async function main(): Promise<void> {
     const ok = forcedNotes.some((n) => n.includes(needle));
     if (!ok) failures++;
     console.log(`    ${ok ? 'STATED  ' : 'SILENT !'}  ${rule} (forced)`);
+  }
+  console.log('');
+
+  // ---- THE MEMBERSHIP SENTENCES, FORCED ---------------------------------
+  //
+  // The live cases above exercise whatever state the clients happen to be in
+  // today. Both of them are in the failing state right now, which is exactly why
+  // that is not a test: the day Philip confirms everything for both clients, the
+  // live cases stop reaching these sentences and the sentences could then be
+  // deleted without a single check going red.
+  //
+  // So the two producers are called directly with the state forced, the same way
+  // capNotes is. That is a real assertion rather than a grep, and it fails if a
+  // sentence is ever removed or loses its count.
+  console.log('='.repeat(78));
+  console.log('MEMBERSHIP SENTENCES, FORCED');
+  console.log('='.repeat(78));
+  const forceCtx = (over: Partial<SectionContext>): SectionContext =>
+    ({
+      projects: [],
+      frozenExcluded: [],
+      provisionalExcluded: [],
+      excludedDormant: 0,
+      excludedHollow: 0,
+      unconfirmedMembers: null,
+      membershipGate: 'no-client',
+      clientName: null,
+      geographyLabel: 'all covered markets',
+      ...over,
+    }) as unknown as SectionContext;
+
+  const forcedSentences: [string, string | null, RegExp][] = [
+    [
+      'unconfirmed, plural',
+      membershipSentence(forceCtx({ membershipGate: 'enforced', unconfirmedMembers: 10, clientName: 'Simtec' })),
+      /10 projects this scope proposes are held out of this document because they have not been confirmed as part of Simtec's coverage/,
+    ],
+    [
+      'unconfirmed, singular',
+      membershipSentence(forceCtx({ membershipGate: 'enforced', unconfirmedMembers: 1, clientName: 'Simtec' })),
+      /1 project this scope proposes is held out .* because it has not been confirmed/,
+    ],
+    // A NAME ENDING IN S TAKES A BARE APOSTROPHE. Both live clients do, so the
+    // first generated document read "JKR & Associates's coverage" at a reader
+    // who is paying for it. Locked here because it is the kind of thing a later
+    // edit reintroduces by writing `${name}'s` inline.
+    [
+      'possessive of a name ending in s',
+      membershipSentence(forceCtx({ membershipGate: 'enforced', unconfirmedMembers: 165, clientName: 'JKR & Associates' })),
+      /part of JKR & Associates' coverage/,
+    ],
+    [
+      'gate not run: no sentence',
+      membershipSentence(forceCtx({ membershipGate: 'not-applied', unconfirmedMembers: null })) ?? '(none)',
+      /^\(none\)$/,
+    ],
+    [
+      'everything confirmed: no sentence',
+      membershipSentence(forceCtx({ membershipGate: 'enforced', unconfirmedMembers: 0 })) ?? '(none)',
+      /^\(none\)$/,
+    ],
+    [
+      'excluded to nothing, by the membership gate',
+      emptyDocumentSentence(
+        forceCtx({ membershipGate: 'enforced', unconfirmedMembers: 267, geographyLabel: 'all covered markets' })
+      ),
+      /THIS DOCUMENT DESCRIBES NO PROJECTS\. Its scope was not empty: 267 to awaiting confirmation/,
+    ],
+    [
+      'excluded to nothing, scope genuinely empty',
+      emptyDocumentSentence(forceCtx({})),
+      /THIS DOCUMENT DESCRIBES NO PROJECTS\. Its scope resolved to nothing at all/,
+    ],
+    [
+      'a document with projects gets no empty sentence',
+      emptyDocumentSentence(forceCtx({ projects: [{ id: 'x' } as never] })) ?? '(none)',
+      /^\(none\)$/,
+    ],
+  ];
+  for (const [rule, sentence, shape] of forcedSentences) {
+    const ok = !!sentence && shape.test(sentence);
+    if (!ok) failures++;
+    console.log(`    ${ok ? 'STATED  ' : 'SILENT !'}  ${rule} (forced)`);
+    if (!ok) console.log(`              got: ${JSON.stringify(sentence)?.slice(0, 200)}`);
   }
   console.log('');
 

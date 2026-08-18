@@ -57,6 +57,24 @@ export interface SectionContext {
   // well as named: the coverage note stated the reason for years and never the
   // number, which tells a reader a rule fired without telling them how hard.
   excludedDormant: number;
+  // DROPPED BECAUSE THE CLIENT HAS NOT CONFIRMED THEM.
+  //
+  // The newest exclusion rule and, until now, the only one computed and printed
+  // nowhere. It shipped live on two clients: JKR generated a document covering 0
+  // projects with no sentence saying why, and Simtec withheld 10 in silence.
+  // Both are standing rule 3 broken by the rule that was supposed to enforce it.
+  //
+  // NULL IS NOT ZERO, and the distinction is the same one client-projects makes.
+  // Zero means every project the scope proposed was confirmed. Null means the
+  // gate did not run - no client id, or migration 033 unapplied - and there is
+  // nothing to state. See membershipGate below and lib/report-build.
+  unconfirmedMembers: number | null;
+  // Which of the three outcomes the gate had. A document may only claim its
+  // contents were confirmed when confirmation actually ran.
+  membershipGate: 'enforced' | 'no-client' | 'not-applied';
+  // The client this document is for, so the membership sentence can name them.
+  // Null for an internal or unassigned document.
+  clientName: string | null;
   // THE READ LIMITS, AND WHETHER EACH ONE BOUND. A cap that binds and is not
   // stated is a document covering less than its scope claims, which is the one
   // failure this layer exists to prevent. See the coverage note.
@@ -279,14 +297,96 @@ export function capNotes(caps: SectionContext['caps'], withheldSummaries = 0): s
   return out;
 }
 
+/**
+ * "JKR & Associates'", not "JKR & Associates's".
+ *
+ * The client's own name is the most conspicuous word on the page it appears on,
+ * and a client reading their name misspelled in a document they paid for stops
+ * reading the sentence it is in. Both live clients end in s.
+ */
+export function possessive(name: string): string {
+  return /s$/i.test(name.trim()) ? `${name.trim()}'` : `${name.trim()}'s`;
+}
+
+// ---- WHAT THE MEMBERSHIP GATE HELD BACK --------------------------------------
+//
+// THE NEWEST EXCLUSION RULE, AND THE ONE THAT WAS PRINTED NOWHERE.
+//
+// Every other rule in this file removes projects that are in some way not worth
+// printing: dormant, hollow, unnamed, frozen. This one removes projects that are
+// perfectly printable and have simply not been approved yet, which makes it the
+// exclusion most likely to be mistaken for an empty market. A client whose
+// document lost every project to it read a report about nothing and was given no
+// way to tell that from a quarter in which nothing was filed.
+//
+// It is one sentence, produced once and printed twice: on the cover next to the
+// numbers a reader has to reconcile, and in the coverage note beside the other
+// limits. Two call sites and one string, so the two pages cannot come apart.
+export function membershipSentence(ctx: SectionContext): string | null {
+  const n = ctx.unconfirmedMembers;
+  if (ctx.membershipGate !== 'enforced' || n === null || n <= 0) return null;
+  const one = n === 1;
+  const whose = ctx.clientName ? `${possessive(ctx.clientName)} coverage` : 'this coverage';
+  return (
+    `${n} project${one ? '' : 's'} this scope proposes ${one ? 'is' : 'are'} held out of this ` +
+    `document because ${one ? 'it has' : 'they have'} not been confirmed as part of ${whose}. ` +
+    `A scope is a proposal: it finds projects that look like a match, and each one is confirmed ` +
+    `by hand on the register before it may be printed. ${one ? 'That project is' : 'Those projects are'} ` +
+    `on the register, unconfirmed, and ${one ? 'is' : 'are'} not a statement that ${one ? 'it does' : 'they do'} ` +
+    `not belong here.`
+  );
+}
+
+/**
+ * A DOCUMENT EXCLUDED TO NOTHING SAYS SO, IN ONE SENTENCE A READER CANNOT MISS.
+ *
+ * Every count on the cover is a count of something removed, and each one reads
+ * as a footnote when the number of things remaining is not zero. When it IS
+ * zero, the footnotes are the whole document and a reader who skims the first
+ * line learns that a report exists rather than that it is empty and why.
+ *
+ * So this leads the cover, ahead of the geography and the period, and it names
+ * the rules that emptied it in the order the builder applies them. It is not the
+ * arithmetic: the counts follow in the sentence after it. It is the one line
+ * that stops an empty document from reading as a quiet market.
+ */
+export function emptyDocumentSentence(ctx: SectionContext): string | null {
+  if (ctx.projects.length > 0) return null;
+  const reasons: string[] = [];
+  if (ctx.frozenExcluded.length) reasons.push(`${ctx.frozenExcluded.length} to markets whose source has stopped publishing`);
+  if (ctx.excludedDormant) reasons.push(`${ctx.excludedDormant} to dormancy`);
+  if (ctx.excludedHollow) reasons.push(`${ctx.excludedHollow} to holding no live record`);
+  if (ctx.membershipGate === 'enforced' && ctx.unconfirmedMembers) {
+    reasons.push(
+      `${ctx.unconfirmedMembers} to awaiting confirmation as part of ` +
+        `${ctx.clientName ? possessive(ctx.clientName) : "this client's"} coverage`
+    );
+  }
+  if (ctx.provisionalExcluded.length) reasons.push(`${ctx.provisionalExcluded.length} to having no published name we could print`);
+  return (
+    `THIS DOCUMENT DESCRIBES NO PROJECTS. ` +
+    (reasons.length
+      ? `Its scope was not empty: ${reasons.join(', ')}. Every one of those rules is stated below ` +
+        `with its count. `
+      : `Its scope resolved to nothing at all: no project in our register matched this geography, ` +
+        `period and filter set. `) +
+    `Read this as our coverage of ${ctx.geographyLabel} being withheld rather than as ` +
+    `${ctx.geographyLabel} being quiet. We are not saying nothing was filed.`
+  );
+}
+
 // ---- 1. COVER ----------------------------------------------------------------
 
 const cover: SectionDef = {
   id: 'cover',
   label: 'Cover',
   description: 'Title, addressee, period and the scoping statement.',
-  build: (ctx) =>
-    withCommentary('cover', ctx, {
+  build: (ctx) => {
+    // Built once and read twice below: the lead paragraph is what an empty
+    // document opens with, and it is also what decides whether there is one.
+    const emptied = emptyDocumentSentence(ctx);
+    const unconfirmed = membershipSentence(ctx);
+    return withCommentary('cover', ctx, {
       id: 'cover',
       title: 'Scope of this report',
       lede: 'What this document covers, and what it does not.',
@@ -300,21 +400,35 @@ const cover: SectionDef = {
       // counts partition the set: detailed plus counted plus silent is exactly
       // the scope, and the hollow ones are named as never having reached it.
       lines: commentaryLines(
-        `This report covers ${ctx.geographyLabel} for ${ctx.periodLabel}. ` +
-          `It is drawn from ${ctx.projects.length} project${ctx.projects.length === 1 ? '' : 's'} ` +
-          `and ${ctx.records.length} captured record${ctx.records.length === 1 ? '' : 's'}. ` +
-          `Of those projects, ${ctx.detailedProjects.length} ${ctx.detailedProjects.length === 1 ? 'is' : 'are'} ` +
-          `described in full, selected by significance` +
-          (ctx.undetailedProjects.length
-            ? `; ${ctx.undetailedProjects.length} further ${ctx.undetailedProjects.length === 1 ? 'project is' : 'projects are'} counted but not described`
-            : '') +
-          (ctx.silentProjects.length
-            ? `; ${ctx.silentProjects.length} ${ctx.silentProjects.length === 1 ? 'project' : 'projects'} filed nothing in this period`
-            : '') +
-          (ctx.unplacedProjects.length
-            ? `; and ${ctx.unplacedProjects.length} ${ctx.unplacedProjects.length === 1 ? 'carries' : 'carry'} no market or region we could resolve`
-            : '') +
-          `. ` +
+        // AHEAD OF EVERYTHING, AND ONLY WHEN THERE IS NOTHING. Its own paragraph
+        // rather than a clause, because commentaryLines splits on the blank line
+        // and the renderer puts each paragraph on its own row: a sentence buried
+        // mid-paragraph is exactly the sentence a reader skims past.
+        (emptied ? `${emptied}\n\n` : '') +
+          `This report covers ${ctx.geographyLabel} for ${ctx.periodLabel}. ` +
+          // THE SELECTION ARITHMETIC ONLY EXISTS WHEN THERE IS SOMETHING TO
+          // SELECT FROM. "It is drawn from 0 projects. Of those projects, 0 are
+          // described in full, selected by significance" is what an emptied
+          // document said, and a sentence describing how nothing was ranked
+          // reads as a template running rather than as a document. The counts of
+          // what was EXCLUDED still follow, because those are the real content
+          // of an empty document.
+          (emptied
+            ? `It draws on no project and no record. What follows is the account of why. `
+            : `It is drawn from ${ctx.projects.length} project${ctx.projects.length === 1 ? '' : 's'} ` +
+              `and ${ctx.records.length} captured record${ctx.records.length === 1 ? '' : 's'}. ` +
+              `Of those projects, ${ctx.detailedProjects.length} ${ctx.detailedProjects.length === 1 ? 'is' : 'are'} ` +
+              `described in full, selected by significance` +
+              (ctx.undetailedProjects.length
+                ? `; ${ctx.undetailedProjects.length} further ${ctx.undetailedProjects.length === 1 ? 'project is' : 'projects are'} counted but not described`
+                : '') +
+              (ctx.silentProjects.length
+                ? `; ${ctx.silentProjects.length} ${ctx.silentProjects.length === 1 ? 'project' : 'projects'} filed nothing in this period`
+                : '') +
+              (ctx.unplacedProjects.length
+                ? `; and ${ctx.unplacedProjects.length} ${ctx.unplacedProjects.length === 1 ? 'carries' : 'carry'} no market or region we could resolve`
+                : '') +
+              `. `) +
           (ctx.excludedHollow
             ? `${ctx.excludedHollow} project${ctx.excludedHollow === 1 ? '' : 's'} whose every record has been dismissed ` +
               `${ctx.excludedHollow === 1 ? 'is' : 'are'} excluded entirely, because ${ctx.excludedHollow === 1 ? 'it has' : 'they have'} ` +
@@ -345,9 +459,16 @@ const cover: SectionDef = {
               `the public source we read for ${frozenByFeed(ctx).length === 1 ? 'that market' : 'those markets'} ` +
               `has stopped publishing, so what we hold is historical. The coverage note gives the dates. `
             : '') +
+          // THE MEMBERSHIP EXCLUSION, ON THE COVER, FOR THE SAME REASON THE
+          // FROZEN ONE IS. The other counts answer "does this add up". This one
+          // answers "why is my report shorter than my coverage", and the answer
+          // is a manual step nobody has taken rather than anything about the
+          // projects, so it has to be on the first page where it can be acted on.
+          (unconfirmed ? `${unconfirmed} ` : '') +
           `Anything outside that geography or period is not covered here.`
       ),
-    }),
+    });
+  },
 };
 
 // ---- 2. WHAT MOVED -----------------------------------------------------------
@@ -876,16 +997,61 @@ const coverage: SectionDef = {
     }
     if (!ctx.includeContext) notes.push('Context records that support a finding without being about it are excluded.');
     if (ctx.watchlistOnly) notes.push('This report is restricted to watch-listed projects.');
+    // ---- CONFIRMED MEMBERSHIP, IN ALL THREE OF ITS STATES ------------------
+    //
+    // The gate has three outcomes and each is a different statement to a reader,
+    // so each gets its own sentence rather than one sentence and two silences.
+    // Stating only the first would leave a document built with the gate switched
+    // off looking identical to one where everything had been approved, which is
+    // the same conflation of "nothing confirmed" with "confirmation not running"
+    // that lib/client-projects exists to keep apart.
+    const unconfirmedNote = membershipSentence(ctx);
+    if (unconfirmedNote) {
+      notes.push(
+        `${unconfirmedNote} Confirming ${ctx.unconfirmedMembers === 1 ? 'it' : 'them'} on the ` +
+          `register and regenerating is what puts ${ctx.unconfirmedMembers === 1 ? 'it' : 'them'} in ` +
+          `this document.`
+      );
+    } else if (ctx.membershipGate === 'enforced') {
+      notes.push(
+        `Every project this scope proposed has been confirmed as part of ` +
+          `${ctx.clientName ? possessive(ctx.clientName) : 'this'} coverage, so nothing is held out of ` +
+          `this document awaiting confirmation.`
+      );
+    } else if (ctx.membershipGate === 'not-applied') {
+      notes.push(
+        `Client confirmation is not switched on for this document, so what it covers is what the ` +
+          `scope proposed rather than what has been confirmed by hand. Nothing has been held out on ` +
+          `that ground, and nothing above should be read as having been approved individually.`
+      );
+    } else {
+      notes.push(
+        `This document is not tied to a client, so no confirmation step applies to it: it covers ` +
+          `what the scope resolves to. Nothing is held out awaiting confirmation.`
+      );
+    }
     // THE SELECTION IS A LIMIT ON THE DOCUMENT, so it belongs in the list of
     // the document's limits and not only on the cover. A reader who reaches
     // this section without having read the cover still learns that what they
     // have is the top of a longer list.
+    // THE SELECTION IS A LIMIT ON THE DOCUMENT, so it belongs in the list of
+    // the document's limits and not only on the cover. A reader who reaches
+    // this section without having read the cover still learns that what they
+    // have is the top of a longer list.
+    // A CAP CANNOT SELECT FROM AN EMPTY SET, AND MUST NOT CLAIM TO HAVE. On the
+    // emptied document this read "This document describes the 15 most
+    // significant projects in scope. Every project in scope is described." over
+    // nothing at all, which is two false sentences in a row in the one section
+    // whose whole job is to be true about what is missing.
     notes.push(
-      `This document describes the ${ctx.detailCap} most significant projects in scope. ` +
-        (ctx.undetailedProjects.length
-          ? `${ctx.undetailedProjects.length} further project${ctx.undetailedProjects.length === 1 ? '' : 's'} ` +
-            `in scope ${ctx.undetailedProjects.length === 1 ? 'is' : 'are'} counted but not described.`
-          : 'Every project in scope is described.')
+      ctx.projects.length === 0
+        ? `No project reached this document, so nothing was selected for description. The ` +
+          `exclusions above account for the whole of this scope.`
+        : `This document describes the ${ctx.detailCap} most significant projects in scope. ` +
+          (ctx.undetailedProjects.length
+            ? `${ctx.undetailedProjects.length} further project${ctx.undetailedProjects.length === 1 ? '' : 's'} ` +
+              `in scope ${ctx.undetailedProjects.length === 1 ? 'is' : 'are'} counted but not described.`
+            : 'Every project in scope is described.')
     );
     notes.push(...capNotes(ctx.caps, ctx.withheldSummaries));
     // WHAT WE COULD NOT NAME, COUNTED AND LOCATED.

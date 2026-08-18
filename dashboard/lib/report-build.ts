@@ -718,6 +718,14 @@ export async function buildReport(req: BuildRequest): Promise<BuiltReport> {
     unplacedProjects: unplaced,
     excludedHollow,
     excludedDormant: dormantExcluded.length,
+    // THE MEMBERSHIP GATE REACHES THE PAGE. It was computed here and returned to
+    // the caller and went no further, so the one exclusion rule that can empty a
+    // document entirely was the one rule the document never mentioned. Both
+    // values are passed rather than a single count, because null and zero mean
+    // different things and only the sections can say which one applies.
+    unconfirmedMembers: unconfirmed,
+    membershipGate,
+    clientName: req.clientName,
     provisionalExcluded,
     frozenExcluded,
     detailCap,

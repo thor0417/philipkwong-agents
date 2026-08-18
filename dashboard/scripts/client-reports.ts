@@ -97,6 +97,13 @@ async function main(): Promise<void> {
       brandName: c.brand_name ?? 'Philip Kwong',
       addressee: c.addressee ?? '',
       clientName: c.name,
+      // WHICH CLIENT, so the membership gate runs. The same defect the exclusion
+      // audit had: this harness exists to report what a client would receive and
+      // was generating a document with the confirmation gate switched off, so
+      // its project counts were the scope's proposal rather than the client's
+      // document. The composer passes it; every harness claiming to audit the
+      // composer's output has to pass it too.
+      clientId: c.id,
       watchlistOnly: false,
       includeDormant: false,
       includeContext: false,
