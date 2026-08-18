@@ -180,6 +180,31 @@ const INLINE: Record<string, () => string | null> = {
   // The measurement itself is in the case's origin and was taken by hand on
   // 2026-08-18: three of three published ProjectDetail URLs returned HTTP 200
   // with "Page Not Found - Error Code 404" in the body.
+  // OPEN. The gate exists and reaches one column on one source; this reports how
+  // much of the shape it does not reach. Source-text only: the golden runner
+  // takes no database, and the corpus numbers this case records were measured by
+  // agents/scraper/diagnostics/agency-party-probe.ts on 2026-08-18.
+  'an-agency-reaches-a-document-through-more-than-the-applicant-column': () => {
+    const people = readFileSync('dashboard/lib/people.ts', 'utf8');
+    const open: string[] = [];
+    // The gate is keyed on the applicant column alone, by design: it is the only
+    // column any source states a type for. presented_by carries 97 of the 113
+    // agency-shaped strings on live attached records, and nothing gates it.
+    if (/push\(nameablePresenter|nameablePresenter\(/.test(people) === false) {
+      open.push('presented_by is still pushed ungated: 97 live records, and no source states a type for it');
+    }
+    // A second source publishing a type is what would make a real fix possible.
+    // Until then the gate covers nyc-zap and nothing else.
+    const adapters = readFileSync('agents/scraper/sources/nyc-zap.ts', 'utf8');
+    if (!/applicant_type:/.test(adapters)) {
+      open.push('nyc-zap no longer writes applicant_type: the gate has no input at all');
+    }
+    if (open.length === 0) {
+      return null;
+    }
+    return open.join('; ') + ' (82 projects touched, 71 of them New York City)';
+  },
+
   'a-200-is-not-a-live-page': () => {
     const src = readFileSync('agents/scraper/sources/nyc-ceqr.ts', 'utf8');
     const verifiesBody = /Page Not Found|Error Code 404|bodyLooksLikeAnError|soft.?404/i.test(src);

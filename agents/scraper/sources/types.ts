@@ -40,6 +40,13 @@ export interface NormalizedLead {
   source_type?: string | null;
   presented_by?: string | null;
   applicant?: string | null;
+  // THE APPLICANT'S TYPE, AS THE SOURCE STATES IT (migration 037). Optional
+  // because almost no source publishes one: of the 11 sources on live attached
+  // records, ZAP is the only one that does. Undefined and null both mean the
+  // source did not say, never that the applicant is private, and the document
+  // layer's gate is keyed on the stated value for exactly that reason. Never
+  // derived from the name here or anywhere else.
+  applicant_type?: string | null;
   representative?: string | null;
   action_sought?: string | null;
   primary_document_url?: string | null;

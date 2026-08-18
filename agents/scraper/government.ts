@@ -268,6 +268,13 @@ export function buildGovernmentRow(
       has_primary_document: lead.has_primary_document ?? false,
       presented_by: players.presented_by,
       applicant: players.applicant,
+      // FROM THE ADAPTER ONLY, NEVER FROM THE MODEL. players is the merge of
+      // what the source published with what the LLM read out of the text, and
+      // the LLM must not reach this column: a model deciding that an applicant
+      // is a public agency is an inference, and the document layer gates a
+      // PRINT on this value. lead.applicant_type is what the source stated or
+      // null, which means it did not say.
+      applicant_type: lead.applicant_type ?? null,
       representative: players.representative,
       action_sought: players.action_sought,
       source_tier: 'primary',

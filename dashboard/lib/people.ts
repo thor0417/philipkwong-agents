@@ -81,6 +81,48 @@ export interface ProjectParty {
 // The roles this can emit, and the column each comes from. Ordered as a reader
 // wants them: who wants it, who speaks for them, who put it on the agenda, who
 // to call.
+// ---- WHO IS A PARTY, AND WHO IS THE GOVERNMENT ------------------------------
+//
+// A public agency that files an application IS the applicant, truthfully, and is
+// NOT a party in the sense a client document means: somebody to call about a
+// development. "EDC - Economic Development Corporation for NYC" printed under
+// PEOPLE beside a private developer reads as a lead. It is the city.
+//
+// This is the officials rule applied to the one column officials legitimately
+// reach: never a person from a signature or title block, and never an agency
+// from an applicant field. The difference is that the agency belongs in the
+// record - it is what the filing says - so the VALUE IS KEPT AND THE PRINT IS
+// GATED. Nulling `applicant` would delete a true fact from the register to fix
+// a display rule, and the register's Applicant column still shows it.
+//
+// THE SOURCE STATES THE TYPE. This never reads the name. "EDC" looks like an
+// agency and "Queens Future, LLC" does not, but the repo already carries a
+// golden case for a label read as the thing it names, and a name-shape rule here
+// would be that defect with better manners. Only ZAP publishes a type today
+// (migration 037); every other source publishes none.
+//
+// NULL IS UNGATED, DELIBERATELY. Null means the source did not say, never that
+// the applicant is private. Gating on absence would silence every applicant in
+// every market outside New York.
+const PUBLIC_AGENCY_APPLICANT_TYPES = new Set(['other public agency']);
+
+/**
+ * Does this record's applicant column hold a government body rather than a party?
+ *
+ * Keyed ONLY on the type the source states. `applicant_type` is optional on the
+ * record shape because most readers do not select it; an absent column is an
+ * unstated type and therefore ungated, which is the same answer as null.
+ */
+export function applicantIsPublicAgency(r: { applicant_type?: string | null }): boolean {
+  const t = (r.applicant_type ?? '').trim().toLowerCase();
+  return t !== '' && PUBLIC_AGENCY_APPLICANT_TYPES.has(t);
+}
+
+/** The applicant, or null where the source states it is a public agency. */
+function nameableApplicant(r: ScopedRecord): string | null | undefined {
+  return applicantIsPublicAgency(r) ? null : r.applicant;
+}
+
 const ROLE_APPLICANT = 'applicant';
 const ROLE_REPRESENTATIVE = 'representative';
 const ROLE_PRESENTER = 'presented by';
@@ -394,7 +436,7 @@ export function buildParties(project: Project, records: ScopedRecord[]): Project
 
   for (const r of records) {
     if (!r.url) continue;
-    add(r.applicant, ROLE_APPLICANT, r);
+    add(nameableApplicant(r), ROLE_APPLICANT, r);
     add(r.representative, ROLE_REPRESENTATIVE, r);
     add(r.presented_by, ROLE_PRESENTER, r);
     // The contact block is one group of columns, so the detail belongs to the
@@ -540,6 +582,26 @@ export function buildParties(project: Project, records: ScopedRecord[]): Project
 export function noPartiesNote(records: ScopedRecord[]): string {
   const n = records.length;
   if (n === 0) return 'No records are attached to this project, so no party is named.';
+
+  // NOTHING IS SILENTLY ABSENT, INCLUDING SOMETHING WE WITHHELD ON PURPOSE.
+  //
+  // Where the only applicant on file is a public agency, the previous sentence
+  // was FALSE: it said the filings do not identify who is behind the project,
+  // and they do. It is the city. So the reason is named and the agency is named
+  // as the government body it is, which is a different statement from listing it
+  // under PEOPLE as somebody to approach.
+  const agencies = records.filter(applicantIsPublicAgency);
+  if (agencies.length > 0) {
+    const named = [...new Set(agencies.map((r) => cleanPartyName(r.applicant)).filter((v): v is string => !!v))];
+    const who = named.length === 1 ? named[0] : named.slice(0, 2).join(' and ');
+    return (
+      `No private party is named on this project. The applicant of record is a public agency` +
+      `${who ? ` (${who})` : ''}, stated as such by the source, so it is not listed as a party to ` +
+      `approach. ${agencies.length === 1 ? 'One record' : `${agencies.length} records`} of the ${n} ` +
+      `captured carries it.`
+    );
+  }
+
   return (
     `No party is named in ${n === 1 ? 'the record' : `any of the ${n} records`} captured for this ` +
     `project. The filings identify the matter but not who is behind it.`
@@ -575,7 +637,7 @@ export function distinctRecordParties(
     const { name, firm } = splitNameAndFirm(cleaned);
     out.push({ name: firm ? `${name}, ${firm}` : name, role });
   };
-  push(r.applicant, ROLE_APPLICANT);
+  push(nameableApplicant(r), ROLE_APPLICANT);
   push(r.representative, ROLE_REPRESENTATIVE);
   push(r.presented_by, ROLE_PRESENTER);
   return out;

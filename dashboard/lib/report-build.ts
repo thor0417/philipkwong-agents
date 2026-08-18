@@ -32,6 +32,10 @@ const RECORD_COLUMNS =
   'id,title,url,source,source_type,published_date,deadline,first_seen,date_source,' +
   'cluster_reason,status,applicant,representative,presented_by,action_sought,' +
   'contact_name,contact_email,contact_phone,primary_document_url,project_id,market,stream,' +
+  // The applicant's type as the SOURCE states it. Selected because the entry has
+  // to decide whether to NAME the applicant, and raw_content - where the adapter
+  // used to put it - is never selected here. See migration 037.
+  'applicant_type,' +
   // The figures read out of the article behind a press URL. Selected here and NOT
   // in the timeline columns: an entry prints them, the register's timeline does
   // not, and article_body is deliberately never selected anywhere - it runs to

@@ -353,6 +353,23 @@ export async function scrapeNycZap(): Promise<NormalizedLead[]> {
       // never has to guess at a name the dataset already states. mergePlayers
       // treats a source-supplied applicant as outranking the model's reading.
       applicant: r.primary_applicant ?? null,
+      // ---- THE APPLICANT'S TYPE, AS THE SOURCE STATES IT ------------------
+      //
+      // Stored in its own column (migration 037) rather than only in
+      // raw_content, where it was unreachable: the report layer never selects
+      // raw_content - it runs to 20,000 characters and RECORD_COLUMNS excludes
+      // it - so the value was in the corpus and invisible to the one layer that
+      // needs it.
+      //
+      // WHAT IT IS FOR. A public agency applicant is a TRUE FACT and is not a
+      // party in the sense a brief means: somebody to call. lib/people declines
+      // to NAME it; the record keeps it. Nulling `applicant` would delete a
+      // fact from the register to fix a display rule.
+      //
+      // NEVER INFERRED. The source states it. A name-shape rule - "EDC looks
+      // like an agency" - is the label-read-as-the-thing defect this repo
+      // already carries a golden case for.
+      applicant_type: r.applicant_type ?? null,
       action_sought: r.actions ?? null,
       primary_document_url: url,
       has_primary_document: false,

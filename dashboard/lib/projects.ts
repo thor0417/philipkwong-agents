@@ -521,6 +521,12 @@ export interface TimelineRecord {
   contact_email: string | null;
   contact_phone: string | null;
   primary_document_url: string | null;
+  // THE APPLICANT'S TYPE, AS THE SOURCE STATES IT (migration 037). Today only ZAP
+  // publishes one: Private / Other Public Agency / DCP. NEVER inferred from the
+  // name, so null means the source did not say, and not that the applicant is
+  // private - which is why the gate in lib/people keys on the stated value and
+  // treats null as ungated.
+  applicant_type?: string | null;
   // The capture lane that wrote the row. Decides RECORD vs PRESS in generated
   // documents (report-sections isFiling), so it is part of the record's shape
   // rather than an incidental column. Optional because fetchProjectTimeline
@@ -553,6 +559,12 @@ const TIMELINE_COLUMNS = [
   'first_seen', 'date_source', 'cluster_reason', 'status', 'applicant',
   'representative', 'presented_by', 'action_sought', 'contact_name',
   'contact_email', 'contact_phone', 'primary_document_url',
+  // The applicant's type as the source states it. Selected here as well as in
+  // report-build so EVERY surface that reads people.ts gets the same answer
+  // about whether an applicant may be named as a party. A column selected in one
+  // reader and not the other is how the register and the document come to
+  // disagree about who is on a project.
+  'applicant_type',
   // The capture lane. Selected here now because the timeline is where records
   // are read since Records stopped being a destination, and RECORD / PRESS /
   // TENDER is decided from it (recordProvenance). Without it every timeline row
