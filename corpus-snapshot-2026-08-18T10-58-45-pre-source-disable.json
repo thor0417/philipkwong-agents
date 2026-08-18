@@ -1,0 +1,1398 @@
+{
+  "takenAt": "2026-08-18T10:58:45.857Z",
+  "state": "AFTER the geography backfill (39 rows), BEFORE the source disable",
+  "totals": {
+    "projectsAll": 265,
+    "projectsLive": 173,
+    "recordsLive": 1193,
+    "recordsLiveGli": 685,
+    "factReachLive": 61,
+    "factReachPct": "35%"
+  },
+  "liveProjects": [
+    {
+      "id": "e9383489-155e-45a2-88ad-b43b2a51e545",
+      "name": "01 Cross Bay Boulevard Rezoning",
+      "market": "New York City",
+      "country": "United States",
+      "records": 2,
+      "facts": 18
+    },
+    {
+      "id": "2726a242-558c-4de9-aea0-dc92d74a62b5",
+      "name": "10 Jamaica Avenue hotel",
+      "market": "New York City",
+      "country": "United States",
+      "records": 1,
+      "facts": 0
+    },
+    {
+      "id": "2bc00d74-7c7c-4ca6-a60f-77827cf3174b",
+      "name": "10 Kent Street",
+      "market": "New York City",
+      "country": "United States",
+      "records": 1,
+      "facts": 5
+    },
+    {
+      "id": "8b114b1d-7154-4d63-a9d1-8120b8f991df",
+      "name": "10 To The Beach Boulevard",
+      "market": "Anaheim",
+      "country": "United States",
+      "records": 1,
+      "facts": 2
+    },
+    {
+      "id": "fa394129-9ad9-4ce3-80ff-158fb49f3a94",
+      "name": "1000 Richmond Terrace",
+      "market": "New York City",
+      "country": "United States",
+      "records": 3,
+      "facts": 6
+    },
+    {
+      "id": "6e993a21-409e-4bc7-be16-5e30b842eb9e",
+      "name": "1020 West Imperial Highway",
+      "market": null,
+      "country": null,
+      "records": 1,
+      "facts": 0
+    },
+    {
+      "id": "d1c0730c-baa0-43d1-a283-49757185ffc4",
+      "name": "107th Street Pier and Bobby Wagner Walk Reconstruction",
+      "market": "New York City",
+      "country": "United States",
+      "records": 1,
+      "facts": 6
+    },
+    {
+      "id": "1c0578ed-22e1-47bd-a905-027e3815e43c",
+      "name": "110 East 138th Street (63 Exterior Street)",
+      "market": "New York City",
+      "country": "United States",
+      "records": 1,
+      "facts": 8
+    },
+    {
+      "id": "fd12a0ee-5a61-49dd-b45e-d5fbd7fbd302",
+      "name": "1475 South State College Boulevard",
+      "market": "Anaheim",
+      "country": "United States",
+      "records": 2,
+      "facts": 1
+    },
+    {
+      "id": "2ad2e541-0e64-427c-9905-3330ac801c8a",
+      "name": "1605 Nelson Avenue",
+      "market": "New York City",
+      "country": "United States",
+      "records": 1,
+      "facts": 7
+    },
+    {
+      "id": "caf40f0a-fcf3-4c4b-a5ed-ccd3cbfeb850",
+      "name": "163 At Casino Drive",
+      "market": "Clark County",
+      "country": "United States",
+      "records": 2,
+      "facts": 0
+    },
+    {
+      "id": "05056448-6215-40bc-8035-dc4556778297",
+      "name": "1900 Brooks Street",
+      "market": "Missoula",
+      "country": "United States",
+      "records": 1,
+      "facts": 0
+    },
+    {
+      "id": "e3516057-fa99-4ce8-a6e0-487fb64ddfff",
+      "name": "20 College Point Blvd SFWD Expansion",
+      "market": "New York City",
+      "country": "United States",
+      "records": 2,
+      "facts": 18
+    },
+    {
+      "id": "c530fafa-b7e5-467a-a244-d06107d2edbc",
+      "name": "200 S. Anaheim Blvd resort",
+      "market": "Anaheim",
+      "country": "United States",
+      "records": 1,
+      "facts": 0
+    },
+    {
+      "id": "03907cd8-2899-4718-9210-d2f9c2dbed1e",
+      "name": "2000 South Las Vegas Boulevard casino",
+      "market": "Las Vegas",
+      "country": "United States",
+      "records": 1,
+      "facts": 0
+    },
+    {
+      "id": "cfed5cd9-5b73-40e6-8ef7-b044bba1b0f0",
+      "name": "2026 Miscellaneous Planning Code Amendments",
+      "market": "Oakland",
+      "country": "United States",
+      "records": 2,
+      "facts": 0
+    },
+    {
+      "id": "f4158e33-ef4a-4834-a034-ab811edbe7a0",
+      "name": "215 And Windmill Lane",
+      "market": "Clark County",
+      "country": "United States",
+      "records": 1,
+      "facts": 0
+    },
+    {
+      "id": "84f10771-d404-48ff-99d0-753caa6af5a0",
+      "name": "221 North Rampart Boulevard",
+      "market": "Las Vegas",
+      "country": "United States",
+      "records": 1,
+      "facts": 0
+    },
+    {
+      "id": "89f4a1a6-646f-421e-a0fd-c52e8884ed94",
+      "name": "2427 South Las Vegas Boulevard casino",
+      "market": "Las Vegas",
+      "country": "United States",
+      "records": 1,
+      "facts": 0
+    },
+    {
+      "id": "c791d1c3-b043-4ad0-9a7f-b6d043424c95",
+      "name": "27 Allen Street Hotel Special Permit",
+      "market": "New York City",
+      "country": "United States",
+      "records": 2,
+      "facts": 19
+    },
+    {
+      "id": "dbe13a0b-6910-4f44-9b89-bb08cab64ef2",
+      "name": "30 Albert Street hotel",
+      "market": "Queensland",
+      "country": "Australia",
+      "records": 0,
+      "facts": 0
+    },
+    {
+      "id": "e0f0470b-e54c-4315-b827-4a1adf6edec9",
+      "name": "3591 East Bonanza Road",
+      "market": "Las Vegas",
+      "country": "United States",
+      "records": 1,
+      "facts": 0
+    },
+    {
+      "id": "27d34caf-2dd3-4ec8-9bb2-287ef8272175",
+      "name": "422 Fulton Street",
+      "market": "Downtown Brooklyn",
+      "country": "United States",
+      "records": 1,
+      "facts": 2
+    },
+    {
+      "id": "916cd749-5aed-4c04-94b3-9aac8ccd13e9",
+      "name": "460 Tenth Avenue DIB Certification",
+      "market": "New York City",
+      "country": "United States",
+      "records": 1,
+      "facts": 13
+    },
+    {
+      "id": "72fad712-4841-4f27-b061-f6758bc6a5bc",
+      "name": "47 Avenue",
+      "market": "New York City",
+      "country": "United States",
+      "records": 1,
+      "facts": 5
+    },
+    {
+      "id": "02526f05-28d4-41fc-a2e5-e2c5f02b3d94",
+      "name": "47 Th Avenue hotel",
+      "market": "New York City",
+      "country": "United States",
+      "records": 3,
+      "facts": 12
+    },
+    {
+      "id": "f4b99f73-f631-4f4e-9616-dd7a313f17cf",
+      "name": "500 North Casino Center Drive",
+      "market": "Las Vegas",
+      "country": "United States",
+      "records": 1,
+      "facts": 0
+    },
+    {
+      "id": "8768fb3b-57e1-4790-8c69-6cd2fa0bf545",
+      "name": "515 W. Katella Avenue resort",
+      "market": "Anaheim",
+      "country": "United States",
+      "records": 1,
+      "facts": 0
+    },
+    {
+      "id": "f82dcc6e-ebbb-43ea-a732-aadeb6acd6c9",
+      "name": "520 W 41st Street (DIB)",
+      "market": "New York City",
+      "country": "United States",
+      "records": 1,
+      "facts": 11
+    },
+    {
+      "id": "38caee47-df8e-4100-8d77-4e6e78b2e19c",
+      "name": "600 Food Center Drive",
+      "market": "New York City",
+      "country": "United States",
+      "records": 1,
+      "facts": 5
+    },
+    {
+      "id": "8dd3f9d2-6fc6-44ed-8049-505dafcee216",
+      "name": "6360 Sunset Boulevard",
+      "market": "Los Angeles",
+      "country": "United States",
+      "records": 1,
+      "facts": 0
+    },
+    {
+      "id": "1adc4580-ca32-448f-9bcd-4a809bbff8d2",
+      "name": "70 Hudson Yards (ERY, DIB & Office Chair Certs)",
+      "market": "New York City",
+      "country": "United States",
+      "records": 2,
+      "facts": 19
+    },
+    {
+      "id": "fd6bf108-4c72-416a-a438-ab7a0f32b7b2",
+      "name": "7000 Coliseum Way arena",
+      "market": "Oakland",
+      "country": "United States",
+      "records": 2,
+      "facts": 10
+    },
+    {
+      "id": "c3d5979b-9ad2-4f6e-8695-39abf43b50a8",
+      "name": "858 Glenferrie Road hotel",
+      "market": "Melbourne",
+      "country": "Australia",
+      "records": 0,
+      "facts": 0
+    },
+    {
+      "id": "d41b572d-ce6d-4247-9b74-8fa8dc1b52ca",
+      "name": "AC Hotel By Marriott City North and Element Hotel City North",
+      "market": "Phoenix",
+      "country": "United States",
+      "records": 2,
+      "facts": 0
+    },
+    {
+      "id": "18f91452-043d-4ff4-888b-d34d72ea266e",
+      "name": "Al Akaria awards $123mln contract for Porta Jeddah mixed",
+      "market": "Jeddah",
+      "country": "Saudi Arabia",
+      "records": 0,
+      "facts": 0
+    },
+    {
+      "id": "551b8bcc-df1a-44f4-826e-17cb9e1a8a0b",
+      "name": "Alliance For West Oakland Development",
+      "market": "Oakland",
+      "country": "United States",
+      "records": 2,
+      "facts": 4
+    },
+    {
+      "id": "88656d54-7cb4-4c93-8b13-18d2095eb838",
+      "name": "Aloft Hotel Phoenix Airport",
+      "market": "Phoenix",
+      "country": "United States",
+      "records": 2,
+      "facts": 0
+    },
+    {
+      "id": "3164154e-b5ec-4eba-8207-98f699bae58c",
+      "name": "Amended and Restated Agreement, in substantial form, with the Anaheim/Orange",
+      "market": "Anaheim",
+      "country": "United States",
+      "records": 2,
+      "facts": 0
+    },
+    {
+      "id": "8e3b9f45-0b30-423a-9a9c-2cb23c4d0458",
+      "name": "approving an intergovernmental project agreement between the Metropolitan",
+      "market": "Nashville",
+      "country": "United States",
+      "records": 2,
+      "facts": 0
+    },
+    {
+      "id": "38eeb609-a9e3-40da-b298-f7a590f791f2",
+      "name": "Aramark Sports",
+      "market": "Anaheim",
+      "country": "United States",
+      "records": 1,
+      "facts": 0
+    },
+    {
+      "id": "24ecc24b-8497-4ce7-965e-a124d1fb3aee",
+      "name": "Arisa Realty Co. X",
+      "market": "New York City",
+      "country": "United States",
+      "records": 1,
+      "facts": 5
+    },
+    {
+      "id": "ab9fa2bb-02de-4ca7-baef-c039f40a9b44",
+      "name": "Armenia Tourism and Regional Infrastructure Project",
+      "market": null,
+      "country": "Armenia",
+      "records": 1,
+      "facts": 0
+    },
+    {
+      "id": "15d31dc0-b832-45ae-8c7f-8d2398bb3d7c",
+      "name": "Arts Center Redevelopment Plan",
+      "market": "Nashville",
+      "country": "United States",
+      "records": 2,
+      "facts": 0
+    },
+    {
+      "id": "cdd6aa93-0647-4696-9337-3dba86e1c784",
+      "name": "Bally's Bronx",
+      "market": "New York City",
+      "country": "United States",
+      "records": 6,
+      "facts": 25
+    },
+    {
+      "id": "9289d3d7-675c-4742-9871-7f043ef8b04d",
+      "name": "BDA South",
+      "market": "Clark County",
+      "country": "United States",
+      "records": 3,
+      "facts": 0
+    },
+    {
+      "id": "847ffb72-e886-4c1e-b50d-a100b59f3861",
+      "name": "BOLOGNESE, JOSEPH & VIVI A: PLAN AMENDMENT to redesignate the existing land use",
+      "market": "Clark County",
+      "country": "United States",
+      "records": 2,
+      "facts": 20
+    },
+    {
+      "id": "d81a7f44-7516-483a-b7ee-81a1f5dd8290",
+      "name": "Bordeaux Redevelopment Plan",
+      "market": "Nashville",
+      "country": "United States",
+      "records": 2,
+      "facts": 0
+    },
+    {
+      "id": "e00f70e5-8d94-4e6f-8c08-0a904c25d3c8",
+      "name": "Brandywine Bookmaking casino",
+      "market": "Las Vegas",
+      "country": "United States",
+      "records": 2,
+      "facts": 0
+    },
+    {
+      "id": "2333242f-a55a-4271-ac4c-7ed0c1b7967b",
+      "name": "Brooklyn Cruise Terminal (BCT) Resiliency Wharf",
+      "market": "New York City",
+      "country": "United States",
+      "records": 1,
+      "facts": 5
+    },
+    {
+      "id": "9e7ec242-3024-4612-950f-2dccf9c2a5ce",
+      "name": "Brooklyn Marine Terminal",
+      "market": "New York City",
+      "country": "United States",
+      "records": 1,
+      "facts": 4
+    },
+    {
+      "id": "85b250cd-10b0-4491-9920-595559ac3748",
+      "name": "Brooklyn-Queens Expressway/Interstate 278 (BQE) from Atlantic Avenue",
+      "market": "New York City",
+      "country": "United States",
+      "records": 1,
+      "facts": 4
+    },
+    {
+      "id": "ee200b62-5288-45ab-838a-e83d8ea42b31",
+      "name": "Building Skills for Human Capital Development in South Sudan",
+      "market": null,
+      "country": "South Sudan",
+      "records": 1,
+      "facts": 0
+    },
+    {
+      "id": "cc100c5b-6ab4-44be-97e1-1c5290e34b45",
+      "name": "Bush Terminal Pier 7 Ecological Restoration",
+      "market": "New York City",
+      "country": "United States",
+      "records": 1,
+      "facts": 4
+    },
+    {
+      "id": "2238a5f1-a545-4d26-acbf-13b781001cdd",
+      "name": "Calida Residential",
+      "market": "Las Vegas",
+      "country": "United States",
+      "records": 1,
+      "facts": 0
+    },
+    {
+      "id": "05a3e137-db91-4d92-aa62-9a46e3beb06f",
+      "name": "Carida Capital Group announces Mattel Wonder Indoor",
+      "market": null,
+      "country": "United States",
+      "records": 2,
+      "facts": 2
+    },
+    {
+      "id": "2bad010c-9567-4f44-bacf-639a1782fd72",
+      "name": "Centennial Park Conservancy",
+      "market": "Nashville",
+      "country": "United States",
+      "records": 3,
+      "facts": 0
+    },
+    {
+      "id": "e98f7869-2e19-4639-b4ac-9f222ca5640d",
+      "name": "Central State Redevelopment Plan",
+      "market": "Nashville",
+      "country": "United States",
+      "records": 2,
+      "facts": 0
+    },
+    {
+      "id": "a706c6b7-7417-4e21-a3f5-d709e3612033",
+      "name": "CFTOD / Walt Disney World",
+      "market": "Central Florida Tourism Oversight District",
+      "country": "United States",
+      "records": 11,
+      "facts": 0
+    },
+    {
+      "id": "745b5287-118b-45ef-8030-4cfc592d58ed",
+      "name": "Children's Museum of Phoenix",
+      "market": "Phoenix",
+      "country": "United States",
+      "records": 2,
+      "facts": 0
+    },
+    {
+      "id": "13f39863-9a1d-4664-87b8-4e9dadaaa2c4",
+      "name": "CITY OF LAS VEGAS - For possible action on a request to amend the City (25-0002)",
+      "market": "Las Vegas",
+      "country": "United States",
+      "records": 1,
+      "facts": 0
+    },
+    {
+      "id": "2335be57-d924-419f-ac49-169a12082950",
+      "name": "CITY OF LAS VEGAS - For possible action on a request to amend the City (25-0594)",
+      "market": "Las Vegas",
+      "country": "United States",
+      "records": 1,
+      "facts": 0
+    },
+    {
+      "id": "c455e137-acf6-4d96-b8f5-03890b0e71c1",
+      "name": "Clean and Resilient Environment for Blue Sea Project",
+      "market": null,
+      "country": "Albania",
+      "records": 2,
+      "facts": 0
+    },
+    {
+      "id": "1937bfd4-0e96-4565-ba76-fc4dd23e0f91",
+      "name": "Coastal Resilience and Sustainable Tourism Project",
+      "market": null,
+      "country": null,
+      "records": 1,
+      "facts": 0
+    },
+    {
+      "id": "a9e305f3-da1a-4f58-bcbd-2f889858b052",
+      "name": "Concord Prime, LLC & Vegasstarr",
+      "market": "Clark County",
+      "country": "United States",
+      "records": 3,
+      "facts": 0
+    },
+    {
+      "id": "7f9218cf-9231-47ce-a230-cd3e8a8d8a25",
+      "name": "Contemporary Services",
+      "market": "Anaheim",
+      "country": "United States",
+      "records": 1,
+      "facts": 0
+    },
+    {
+      "id": "83c83b94-3710-419d-8f58-52f150a29be5",
+      "name": "Costco Wholesale",
+      "market": "Oakland",
+      "country": "United States",
+      "records": 2,
+      "facts": 0
+    },
+    {
+      "id": "5ad9786c-d85a-4e7c-bd3c-8157ae32446f",
+      "name": "Cote d'Ivoire Youth Employment and Skills Development Project - Phase 3",
+      "market": null,
+      "country": "Ivory Coast",
+      "records": 1,
+      "facts": 0
+    },
+    {
+      "id": "457fff52-c6ec-47fc-a70b-e0eef4cf1492",
+      "name": "Denu Hotel & Spa",
+      "market": "Phoenix",
+      "country": "United States",
+      "records": 2,
+      "facts": 0
+    },
+    {
+      "id": "bd33f320-a6d5-4f96-86dc-dde731de90a3",
+      "name": "Desert Inn",
+      "market": "Clark County",
+      "country": "United States",
+      "records": 1,
+      "facts": 0
+    },
+    {
+      "id": "020f4901-257f-41bf-894f-5c312a354459",
+      "name": "Developers Chosen For $1B Housing Project Tied To USS",
+      "market": "New York City",
+      "country": "United States",
+      "records": 2,
+      "facts": 2
+    },
+    {
+      "id": "a759d123-d190-4dfb-98ca-6a583001c362",
+      "name": "Disney / CFTOD ((unknown market)) (2026-05-12)",
+      "market": null,
+      "country": "United States",
+      "records": 1,
+      "facts": 0
+    },
+    {
+      "id": "d55ced4d-cf9d-4e67-9977-34bd65e3a38c",
+      "name": "Disney / CFTOD ((unknown market)) (2026-07-11)",
+      "market": null,
+      "country": null,
+      "records": 1,
+      "facts": 0
+    },
+    {
+      "id": "8d9e3c32-4fe9-4208-990a-c93daa428033",
+      "name": "Disney / CFTOD ((unknown market)) (2026-08-09)",
+      "market": null,
+      "country": "United States",
+      "records": 1,
+      "facts": 0
+    },
+    {
+      "id": "c5e8c7ed-2c38-4393-ad95-964a2abc3c28",
+      "name": "Disney / CFTOD (Disneyland Resort)",
+      "market": "Disneyland Resort",
+      "country": "United States",
+      "records": 2,
+      "facts": 6
+    },
+    {
+      "id": "86aa3560-d804-4f0a-9209-1d6b79759aac",
+      "name": "Disney / CFTOD (Walt Disney World)",
+      "market": "Walt Disney World",
+      "country": "United States",
+      "records": 2,
+      "facts": 1
+    },
+    {
+      "id": "cbde2ce3-41f2-412b-83ee-2153d1155cc5",
+      "name": "Disneyland Resort",
+      "market": "Anaheim",
+      "country": "United States",
+      "records": 6,
+      "facts": 0
+    },
+    {
+      "id": "08777a66-c366-42bf-999d-74b423bfd5f4",
+      "name": "Downtown Manhattan Heliport Freight NYC Project",
+      "market": "New York City",
+      "country": "United States",
+      "records": 1,
+      "facts": 5
+    },
+    {
+      "id": "d756c4b7-d2a2-4006-9b61-81038dfe6101",
+      "name": "Dubai offers Dhs200,000 prize to design world's first AI",
+      "market": "Dubai",
+      "country": "United Arab Emirates",
+      "records": 0,
+      "facts": 0
+    },
+    {
+      "id": "75bb2974-fa45-493e-9825-a7162e480c74",
+      "name": "Eastern Africa Regional Digital Integration Project",
+      "market": null,
+      "country": null,
+      "records": 1,
+      "facts": 0
+    },
+    {
+      "id": "96fb724b-14ab-4ad3-bf4b-a79d0d7eae8b",
+      "name": "Ethiopia Competitiveness and Job Creation Project",
+      "market": null,
+      "country": "Ethiopia",
+      "records": 1,
+      "facts": 0
+    },
+    {
+      "id": "3de96860-a766-4a77-bdd5-5bd0bd7ecdb6",
+      "name": "Fifth Street Gaming casino",
+      "market": "Las Vegas",
+      "country": "United States",
+      "records": 1,
+      "facts": 0
+    },
+    {
+      "id": "d68fb595-0b04-4abb-a2f5-675d986e8b1f",
+      "name": "Fiji Tourism Development Program in Vanua Levu",
+      "market": null,
+      "country": "Finland",
+      "records": 1,
+      "facts": 0
+    },
+    {
+      "id": "eaa3372d-2a8b-4e90-a00f-09b9ad214b95",
+      "name": "Fire N Ice Arena",
+      "market": "Phoenix",
+      "country": "United States",
+      "records": 2,
+      "facts": 0
+    },
+    {
+      "id": "1eb27683-c8cf-41f1-ba3a-17239383e4c7",
+      "name": "Fire N Ice Hotel",
+      "market": "Phoenix",
+      "country": "United States",
+      "records": 2,
+      "facts": 0
+    },
+    {
+      "id": "6bd260d7-f412-45fa-8edd-235223862d75",
+      "name": "Flamingo LV Operating resort",
+      "market": "Clark County",
+      "country": "United States",
+      "records": 3,
+      "facts": 0
+    },
+    {
+      "id": "47ff2d37-0af1-44e8-9faa-b2dfb32cc86c",
+      "name": "Forum Fisheries Agency: Pacific Islands Regional Oceanscape Program - Second",
+      "market": null,
+      "country": null,
+      "records": 1,
+      "facts": 0
+    },
+    {
+      "id": "9c15be19-805f-4e14-bfe5-9ea917741086",
+      "name": "G D Carden Entertainment museum",
+      "market": "Clark County",
+      "country": "United States",
+      "records": 2,
+      "facts": 22
+    },
+    {
+      "id": "730ed70f-a465-4ea4-8797-8d2ecc28fb2e",
+      "name": "GardenWalk Hotel II",
+      "market": "Anaheim",
+      "country": "United States",
+      "records": 3,
+      "facts": 0
+    },
+    {
+      "id": "8979714e-bb86-44c8-9461-2b500e630dd7",
+      "name": "Genting SkyWorlds (Fox World Malaysia)",
+      "market": null,
+      "country": "Malaysia",
+      "records": 0,
+      "facts": 0
+    },
+    {
+      "id": "00b16894-d65f-430a-bb13-020b538364c9",
+      "name": "GFPP - Sustainable Infrastructure for Tourism in Patagonia Phase 1 - Province of",
+      "market": null,
+      "country": "Argentina",
+      "records": 2,
+      "facts": 0
+    },
+    {
+      "id": "990253a7-e61b-4021-a3fb-b5fe3568e9ab",
+      "name": "Good Hope International resort",
+      "market": "Anaheim",
+      "country": "United States",
+      "records": 1,
+      "facts": 0
+    },
+    {
+      "id": "7c4cf56c-64dc-49f9-888b-b1c2f33b0c9f",
+      "name": "Greater Lumbini Area Development Project",
+      "market": null,
+      "country": "Nepal",
+      "records": 2,
+      "facts": 0
+    },
+    {
+      "id": "0ca86a74-2b17-4282-9b0b-d8ca7589d53b",
+      "name": "Green, Resilient and Inclusive Regeneration of the Central Area of Porto Alegre",
+      "market": null,
+      "country": "Brazil",
+      "records": 1,
+      "facts": 0
+    },
+    {
+      "id": "7c82b59b-24f6-4283-ba6d-84f08b926b8a",
+      "name": "Green, Resilient and Transformational Tourism Development Project (GREAT-TDP)",
+      "market": null,
+      "country": "South Africa",
+      "records": 5,
+      "facts": 0
+    },
+    {
+      "id": "8238cb74-afe9-4558-91be-c88e6cfd3001",
+      "name": "Gulf Egypt plans $401mln mixed-use tourism project",
+      "market": "Sharm El-Sheikh",
+      "country": "Egypt",
+      "records": 0,
+      "facts": 0
+    },
+    {
+      "id": "a2be0501-5163-4810-be43-d08eb25002a2",
+      "name": "Happy Miner mixed-use development",
+      "market": "Clark County",
+      "country": "United States",
+      "records": 10,
+      "facts": 33
+    },
+    {
+      "id": "60eb4899-8f95-4619-ad5a-0e552268bb9c",
+      "name": "HD Oleta",
+      "market": "Clark County",
+      "country": "United States",
+      "records": 2,
+      "facts": 0
+    },
+    {
+      "id": "2bc81605-e639-4a95-8353-026bd7808b23",
+      "name": "Heart Hotel / Kulik River",
+      "market": "Clark County",
+      "country": "United States",
+      "records": 23,
+      "facts": 63
+    },
+    {
+      "id": "3bcc6a28-d901-4d5c-a64a-cf37bd716172",
+      "name": "Hilton Resorts",
+      "market": "Clark County",
+      "country": "United States",
+      "records": 2,
+      "facts": 0
+    },
+    {
+      "id": "68b9ec83-7247-49da-bcbb-fe023575cb5a",
+      "name": "Hudson Boulevard and Park Block 4",
+      "market": "New York City",
+      "country": "United States",
+      "records": 1,
+      "facts": 5
+    },
+    {
+      "id": "40b23706-e56d-45dd-9874-2d7c3cafbc42",
+      "name": "Ice Casino Improvements II",
+      "market": "Westchester County",
+      "country": "United States",
+      "records": 2,
+      "facts": 0
+    },
+    {
+      "id": "a0b462ca-4e53-4919-a86b-e28b74dc26d0",
+      "name": "Jackson-Shaw Company hotel",
+      "market": "Las Vegas",
+      "country": "United States",
+      "records": 2,
+      "facts": 0
+    },
+    {
+      "id": "053e7c36-ead0-437d-ba0f-1859dd9812f8",
+      "name": "Jewish Childrens Museum - Aris Exhibit",
+      "market": "New York City",
+      "country": "United States",
+      "records": 1,
+      "facts": 5
+    },
+    {
+      "id": "a70feff9-0cdc-4d2a-aa66-5e808632cf8c",
+      "name": "Johnson Controls Fire Protection",
+      "market": "Anaheim",
+      "country": "United States",
+      "records": 1,
+      "facts": 0
+    },
+    {
+      "id": "6c580055-77a9-468d-9df1-d677309fdd1f",
+      "name": "KI: Telecommunications and ICT Development Project",
+      "market": null,
+      "country": "Kiribati",
+      "records": 1,
+      "facts": 0
+    },
+    {
+      "id": "4cc57f88-5740-423f-ba45-1819a7ebd709",
+      "name": "KKR-Backed Stadium District Development Venture",
+      "market": "Nashville",
+      "country": "United States",
+      "records": 2,
+      "facts": 14
+    },
+    {
+      "id": "662b7ffa-d74c-4476-bf53-ddd9212ab0d6",
+      "name": "KLA Capital Series 7 casino",
+      "market": "Las Vegas",
+      "country": "United States",
+      "records": 1,
+      "facts": 0
+    },
+    {
+      "id": "3cc833db-6c08-47a0-a3a6-b690ec620308",
+      "name": "Kyrgyz Republic Regional Economic Development Project",
+      "market": null,
+      "country": "Kyrgyzstan",
+      "records": 7,
+      "facts": 0
+    },
+    {
+      "id": "d4882c76-b1c5-4c82-b96d-ff8414729aea",
+      "name": "Las Vegas corridor anchors",
+      "market": "Las Vegas",
+      "country": "United States",
+      "records": 2,
+      "facts": 0
+    },
+    {
+      "id": "da4d30c8-5714-450b-9b38-2c0c476f78b4",
+      "name": "Laveen Baseline",
+      "market": "Phoenix",
+      "country": "United States",
+      "records": 2,
+      "facts": 0
+    },
+    {
+      "id": "d2aea5de-65c3-4e47-b1d5-d4c185973248",
+      "name": "LCLV MD mixed-use development",
+      "market": "Las Vegas",
+      "country": "United States",
+      "records": 4,
+      "facts": 0
+    },
+    {
+      "id": "a4b373a2-7d37-49a0-9d75-887103d3a7da",
+      "name": "Lebanon Green Agrifood Transformation for Economic Recovery (GATE)",
+      "market": null,
+      "country": "Lebanon",
+      "records": 1,
+      "facts": 0
+    },
+    {
+      "id": "2c7f720a-7e4e-46c7-9edc-97bee542b784",
+      "name": "Leveraging Eco-Tourism for Biodiversity Protection in Dominica",
+      "market": null,
+      "country": "Dominica",
+      "records": 3,
+      "facts": 0
+    },
+    {
+      "id": "943e2d4b-c66a-4387-8720-cfd9e51ff43d",
+      "name": "Lincoln Center West",
+      "market": "New York City",
+      "country": "United States",
+      "records": 2,
+      "facts": 9
+    },
+    {
+      "id": "2644c365-b504-4dc3-9d45-0d7718f800cd",
+      "name": "Long Island City Neighborhood Rezoning - Mapping",
+      "market": "New York City",
+      "country": "United States",
+      "records": 2,
+      "facts": 17
+    },
+    {
+      "id": "9ccea3b9-2d25-423d-b6c4-9604082ee7fc",
+      "name": "LV Diamond Property I",
+      "market": "Clark County",
+      "country": "United States",
+      "records": 1,
+      "facts": 0
+    },
+    {
+      "id": "12e7fe22-e25e-4bbf-857a-5d97b650bd13",
+      "name": "Marina Estates",
+      "market": "Clark County",
+      "country": "United States",
+      "records": 1,
+      "facts": 0
+    },
+    {
+      "id": "39f3317a-48d2-47b2-9e93-d6797f49b297",
+      "name": "Metropolitan Museum of Art - Tang Wing",
+      "market": "New York City",
+      "country": "United States",
+      "records": 3,
+      "facts": 13
+    },
+    {
+      "id": "31436225-c085-4482-a93a-7f3c520ac4c8",
+      "name": "Metropolitan Park / Willets Point",
+      "market": "New York City",
+      "country": "United States",
+      "records": 11,
+      "facts": 67
+    },
+    {
+      "id": "288bb429-9872-4890-bbd5-a53263dca595",
+      "name": "MGM Resorts Festival Grounds museum",
+      "market": "Clark County",
+      "country": "United States",
+      "records": 2,
+      "facts": 0
+    },
+    {
+      "id": "7f4a780e-44e5-4b94-b08a-62a1a7dde8e7",
+      "name": "Mirage Propco casino",
+      "market": "Clark County",
+      "country": "United States",
+      "records": 2,
+      "facts": 24
+    },
+    {
+      "id": "763cf0b8-0033-4380-9505-1708a692ce46",
+      "name": "Monitor Point",
+      "market": "New York City",
+      "country": "United States",
+      "records": 3,
+      "facts": 37
+    },
+    {
+      "id": "d3f00e0f-7cf2-4c1a-bd5a-b0a42c73aaf8",
+      "name": "Neon Museum",
+      "market": "Las Vegas",
+      "country": "United States",
+      "records": 1,
+      "facts": 0
+    },
+    {
+      "id": "57840922-6943-4c5b-9dfb-edf7169ea977",
+      "name": "Nevada Palace",
+      "market": "Clark County",
+      "country": "United States",
+      "records": 5,
+      "facts": 32
+    },
+    {
+      "id": "c5c4e808-ebb9-4fd2-83cb-0e30cb6b6c17",
+      "name": "Nevada Test Site Historical Foundation museum",
+      "market": "Las Vegas",
+      "country": "United States",
+      "records": 1,
+      "facts": 0
+    },
+    {
+      "id": "f6cab2d8-6a21-440f-aaec-46f99beed313",
+      "name": "New Museum of Contemporary Art",
+      "market": "New York City",
+      "country": "United States",
+      "records": 1,
+      "facts": 5
+    },
+    {
+      "id": "c45174d6-aab6-439e-8e4a-cc0304a6c0d3",
+      "name": "OCVibe",
+      "market": "Anaheim",
+      "country": "United States",
+      "records": 21,
+      "facts": 30
+    },
+    {
+      "id": "2b074a7e-2e5e-4ee4-92ff-aa3c438b5b1f",
+      "name": "OECS Regional Tourism Competitiveness",
+      "market": null,
+      "country": null,
+      "records": 2,
+      "facts": 0
+    },
+    {
+      "id": "363b1e13-cf45-4b05-886d-47dc506250af",
+      "name": "Oman: SEZAD plans major coastal tourism expansion",
+      "market": null,
+      "country": "Oman",
+      "records": 0,
+      "facts": 0
+    },
+    {
+      "id": "7eee94cc-674b-4bc0-adf3-f09d90335593",
+      "name": "OTR, an Ohio Partnership",
+      "market": "Anaheim",
+      "country": "United States",
+      "records": 5,
+      "facts": 2
+    },
+    {
+      "id": "28947a1e-e670-44fe-a87d-f0c5023690d0",
+      "name": "Panther Acquisitions",
+      "market": "Las Vegas",
+      "country": "United States",
+      "records": 1,
+      "facts": 0
+    },
+    {
+      "id": "1f7063c2-832c-4dc3-84a4-2c7d2fb65d16",
+      "name": "Phillips Jackson Redevelopment Plan",
+      "market": "Nashville",
+      "country": "United States",
+      "records": 2,
+      "facts": 0
+    },
+    {
+      "id": "cc1bd0cc-f329-442c-8eab-16fbcdbc89cf",
+      "name": "Platinum Triangle / PT Metro",
+      "market": "Anaheim",
+      "country": "United States",
+      "records": 8,
+      "facts": 3
+    },
+    {
+      "id": "3039b2e4-2cab-4cea-bae9-0f7a996fb326",
+      "name": "Plaza Hotel & Casino",
+      "market": "Las Vegas",
+      "country": "United States",
+      "records": 2,
+      "facts": 0
+    },
+    {
+      "id": "6d265b91-5fcc-4213-b441-dbd63643ea09",
+      "name": "Preparation for Bitola Gas-Fired Combined Heat and Power (CHP) Plant and",
+      "market": null,
+      "country": "North Macedonia",
+      "records": 1,
+      "facts": 0
+    },
+    {
+      "id": "986dcd35-db2f-492e-907d-679b55b550da",
+      "name": "Project for Integrated Urban and Tourism Development (PIUTD)",
+      "market": null,
+      "country": "Albania",
+      "records": 3,
+      "facts": 0
+    },
+    {
+      "id": "7cbaca2e-9faf-4efd-9845-5f1dffdc2e3f",
+      "name": "Proview Series 39 casino",
+      "market": "Las Vegas",
+      "country": "United States",
+      "records": 1,
+      "facts": 0
+    },
+    {
+      "id": "b823d8a7-5358-4868-a751-d292eae97781",
+      "name": "Queens Future map change and amendment",
+      "market": "New York City",
+      "country": "United States",
+      "records": 3,
+      "facts": 25
+    },
+    {
+      "id": "268d643b-0768-446d-9dd3-111c269c48e3",
+      "name": "RDXNWP",
+      "market": "Clark County",
+      "country": "United States",
+      "records": 1,
+      "facts": 14
+    },
+    {
+      "id": "1896da88-793f-467e-b2d7-6d1cf30433a0",
+      "name": "Reconstruction of the Boathouse, Prospect Park",
+      "market": "New York City",
+      "country": "United States",
+      "records": 5,
+      "facts": 25
+    },
+    {
+      "id": "6e161af3-d3e4-4227-8648-3875133c777c",
+      "name": "REFRIGERATION SUPPLIES DISTRIBUTOR: DESIGN REVIEW for a proposed",
+      "market": "Clark County",
+      "country": "United States",
+      "records": 2,
+      "facts": 0
+    },
+    {
+      "id": "b62c3b6c-1ed0-4ff6-a43f-2c122f0f6300",
+      "name": "Rehabilitation of the Woodhaven Boulevard Bridge over Queens Boulevard",
+      "market": "New York City",
+      "country": "United States",
+      "records": 1,
+      "facts": 5
+    },
+    {
+      "id": "42304ab4-dbc5-4648-a063-31b3a1259869",
+      "name": "Resilient Tourism and Blue Economy Development in Cabo Verde Project",
+      "market": null,
+      "country": "Cabo Verde",
+      "records": 3,
+      "facts": 0
+    },
+    {
+      "id": "9b7002aa-a5c1-460f-ac67-505037bc1645",
+      "name": "Resort Feasibility Study Case Study: Greenfield Hospitality",
+      "market": null,
+      "country": null,
+      "records": 2,
+      "facts": 0
+    },
+    {
+      "id": "f1c4a279-c71a-4238-848c-3e97f53e4394",
+      "name": "Resorts World Aqueduct",
+      "market": "New York City",
+      "country": "United States",
+      "records": 2,
+      "facts": 6
+    },
+    {
+      "id": "e7103b60-8e13-472a-a7ae-924cbc629b71",
+      "name": "Rodrigues Airport Project",
+      "market": null,
+      "country": "Mauritius",
+      "records": 1,
+      "facts": 0
+    },
+    {
+      "id": "e515c6a8-a102-40ab-90c2-7bece0df0235",
+      "name": "Ruby Holdings museum",
+      "market": "Clark County",
+      "country": "United States",
+      "records": 1,
+      "facts": 0
+    },
+    {
+      "id": "74da0dde-1f51-4f3b-bae5-4604eef2ea8c",
+      "name": "Rutledge Hill Redevelopment Plan",
+      "market": "Nashville",
+      "country": "United States",
+      "records": 2,
+      "facts": 0
+    },
+    {
+      "id": "d07dd4cf-d059-4188-a08b-8f9dbc7a2a47",
+      "name": "Second Rural Economic Development Initiative (REDI II) Project",
+      "market": null,
+      "country": "Jamaica",
+      "records": 1,
+      "facts": 0
+    },
+    {
+      "id": "3b920a16-c6b1-4dfc-942a-0580bdfd6eea",
+      "name": "Shamaim Henderson",
+      "market": "Clark County",
+      "country": "United States",
+      "records": 2,
+      "facts": 28
+    },
+    {
+      "id": "bd214522-94d5-47dd-91da-3ba9e6a36f61",
+      "name": "Skyline Redevelopment Plan",
+      "market": "Nashville",
+      "country": "United States",
+      "records": 2,
+      "facts": 0
+    },
+    {
+      "id": "85157426-1bf1-4016-ba12-d35f328ae74e",
+      "name": "Socio-economic Inclusion of Refugees & Host Communities in Rwanda Project",
+      "market": null,
+      "country": "Rwanda",
+      "records": 4,
+      "facts": 0
+    },
+    {
+      "id": "68bd6483-5771-47c8-9239-3a0e4899c1a0",
+      "name": "Southern Highlands Golf Club golf course",
+      "market": "Clark County",
+      "country": "United States",
+      "records": 4,
+      "facts": 50
+    },
+    {
+      "id": "3b3ba1d4-30d5-47bf-a8bb-b7f223d65018",
+      "name": "Sphere Abu Dhabi set to launch on Yas Island by 2029",
+      "market": "Abu Dhabi",
+      "country": "United Arab Emirates",
+      "records": 0,
+      "facts": 0
+    },
+    {
+      "id": "43b3c7f3-37b2-4dd3-a964-d008375d2a8c",
+      "name": "The Howard Hughes Company",
+      "market": "Las Vegas",
+      "country": "United States",
+      "records": 2,
+      "facts": 0
+    },
+    {
+      "id": "04c40e39-4cb7-44ee-ac49-2fc13a3f1ec1",
+      "name": "The Smith Center for Performing Arts",
+      "market": "Las Vegas",
+      "country": "United States",
+      "records": 1,
+      "facts": 0
+    },
+    {
+      "id": "bb08b8f4-917a-44d0-a9fa-29201e3f3e8b",
+      "name": "The Trustees of the Estate Belonging to the Diocese of Long Island",
+      "market": "New York City",
+      "country": "United States",
+      "records": 1,
+      "facts": 5
+    },
+    {
+      "id": "9f2ce018-e78f-42a7-91d3-74585ae684c4",
+      "name": "Tohono O'odham Nation Tribal 2025 Gaming Grants",
+      "market": "Phoenix",
+      "country": "United States",
+      "records": 1,
+      "facts": 0
+    },
+    {
+      "id": "e99ea476-878f-41bf-8cb1-f225cf7e7e05",
+      "name": "Top Gun Las Vegas",
+      "market": "Las Vegas",
+      "country": "United States",
+      "records": 9,
+      "facts": 0
+    },
+    {
+      "id": "5bd96255-3221-4f61-aa3f-d24abf26e003",
+      "name": "Tourism Diversification and Resilience in The Gambia",
+      "market": null,
+      "country": "Thailand",
+      "records": 1,
+      "facts": 0
+    },
+    {
+      "id": "1dc8824d-c832-499d-b508-50d8b897b72a",
+      "name": "Tourism for Heritage, Resilience, Inclusion, and Value-driven Employment Project",
+      "market": null,
+      "country": "Sri Lanka",
+      "records": 1,
+      "facts": 0
+    },
+    {
+      "id": "4041e32c-f6ec-463e-b299-5453a180fce2",
+      "name": "Transit Oriented Development Overlay District",
+      "market": "Las Vegas",
+      "country": "United States",
+      "records": 2,
+      "facts": 0
+    },
+    {
+      "id": "95eaa03a-eafa-4094-952c-12fb2c2f8ce0",
+      "name": "Tropicana Land resort",
+      "market": "Clark County",
+      "country": "United States",
+      "records": 3,
+      "facts": 28
+    },
+    {
+      "id": "a8be1c0a-48a3-44c2-a003-60863cb31f20",
+      "name": "UMusic Hotel & Private Residences Austin to Feature",
+      "market": null,
+      "country": "Australia",
+      "records": 2,
+      "facts": 7
+    },
+    {
+      "id": "1707c32c-f0e7-4516-810c-a9a3ef6bd0ab",
+      "name": "Unleashing the Blue Economy of the Caribbean (UBEC)",
+      "market": null,
+      "country": null,
+      "records": 1,
+      "facts": 0
+    },
+    {
+      "id": "fd89e864-1662-44aa-8f77-5b36358297a3",
+      "name": "Visible Noise",
+      "market": "Clark County",
+      "country": "United States",
+      "records": 4,
+      "facts": 48
+    },
+    {
+      "id": "5007178a-d17b-4cb6-a9be-038d8d565373",
+      "name": "Walter Gladwin Rec Center",
+      "market": "New York City",
+      "country": "United States",
+      "records": 1,
+      "facts": 4
+    },
+    {
+      "id": "5829bc78-e340-40b7-a62b-5fba076ad37f",
+      "name": "Weston Urban",
+      "market": "San Antonio",
+      "country": "United States",
+      "records": 8,
+      "facts": 0
+    },
+    {
+      "id": "d7d78ffc-eea6-473d-aaca-ee07c371e741",
+      "name": "Westshore LSGD Mapping Actions",
+      "market": "New York City",
+      "country": "United States",
+      "records": 3,
+      "facts": 34
+    },
+    {
+      "id": "454f7ecd-8542-4153-96e0-2e05be5c9c9c",
+      "name": "WILLIAM HILL ll casino",
+      "market": "Las Vegas",
+      "country": "United States",
+      "records": 2,
+      "facts": 0
+    },
+    {
+      "id": "2aa467c3-a395-49f5-b100-bd197c982210",
+      "name": "World Buddhism Association Headquarters & MGM-Grand Bally's",
+      "market": "Clark County",
+      "country": "United States",
+      "records": 4,
+      "facts": 0
+    },
+    {
+      "id": "17d8e07c-06d9-48ab-869c-3599c47011a6",
+      "name": "ZL II",
+      "market": "Clark County",
+      "country": "United States",
+      "records": 1,
+      "facts": 0
+    }
+  ]
+}

@@ -59,10 +59,48 @@ const OPPORTUNITY_MODULE = LIVE_PIPELINE_STORAGE_KEY;
 // development banks. TED runs its leisure CPV group only (its own budget). Job
 // boards, fuel-only portals, the GLI-news Serper lane, and the signal sources are
 // intentionally excluded. Order matches the fetch array below.
-export const OPPORTUNITY_SOURCES = [
-  'tedeu', 'canadabuys', 'uktenders', 'austender', 'ungm', 'gebiz',
+// ---- RETIRED FROM THE EARLIER VERTICAL, TOMBSTONED RATHER THAN DELETED -----
+//
+// TED EU, CanadaBuys, UK Tenders, AusTender, UNGM, GeBiz, TenderNed, the World
+// Bank, IADB, ADB, CDB, AfDB, UNDP, Adzuna, Careerjet, Jooble and Reed are not
+// our sources. They date from the consulting vertical this system used to serve,
+// and a multilateral development-bank programme in Kyrgyzstan is not a US
+// hospitality development however often the word "tourism" appears in it.
+//
+// THIS IS A SOURCE DECISION, NOT A GEOGRAPHY FILTER. A US hospitality tender
+// source may well be worth adding later; that is a new decision on its own
+// merits, and it is not this list coming back.
+//
+// MEASURED BEFORE THE CUT, over the corpus of 2026-08-18:
+//
+//   live records   1193 -> 617    576 removed, 48% of the corpus
+//   live projects   173 -> 146     27 removed
+//
+// Every one of the 27 was 100% dependent on a retired source - not one project
+// was left holding a fraction of its records. They are whole World Bank and
+// multilateral programmes: Kyrgyz Republic Regional Economic Development,
+// Greater Lumbini, OECS Regional Tourism Competitiveness, Rodrigues Airport.
+//
+// NOTHING IS DELETED. The names stay here so the decision is legible and so a
+// future reader does not "restore" a source we removed on purpose. Captured
+// records stay in the corpus, marked with a score_reason naming the retirement,
+// so a row read later says business decision rather than capture failure.
+// status is Philip's column and is never written by a scrape path.
+export const RETIRED_SOURCES = [
+  'tedeu', 'canadabuys', 'uktenders', 'austender', 'ungm', 'gebiz', 'tenderned',
   'worldbank', 'iadb', 'adb', 'cdb', 'afdb', 'undp',
+  'adzuna', 'careerjet', 'jooble', 'reed',
 ];
+
+/** The reason stamped on every record from a retired source. */
+export const RETIRED_REASON =
+  'Source retired 2026-08-18: a tender and development-bank feed from the earlier ' +
+  'consulting vertical, not a US hospitality source. Captured record kept, not deleted.';
+
+// Nothing runs from this list any more. It is empty rather than deleted so that
+// every call site keeps working and the retirement is visible at the one place
+// that decides what is fetched.
+export const OPPORTUNITY_SOURCES: string[] = [];
 
 // Shared write shape for a Tier 1 opportunity lead, used by BOTH this standalone
 // entrypoint and the full orchestrator (5d-bis) so the two never drift. Returns

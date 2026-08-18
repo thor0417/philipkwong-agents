@@ -85,6 +85,12 @@ export interface ClusterRecord {
   // undo his decision by the very rule he overruled. He can still attach it to
   // a project by hand from the Inbox, which sets 'manual'.
   cluster_reason?: string | null;
+  /**
+   * The scraper's own axis, as distinct from `status`, which is Philip's.
+   * 'retired' means the record came from a source we stopped reading; it stays
+   * in the corpus and is not evidence for a project.
+   */
+  lifecycle?: string | null;
   published_date?: string | null;
   deadline?: string | null;
   first_seen?: string | null;
@@ -939,6 +945,8 @@ export interface ClusterResult {
   skippedDismissed: number;
   // Records Philip detached by hand, which never re-cluster.
   skippedDetached: number;
+  /** Records from a source retired at the registry. See opportunity/RETIRED_SOURCES. */
+  skippedRetired: number;
   // Why each project is live or dormant (Part F).
   livenessReasons: Record<string, number>;
   // Projects whose derived name collided with another project in the same market
@@ -1147,7 +1155,22 @@ export function clusterRecords(
   const skippedDetached = input.filter(
     (r) => r.status !== 'dismissed' && r.cluster_reason === 'detached'
   ).length;
-  const records = input.filter((r) => r.status !== 'dismissed' && r.cluster_reason !== 'detached');
+  // A RETIRED SOURCE'S RECORD IS NOT CLUSTERED, for the same reason a dismissed
+  // one is not: it is in the corpus and it is not evidence for a project. See
+  // opportunity/RETIRED_SOURCES - the tender and development-bank feeds from the
+  // earlier consulting vertical.
+  //
+  // EXCLUDING HERE RATHER THAN DELETING ANYWHERE is what makes the detach
+  // legible: the record keeps its project_id until the next backfill, which then
+  // detaches it and emits a record_detached event dated at the record's own date.
+  // The timeline says when and why. Clearing project_id in the migration would
+  // have thrown that history away silently.
+  const skippedRetired = input.filter(
+    (r) => r.status !== 'dismissed' && r.lifecycle === 'retired'
+  ).length;
+  const records = input.filter(
+    (r) => r.status !== 'dismissed' && r.lifecycle !== 'retired' && r.cluster_reason !== 'detached'
+  );
 
   const result: ClusterResult = {
     projects: [],
@@ -1170,6 +1193,7 @@ export function clusterRecords(
     crossStreamAmbiguous: 0,
     skippedDismissed,
     skippedDetached,
+    skippedRetired,
     livenessReasons: {},
     namesDisambiguated: [],
     namesStillColliding: 0,
