@@ -19,6 +19,8 @@
 // writing, which is how the acceptance test is inspected before committing to a
 // change.
 
+import { mkdirSync, writeFileSync } from 'node:fs';
+import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { LIVE_PIPELINE_STORAGE_KEY } from '../pipelines';
 import { supabaseAdmin } from '../../../lib/supabase-admin';
@@ -89,6 +91,8 @@ export interface BackfillReport {
   writeFailures: number;
   // Empty project rows left behind by a project_key change.
   orphansRemoved: number;
+  /** WHICH rows were deleted. A count alone is the silent-absence rule broken. */
+  orphansRemovedNamed: { id: string; name: string; project_key: string }[];
   // Orphans that carried curation and were kept, with record_count corrected.
   orphansKept: string[];
   // What this run recorded in the project_events table.
@@ -170,6 +174,7 @@ export async function runBackfill(): Promise<{
     reasonCounts: cluster.reasonCounts,
     writeFailures: 0,
     orphansRemoved: 0,
+    orphansRemovedNamed: [],
     orphansKept: [],
     events: emptyEmitReport(),
   };
@@ -514,8 +519,59 @@ export async function runBackfill(): Promise<{
       await supabaseAdmin.from('projects').update({ record_count: 0 }).eq('id', p.id);
       report.orphansKept.push(p.name);
     } else {
+      // ---- A DELETION IS NAMED, NEVER COUNTED ----------------------------
+      //
+      // This reported a bare number and nothing else. On 2026-08-18 it removed
+      // 39 project rows as a side effect of a re-cluster run for something
+      // else, and there was no record anywhere of WHICH 39. A count is the
+      // silent-absence rule broken in code: the one place in this repo that
+      // hard-deletes was the one place that did not say what it deleted.
+      //
+      // WHAT IS LOST IS NOT THE RECORDS. Every lead survives with its source,
+      // title, URL and reason; only the derived cluster row goes, and the
+      // clusterer would rebuild it if the records were re-admitted.
+      //
+      // WHAT IS LOST AND IS NOT RECOVERABLE: the project_events rows for this
+      // project - the record_attached history, each dated at its own record's
+      // date - now point at an id that does not exist. They cannot be rebuilt
+      // from the records, because the dates they carry are the only place that
+      // history lives. Said here so nobody goes looking for it later.
       await supabaseAdmin.from('projects').delete().eq('id', p.id);
       report.orphansRemoved++;
+      report.orphansRemovedNamed.push({ id: p.id, name: p.name, project_key: p.project_key });
+    }
+  }
+
+  // ---- THE DELETION LOG, ON DISK ------------------------------------------
+  //
+  // The run report scrolls away. This is the only hard delete in the system, so
+  // what it took is written to a file that outlives the terminal.
+  if (report.orphansRemovedNamed.length > 0) {
+    mkdirSync('snapshots', { recursive: true });
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    const logFile = path.join('snapshots', `orphans-removed-${stamp}.json`);
+    writeFileSync(
+      logFile,
+      JSON.stringify(
+        {
+          removedAt: new Date().toISOString(),
+          what:
+            'Empty project rows deleted by the orphan sweep: no attached record, and no notes, ' +
+            'watch, manual override or status set by hand. The RECORDS all survive. What does ' +
+            'NOT survive is each project_events row for these ids - the record_attached history, ' +
+            'dated at each record own date - which cannot be rebuilt from the records and is ' +
+            'gone. Do not look for it later.',
+          count: report.orphansRemovedNamed.length,
+          removed: report.orphansRemovedNamed,
+        },
+        null,
+        2
+      )
+    );
+    console.log(`
+Orphan deletions logged to ${logFile}`);
+    for (const o of report.orphansRemovedNamed) {
+      console.log(`  DELETED  ${o.name.slice(0, 54).padEnd(56)} ${o.project_key}`);
     }
   }
 
