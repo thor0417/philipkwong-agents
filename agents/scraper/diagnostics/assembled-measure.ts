@@ -23,8 +23,8 @@
 // project that produced it. A template with no example is a branch nothing
 // reaches; a template with an ugly example is a sentence a client will read.
 
-import { supabaseAdmin } from '../../lib/supabase-admin';
-import { assembleSentence, type EntryRecord } from '../lib/report-model';
+import { supabaseAdmin } from '../../../lib/supabase-admin';
+import { assembleSentence, type EntryRecord } from '../../../dashboard/lib/report-model';
 
 async function pageAll<T>(table: string, columns: string): Promise<T[]> {
   const out: T[] = [];

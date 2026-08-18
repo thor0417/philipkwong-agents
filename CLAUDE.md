@@ -54,6 +54,48 @@ agents. Both gates are needed and neither substitutes for the other.
 mirrored copy is a copy that goes stale, and the stale half decides what a client
 is told.
 
+### THE SPLIT IS ASYMMETRIC, AND CROSSING IT WRONGLY BREAKS THE DEPLOY ONLY
+
+**`dashboard -> agents` is SANCTIONED**, via `next.config.js` `externalDir`, and
+**only for files that import nothing themselves**. An import-free file needs
+nothing resolved, so it cannot reach for a `node_modules` that is not there.
+Today that is `lib/dead-feeds`, `lib/coverage`, `lib/degraded-sources`,
+`lib/corpus-scope`, `agents/scraper/project-summary`, `agents/scraper/press-facts`.
+
+**`agents -> dashboard` is NEVER reachable from a build.** Command line only, run
+with `tsx`, and excluded from the root `tsconfig.json` BY NAME. Today that is
+`agents/scraper/diagnostics/assembled-measure.ts`, which imports the real
+`assembleSentence` on purpose: a copy would drift, and the half that drifted
+would be the half measuring what clients read.
+
+**WHY IT MATTERS, AND WHY THE GATE COULD NOT SEE IT.** Vercel's root directory is
+`dashboard/`, so it installs `dashboard/package.json` alone. A file at the REPO
+ROOT resolves its dependencies out of the ROOT `node_modules`, which Vercel never
+creates. `cd dashboard && npm run build` locally reuses that root `node_modules`,
+so the gate is green on a tree that cannot deploy. It happened once:
+`dashboard/scripts/assembled-measure.ts` imported `lib/supabase-admin`, nothing
+imported the diagnostic, and it still broke the build because
+`dashboard/tsconfig.json` includes `**/*.ts` and `next build` typechecks the
+whole include set rather than the module graph.
+
+Two guards, and they answer different halves:
+
+```
+npm run check:split     milliseconds, in the pre-push hook. Resolves every
+                        relative import under dashboard/ and refuses any that
+                        lands outside it and is not on the sanctioned list.
+npm run verify:deploy   a full install. Copies dashboard/ to a scratch dir
+                        OUTSIDE the repo, where no parent node_modules exists,
+                        installs from its own package.json and runs next build.
+                        Run before a release. NOT in a hook, and it never
+                        deletes the root node_modules.
+```
+
+Note also: `exclude` in a tsconfig filters the `include` glob and does NOT stop
+TypeScript following an import into an excluded directory. `"dashboard"` has been
+in the root `exclude` all along and did nothing; the file that CROSSES has to be
+excluded by name.
+
 ## Where things are
 
 So a session does not open with fifteen greps. Measured on this one: nine shell

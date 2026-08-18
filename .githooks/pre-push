@@ -44,6 +44,10 @@ run() {
 
 # WHAT ALWAYS RUNS. Deterministic, code-owned, needs no server: every scraper
 # suite, the golden set, and the exclusion audit.
+# THE SPLIT CHECK RUNS FIRST, because it is the only one that can see a defect
+# the other three cannot: a tree that builds green here and fails on Vercel. It
+# costs milliseconds and it forbids the one import shape that has caused that.
+run "split check" node scripts/check-split.mjs
 run "root verify" npm run --silent verify
 run "audit:exclusions" sh -c 'cd dashboard && npm run --silent audit:exclusions'
 

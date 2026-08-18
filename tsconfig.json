@@ -15,5 +15,32 @@
     "noEmit": true
   },
   "include": ["agents/**/*.ts", "lib/**/*.ts"],
-  "exclude": ["node_modules", "dashboard"]
+
+  // EXCLUDING THE DIRECTORY IS NOT ENOUGH, AND THAT IS THE WHOLE POINT.
+  //
+  // `exclude` filters the `include` glob. It does NOT stop TypeScript following
+  // an import INTO an excluded directory: a file in the program that imports
+  // dashboard/lib pulls dashboard/lib into the program anyway, and it is then
+  // checked under THIS config's rules rather than the dashboard's own.
+  //
+  // Measured: with assembled-measure in the program, the root typecheck fails on
+  // dashboard/lib/people.ts under noUnusedParameters, which the dashboard's
+  // tsconfig does not set. "dashboard" has been in this list all along and did
+  // nothing.
+  //
+  // So the file that CROSSES is excluded BY NAME. It is a diagnostic that
+  // imports the real assembleSentence out of dashboard/lib deliberately - a copy
+  // of that logic would drift, and the half that drifted would be the half
+  // measuring what clients read. It runs with tsx from the command line, which
+  // does not consult this list, so excluding it costs nothing.
+  //
+  // THE ASYMMETRY, and it is in CLAUDE.md: dashboard -> agents is sanctioned via
+  // externalDir and only for import-free files. agents -> dashboard is never
+  // reachable from a build. Anything added below is the second kind and must be
+  // command-line only.
+  "exclude": [
+    "node_modules",
+    "dashboard",
+    "agents/scraper/diagnostics/assembled-measure.ts"
+  ]
 }
