@@ -826,10 +826,79 @@ export interface ClusteredProject {
   members: { record: ClusterRecord; reason: ClusterReason }[];
 }
 
+// ---- A RECORD THAT CLUSTERS TO NOTHING SAYS WHY -----------------------------
+//
+// 657 live records carried project_id NULL and not one carried a reason. The
+// record was considered, produced no signal, was pushed to result.unclustered
+// and the run ended - leaving no row, no reason and no tombstone. That is
+// "nothing is silently absent" broken at the corpus layer rather than in a
+// document, and it is the layer everything else is built on.
+//
+// THE REASON GOES IN cluster_reason, PREFIXED. That column already carries two
+// meanings - the signal that attached a record, and the control value
+// 'detached' - and adding a third is a real cost. The prefix is what keeps them
+// apart, and it holds because nothing in the codebase branches on this column
+// except by EQUALITY against 'manual' and 'detached'. Swept before writing, ten
+// read sites:
+//
+//   cluster.ts             === 'detached' / !== 'detached'   unaffected
+//   backfill-projects      'manual' || 'detached' preserve   unaffected
+//   backfill-projects      detach filter                     guarded by project_id
+//   backfill-project-events to_value                         members have project_id
+//   inbox page             renders under "Why it is here"    IMPROVED
+//   the rest               selected, never branched on
+//
+// So, by construction:
+//
+//   cluster_reason LIKE 'unclustered:%'  <=>  considered and rejected, project_id NULL
+//   cluster_reason = 'detached'          <=>  hand-detached, excluded from clustering
+//   anything else                        <=>  the signal that attached it
+//
+// FOUR REASONS, AND ONLY FOUR. 'out of vertical' and 'below similarity
+// threshold' were asked for and are deliberately absent: the vertical gate runs
+// before clustering so a failing record never reaches here, and signals are
+// boolean rather than scored so there is no threshold to fall below. A reason
+// that can never fire is a description standing in for the work.
+export type UnclusteredReason =
+  | 'unclustered:container-record'
+  | 'unclustered:no-usable-text'
+  | 'unclustered:foreign-source'
+  | 'unclustered:no-signal';
+
+// Feeds from the earlier vertical. A record from one of these is not ours to
+// cluster, and saying so is more useful than "no signal" - it is a source
+// decision, not a clustering failure. Kept here rather than imported so cluster
+// has no new dependency; Item 3 owns the registry.
+const FOREIGN_SOURCES = new Set([
+  'worldbank', 'iadb', 'adb', 'afdb', 'undp', 'ungm', 'nepa_jm', 'cayman_cpa',
+  'tedeu', 'uktenders', 'canadabuys', 'austender', 'tenderned', 'gebiz', 'adzuna',
+  'careerjet', 'jooble', 'reed',
+]);
+
+// Below this there is nothing to derive a signal FROM, as opposed to text that
+// simply matched nothing. A title alone is usually 40-plus characters; this is
+// the floor at which recordText carries neither a name nor an address nor a
+// case number.
+const MIN_USABLE_TEXT = 24;
+
+/**
+ * WHY THIS RECORD PRODUCED NO SIGNAL. Ordered most specific first: a container
+ * record from a foreign feed is reported as a container record, because that is
+ * the fact that decided it.
+ */
+export function unclusteredReason(r: ClusterRecord): UnclusteredReason {
+  if (isContainerRecord(r)) return 'unclustered:container-record';
+  if (recordText(r).trim().length < MIN_USABLE_TEXT) return 'unclustered:no-usable-text';
+  if (r.source && FOREIGN_SOURCES.has(r.source)) return 'unclustered:foreign-source';
+  return 'unclustered:no-signal';
+}
+
 export interface ClusterResult {
   projects: ClusteredProject[];
   // Records that carried no signal at all. Visible in the Inbox, never hidden.
   unclustered: ClusterRecord[];
+  /** Why each unclustered record produced no signal. Same order, keyed by id. */
+  unclusteredReasons: { id: string | null; reason: UnclusteredReason }[];
   // Telemetry, all of it reported rather than swallowed.
   reasonCounts: Record<string, number>;
   casePatternsFound: Record<string, number>;
@@ -1083,6 +1152,7 @@ export function clusterRecords(
   const result: ClusterResult = {
     projects: [],
     unclustered: [],
+    unclusteredReasons: [],
     reasonCounts: {},
     casePatternsFound: {},
     fuzzyMerges: [],
@@ -1423,7 +1493,11 @@ export function clusterRecords(
   const groups = new Map<number, number[]>();
   for (let i = 0; i < records.length; i++) {
     if (signals[i].length === 0) {
-      result.unclustered.push(records[i]);
+      const r = records[i];
+      result.unclustered.push(r);
+      // THE REASON, CARRIED OUT OF THE RUN. It was known here and discarded here;
+      // now the caller can write it. See unclusteredReason.
+      result.unclusteredReasons.push({ id: r.id ?? null, reason: unclusteredReason(r) });
       continue;
     }
     const root = uf.find(i);

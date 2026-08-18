@@ -79,6 +79,10 @@ export interface BackfillReport {
   leadsAttached: number;
   leadsUnclustered: number;
   leadsDetached: number;
+  /** Records that clustered to nothing and were given a reason this run. */
+  unclusteredReasonsWritten: number;
+  /** Records that clustered to nothing at all, whether or not the reason changed. */
+  unclusteredTotal: number;
   dismissedDetached: number;
   manualAttachmentsPreserved: number;
   reasonCounts: Record<string, number>;
@@ -159,6 +163,8 @@ export async function runBackfill(): Promise<{
     leadsAttached: 0,
     leadsUnclustered: cluster.unclustered.length,
     leadsDetached: 0,
+    unclusteredReasonsWritten: 0,
+    unclusteredTotal: 0,
     dismissedDetached: 0,
     manualAttachmentsPreserved: 0,
     reasonCounts: cluster.reasonCounts,
@@ -419,6 +425,35 @@ export async function runBackfill(): Promise<{
     report.leadsDetached = toDetach.length;
   }
 
+  // ---- AND EVERY RECORD THAT CLUSTERED TO NOTHING SAYS WHY -----------------
+  //
+  // AFTER THE DETACH, DELIBERATELY. The detach pass above clears cluster_reason
+  // to null, so a record that lost its project on this run and then produced no
+  // signal would be left blank if the reasons were written first. Writing last
+  // means the final state of every unattached record carries its reason,
+  // whichever way it got there.
+  //
+  // SCOPED TO ROWS WHOSE REASON ACTUALLY CHANGES. runBackfill re-clusters the
+  // whole corpus on every lane run, so writing all of them unconditionally would
+  // be ~657 updates per run forever. Compared against the value read at the top
+  // of this function, so a steady state costs zero writes.
+  const reasonById = new Map<string, string>();
+  for (const u of cluster.unclusteredReasons) if (u.id) reasonById.set(u.id, u.reason);
+  const byReason = new Map<string, string[]>();
+  for (const [id, reason] of reasonById) {
+    // A hand decision is never recomputed, the same rule the attach pass follows.
+    const prior = byId.get(id)?.cluster_reason;
+    if (prior === 'manual' || prior === 'detached') continue;
+    if (prior === reason) continue;
+    if (!byReason.has(reason)) byReason.set(reason, []);
+    byReason.get(reason)!.push(id);
+  }
+  for (const [reason, ids] of byReason) {
+    report.writeFailures += await updateLeads(ids, { cluster_reason: reason });
+    report.unclusteredReasonsWritten += ids.length;
+  }
+  report.unclusteredTotal = reasonById.size;
+
   // ---- 5. Curation: a dismissed lead is in no project ------------------------
   // project_id is a scraper-owned column, so detaching a dismissed row enforces
   // the curation guarantee without touching status, notes, or overrides.
@@ -560,7 +595,10 @@ export function printBackfillReport(
   }
   if (report.writeFailures) console.log(`WRITE FAILURES:                 ${report.writeFailures}`);
 
-  console.log('\ncluster_reason distribution:');
+  // TWO KINDS OF VALUE UNDER ONE HEADING now, and the heading has to say so or
+  // it reads as "how records attached" with rejections silently mixed in. See
+  // unclusteredReason in cluster.ts for why the column carries both.
+  console.log('\ncluster_reason distribution (attachment signals, and unclustered: rejections):');
   for (const [k, v] of Object.entries(report.reasonCounts).sort((a, b) => b[1] - a[1])) {
     console.log(`  ${String(v).padStart(4)}  ${k}`);
   }
