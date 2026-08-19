@@ -44,6 +44,8 @@
 // insert is treated as SUCCESS rather than as an error, because it means the row
 // this run wanted is already there.
 
+import { appendFileSync, mkdirSync, readFileSync } from 'node:fs';
+import path from 'node:path';
 import { LIVE_PIPELINE_STORAGE_KEY } from './pipelines';
 import { supabaseAdmin } from '../../lib/supabase-admin';
 import type { ProjectEventType, EventActor } from '../../lib/taxonomy';
@@ -75,6 +77,22 @@ export interface EmitReport {
   // Rows the database rejected as duplicates (layer 3 caught a race). Not an
   // error: the row is present, which is what the caller wanted.
   rejectedAsDuplicate: number;
+  // REFUSED BY AN INDEX COARSER THAN THE ONE THIS FILE ENFORCES, and counted
+  // apart from rejectedAsDuplicate because it is the opposite kind of fact.
+  //
+  // Layers 1 and 2 already filtered on the FULL identity, occurred_at included.
+  // So anything that reaches the database and still collides is colliding on
+  // FEWER columns than we think identify an event: it is not a duplicate, it is
+  // a distinct event the database refused, and counting it as a duplicate is how
+  // three real stage changes went missing for three months while every run
+  // reported success.
+  //
+  // Layer 3 can legitimately catch a race - two processes deriving the same
+  // event at once - and that IS a duplicate. It is indistinguishable from a
+  // coarse refusal at the row level, so this counter is a CEILING and says so
+  // wherever it prints. A run with no concurrent writer, which is every run this
+  // repo makes, has no races, and any non-zero value here is a refusal.
+  refusedByACoarserIndex: number;
   writeFailures: number;
   byType: Record<string, number>;
 }
@@ -86,6 +104,7 @@ export function emptyEmitReport(): EmitReport {
     alreadyStored: 0,
     inserted: 0,
     rejectedAsDuplicate: 0,
+    refusedByACoarserIndex: 0,
     writeFailures: 0,
     byType: {},
   };
@@ -234,7 +253,16 @@ export async function emitProjectEvents(
         report.inserted++;
         report.byType[r.event_type] = (report.byType[r.event_type] ?? 0) + 1;
       } else if (one.error.code === UNIQUE_VIOLATION) {
+        // Layer 2 read this project's stored identities and did NOT find this
+        // one, so the database is enforcing a narrower key than we identify an
+        // event by. See refusedByACoarserIndex.
         report.rejectedAsDuplicate++;
+        report.refusedByACoarserIndex++;
+        console.error(
+          `  events: REFUSED, and it is not a duplicate by our identity - ` +
+            `${r.event_type} on ${r.project_id} at ${r.occurred_at} ` +
+            `(${one.error.message.slice(0, 70)})`
+        );
       } else {
         console.error(`  events: row insert failed (${one.error.message.slice(0, 80)}).`);
         report.writeFailures++;
@@ -242,6 +270,51 @@ export async function emitProjectEvents(
     }
   }
   return report;
+}
+
+// ---- THE LEDGER -------------------------------------------------------------
+//
+// THE COUNTERS EXISTED AND WENT TO STDOUT ONLY, so the number that would have
+// said the audit trail was lossy was itself not kept, for three months. The
+// question "how many event inserts did the last capture run attempt, and how
+// many landed" was unanswerable from anything that survived the run.
+//
+// One appended line per emit, in snapshots/ beside the corpus snapshots and the
+// orphan-deletion logs, which is where this repo already puts a run's artefacts.
+// Append rather than overwrite: the history is the point, and a file holding
+// only the last run cannot show a counter climbing.
+//
+// It is deliberately NOT a table. A table needs a migration, a migration is
+// blocking on Philip, and the smallest change that survives a run is a file.
+const LEDGER_DIR = 'snapshots';
+const LEDGER = path.join(LEDGER_DIR, 'project-events-emit.jsonl');
+
+export function persistEmitReport(label: string, r: EmitReport): string {
+  mkdirSync(LEDGER_DIR, { recursive: true });
+  const line = JSON.stringify({
+    at: new Date().toISOString(),
+    label,
+    derived: r.derived,
+    duplicatesInBatch: r.duplicatesInBatch,
+    alreadyStored: r.alreadyStored,
+    // ATTEMPTED is what actually reached the database: derived, less what the
+    // two in-process layers removed. It is the half of "attempted versus landed"
+    // that was never recoverable after the run.
+    attempted: r.derived - r.duplicatesInBatch - r.alreadyStored,
+    inserted: r.inserted,
+    rejectedAsDuplicate: r.rejectedAsDuplicate,
+    refusedByACoarserIndex: r.refusedByACoarserIndex,
+    writeFailures: r.writeFailures,
+    byType: r.byType,
+  });
+  appendFileSync(LEDGER, line + '\n', 'utf8');
+  // READ BACK, per standing rule 11. A writer that reports a path it did not
+  // produce is the defect that rule exists for, and this one runs unattended.
+  const written = readFileSync(LEDGER, 'utf8').trimEnd().split('\n');
+  if (written[written.length - 1] !== line) {
+    throw new Error(`emit ledger did not read back from ${LEDGER}`);
+  }
+  return LEDGER;
 }
 
 export function printEmitReport(label: string, r: EmitReport): void {
@@ -254,6 +327,15 @@ export function printEmitReport(label: string, r: EmitReport): void {
       `(${r.duplicatesInBatch} duplicate in batch, ${r.alreadyStored} already stored, ` +
       `${r.rejectedAsDuplicate} rejected by the unique index, ${r.writeFailures} failed).`
   );
+  // LOUD, because it is the one number here that means something was LOST.
+  if (r.refusedByACoarserIndex > 0) {
+    console.log(
+      `  ${r.refusedByACoarserIndex} of those were refused on a key NARROWER than our identity: ` +
+        `layer 2 did not find them stored, so they are distinct events the database would not ` +
+        `take. At most this many are concurrent-write races; this repo runs no concurrent writer, ` +
+        `so treat it as the count LOST. See migration 039.`
+    );
+  }
   const types = Object.entries(r.byType).sort((a, b) => b[1] - a[1]);
   if (types.length === 0) {
     console.log('  nothing new: every derived event was already recorded (a repeat run).');

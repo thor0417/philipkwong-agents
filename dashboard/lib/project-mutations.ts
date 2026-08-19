@@ -11,7 +11,18 @@
 // the correction and the register would drift back to whatever the rules said.
 
 import { supabase } from './supabase';
-import { recordManualEvent, eventForFieldEdit } from './project-events';
+import { recordManualEvent, eventForFieldEdit, type EventWriteResult } from './project-events';
+
+// A REFUSED OR FAILED EVENT DOES NOT FAIL THE EDIT, AND IS NOT SWALLOWED EITHER.
+//
+// By the time an event is written the column write has already succeeded, so
+// throwing would report a failed edit over a change that landed. Returning the
+// result lets the mutation layer say "the change is saved, the audit trail did
+// not take it" - which is the sentence nobody could say for three months.
+//
+// null means no event applies to this edit, which is different from one that
+// was attempted and refused.
+export type EditResult = EventWriteResult | null;
 
 export interface ProjectOverrideEntry {
   field: string;
@@ -38,7 +49,7 @@ export async function applyProjectEdit(
   id: string,
   field: ProjectEditableField,
   next: unknown
-): Promise<void> {
+): Promise<EditResult> {
   const { data, error } = await supabase
     .from('projects')
     .select(`id, manual_overrides, ${field}`)
@@ -48,7 +59,7 @@ export async function applyProjectEdit(
 
   const row = data as unknown as Record<string, unknown>;
   const previous = row[field] ?? null;
-  if (previous === next) return;
+  if (previous === next) return null;
 
   const existing = (row.manual_overrides as Record<string, ProjectOverrideEntry> | null) ?? {};
   const overrides: Record<string, ProjectOverrideEntry> = {
@@ -66,7 +77,7 @@ export async function applyProjectEdit(
   // emitting before the update would leave a permanent record of a change that
   // may not have landed.
   const ev = eventForFieldEdit(field, previous, next);
-  if (ev) await recordManualEvent({ ...ev, project_id: id });
+  return ev ? await recordManualEvent({ ...ev, project_id: id }) : null;
 }
 
 // A HAND-NAME SAYS SO. name_source answers which rule produced the name, and
@@ -78,15 +89,16 @@ export async function applyProjectEdit(
 // It is also the value that makes the rename WORTH making: isProvisionalName is
 // false for 'manual', so a project renamed off a provisional title becomes
 // printable, which is why one is renamed at all.
-export async function renameProject(id: string, name: string): Promise<void> {
+export async function renameProject(id: string, name: string): Promise<EditResult> {
   const trimmed = name.trim();
   if (!trimmed) throw new Error('A project name cannot be empty.');
-  await applyProjectEdit(id, 'name', trimmed);
+  const ev = await applyProjectEdit(id, 'name', trimmed);
   const { error } = await supabase
     .from('projects')
     .update({ name_source: 'manual' })
     .eq('id', id);
   if (error) throw new Error(`name source update failed: ${error.message}`);
+  return ev;
 }
 
 // PIN A SCORE. Philip's judgement about what matters is the thing the model is
@@ -109,16 +121,16 @@ export async function pinProjectSignificance(id: string, value: number): Promise
   if (error) throw new Error(`pin detail update failed: ${error.message}`);
 }
 
-export async function setProjectStage(id: string, stage: string): Promise<void> {
-  await applyProjectEdit(id, 'stage', stage);
+export async function setProjectStage(id: string, stage: string): Promise<EditResult> {
+  return applyProjectEdit(id, 'stage', stage);
 }
 
 // watch and notes are Philip's outright and carry no override bookkeeping: the
 // clusterer never writes them at all, so there is nothing to protect them from.
-export async function setProjectWatch(id: string, watch: boolean): Promise<void> {
+export async function setProjectWatch(id: string, watch: boolean): Promise<EditResult> {
   const { error } = await supabase.from('projects').update({ watch }).eq('id', id);
   if (error) throw new Error(`watch update failed: ${error.message}`);
-  await recordManualEvent({
+  return recordManualEvent({
     project_id: id,
     event_type: watch ? 'watch_added' : 'watch_removed',
     to_value: String(watch),
@@ -139,17 +151,17 @@ export async function setProjectWatch(id: string, watch: boolean): Promise<void>
 // this same call with a different value.
 export type ProjectStatus = 'new' | 'watchlist' | 'client_ready' | 'dismissed';
 
-export async function setProjectStatus(id: string, status: ProjectStatus): Promise<void> {
+export async function setProjectStatus(id: string, status: ProjectStatus): Promise<EditResult> {
   const { error } = await supabase.from('projects').update({ status }).eq('id', id);
   if (error) throw new Error(`project status update failed: ${error.message}`);
-  await recordManualEvent({
+  return recordManualEvent({
     project_id: id,
     event_type: 'status_changed',
     to_value: status,
   });
 }
 
-export async function setProjectNotes(id: string, notes: string): Promise<void> {
+export async function setProjectNotes(id: string, notes: string): Promise<EditResult> {
   const { error } = await supabase
     .from('projects')
     .update({ notes: notes.trim() ? notes : null })
@@ -158,7 +170,7 @@ export async function setProjectNotes(id: string, notes: string): Promise<void> 
   // The note's TEXT is not copied into the event. The note lives on the project
   // and can be edited; a copy here could not be, and the log would slowly fill
   // with stale versions of something the reader can simply go and read.
-  await recordManualEvent({
+  return recordManualEvent({
     project_id: id,
     event_type: 'note_added',
     detail: { length: notes.trim().length },
@@ -172,30 +184,31 @@ export async function setProjectNotes(id: string, notes: string): Promise<void> 
 // point: the clusterer treats 'detached' the way it treats a dismissal, so the
 // next run cannot quietly re-attach the record by the same rule Philip just
 // overruled. A cleared reason would let it come straight back.
-export async function detachRecord(leadId: string, projectId: string): Promise<void> {
+export async function detachRecord(leadId: string, projectId: string): Promise<EditResult> {
   const { error } = await supabase
     .from('leads')
     .update({ project_id: null, cluster_reason: 'detached' })
     .eq('id', leadId);
   if (error) throw new Error(`detach failed: ${error.message}`);
-  await recordManualEvent({
+  const ev = await recordManualEvent({
     project_id: projectId,
     event_type: 'record_detached',
     lead_id: leadId,
     detail: { by_hand: true },
   });
   await refreshRecordCount(projectId);
+  return ev;
 }
 
 // ATTACH BY HAND, from the Inbox. cluster_reason 'manual' is Philip's decision
 // and the clusterer never recomputes it.
-export async function attachRecord(leadId: string, projectId: string): Promise<void> {
+export async function attachRecord(leadId: string, projectId: string): Promise<EditResult> {
   const { error } = await supabase
     .from('leads')
     .update({ project_id: projectId, cluster_reason: 'manual' })
     .eq('id', leadId);
   if (error) throw new Error(`attach failed: ${error.message}`);
-  await recordManualEvent({
+  const ev = await recordManualEvent({
     project_id: projectId,
     event_type: 'record_attached',
     lead_id: leadId,
@@ -203,6 +216,7 @@ export async function attachRecord(leadId: string, projectId: string): Promise<v
     detail: { by_hand: true },
   });
   await refreshRecordCount(projectId);
+  return ev;
 }
 
 // Keep record_count honest immediately after a manual attach or detach, rather

@@ -39,6 +39,7 @@ import {
 import {
   attachRecord,
   detachRecord,
+  type EditResult,
   renameProject,
   setProjectNotes,
   setProjectStage,
@@ -156,6 +157,17 @@ export function useRecordSearch(term: string) {
 
 export interface ProjectFeedback {
   onError?: (message: string) => void;
+  /**
+   * THE EDIT SAVED AND THE AUDIT TRAIL DID NOT TAKE IT.
+   *
+   * Separate from onError because it is a different fact: the column write
+   * succeeded, so nothing needs retrying and nothing on screen is wrong. What is
+   * wrong is project_events, and for three months nobody could be told - a
+   * refused insert went to console.error and the caller got void. Falls back to
+   * onError when unset, because the one thing this must not do is be silent
+   * again.
+   */
+  onWarning?: (message: string) => void;
 }
 
 // A rename or a stage change moves a project between facets and can move it in
@@ -167,6 +179,18 @@ export function useProjectMutations(feedback: ProjectFeedback = {}) {
   const fail = (err: unknown, fallback: string): void =>
     feedback.onError?.(err instanceof Error ? err.message : fallback);
 
+  // The mutations return what happened to the EVENT, not to the edit. See
+  // EditResult in project-mutations.
+  const noteGap = (what: string) => (r: EditResult): void => {
+    if (!r || r.ok) return;
+    const warn = feedback.onWarning ?? feedback.onError;
+    warn?.(
+      r.reason === 'refused'
+        ? `${what} saved. The history entry was refused as a duplicate and is NOT recorded, so the timeline will not show it.`
+        : `${what} saved. The history entry could not be written (${r.message}), so the timeline will not show it.`
+    );
+  };
+
   const invalidateAll = (): Promise<unknown> =>
     Promise.all([
       client.invalidateQueries({ queryKey: projectKeys.all }),
@@ -175,12 +199,14 @@ export function useProjectMutations(feedback: ProjectFeedback = {}) {
 
   const rename = useMutation({
     mutationFn: ({ id, name }: { id: string; name: string }) => renameProject(id, name),
+    onSuccess: noteGap('Rename'),
     onError: (e) => fail(e, 'Rename failed.'),
     onSettled: invalidateAll,
   });
 
   const stage = useMutation({
     mutationFn: ({ id, stage: s }: { id: string; stage: string }) => setProjectStage(id, s),
+    onSuccess: noteGap('Stage change'),
     onError: (e) => fail(e, 'Stage change failed.'),
     onSettled: invalidateAll,
   });
@@ -230,6 +256,7 @@ export function useProjectMutations(feedback: ProjectFeedback = {}) {
       ]);
       return { id, lists, detail };
     },
+    onSuccess: noteGap('Watch change'),
     onError: (e, _vars, ctx) => {
       if (ctx) {
         ctx.lists.forEach(([key, data]) => client.setQueryData(key, data));
@@ -275,12 +302,14 @@ export function useProjectMutations(feedback: ProjectFeedback = {}) {
   const status = useMutation({
     mutationFn: ({ id, status: st }: { id: string; status: ProjectStatus }) =>
       setProjectStatus(id, st),
+    onSuccess: noteGap('Status change'),
     onError: (e) => fail(e, 'Status change failed.'),
     onSettled: invalidateAll,
   });
 
   const notes = useMutation({
     mutationFn: ({ id, notes: n }: { id: string; notes: string }) => setProjectNotes(id, n),
+    onSuccess: noteGap('Note'),
     onError: (e) => fail(e, 'Note save failed.'),
     onSettled: invalidateAll,
   });
@@ -288,6 +317,7 @@ export function useProjectMutations(feedback: ProjectFeedback = {}) {
   const detach = useMutation({
     mutationFn: ({ leadId, projectId }: { leadId: string; projectId: string }) =>
       detachRecord(leadId, projectId),
+    onSuccess: noteGap('Detach'),
     onError: (e) => fail(e, 'Detach failed.'),
     onSettled: invalidateAll,
   });
@@ -295,6 +325,7 @@ export function useProjectMutations(feedback: ProjectFeedback = {}) {
   const attach = useMutation({
     mutationFn: ({ leadId, projectId }: { leadId: string; projectId: string }) =>
       attachRecord(leadId, projectId),
+    onSuccess: noteGap('Attach'),
     onError: (e) => fail(e, 'Attach failed.'),
     onSettled: invalidateAll,
   });

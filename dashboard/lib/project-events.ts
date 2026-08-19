@@ -54,7 +54,29 @@ export interface ManualEvent {
   detail?: Record<string, unknown> | null;
 }
 
-export async function recordManualEvent(e: ManualEvent): Promise<void> {
+// WHAT HAPPENED TO THE EVENT, RETURNED RATHER THAN SWALLOWED.
+//
+// This used to log to console.error and return void, so every caller believed
+// the event was recorded and no screen could say otherwise. It hid a real fault
+// for three months: a repeat watch toggle returns 23505 on an index that omits
+// occurred_at, so project_events held exactly one watch_added/watch_removed pair
+// per project, ever, while the harness wrote eight per run.
+//
+// STILL NOT THROWN, and that is a separate decision from being silent. The
+// column write has already succeeded by the time this runs, so throwing would
+// report a failed edit that in fact landed - the pane would say the rename
+// failed over a renamed project. The caller gets a result and decides.
+export type EventWriteResult =
+  | { ok: true }
+  // The database refused it as a duplicate. After migration 039 this means a
+  // genuine repeat of the same event at the same instant, which is one event
+  // observed twice. Before 039 it also meant a distinct event on a coarser key.
+  | { ok: false; reason: 'refused'; message: string }
+  | { ok: false; reason: 'failed'; message: string };
+
+const UNIQUE_VIOLATION = '23505';
+
+export async function recordManualEvent(e: ManualEvent): Promise<EventWriteResult> {
   const { error } = await supabase.from('project_events').insert({
     project_id: e.project_id,
     module: LIVE_PIPELINE_STORAGE_KEY,
@@ -66,10 +88,12 @@ export async function recordManualEvent(e: ManualEvent): Promise<void> {
     lead_id: e.lead_id ?? null,
     detail: e.detail ?? null,
   });
-  if (error) {
-    // Never rethrown. See the note above.
-    console.error(`project event not recorded (${e.event_type}): ${error.message}`);
-  }
+  if (!error) return { ok: true };
+  const reason = error.code === UNIQUE_VIOLATION ? 'refused' : 'failed';
+  // Kept, because a console line is still worth having when nothing is watching
+  // the return value. It is no longer the ONLY place this is reported.
+  console.error(`project event not recorded (${e.event_type}, ${reason}): ${error.message}`);
+  return { ok: false, reason, message: error.message };
 }
 
 function asText(v: unknown): string | null {

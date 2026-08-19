@@ -28,6 +28,7 @@ import { bestDate, clusterRecords, type ClusterRecord, type ClusteredProject } f
 import { loadProjects, projectRow, dropEmptyEnrichment } from '../project-write';
 import {
   emitProjectEvents,
+  persistEmitReport,
   emptyEmitReport,
   printEmitReport,
   type EmitReport,
@@ -590,6 +591,12 @@ Orphan deletions logged to ${logFile}`);
     resolved.push({ ...event, project_id: id });
   }
   report.events = await emitProjectEvents([...resolved, ...attachEvents], { module: MODULE });
+  // PERSISTED, not just printed. See persistEmitReport: these counters went to
+  // stdout only, so "what did the last run attempt" had no answer after the run
+  // ended - which is how a lossy audit trail stayed invisible for three months.
+  if (report.events.derived > 0) {
+    console.log(`  emit ledger: ${persistEmitReport('backfill-projects', report.events)}`);
+  }
 
   return { report, projects: cluster.projects, unclustered: cluster.unclustered, cluster };
 }
