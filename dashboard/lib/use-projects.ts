@@ -10,6 +10,10 @@
 // difference between usable and not. A project is renamed or re-staged
 // occasionally and one at a time, so the simpler code is worth more than the
 // latency, and a failed write cannot leave a half-applied rename on screen.
+//
+// ONE EXCEPTION, and it is not about latency: the watch toggle. See the note on
+// the watch mutation below. Its next value is computed from the row on screen,
+// so a lagging read is not a slow screen there but a WRONG WRITE.
 
 import {
   useMutation,
@@ -27,7 +31,9 @@ import {
   searchProjects,
   searchRecords,
   type InboxQuery,
+  type Project,
   type ProjectFacetField,
+  type ProjectPage,
   type ProjectQuery,
 } from './projects';
 import {
@@ -179,11 +185,92 @@ export function useProjectMutations(feedback: ProjectFeedback = {}) {
     onSettled: invalidateAll,
   });
 
+  // THE WATCH TOGGLE IS OPTIMISTIC, AND IT IS THE ONE EXCEPTION TO THE NOTE AT
+  // THE TOP OF THIS FILE.
+  //
+  // W on the register computes its next value from the row on screen, as
+  // `!current.watch`. The pane and the list are two DIFFERENT queries reading
+  // the same fact: ['projects','detail',id] fetches one row and returns first,
+  // ['projects','list',...] fetches a page AND a count and returns later. Both
+  // are invalidated correctly - projectKeys.all is ['projects'] and prefix
+  // matches both - but invalidation is not instantaneous, and between the two
+  // returns the pane read "Watching" while the row's dot and the row's `watch`
+  // still held the old value. A second press in that window therefore re-sent
+  // the first mutation instead of reversing it: the key toggled once, and the
+  // project was left on the watchlist.
+  //
+  // Patching both caches at the moment of the write closes the window rather
+  // than narrowing it: there is no interval in which the screen disagrees with
+  // what was just written, so the next press always reverses the last one. The
+  // rename argument for staying pessimistic does not carry here - a watch flag
+  // is one boolean, and it is rolled back below, so a failed write cannot leave
+  // a dot standing for a project that was never watched.
+  const patchWatch = (id: string, w: boolean): void => {
+    client.setQueriesData<ProjectPage>({ queryKey: projectKeys.lists() }, (page) =>
+      page && page.rows.some((r) => r.id === id)
+        ? { ...page, rows: page.rows.map((r) => (r.id === id ? { ...r, watch: w } : r)) }
+        : page
+    );
+    client.setQueryData<Project>(projectKeys.detail(id), (p) => (p ? { ...p, watch: w } : p));
+  };
+
   const watch = useMutation({
     mutationFn: ({ id, watch: w }: { id: string; watch: boolean }) => setProjectWatch(id, w),
-    onError: (e) => fail(e, 'Watch change failed.'),
+    onMutate: async ({ id, watch: w }: { id: string; watch: boolean }) => {
+      // SNAPSHOT AND PATCH BEFORE THE FIRST await, SO BOTH HAPPEN INSIDE THE
+      // .mutate() CALL ITSELF. Everything after an await runs a tick later, and
+      // a tick is long enough for a second keypress to read the old value.
+      const lists = client.getQueriesData<ProjectPage>({ queryKey: projectKeys.lists() });
+      const detail = client.getQueryData<Project>(projectKeys.detail(id));
+      patchWatch(id, w);
+      // An in-flight read would land after the patch and undo it.
+      await Promise.all([
+        client.cancelQueries({ queryKey: projectKeys.lists() }),
+        client.cancelQueries({ queryKey: projectKeys.detail(id) }),
+      ]);
+      return { id, lists, detail };
+    },
+    onError: (e, _vars, ctx) => {
+      if (ctx) {
+        ctx.lists.forEach(([key, data]) => client.setQueryData(key, data));
+        client.setQueryData(projectKeys.detail(ctx.id), ctx.detail);
+      }
+      fail(e, 'Watch change failed.');
+    },
     onSettled: invalidateAll,
   });
+
+  // THE NEXT VALUE IS READ AT THE MOMENT OF THE PRESS, NOT FROM THE ROW THAT
+  // WAS RENDERED. This is the other half of the W-key defect and the half the
+  // cache patch above cannot reach on its own.
+  //
+  // The register's key handler closes over `rows` from the render that was on
+  // screen when the listener was attached. Patching the cache re-renders and
+  // re-attaches it, but a re-render is scheduled, not immediate: two presses in
+  // the same tick are BOTH handled by the first closure, so the second still
+  // computed `!oldValue` and re-sent the first write. Nothing that depends on a
+  // render can close that window.
+  //
+  // The cache can. setQueryData is synchronous and onMutate patches before its
+  // first await, so by the time .mutate() returns, the cache already holds what
+  // was just written - whatever React has or has not re-rendered. Reading the
+  // next value from there makes each press reverse the one before it.
+  //
+  // The row on screen is the fallback and nothing more: it is right whenever the
+  // cache has no entry, and wrong only in the window this exists to close.
+  const readWatch = (id: string, fallback: boolean): boolean => {
+    const detail = client.getQueryData<Project>(projectKeys.detail(id));
+    if (detail) return Boolean(detail.watch);
+    for (const [, page] of client.getQueriesData<ProjectPage>({ queryKey: projectKeys.lists() })) {
+      const row = page?.rows.find((r) => r.id === id);
+      if (row) return Boolean(row.watch);
+    }
+    return fallback;
+  };
+
+  const toggleWatch = (id: string, onScreen: boolean | null): void => {
+    watch.mutate({ id, watch: !readWatch(id, Boolean(onScreen)) });
+  };
 
   const status = useMutation({
     mutationFn: ({ id, status: st }: { id: string; status: ProjectStatus }) =>
@@ -216,6 +303,7 @@ export function useProjectMutations(feedback: ProjectFeedback = {}) {
     rename,
     stage,
     watch,
+    toggleWatch,
     status,
     notes,
     detach,

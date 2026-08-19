@@ -856,7 +856,7 @@ export default function ProjectsPage() {
     []
   );
 
-  const { watch, status: statusMutation, busy } = useProjectMutations({ onError: setError });
+  const { watch, toggleWatch, status: statusMutation, busy } = useProjectMutations({ onError: setError });
   // Confirm and exclude. Inert with no client open: see the C and X cases in
   // the keyboard handler.
   const membership = useMembershipMutation(clientId, setError);
@@ -1019,7 +1019,8 @@ export default function ProjectsPage() {
         case 'w':
           if (current) {
             e.preventDefault();
-            watch.mutate({ id: current.id, watch: !current.watch });
+            // The row on screen is the fallback, not the source. See toggleWatch.
+            toggleWatch(current.id, current.watch);
           }
           break;
         // ---- CONFIRM AND EXCLUDE, IN A CLIENT VIEW ONLY. -------------------
@@ -1075,6 +1076,7 @@ export default function ProjectsPage() {
     move,
     router,
     watch,
+    toggleWatch,
     filtersOpen,
     periodOpen,
     closePanels,

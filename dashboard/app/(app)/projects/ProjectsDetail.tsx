@@ -57,7 +57,7 @@ export default function ProjectsDetail({
   const project = useProject(id);
   const timeline = useProjectTimeline(id);
   const people = useProjectPeople(id);
-  const { watch, stage, notes, busy } = useProjectMutations({ onError });
+  const { watch, toggleWatch, stage, notes, busy } = useProjectMutations({ onError });
 
   const p = project.data;
   const [noteDraft, setNoteDraft] = useState<string | null>(null);
@@ -196,7 +196,7 @@ export default function ProjectsDetail({
           type="button"
           className={`${styles.watchBtn} ${p.watch ? styles.watchOn : ''}`}
           disabled={busy}
-          onClick={() => watch.mutate({ id: p.id, watch: !p.watch })}
+          onClick={() => toggleWatch(p.id, p.watch)}
           title="Toggle watchlist (W)"
         >
           {p.watch ? 'Watching' : 'Watch'}

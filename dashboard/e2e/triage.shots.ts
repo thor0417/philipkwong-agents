@@ -56,16 +56,66 @@ test('keyboard triage', async ({ page }, testInfo) => {
   const watchBtn = page.locator('aside[aria-label="Project detail"] button', {
     hasText: /^(Watch|Watching)$/,
   });
+  const dot = page.locator(`[data-row-id="${first}"] [aria-label="Watched"]`);
   const before = (await watchBtn.textContent())?.trim();
+  const watchedBefore = before === 'Watching';
   await page.keyboard.press('w');
   await expect
     .poll(async () => (await watchBtn.textContent())?.trim(), { timeout: 30_000 })
     .not.toBe(before);
+
+  // THE ROW AND THE PANE ARE TWO QUERIES READING ONE FACT, AND THEY MUST AGREE.
+  //
+  // The pane is ['projects','detail',id], one row. The list is
+  // ['projects','list',...], a page AND a count, so it returns later. Asserting
+  // the pane alone passed throughout the window in which the row's dot still
+  // showed the old value - which is the window the next press falls into.
+  await expect(dot).toHaveCount(watchedBefore ? 0 : 1, { timeout: 30_000 });
   await shot('watched');
+
   await page.keyboard.press('w');
   await expect
     .poll(async () => (await watchBtn.textContent())?.trim(), { timeout: 30_000 })
     .toBe(before);
+  await expect(dot).toHaveCount(watchedBefore ? 1 : 0, { timeout: 30_000 });
+
+  // TWO PRESSES BACK TO BACK, WITH NOTHING AWAITED BETWEEN THEM, AND THE TWO
+  // WRITES READ OFF THE WIRE.
+  //
+  // This is the defect itself rather than a stress test. W computes its next
+  // value as `!row.watch`, so a second press landing before the list refetch
+  // re-sent the FIRST mutation instead of reversing it: the key toggled once
+  // and left the project on the watchlist. Awaiting the pane between presses is
+  // exactly what hid it above, because the pane is the query that was never
+  // stale.
+  //
+  // Asserted on the REQUEST BODIES and not on the screen, because the screen
+  // cannot distinguish the two outcomes here: pressing twice correctly ends
+  // where it started, and pressing twice with the same value ALSO leaves the
+  // pane briefly reading what it read before. Two writes that disagree is the
+  // whole claim, and it is a fact about the wire.
+  const writes: string[] = [];
+  const onWrite = (r: import('@playwright/test').Request) => {
+    if (r.method() === 'PATCH' && r.url().includes('/rest/v1/projects?')) {
+      writes.push(r.postData() ?? '');
+    }
+  };
+  page.on('request', onWrite);
+  await page.keyboard.press('w');
+  await page.keyboard.press('w');
+  await expect.poll(() => writes.length, { timeout: 30_000 }).toBe(2);
+  page.off('request', onWrite);
+  expect(
+    writes[1],
+    `the second W re-sent the first write (${writes[0]}) instead of reversing it`
+  ).not.toBe(writes[0]);
+
+  // And the pair is net zero, so the run still leaves the database as it found
+  // it - which only holds BECAUSE the two writes disagree.
+  await expect
+    .poll(async () => (await watchBtn.textContent())?.trim(), { timeout: 30_000 })
+    .toBe(before);
+  await expect(dot).toHaveCount(watchedBefore ? 1 : 0, { timeout: 30_000 });
 
   // Escape closes the pane and clears the selection from the URL.
   await page.keyboard.press('Escape');
