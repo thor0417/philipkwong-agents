@@ -1308,6 +1308,33 @@ const referralProject: SectionDef = {
     const filings = e.records.filter((r) => r.provenance === 'RECORD');
 
     const subsections: Subsection[] = [];
+    // WHERE THIS MATTER STANDS IN A DIARY, FIRST, because it is the question a
+    // referral is read to answer and it was the one thing the brief never said.
+    //
+    // The date is captured and was reaching no page: held_to's value is a
+    // substring of the board-action sentence it came from, so the print-once
+    // rule dropped it. See Entry.schedule.
+    //
+    // NOT HEADED "NEXT STEPS". 16 of the 17 live projects that state a date
+    // state one that has already passed, and a forward-looking heading over a
+    // date four weeks behind us is a promise pointing backwards. Both readings
+    // are printed as what they are: a date ahead is a diary entry, and a date
+    // behind with nothing captured since is a trail going cold at a known point.
+    if (e.schedule) {
+      const sc = e.schedule;
+      subsections.push({
+        title: 'Where this stands',
+        lines: [
+          recordLine(
+            sc.ahead
+              ? `${sc.label}: ${sc.display}. That date is still ahead, so this matter is expected back before the body that holds it.`
+              : `${sc.label}: ${sc.display}. That date has passed and we have captured nothing on this matter since, so the record stops there rather than the matter doing so.`,
+            sc.url,
+            sc.sourceLabel
+          ),
+        ],
+      });
+    }
     subsections.push({
       title: 'Record provenance (our captured filings)',
       lines: filings.map(recordLineFor),

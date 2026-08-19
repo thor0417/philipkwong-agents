@@ -456,6 +456,34 @@ export interface Entry {
   // in the line stored beside it does not print.
   stated: EntryFigure[];
   statedHeld: number;
+  // WHEN THIS MATTER WAS NEXT DUE TO BE HEARD, and which side of today that is.
+  //
+  // THE ACTIONABILITY THE BRIEF IS SOLD ON, and it was already captured and
+  // never printed. held_to and next_hearing sit in filing_facts on 17 live
+  // projects. Neither reached a page: held_to's date is a substring of the
+  // board-action sentence it came from, so the print-once rule dropped it as a
+  // duplicate. Correct for a fact block, wrong for a reader, because the
+  // board-action sentence says what happened on a past date and buries the
+  // forward one inside it.
+  //
+  // AND IT IS NOT A "NEXT STEPS" LINE, because 16 of those 17 dates have
+  // ALREADY PASSED. A heading promising what happens next over a date four
+  // weeks behind us is worse than printing nothing: it reads as a commitment
+  // and points backwards. So the line states the date and which side of today
+  // it falls on, and both readings are worth having - a date ahead is a diary
+  // entry, and a date behind with nothing captured since is a trail going cold
+  // at a known point, which is a reason to pick up the phone.
+  schedule: {
+    /** ISO, for the comparison. */
+    date: string;
+    /** Verbatim, as the filing printed it. */
+    display: string;
+    /** The document's own word for it: 'held to', 'next hearing'. */
+    label: string;
+    ahead: boolean;
+    url: string;
+    sourceLabel: string;
+  } | null;
   // WHAT THE APPROVAL IS CONDITIONAL ON.
   //
   // Read out of the same staff reports as `stated` and stored under the same

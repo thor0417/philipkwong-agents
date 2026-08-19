@@ -588,6 +588,65 @@ const STATED_ORDER = new Map(
   ].map((k, i) => [k, i])
 );
 
+// ---- WHEN THIS MATTER WAS NEXT DUE TO BE HEARD ------------------------------
+//
+// Read off the filings, never composed. See Entry.schedule for why it is a
+// stated date rather than a "next steps" heading: 16 of the 17 live projects
+// that state one state a date that has already passed.
+//
+// TWO SHAPES AND NO GUESSING. Clark County prints held_to as 07/22/26 and NYC
+// prints next_hearing as 2026-02-26 or as "August 5, 2026 at 9:00 a.m.". A
+// display that matches none of the three is not printed: a date we cannot read
+// is not a date we may state.
+const SCHEDULE_KINDS = new Set(['held_to', 'next_hearing']);
+const MONTHS = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+];
+
+function parseStatedDate(display: string): string | null {
+  const d = display.trim();
+  let m = /^(\d{4})-(\d{2})-(\d{2})/.exec(d);
+  if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+  m = /^(\d{1,2})\/(\d{1,2})\/(\d{2})$/.exec(d);
+  if (m) return `20${m[3]}-${m[1].padStart(2, '0')}-${m[2].padStart(2, '0')}`;
+  m = /^([A-Z][a-z]+)\s+(\d{1,2}),?\s+(\d{4})/.exec(d);
+  if (m) {
+    const i = MONTHS.indexOf(m[1]);
+    if (i >= 0) return `${m[3]}-${String(i + 1).padStart(2, '0')}-${m[2].padStart(2, '0')}`;
+  }
+  return null;
+}
+
+function scheduleOf(records: ScopedRecord[], today: string): Entry['schedule'] {
+  let best: Entry['schedule'] = null;
+  for (const r of records) {
+    if (!r.url) continue;
+    if (!isFiling(r.source, r.source_type, r.stream)) continue;
+    for (const f of (r.filing_facts ?? []) as { kind: string; label: string; display: string }[]) {
+      if (!SCHEDULE_KINDS.has(f.kind)) continue;
+      const date = parseStatedDate(f.display);
+      if (!date) continue;
+      // THE LATEST STATED DATE WINS. A matter held twice states both, and the
+      // one a reader needs is the one furthest along.
+      if (best && best.date >= date) continue;
+      best = {
+        date,
+        display: f.display.trim(),
+        label: f.label || (f.kind === 'held_to' ? 'held to' : 'next hearing'),
+        ahead: date >= today,
+        url: r.primary_document_url ?? r.url,
+        sourceLabel: citationLabel(r.source, r.primary_document_url ?? r.url, true, {
+          sourceType: r.source_type,
+          market: r.market,
+          date: recordDate(r),
+        }),
+      };
+    }
+  }
+  return best;
+}
+
 function statedOf(records: ScopedRecord[]): { figures: EntryFigure[]; held: number } {
   const out: EntryFigure[] = [];
   const seen = new Set<string>();
@@ -1157,6 +1216,9 @@ export function buildEntry(
       assembled: assembleSentence(entryRecords),
       stated: stated.figures,
       statedHeld: stated.held,
+      // TODAY, passed in rather than read here, so the same record set produces
+      // the same document twice. See buildEntry's callers.
+      schedule: scheduleOf(shown, new Date().toISOString().slice(0, 10)),
       conditions: conditions.sets,
       conditionsHeld: conditions.held,
       scale: scale.figures,
