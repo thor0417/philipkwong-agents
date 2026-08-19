@@ -205,6 +205,37 @@ const INLINE: Record<string, () => string | null> = {
     return open.join('; ') + ' (82 projects touched, 71 of them New York City)';
   },
 
+  // OPEN. A manual event that repeats is refused by the database and dropped on
+  // the floor. Source-text only, like the two above: the runner takes no
+  // database, and the corpus number in this case's origin - 6 watch events in
+  // the whole table, one add/remove pair per project ever - was read by hand on
+  // 2026-08-19.
+  //
+  // TWO CONDITIONS, AND BOTH MUST CHANGE. The insert has to carry something that
+  // makes a repeat distinguishable from a duplicate, and recordManualEvent has
+  // to stop treating a refused write as nothing worth mentioning. Either alone
+  // leaves the trail incomplete: a unique index that still collides silently is
+  // the state today, and a loud failure on an index that refuses every repeat is
+  // just a noisier version of the same gap.
+  'a-manual-event-that-repeats-is-refused-and-not-recorded': () => {
+    const events = readFileSync('dashboard/lib/project-events.ts', 'utf8');
+    const open: string[] = [];
+    // recordManualEvent logs and returns. A caller cannot tell a recorded event
+    // from a refused one, so nothing upstream can retry or report.
+    if (/Never rethrown/.test(events) || !/throw/.test(events.split('recordManualEvent')[1] ?? '')) {
+      open.push('recordManualEvent still swallows a failed insert to console.error');
+    }
+    // The identity the database enforces is idx_project_events_dedupe, which is
+    // in no migration file in this repo: it was applied by hand. Until a printed
+    // migration replaces it, nothing in the tree describes what the constraint
+    // actually is.
+    const migrations = readFileSync('agents/scraper/migrations/023_project_events_identity.sql', 'utf8');
+    if (!/dedupe/.test(migrations)) {
+      open.push('idx_project_events_dedupe is enforced by the database and declared in no migration');
+    }
+    return open.length ? open.join('; ') : null;
+  },
+
   'a-200-is-not-a-live-page': () => {
     const src = readFileSync('agents/scraper/sources/nyc-ceqr.ts', 'utf8');
     const verifiesBody = /Page Not Found|Error Code 404|bodyLooksLikeAnError|soft.?404/i.test(src);

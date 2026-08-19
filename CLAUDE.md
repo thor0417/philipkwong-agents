@@ -142,6 +142,22 @@ was answering a question this section answers.
   not `npm run dev`: this repo lives inside OneDrive, which locks `.next/types`
   and makes long dev runs fail with EBUSY in ways that read as product defects.
 - Playwright reuses an existing server, so start one first and leave it up.
+- BUT KILL THAT SERVER BEFORE `cd dashboard && npm run verify`. Verify runs
+  `next build`, and a build with a server up replaces `.next` underneath it: the
+  running process then serves a half-written bundle, every screen renders empty,
+  and each test fails on its first assertion after a two minute timeout. None of
+  it is real, and it looks exactly like a broken product. Five tests failed that
+  way in one session and three in another.
+  Kill it BY PID and confirm the port is free. `pkill` does not reach it:
+
+      for P in $(netstat -ano | grep LISTENING | grep ":3000" | awk '{print $5}' | sort -u); do
+        taskkill //PID $P //F
+      done
+      netstat -ano | grep LISTENING | grep ":3000" || echo "PORT 3000 FREE"
+
+  `reuseExistingServer` is true, so Playwright starts its own once the port is
+  free. Same shape as the two rules under "NEVER PIPE A GATE": the run reports
+  on something other than the thing you meant to test.
 
 **Send to a subagent, not to the main context**
 Any question of the form "where is X handled", "is this asserted anywhere",
