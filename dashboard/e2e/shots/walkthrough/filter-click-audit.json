@@ -6,7 +6,7 @@
       "before": 218,
       "expected": 28,
       "afterClick": 28,
-      "requests": 14
+      "requests": 13
     },
     {
       "axis": "category",
