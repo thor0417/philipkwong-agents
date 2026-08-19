@@ -13,6 +13,7 @@
 
 import { test, expect } from '@playwright/test';
 import { writeFileSync, mkdirSync } from 'node:fs';
+import { REFERRAL_SECTION_IDS } from '../lib/report-sections';
 
 test('the project page starts a referral brief for that project', async ({ page }) => {
   const out: Record<string, unknown> = {};
@@ -69,15 +70,20 @@ test('the project page starts a referral brief for that project', async ({ page 
   // press are now sections of their own, and the press sits AFTER the people: it
   // was a subsection of the project block, so fifteen headlines pushed the
   // parties onto page 3 of a three-page brief.
-  expect(sections, 'the referral preset did not seed the section list').toEqual([
-    'referral-cover',
-    'referral-project',
-    'referral-people',
-    'referral-conditions',
-    'referral-press',
-    'referral-opportunity',
-    'referral-risk',
-  ]);
+  //
+  // READ FROM REFERRAL_SECTION_IDS RATHER THAN RETYPED, and this file is why the
+  // rule is worth stating. The list existed in THREE places - the section set,
+  // the shots harness and here - and adding referral-coverage to the set left
+  // both copies claiming seven. This one failed, which is what a test is for.
+  // The other passed while photographing a brief with no coverage note, which is
+  // the failure its own comment was written to prevent.
+  //
+  // The claim being made is that the preset seeds THE REFERRAL SET IN ITS ORDER.
+  // A retyped copy cannot make that claim; it can only assert that the preset
+  // matches a list somebody typed twice.
+  expect(sections, 'the referral preset did not seed the section list').toEqual(
+    REFERRAL_SECTION_IDS
+  );
   // AND THE DOCUMENT IS NOT TITLED AS A MARKET REPORT. Same defect, one field
   // along: the title was a fixed string whatever the mode.
   await expect(page.getByTestId('report-title-input')).toHaveValue('Project Referral Brief');

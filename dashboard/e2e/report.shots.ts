@@ -28,6 +28,7 @@
 // those, and the tally below asserts it.
 
 import { test, expect } from '@playwright/test';
+import { REFERRAL_SECTION_IDS } from '../lib/report-sections';
 import path from 'node:path';
 import { mkdirSync, writeFileSync, statSync } from 'node:fs';
 
@@ -273,13 +274,16 @@ test('composer generates three documents', async ({ page }, testInfo) => {
     const remove = page.locator(`[data-section="${id}"] button`);
     if (await remove.count()) await remove.click();
   }
-  for (const id of [
-    'referral-cover',
-    'referral-project',
-    'referral-people',
-    'referral-conditions',
-    'referral-press',
-  ]) {
+  //
+  // AND THE LIST IS READ FROM REFERRAL_SECTION_IDS, NOT TYPED OUT HERE.
+  //
+  // It WAS typed out, directly under the paragraph above explaining why a
+  // harness that builds a different document from the button is worse than no
+  // harness. Adding referral-coverage to the section set left this list at five
+  // and the photographed brief went on having no coverage note - the same defect
+  // in the same file, one paragraph below its own description of it. A hardcoded
+  // copy of a list is a copy that goes stale.
+  for (const id of REFERRAL_SECTION_IDS) {
     const add = page.locator(`[data-add-section="${id}"]`);
     expect(await add.count(), `the composer offers no ${id} section to add`).toBeGreaterThan(0);
     await add.click();
@@ -289,13 +293,9 @@ test('composer generates three documents', async ({ page }, testInfo) => {
   const built = await page
     .locator('[data-section]')
     .evaluateAll((els) => els.map((e) => e.getAttribute('data-section')));
-  expect(built, 'the referral brief was not built from the referral section set').toEqual([
-    'referral-cover',
-    'referral-project',
-    'referral-people',
-    'referral-conditions',
-    'referral-press',
-  ]);
+  expect(built, 'the referral brief was not built from the referral section set').toEqual(
+    REFERRAL_SECTION_IDS
+  );
   // No commentary. A referral brief without Philip's read is a thin document,
   // and the composer says so on screen; a thin document is still better than
   // one carrying a judgement he never made.

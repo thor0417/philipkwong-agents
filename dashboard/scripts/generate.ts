@@ -11,6 +11,8 @@
 //           combo=<market>+<category>          both axes at once
 //
 //   options: --referral        the referral section set instead of the default
+//            --to=<name>       WHO THE DOCUMENT IS ADDRESSED TO. Required with
+//                              --referral; see resolveTarget.
 //            --period=<key>    default 'all'
 //            --detail=<n>      how many projects are described in full
 //            --text            print the whole document
@@ -47,6 +49,18 @@ const REFERRAL = args.includes('--referral');
 const AS_TEXT = args.includes('--text');
 const PERIOD = flag('period') ?? 'all';
 const DETAIL = Number(flag('detail') ?? DETAIL_CAP_DEFAULT);
+// THE RECIPIENT IS AN INPUT, NOT THE OPERATOR.
+//
+// The default addressee below is the person GENERATING the document, which is
+// right for a market report - an internal read of our own register - and wrong
+// for the one document type designed to leave the building. The Heart Hotel
+// referral brief printed "Prepared for Philip Kwong" on a brief about a JKR
+// project lead, written to be FORWARDED to whoever will act on the matter.
+//
+// So --to is required with --referral and there is no fallback, because every
+// available fallback is a false statement about who a document is for. Naming
+// the operator is the worst of them: it reads as correct, so nobody checks it.
+const TO = flag('to');
 
 async function signIn(): Promise<string> {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -112,12 +126,20 @@ interface Resolved {
 }
 
 async function resolveTarget(): Promise<Resolved> {
+  if (REFERRAL && !TO) {
+    throw new Error(
+      'A referral brief is addressed to someone. Pass --to="<name>". ' +
+        'It exists to be forwarded to whoever will act on the matter, so the recipient is an ' +
+        'input to the document. There is deliberately no default: addressing it to whoever ' +
+        'generated it is the error this check exists to stop.'
+    );
+  }
   const base: Resolved = {
     scope: emptyScope(),
     clientId: null,
     label: 'the whole register',
     clientName: null,
-    addressee: 'Philip Kwong',
+    addressee: TO ?? 'Philip Kwong',
     brandName: 'JKR & Associates',
     projectId: null,
   };
@@ -155,7 +177,9 @@ async function resolveTarget(): Promise<Resolved> {
       label: `client ${client.name}`,
       clientId: client.id,
       clientName: client.name,
-      addressee: client.addressee ?? client.name,
+      // --to still wins for a client target: a client's document may be sent to
+      // a named person at that client rather than to the account.
+      addressee: TO ?? client.addressee ?? client.name,
       brandName: client.brand_name ?? 'JKR & Associates',
       projectId: null,
     };

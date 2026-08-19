@@ -33,8 +33,8 @@ import {
   type Subsection,
 } from './report-model';
 import { buildEntry, recordSentence } from './report-entry';
-import { categoriesForPipeline, classifyStageTransition } from './taxonomy';
-import { frozenMarketSentence, monthYear, type DeadFeed } from '../../lib/dead-feeds';
+import { categoriesForPipeline, classifyStageTransition, isProvisionalName } from './taxonomy';
+import { deadFeedForMarket, frozenMarketSentence, monthYear, type DeadFeed } from '../../lib/dead-feeds';
 import type { PartyHistory } from './people';
 
 export interface SectionContext {
@@ -1563,6 +1563,98 @@ const referralRisk = assessmentSection(
   "Philip's read on what is still ahead of this project. Omitted entirely when empty."
 );
 
+// ---- WHAT THIS BRIEF DOES NOT COVER -----------------------------------------
+//
+// STANDING RULE 3 HAS NO EXEMPTION FOR SHORT DOCUMENTS, and the referral brief
+// had no coverage note at all. Its limits lived in "About this brief", which
+// states the filing/press split and the span of the dates and states no withheld
+// count. On a one-project brief withholding nothing that reads as adequate, and
+// that is exactly the trap: it was a STRUCTURAL ABSENCE rather than a decision,
+// so it would have printed nothing in the case that matters - when something
+// WAS withheld.
+//
+// NOT THE MARKET REPORT'S COVERAGE NOTE. That one opens by naming a geography
+// and a period, and this document has neither: it is one matter, and it is not
+// scoped to a month. Reusing it would repeat the defect the golden set already
+// records as a-brief-is-not-a-market-report-with-one-project.
+//
+// AND IT SPEAKS WHEN THERE IS NOTHING TO SAY. A coverage note that renders only
+// when something was withheld cannot be distinguished by a reader from one that
+// was never built, which is the state this section was added to end. "Nothing
+// was withheld" is a finding and is printed as one.
+const referralCoverage: SectionDef = {
+  id: 'referral-coverage',
+  label: 'Coverage note (referral)',
+  description: 'What this brief withheld, stated with its count, including when the answer is nothing.',
+  build: (ctx) => {
+    // THE PROJECT, NOT THE ENTRY. An Entry is what the document PRINTS about a
+    // matter; the market, the region and the naming rule are properties of the
+    // matter itself and are read off the row.
+    const p = ctx.detailedProjects[0] ?? ctx.projects[0] ?? null;
+    const withheld: string[] = [];
+
+    if (ctx.heldRecords) {
+      withheld.push(
+        `${ctx.heldRecords} record${ctx.heldRecords === 1 ? '' : 's'} we hold on this matter ` +
+          `${ctx.heldRecords === 1 ? 'is' : 'are'} not cited above, having fallen beyond the number ` +
+          `this brief prints. ${ctx.heldRecords === 1 ? 'It is' : 'They are'} on the register and can be ` +
+          `sent on request.`
+      );
+    }
+    if (ctx.mergedRecords) {
+      withheld.push(
+        `${ctx.mergedRecords} record${ctx.mergedRecords === 1 ? '' : 's'} counted here ` +
+          `${ctx.mergedRecords === 1 ? 'is' : 'are'} the same filing captured more than once - a ` +
+          `document captured page by page, or a bilingual minute - and ${ctx.mergedRecords === 1 ? 'is' : 'are'} ` +
+          `shown once.`
+      );
+    }
+    // The freeze is about the matter's OWN market, so it is looked up on the
+    // project rather than swept across a geography this document does not have.
+    const feed = p ? deadFeedForMarket(p.market ?? null, p.region_state ?? null) : null;
+    if (feed) {
+      withheld.push(
+        `We stopped receiving filings from ${feed.market} in ${monthYear(feed.frozenSince)}. Everything ` +
+          `above is what we hold, and we are not able to say what has been filed there since. This brief ` +
+          `should not be read as saying nothing has.`
+      );
+    }
+    if (p && isProvisionalName(p.name_source)) {
+      withheld.push(
+        `This matter is named from the wording of an agenda line rather than from a name anything ` +
+          `published, so the heading above is our description of it and not its title.`
+      );
+    }
+    for (const n of capNotes(ctx.caps, ctx.withheldSummaries)) withheld.push(n);
+
+    // ALWAYS PRINTED. These are limits of the document rather than things it
+    // withheld, and a reader deciding whether to act on this brief needs them
+    // whether or not anything was held back.
+    const always = [
+      `This brief covers one matter and is not a survey. Other projects in ` +
+        `${p?.market ?? 'this market'} are on our register and are not described here.`,
+      `It is not scoped to a period. Everything we hold on this matter is above, whatever its date.`,
+      `Records are captured from published sources. A matter that has not been published, or that is ` +
+        `published somewhere we do not yet capture, will not appear.`,
+    ];
+
+    return withCommentary('referral-coverage', ctx, {
+      id: 'referral-coverage',
+      title: 'What this brief does not cover',
+      lede: 'The limits of this document, and what it held back.',
+      lines: [
+        ...always.flatMap((n) => commentaryLines(n)),
+        ...(withheld.length
+          ? withheld.flatMap((n) => commentaryLines(n))
+          : commentaryLines(
+              'Nothing else was withheld. Every record we hold on this matter is cited above, none was ' +
+                'dropped by a limit of this document, and the market it sits in is one we are still receiving.'
+            )),
+      ],
+    });
+  },
+};
+
 export const SECTION_REGISTRY: SectionDef[] = [
   cover,
   whatMoved,
@@ -1581,6 +1673,7 @@ export const SECTION_REGISTRY: SectionDef[] = [
   referralPress,
   referralOpportunity,
   referralRisk,
+  referralCoverage,
 ];
 
 // THE REFERRAL BRIEF, IN THE JULY ORDER. See the section definitions above.
@@ -1602,6 +1695,9 @@ export const REFERRAL_SECTION_IDS = [
   'referral-press',
   'referral-opportunity',
   'referral-risk',
+  // LAST, where the market report puts its own. A reader checks the limits of a
+  // document after reading it, not before.
+  'referral-coverage',
 ];
 
 // THE ORDER THE BRIEF SPECIFIES, and it is the order of the array.
