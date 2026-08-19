@@ -229,7 +229,49 @@ function readWhere(text: string): FilingFact[] {
 // last one is the same rule the CEQR label enumeration turns on, and it is here
 // for the same reason: in flattened text a value can only be terminated by
 // something that is not part of it.
-const FLOWED = String.raw`([\s\S]{4,240}?)(?=[.;](?:\s|$)|\n[ \t]*\n|\n[ \t]*[A-Z][A-Z0-9 /&'.-]{2,}\s*:)`;
+//
+// AND A VALUE DOES NOT BEGIN WITH ANOTHER FIELD'S LABEL.
+//
+// The rule above says where a value STOPS. It said nothing about where one may
+// START. On this form an EMPTY field is printed as its label and nothing else:
+//
+//   TAB/CAC:
+//   APPROVALS:
+//   PROTESTS:
+//
+// The separator was `\s*`, which crosses a line break, so the capture began on
+// the NEXT LABEL and TAB/CAC was stored with the value `APPROVALS:` on 7
+// records. One printed to a client as `[RECORD] TAB/CAC: APPROVALS:` - a label
+// presented as a finding, by a form that was stating the opposite: that no
+// TAB/CAC was held. A stored value ending in a colon is the signature, because a
+// value is a thing and a label is an announcement of one.
+//
+// THE GUARD IS NOT "STAY ON THE LABEL'S LINE", AND THAT WAS MEASURED. Requiring
+// the value to start on the same line reads the four empty forms correctly and
+// ALSO drops WS-26-0113 Tropicana Land, where the value genuinely wraps:
+//
+//   TAB/CAC:
+//   Paradise - approval.
+//   APPROVALS: 1
+//
+// The line break is not the discriminator. The document distinguishes the two
+// cases perfectly and by itself: what follows an empty field is a LABEL, and
+// what follows a filled one is not. So the capture refuses to begin on one,
+// using the same ALL-CAPS-then-colon shape the terminator already turns on -
+// the start of a value and the end of one are the same question asked twice.
+//
+// THE BARE COLON IS IN THE GUARD BECAUSE THE COLON IS OPTIONAL. `:?` exists for
+// a document that omits it, and an optional token can always be declined: given
+// `TAB/CAC:` and a label on the next line, the engine simply did not take the
+// colon, started the value ON it, and stored `":   "`. Still not empty, only
+// wrong more quietly. A value never begins with the punctuation that introduces
+// it.
+//
+// MEASURED, per standing rule 2, by re-reading all 17 stored Clark documents:
+// tab_cac 30 records -> 23, and the 7 lost are exactly the 7 that held
+// `APPROVALS:`. Tropicana keeps its value. commission_action (6) and
+// board_action (7) share this pattern and neither moved.
+const FLOWED = String.raw`((?![ \t\r\n]*(?::|[A-Z][A-Z0-9 /&'.-]{2,}\s*:))[\s\S]{4,240}?)(?=[.;](?:\s|$)|\n[ \t]*\n|\n[ \t]*[A-Z][A-Z0-9 /&'.-]{2,}\s*:)`;
 
 const DECISION_PATTERNS: { kind: FilingFactKind; label: string; re: RegExp }[] = [
   {
