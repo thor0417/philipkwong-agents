@@ -127,8 +127,11 @@ function main(): void {
     manual_overrides: { name: true },
   };
   const held = projectRow(clustered, renamed);
-  check('a hand-named project holds its name back', held.heldBack, ['name']);
+  // BOTH COLUMNS OR NEITHER. name_source answers which rule produced the name,
+  // so re-asserting it over a hand-name states a rule that did not produce it.
+  check('a hand-named project holds its name back', held.heldBack, ['name', 'name_source']);
   check('and the payload carries no name at all', 'name' in held.row, false);
+  check('nor any account of where that name came from', 'name_source' in held.row, false);
 
   const notRenamed = { ...renamed, manual_overrides: null };
   const written = projectRow(clustered, notRenamed);

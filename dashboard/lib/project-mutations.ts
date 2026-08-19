@@ -69,10 +69,24 @@ export async function applyProjectEdit(
   if (ev) await recordManualEvent({ ...ev, project_id: id });
 }
 
+// A HAND-NAME SAYS SO. name_source answers which rule produced the name, and
+// after a rename every automatic answer is false - the column went on reporting
+// whichever rule the correction REPLACED. 'manual' is not a rule, it is Philip,
+// and it is the one value no clustering run may write; project-write holds the
+// column back for exactly as long as the override stands.
+//
+// It is also the value that makes the rename WORTH making: isProvisionalName is
+// false for 'manual', so a project renamed off a provisional title becomes
+// printable, which is why one is renamed at all.
 export async function renameProject(id: string, name: string): Promise<void> {
   const trimmed = name.trim();
   if (!trimmed) throw new Error('A project name cannot be empty.');
   await applyProjectEdit(id, 'name', trimmed);
+  const { error } = await supabase
+    .from('projects')
+    .update({ name_source: 'manual' })
+    .eq('id', id);
+  if (error) throw new Error(`name source update failed: ${error.message}`);
 }
 
 // PIN A SCORE. Philip's judgement about what matters is the thing the model is

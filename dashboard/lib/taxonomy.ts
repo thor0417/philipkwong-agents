@@ -80,7 +80,20 @@ export type DevelopmentCategory = (typeof DEVELOPMENT_CATEGORIES)[number];
 // programme, an applicant field, an address. 'title' assembles one out of a
 // sentence written to instruct a council, and no amount of cleaning makes that
 // the project's name.
-export const NAME_SOURCES = ['target', 'source', 'programme', 'applicant', 'site', 'title'] as const;
+//
+// 'manual' IS NOT A RULE. It is Philip, and it is the only value here no
+// clustering run may ever write. It exists because this column answers "which
+// rule produced this name", and after a hand-rename every available answer was
+// false: the name was held back by manual_overrides while name_source went on
+// reporting whichever rule it replaced. RDXNWP was renamed to Spring Valley Ice
+// Rink and the column still said 'applicant', of a name no applicant field
+// contains. The same pair, summary and summary_source, is already held together
+// in project-write for the same reason; this half was missed.
+//
+// It is NOT provisional, and that is the point of hand-naming: a project is
+// renamed by hand precisely so it may be printed, and a rule that still withheld
+// it would make the correction useless.
+export const NAME_SOURCES = ['target', 'source', 'programme', 'applicant', 'site', 'title', 'manual'] as const;
 export type NameSource = (typeof NAME_SOURCES)[number];
 
 /**

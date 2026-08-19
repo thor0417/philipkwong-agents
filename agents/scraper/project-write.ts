@@ -146,6 +146,20 @@ export function projectRow(
     delete row.summary_source;
     delete row.summary_url;
   }
+  // THE TWO NAME COLUMNS MOVE TOGETHER TOO, and for the reason above rather
+  // than for the constraint: name_source answers WHICH RULE PRODUCED THIS NAME,
+  // so re-asserting it over a name the rules did not produce is a false answer.
+  // 'name' was already held by manual_overrides below; name_source was not, so a
+  // hand-renamed project reported the rule it had REPLACED on every run after.
+  // RDXNWP became Spring Valley Ice Rink and the column went on saying
+  // 'applicant', of a name no applicant field contains.
+  //
+  // Held here rather than added to PROJECT_OVERRIDABLE because Philip overrides
+  // 'name'; name_source is this system's account of that name and follows it.
+  if (overriddenFields(existing?.manual_overrides).has('name')) {
+    delete row.name_source;
+  }
+
   // first_seen is set once, on insert, and never moved backwards or forwards by
   // a later run: it records when WE first saw the project.
   if (!existing && c.first_seen) row.first_seen = c.first_seen;
@@ -164,6 +178,10 @@ export function projectRow(
   // held-back tally still counts a protected summary. A silent hold looks
   // identical to a field the clusterer never tried to write.
   if (overridden.has('summary') && !heldBack.includes('summary')) heldBack.push('summary');
+  // Same reason as the summary line above: name_source was removed before the
+  // override loop ran, so without this a held name_source is a silent hold, and
+  // a silent hold reads exactly like a column the clusterer never tried to write.
+  if (overridden.has('name') && !heldBack.includes('name_source')) heldBack.push('name_source');
   return { row, heldBack };
 }
 
