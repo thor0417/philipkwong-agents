@@ -31,6 +31,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { supabaseAdmin } from '../../lib/supabase-admin';
 import { LIVE_PIPELINE_STORAGE_KEY } from './pipelines';
+import { inCorpusScope, corpusScopeSentence } from '../../lib/corpus-scope';
 import { attributionTerms, factsForEntry, type PressFact } from './press-facts';
 
 const OUT_DIR = 'snapshots';
@@ -67,11 +68,51 @@ interface LeadRow {
 interface ProjectRow {
   id: string;
   name: string;
+  module: string | null;
   status: string | null;
   stage: string | null;
   market: string | null;
   country: string | null;
   primary_applicant: string | null;
+}
+
+// ---- THE POPULATION LADDER --------------------------------------------------
+//
+// THREE PROJECT COUNTS WERE QUOTED IN TWO DAYS: 218, 214 AND 146. Each was
+// arithmetically correct for its own filter and none of them said what that
+// filter was, so they read as a corpus that changed size overnight. Two of the
+// three were also WRONG for what they claimed, and the reconciliation is what
+// showed it:
+//
+//   218  module='gli' AND status<>'dismissed'
+//        Correct, and it counts 80 dormant projects. It is the REGISTER, not
+//        the live set.
+//
+//   214  ... AND country='United States'
+//        WRONG. It drops the 4 projects whose country did not resolve, and
+//        lib/corpus-scope is explicit that an unresolved country is not a
+//        foreign one. One of the four is the Disney/CFTOD matter, which is in
+//        Florida. Scope is inCorpusScope(country), never equality.
+//
+//   146  status NOT IN ('archived','deleted') AND stage<>'dormant'
+//        WRONG, and quietly. Neither 'archived' nor 'deleted' is a value this
+//        table holds - the statuses are 'new' and 'dismissed' - so that clause
+//        removed nothing at all, and the one status that matters was not
+//        filtered. 146 is 226 minus the 80 dormant and it COUNTS ALL 8
+//        TOMBSTONED FOREIGN PROJECTS as live: Oman, Abu Dhabi, Egypt, Australia
+//        twice, Malaysia, Dubai and Saudi Arabia. A headline figure for a
+//        United States only system was carrying Jeddah.
+//
+// So each population is stored with its exact predicate, the delta to the one
+// above it, and - where a project is in one and not another - the predicate
+// that excluded it BY NAME. A figure that cannot say what it counted is the
+// thing this file exists to stop, and a comment was not enough.
+interface Population {
+  name: string;
+  predicate: string;
+  count: number;
+  /** Stated relative to the population above. One line, in words. */
+  delta: string;
 }
 
 async function pageAll<T>(table: string, columns: string): Promise<T[]> {
@@ -127,14 +168,92 @@ async function main(): Promise<void> {
   note('reading projects...');
   const projects = await pageAll<ProjectRow>(
     'projects',
-    'id,name,status,stage,market,country,primary_applicant'
+    'id,name,module,status,stage,market,country,primary_applicant'
   );
 
   // ---- THE THREE POPULATIONS, EACH WITH ITS FILTER -------------------------
   const liveLeads = leads.filter((l) => l.status !== 'dismissed' && l.lifecycle !== 'retired');
-  const liveProjects = projects.filter(
+
+  // THE LIVE SET, CORRECTED. See the Population note above for what the three
+  // quoted figures each counted and where two of them were wrong. Live means:
+  // in the pipeline the register is for, not tombstoned, not dormant, and inside
+  // the countries this system covers.
+  const inPipeline = projects.filter((p) => p.module === LIVE_PIPELINE_STORAGE_KEY);
+  const notDismissed = inPipeline.filter((p) => p.status !== 'dismissed');
+  const inScope = notDismissed.filter((p) => inCorpusScope(p.country));
+  const liveProjects = inScope.filter((p) => p.stage !== 'dormant');
+
+  // The two historical predicates, recomputed here rather than remembered, so
+  // the file states what each of them counts TODAY instead of what it counted
+  // on the day somebody quoted it.
+  const asQuoted218 = notDismissed.length;
+  const asQuoted214 = notDismissed.filter((p) => p.country === 'United States').length;
+  const asQuoted146 = projects.filter(
     (p) => p.status !== 'archived' && p.status !== 'deleted' && p.stage !== 'dormant'
   );
+  // The projects the old 'live' predicate counted and this one does not, and why.
+  const liveIds = new Set(liveProjects.map((p) => p.id));
+  const countedButNotLive = asQuoted146
+    .filter((p) => !liveIds.has(p.id))
+    .map((p) => ({
+      id: p.id,
+      name: p.name,
+      country: p.country,
+      stage: p.stage,
+      status: p.status,
+      excludedBy:
+        p.module !== LIVE_PIPELINE_STORAGE_KEY
+          ? `module <> '${LIVE_PIPELINE_STORAGE_KEY}'`
+          : p.status === 'dismissed'
+            ? "status = 'dismissed' (tombstoned, and the old predicate named 'archived' and 'deleted', which this table never holds)"
+            : !inCorpusScope(p.country)
+              ? `country outside the corpus scope (${corpusScopeSentence()})`
+              : "stage = 'dormant'",
+    }));
+  // And the reverse: live here, not counted by the old predicate. Dormancy is
+  // the only way that happens, and it is stated rather than left to arithmetic.
+  const quoted146Ids = new Set(asQuoted146.map((p) => p.id));
+  const liveButNotCounted = liveProjects.filter((p) => !quoted146Ids.has(p.id)).length;
+
+  const populations: Population[] = [
+    {
+      name: 'all',
+      predicate: 'projects, no filter',
+      count: projects.length,
+      delta: 'every row in the table, tombstones and dormancy included.',
+    },
+    {
+      name: 'inPipeline',
+      predicate: `projects WHERE module = '${LIVE_PIPELINE_STORAGE_KEY}'`,
+      count: inPipeline.length,
+      delta: `${projects.length - inPipeline.length} row(s) belong to another pipeline and are not part of this register.`,
+    },
+    {
+      name: 'register',
+      predicate: `... AND status <> 'dismissed'`,
+      count: notDismissed.length,
+      delta:
+        `${inPipeline.length - notDismissed.length} tombstoned project(s) removed. NOTHING IS DELETED, so they ` +
+        `are still in the table and still readable; they are not part of the register.`,
+    },
+    {
+      name: 'inScope',
+      predicate: `... AND inCorpusScope(country)  (${corpusScopeSentence()})`,
+      count: inScope.length,
+      delta:
+        `${notDismissed.length - inScope.length} project(s) resolve outside the covered countries. An ` +
+        `UNRESOLVED country is not a foreign one and stays in: country = 'United States' would instead ` +
+        `have dropped ${notDismissed.filter((p) => p.country !== 'United States').length}, including matters that are in the United States.`,
+    },
+    {
+      name: 'live',
+      predicate: `... AND stage <> 'dormant'`,
+      count: liveProjects.length,
+      delta:
+        `${inScope.length - liveProjects.length} dormant project(s) removed: no filing for long enough that we no ` +
+        `longer treat them as live. They remain on the register and are counted under 'register' above.`,
+    },
+  ];
   const projectById = new Map(projects.map((p) => [p.id, p]));
 
   // ---- FACT REACH, AGAINST THE LIVE SET -----------------------------------
@@ -181,12 +300,59 @@ async function main(): Promise<void> {
       all: measured(projects.length, 'projects, no filter'),
       live: measured(
         liveProjects.length,
-        "projects WHERE status NOT IN ('archived','deleted') AND stage <> 'dormant'"
+        `projects WHERE module = '${LIVE_PIPELINE_STORAGE_KEY}' AND status <> 'dismissed' ` +
+          `AND inCorpusScope(country) AND stage <> 'dormant'`
       ),
       dormant: measured(
-        projects.filter((p) => p.status !== 'archived' && p.status !== 'deleted' && p.stage === 'dormant').length,
-        "projects WHERE status NOT IN ('archived','deleted') AND stage = 'dormant'"
+        inScope.filter((p) => p.stage === 'dormant').length,
+        `projects WHERE module = '${LIVE_PIPELINE_STORAGE_KEY}' AND status <> 'dismissed' ` +
+          `AND inCorpusScope(country) AND stage = 'dormant'`
       ),
+      // ---- WHY THE FIGURES DISAGREED ----------------------------------------
+      //
+      // Read this block before quoting any number above it. Each population is
+      // a strict narrowing of the one before, its predicate is exact, and the
+      // delta says what the step removed and why. See the Population note near
+      // the top of this file for the three counts that made it necessary.
+      populations,
+      reconciliation: {
+        about:
+          'The counts quoted on 2026-08-18 and 2026-08-19, recomputed against the same data, so a ' +
+          'reader can see which predicate produced each and which of them was wrong.',
+        asQuoted: {
+          register218: measured(
+            asQuoted218,
+            `projects WHERE module = '${LIVE_PIPELINE_STORAGE_KEY}' AND status <> 'dismissed'  ` +
+              '-- CORRECT, and it is the register rather than the live set: it counts dormant projects.'
+          ),
+          unitedStates214: measured(
+            asQuoted214,
+            "... AND country = 'United States'  " +
+              '-- WRONG. Equality drops every project whose country did not resolve, and an unresolved ' +
+              'country is not a foreign one. Use inCorpusScope.'
+          ),
+          oldLive146: measured(
+            asQuoted146.length,
+            "projects WHERE status NOT IN ('archived','deleted') AND stage <> 'dormant'  " +
+              "-- WRONG, and silently. This table holds no 'archived' or 'deleted' status, so that " +
+              'clause removed nothing, and the status that does exist was not filtered. It counted ' +
+              'every tombstoned out-of-scope project as live.'
+          ),
+        },
+        // NAMED, NOT COUNTED. "Nothing is silently absent" applies to a
+        // disagreement between two of our own figures as much as to a client
+        // document: a reader who wants to know which project moved between two
+        // counts can read its name here rather than re-deriving it.
+        countedAsLiveButIsNot: {
+          count: countedButNotLive.length,
+          predicate: "in the old 'live' predicate and not in the corrected one",
+          projects: countedButNotLive,
+        },
+        liveButMissedByTheOldPredicate: measured(
+          liveButNotCounted,
+          "live under the corrected predicate and absent from the old one (dormancy is the only route)"
+        ),
+      },
     },
     records: {
       all: measured(leads.length, 'leads, no filter'),
