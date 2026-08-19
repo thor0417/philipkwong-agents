@@ -371,6 +371,11 @@ export interface StageEvidence {
   // watched thing; a site or a case number says they are about the same
   // MATTER, which is the question a stage answers.
   attributed: boolean;
+  // IS THIS A CAPTURED FILING? A stage is a claim about what a government body
+  // has DONE, and only a filing is us reading that body's own record of it.
+  // Press is somebody reporting it, which is a different kind of statement and
+  // is printed as one. See PRESS CANNOT PROMOTE below.
+  isFiling: boolean;
 }
 
 // A STAGE ABOVE 'approved' MUST BE ATTRIBUTED OR CORROBORATED.
@@ -393,20 +398,65 @@ export interface StageEvidence {
 //
 // Anything refused falls back to the most advanced stage that does pass, which
 // is never lower than what the unproven records would have supported anyway.
+// PRESS CANNOT PROMOTE A STAGE, ON ITS OWN OR IN NUMBERS.
+//
+// The rule above asked whether a record was attributed or said twice. It never
+// asked WHAT KIND of record it was, and 'approved' sits AT the unproven bar
+// rather than above it - so `stageRank(e.stage) <= bar` admitted an approval
+// from any source with no proof required at all. The corroboration rule was
+// never even reached for it.
+//
+// Heart Hotel / Kulik River read 'approved' on that path. Its eight captured
+// filings show holdover applications, a staff recommendation OF approval, and a
+// hearing held to 07/22/26. Not one of them states an approval. Fifteen press
+// reports do. The register said approved, a client document said approved, and
+// no filing we hold says so.
+//
+// A STAGE IS A CLAIM ABOUT WHAT A GOVERNMENT BODY HAS DONE. A filing is us
+// reading that body's own record of it. A news report is somebody telling us
+// about it, which may well be true and is a different kind of statement. So a
+// record that is not a filing supports 'filed' and nothing higher, whatever its
+// text says, and two of them do not add up to one filing.
+//
+// THE PRESS READING IS NOT DISCARDED, it is separated. pressReported carries
+// the stage the non-filing records support when it is higher than the filings
+// do, so an entry can print both and attribute each - which is more informative
+// than the old behaviour, not less: "filed, and reported approved by fifteen
+// publications" says two true things where "approved" said one unsourced one.
 export function provenStage(evidence: StageEvidence[]): {
   stage: LadderStage;
   refused: LadderStage | null;
+  pressReported: LadderStage | null;
 } {
   const all = mostAdvancedStage(evidence.map((e) => e.stage));
-  if (evidence.length <= 1) return { stage: all, refused: null };
-  const bar = stageRank(HIGHEST_UNPROVEN_STAGE);
-  const counts = new Map<LadderStage, number>();
-  for (const e of evidence) counts.set(e.stage, (counts.get(e.stage) ?? 0) + 1);
-  const proven = evidence.filter(
-    (e) => stageRank(e.stage) <= bar || e.attributed || (counts.get(e.stage) ?? 0) >= 2
+  const filings = evidence.filter((e) => e.isFiling);
+  const fromPress = mostAdvancedStage(evidence.filter((e) => !e.isFiling).map((e) => e.stage));
+
+  // Press is capped at 'filed'. Everything below is then the SAME rule as
+  // before, applied to the filings.
+  const capped: StageEvidence[] = evidence.map((e) =>
+    e.isFiling ? e : { ...e, stage: 'filed' as LadderStage }
   );
-  const stage = mostAdvancedStage(proven.map((e) => e.stage));
-  return { stage, refused: stageRank(stage) < stageRank(all) ? all : null };
+
+  const decided = ((): LadderStage => {
+    if (capped.length <= 1) return mostAdvancedStage(capped.map((e) => e.stage));
+    const bar = stageRank(HIGHEST_UNPROVEN_STAGE);
+    // Counted over FILINGS ONLY. Two press reports corroborating each other is
+    // two people repeating a story, and the rule exists to stop one borrowed
+    // record moving a project - not to let two borrowed ones do it.
+    const counts = new Map<LadderStage, number>();
+    for (const e of filings) counts.set(e.stage, (counts.get(e.stage) ?? 0) + 1);
+    const proven = capped.filter(
+      (e) => stageRank(e.stage) <= bar || e.attributed || (counts.get(e.stage) ?? 0) >= 2
+    );
+    return mostAdvancedStage(proven.map((e) => e.stage));
+  })();
+
+  return {
+    stage: decided,
+    refused: stageRank(decided) < stageRank(all) ? all : null,
+    pressReported: stageRank(fromPress) > stageRank(decided) ? fromPress : null,
+  };
 }
 
 export interface StageInput {

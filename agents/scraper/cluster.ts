@@ -1560,6 +1560,10 @@ export function clusterRecords(
     const evidence: StageEvidence[] = members.map((m) => ({
       stage: recordStage(recordText(m.record), m.record.source_type),
       attributed: m.reason === 'case-family' || m.reason === 'site',
+      // A CAPTURED FILING, or somebody reporting one. provenStage caps the
+      // second at 'filed': a stage says what a government body DID, and only a
+      // filing is us reading that body's own record of it.
+      isFiling: m.record.stream === 'government',
     }));
     const proven = provenStage(evidence);
     const dated = [...recs].sort((a, b) => (bestDate(b) ?? '').localeCompare(bestDate(a) ?? ''));

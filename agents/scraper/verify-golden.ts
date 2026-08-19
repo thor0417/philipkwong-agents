@@ -86,12 +86,14 @@ const INLINE: Record<string, () => string | null> = {
   },
 
   'stage-above-approved-needs-proof': () => {
+    // ALL FILINGS. The borrowed-record rule this case guards is about WHICH
+    // filing, not about press; press is now capped at 'filed' before this runs.
     const evidence = [
-      { stage: 'filed' as const, attributed: false },
-      { stage: 'filed' as const, attributed: false },
-      { stage: 'approved' as const, attributed: false },
+      { stage: 'filed' as const, attributed: false, isFiling: true },
+      { stage: 'filed' as const, attributed: false, isFiling: true },
+      { stage: 'approved' as const, attributed: false, isFiling: true },
       // The borrowed one: neither on the project's own site nor said twice.
-      { stage: 'under construction' as const, attributed: false },
+      { stage: 'under construction' as const, attributed: false, isFiling: true },
     ];
     const { stage, refused } = provenStage(evidence);
     if (stage === 'under construction') {
@@ -101,10 +103,38 @@ const INLINE: Record<string, () => string | null> = {
     // And the control: attribute it and it must be allowed through.
     const allowed = provenStage([
       ...evidence.slice(0, 3),
-      { stage: 'under construction' as const, attributed: true },
+      { stage: 'under construction' as const, attributed: true, isFiling: true },
     ]);
     if (allowed.stage !== 'under construction') {
       return 'an ATTRIBUTED record was also refused, so the rule is not a proof requirement, it is a ceiling';
+    }
+    return null;
+  },
+
+  // PRESS CANNOT PROMOTE. The eight filings say filed; the fifteen press reports
+  // say approved. The stage is what the filings support, and the press reading
+  // is carried out separately so an entry can print it and attribute it.
+  'press-cannot-promote-a-stage': () => {
+    const filings = Array.from({ length: 8 }, () => ({
+      stage: 'filed' as const, attributed: true, isFiling: true,
+    }));
+    const press = Array.from({ length: 15 }, () => ({
+      stage: 'approved' as const, attributed: false, isFiling: false,
+    }));
+    const r = provenStage([...filings, ...press]);
+    if (r.stage !== 'filed') {
+      return `fifteen press reports promoted the project to ${r.stage}; no filing states it`;
+    }
+    if (r.pressReported !== 'approved') {
+      return 'the press reading was discarded rather than separated, so the entry cannot state it';
+    }
+    // And the control: one FILING saying approved, attributed, must be allowed.
+    const withFiling = provenStage([
+      ...filings,
+      { stage: 'approved' as const, attributed: true, isFiling: true },
+    ]);
+    if (withFiling.stage !== 'approved') {
+      return 'an attributed FILING was refused, so the rule is a ceiling rather than a source requirement';
     }
     return null;
   },
