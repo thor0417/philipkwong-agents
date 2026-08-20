@@ -1,15 +1,15 @@
 {
   "today": {
-    "What moved": "01 What moved Stage changes, most advanced destination first. A project reaching construction matters more than one reaching a scheduled hearing, so this is not ordered by time. Nothing changed stage in this window. Stage history only began when event capture shipped, so this section is genuinely thin for now and will ",
-    "What came in": "02 What came in New projects first, then new records on projects you already had. Grouped by project, so six records on one project is one line, not six. NEW PROJECTS 3 858 Glenferrie Road hotel Melbourne filed 2026-08-12 Disney / CFTOD ((unknown market)) (2026-07-11) -- filed 2026-08-12 Las Vegas corridor anchors Las ",
-    "Needs you": "03 Needs you Each of these is a count and a place to go. 685 Record triage backlog Records still at status new, on Records 0 Watchlist activity Events on projects you watch 3 New projects to review Captured in this window",
-    "Attention": "04 Attention The machine, not the market. Red only where something is genuinely wrong. SOURCES sfwmd 22d silent 25 records govdoc 21d silent 2 records agenda-portal 19d silent 161 records cftod-pdf 19d silent 14 records nyc-ceqr 8d silent 122 records nyc-zap 8d silent 104 records ceqanet 8d silent 10 records iadb 8d si"
+    "What moved": "01 What moved Stage changes, most advanced destination first. A project reaching construction matters more than one reaching a scheduled hearing, so this is not ordered by time. HD Oleta filed → hearing scheduled Clark County ORD-26-900429: Conduct a public hearing on an ordinance to consider adoption of a Development ",
+    "What came in": "02 What came in New projects first, then new records on projects you already had. Grouped by project, so six records on one project is one line, not six. NEW PROJECTS 15 Astoria Cove WF Cert and Substantial Compliance New York City approved 2026-08-19 2 Noble Street Waterfront Cert New York City filed 2026-08-19 Mill B",
+    "Needs you": "03 Needs you Each of these is a count and a place to go. 743 Record triage backlog Records still at status new, on Records 34 Watchlist activity Events on projects you watch 15 New projects to review Captured in this window",
+    "Attention": "04 Attention The machine, not the market. Red only where something is genuinely wrong. SOURCES sfwmd 23d silent 25 records govdoc 21d silent 2 records nyc-ceqr 9d silent 122 records ceqanet 9d silent 10 records iadb 9d silent 1 records worldbank 9d silent 49 records nyc-city-record 8d silent 154 records RUNS No failed "
   },
   "todayPeriod": {
-    "7d": 17,
-    "30d": 177,
-    "m:2026-07": 132,
-    "m:2026-01": 29
+    "7d": 30,
+    "30d": 154,
+    "m:2026-07": 130,
+    "m:2026-01": 24
   },
   "records": {
     "rows": 1,
@@ -38,31 +38,31 @@
       "Client Ready0",
       "Trash0",
       "Tenders and RFPs0",
-      "Intelligence169",
-      "Government records435",
+      "Intelligence194",
+      "Government records467",
       "Previous",
       "Next"
     ]
   },
   "register": {
-    "baseline": 218,
+    "baseline": 235,
     "results": [
       {
         "label": "baseline (all, any country)",
         "url": "/projects?view=all&country=any",
-        "total": 218,
+        "total": 235,
         "verdict": "UNCHANGED"
       },
       {
         "label": "view=new",
         "url": "/projects?view=all&country=any&view=new",
-        "total": 218,
+        "total": 235,
         "verdict": "UNCHANGED"
       },
       {
         "label": "view=watchlist",
         "url": "/projects?view=watchlist&country=any",
-        "total": 2,
+        "total": 4,
         "verdict": "changed"
       },
       {
@@ -80,13 +80,13 @@
       {
         "label": "stage=filed",
         "url": "/projects?view=all&country=any&stage=filed",
-        "total": 78,
+        "total": 91,
         "verdict": "changed"
       },
       {
         "label": "stage=approved",
         "url": "/projects?view=all&country=any&stage=approved",
-        "total": 39,
+        "total": 41,
         "verdict": "changed"
       },
       {
@@ -98,19 +98,19 @@
       {
         "label": "country default (absent)",
         "url": "/projects?view=all",
-        "total": 214,
+        "total": 230,
         "verdict": "changed"
       },
       {
         "label": "country=United States",
         "url": "/projects?view=all&country=United+States",
-        "total": 214,
+        "total": 230,
         "verdict": "changed"
       },
       {
         "label": "region=Nevada",
         "url": "/projects?view=all&country=United+States&region=Nevada",
-        "total": 58,
+        "total": 68,
         "verdict": "changed"
       },
       {
@@ -122,7 +122,7 @@
       {
         "label": "q=resort",
         "url": "/projects?view=all&country=any&q=resort",
-        "total": 15,
+        "total": 17,
         "verdict": "changed"
       },
       {
@@ -140,7 +140,7 @@
       {
         "label": "period=m:2026-07 moved",
         "url": "/projects?view=all&country=any&period=m:2026-07&axis=moved",
-        "total": 112,
+        "total": 115,
         "verdict": "changed"
       },
       {
@@ -158,31 +158,31 @@
       {
         "label": "bucket=week (must not filter)",
         "url": "/projects?view=all&country=any&bucket=week",
-        "total": 218,
+        "total": 235,
         "verdict": "correct (unchanged)"
       },
       {
         "label": "bucket=month (must not filter)",
         "url": "/projects?view=all&country=any&bucket=month",
-        "total": 218,
+        "total": 235,
         "verdict": "correct (unchanged)"
       },
       {
         "label": "sort=name (must not filter)",
         "url": "/projects?view=all&country=any&sort=name&dir=asc",
-        "total": 218,
+        "total": 235,
         "verdict": "correct (unchanged)"
       },
       {
         "label": "page=2 (must not change total)",
         "url": "/projects?view=all&country=any&page=2",
-        "total": 218,
+        "total": 235,
         "verdict": "correct (unchanged)"
       },
       {
         "label": "nonsense param",
         "url": "/projects?view=all&country=any&banana=1",
-        "total": 218,
+        "total": 235,
         "verdict": "FAILS OPEN (returns everything)"
       },
       {
@@ -212,19 +212,19 @@
       {
         "label": "venue=Hotel",
         "url": "/projects?view=all&country=any&venue=Hotel",
-        "total": 27,
+        "total": 31,
         "verdict": "changed"
       },
       {
         "label": "category=Hospitality/Tourism",
         "url": "/projects?view=all&country=any&category=Hospitality%2FTourism",
-        "total": 72,
+        "total": 82,
         "verdict": "changed"
       },
       {
         "label": "region=California (L2)",
         "url": "/projects?view=all&country=United+States&region=California",
-        "total": 26,
+        "total": 27,
         "verdict": "changed"
       },
       {

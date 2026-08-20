@@ -1,7 +1,7 @@
 {
-  "stats": "267 companies, 184 on a live project. 1 appear in more than one market, 3 hold more than one role, 24 carry a contact path.",
+  "stats": "267 companies, 183 on a live project. 1 appear in more than one market, 3 hold more than one role, 23 carry a contact path.",
   "rows": 267,
-  "reachable": 24,
+  "reachable": 23,
   "multiMarket": 1,
   "multiRole": 3,
   "firstHref": "/company/43980185-7d11-438f-897e-59c56f0226bc"

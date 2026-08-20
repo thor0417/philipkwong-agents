@@ -2,24 +2,24 @@
   "rows": [
     {
       "axis": "venue",
-      "value": "Museum",
-      "before": 218,
-      "expected": 28,
-      "afterClick": 28,
+      "value": "Hotel",
+      "before": 235,
+      "expected": 31,
+      "afterClick": 31,
       "requests": 13
     },
     {
       "axis": "category",
       "value": "Hospitality/Tourism",
-      "before": 218,
-      "expected": 72,
-      "afterClick": 72,
+      "before": 235,
+      "expected": 82,
+      "afterClick": 82,
       "requests": 13
     },
     {
       "axis": "market",
       "value": "Anaheim",
-      "before": 26,
+      "before": 27,
       "expected": 19,
       "afterClick": 19,
       "requests": 15
