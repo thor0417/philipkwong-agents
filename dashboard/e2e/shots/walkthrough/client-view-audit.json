@@ -7,8 +7,8 @@
     "unconstrained": true,
     "bar": "CLIENT SCOPE The stored scope constrains no axis, so this client is proposed everything. 127 proposed, 116 confirmed, 0 excluded. A document would cover 111 of the 116 confirmed. 5 of the confirmed will not print: 5 carry a name taken from an agenda line, which you can fix by opening the project and renaming it. CLEAR",
     "sample": [
-      "scope constrains no axis: everything is in scope",
       "confirmedscope constrains no axis: everything is in scope",
+      "scope constrains no axis: everything is in scope",
       "scope constrains no axis: everything is in scope",
       "confirmedscope constrains no axis: everything is in scope",
       "scope constrains no axis: everything is in scope"
