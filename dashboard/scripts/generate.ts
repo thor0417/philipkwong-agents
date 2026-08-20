@@ -208,7 +208,24 @@ async function resolveTarget(): Promise<Resolved> {
   const value = rest.join('=');
 
   if (kind === 'market') {
-    return { ...base, scope: { ...base.scope, markets: [value] }, label: `market ${value}` };
+    // ---- A MARKET TARGET MAY CARRY A CLIENT TOO ----------------------------
+    //
+    // Same branch-away miss as the project target below, and the same fix. A
+    // "Clark County report for JKR" is not the same document as a Clark County
+    // report: it carries the client's brand, its addressee, and above all its
+    // membership gate, so a project on the register that JKR has not confirmed
+    // is withheld and counted. Without --client this built with an empty scope
+    // and a null client id, and the gate reported 'no-client' - which is a fine
+    // internal read and is not what a client is sent.
+    //
+    // The market NARROWS the client's scope rather than replacing it. Every
+    // other axis the client's scope constrains still constrains.
+    const withClient = CLIENT ? await clientTarget(CLIENT) : base;
+    return {
+      ...withClient,
+      scope: { ...withClient.scope, markets: [value] },
+      label: CLIENT ? `market ${value} for ${withClient.clientName}` : `market ${value}`,
+    };
   }
   if (kind === 'category') {
     return {

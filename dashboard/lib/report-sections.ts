@@ -1282,9 +1282,23 @@ const referralCover: SectionDef = {
             `The press is reported elsewhere, attributed to its publisher, and is not our record. ` +
             `Any judgement in this brief is Philip's, is labelled as his, and appears only under a ` +
             `heading that says so.`
-          : `A referral brief is about one matter. This document has ` +
-            `${ctx.entries.length === 0 ? 'no project selected' : `${ctx.entries.length} projects in scope`}, ` +
-            `so there is nothing to brief on. Choose a single project in the composer.`
+          : // AN EMPTY BRIEF SAYS WHY IT IS EMPTY, AND "NOTHING WAS CHOSEN" IS
+            // ONE OF TWO REASONS. A brief on Heart Hotel for a client who has
+            // not confirmed Heart Hotel came out saying "This document has no
+            // project selected. Choose a single project in the composer" - and
+            // said four lines lower that one project was held back for exactly
+            // that reason. A reader meeting both cannot tell which is true, and
+            // the first one sends them to fix something that is not broken. So
+            // where the gate is what emptied it, the cover says so and points at
+            // the register rather than the composer.
+            membershipSentence(ctx)
+            ? `A referral brief is about one matter. The matter chosen for this brief is not ` +
+              `printed here, and the reason is below: it is on the register and has not been ` +
+              `confirmed as part of this client's coverage. Confirm it there and this brief ` +
+              `fills in. Nothing about the record has changed.`
+            : `A referral brief is about one matter. This document has ` +
+              `${ctx.entries.length === 0 ? 'no project selected' : `${ctx.entries.length} projects in scope`}, ` +
+              `so there is nothing to brief on. Choose a single project in the composer.`
       ),
     });
   },
