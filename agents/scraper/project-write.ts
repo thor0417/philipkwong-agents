@@ -49,6 +49,10 @@ export interface ExistingProject {
   project_key: string;
   manual_overrides: Record<string, unknown> | null;
   name: string;
+  // CARRIED SO IT CAN BE WRITTEN BACK, not merely so it can be read. See the
+  // hold loop below: a held field is now re-sent with its stored value, and a
+  // value we do not have is a value we cannot re-send.
+  name_source: string | null;
   stage: string | null;
   record_count: number | null;
   last_activity: string | null;
@@ -73,7 +77,7 @@ export async function loadProjects(
     const { data, error } = await supabaseAdmin
       .from('projects')
       .select(
-        'id,project_key,manual_overrides,name,stage,record_count,last_activity,' +
+        'id,project_key,manual_overrides,name,name_source,stage,record_count,last_activity,' +
           'primary_applicant,primary_representative,next_milestone'
       )
       .eq('module', module)
@@ -157,7 +161,12 @@ export function projectRow(
   // Held here rather than added to PROJECT_OVERRIDABLE because Philip overrides
   // 'name'; name_source is this system's account of that name and follows it.
   if (overriddenFields(existing?.manual_overrides).has('name')) {
-    delete row.name_source;
+    // Re-sent rather than removed, for the reason in the hold loop below. It is
+    // nullable, so removing it would not fail the write - but the two columns
+    // are one fact and they move together or the account of the name drifts
+    // from the name.
+    if (existing && existing.name_source !== undefined) row.name_source = existing.name_source;
+    else delete row.name_source;
   }
 
   // first_seen is set once, on insert, and never moved backwards or forwards by
@@ -166,13 +175,39 @@ export function projectRow(
 
   for (const c2 of PROJECT_OWNED_BY_USER) delete row[c2];
 
+  // A HELD FIELD IS RE-SENT WITH ITS STORED VALUE. IT IS NOT REMOVED.
+  //
+  // Removing it is what this did, and it made a hand-named project UNWRITABLE.
+  // The write is `upsert(row, { onConflict: 'module,project_key' })`, and
+  // Postgres validates the proposed INSERT row BEFORE it resolves the conflict:
+  // projects.name is NOT NULL with no default, so a payload with no name failed
+  // the constraint and the whole row was rejected. Not the name field - the ROW.
+  // stage, record_count, last_activity and significance all failed with it.
+  //
+  //   project write failed (case:clark-county:uc-26-0302):
+  //     null value in column "name" violates not-null constraint
+  //
+  // Spring Valley Ice Rink kept its hand-name through that run, and NOT because
+  // the override worked: because the write failed entirely. The mechanism has
+  // been broken for as long as it has existed and had nothing to exercise it -
+  // no project carried a name override until 2026-08-19.
+  //
+  // Re-sending the stored value is identical on the UPDATE path, where it writes
+  // what is already there, and valid on the INSERT path, where the column is
+  // populated. Only `name` is NOT NULL among the overridable fields, but the
+  // rule is written for all of them rather than special-cased for one: a column
+  // that gains a NOT NULL later must not quietly reintroduce this.
+  //
+  // Where we hold no stored value the field is still removed - there is nothing
+  // to re-send, and every such column is nullable.
   const heldBack: string[] = [];
   const overridden = overriddenFields(existing?.manual_overrides);
+  const stored = existing as unknown as Record<string, unknown> | undefined;
   for (const f of overridden) {
-    if (f in row) {
-      delete row[f];
-      heldBack.push(f);
-    }
+    if (!(f in row)) continue;
+    if (stored && stored[f] !== undefined) row[f] = stored[f];
+    else delete row[f];
+    heldBack.push(f);
   }
   // Reported even though the pair was already removed above, so the run's
   // held-back tally still counts a protected summary. A silent hold looks

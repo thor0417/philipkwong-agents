@@ -118,6 +118,7 @@ function main(): void {
     id: 'p1',
     project_key: clustered.project_key,
     name: "Philip's name for this",
+    name_source: 'manual',
     stage: clustered.stage,
     record_count: clustered.record_count,
     last_activity: clustered.last_activity,
@@ -130,8 +131,27 @@ function main(): void {
   // BOTH COLUMNS OR NEITHER. name_source answers which rule produced the name,
   // so re-asserting it over a hand-name states a rule that did not produce it.
   check('a hand-named project holds its name back', held.heldBack, ['name', 'name_source']);
-  check('and the payload carries no name at all', 'name' in held.row, false);
-  check('nor any account of where that name came from', 'name_source' in held.row, false);
+
+  // THE PAYLOAD CARRIES THE STORED NAME. IT DOES NOT OMIT THE COLUMN.
+  //
+  // This assertion used to be the opposite - `'name' in held.row` had to be
+  // FALSE - and that is the condition that broke the write. projects.name is
+  // NOT NULL with no default, and the write is an upsert whose proposed INSERT
+  // row Postgres validates before resolving the conflict, so a payload without
+  // a name was rejected outright and took stage, record_count and last_activity
+  // with it. The test passed on a payload the database refuses.
+  //
+  // What "held" has to mean is that a re-cluster leaves the stored values
+  // UNCHANGED, which is what these three check: the name is Philip's and not
+  // the clusterer's, the account of it is 'manual', and neither is the value
+  // this run derived.
+  check('the payload carries the stored name', held.row.name, "Philip's name for this");
+  check('and the stored account of where it came from', held.row.name_source, 'manual');
+  check(
+    'and neither is what this run would have derived',
+    held.row.name === clustered.name,
+    false
+  );
 
   const notRenamed = { ...renamed, manual_overrides: null };
   const written = projectRow(clustered, notRenamed);
@@ -199,6 +219,7 @@ function main(): void {
     id: 'p2',
     project_key: collided.project_key,
     name: 'Skyline TIF district',
+    name_source: 'manual',
     stage: collided.stage,
     record_count: collided.record_count,
     last_activity: collided.last_activity,
@@ -207,7 +228,11 @@ function main(): void {
     next_milestone: null,
     manual_overrides: { name: true },
   });
-  check('a hand-named project is not disambiguated either', 'name' in heldToo.row, false);
+  // Same correction as above: held means the STORED name survives, not that the
+  // column is absent. The disambiguation pass renamed this one to
+  // "Skyline Redevelopment Plan" and the hand-name must outrank it.
+  check('a hand-named project is not disambiguated either', heldToo.row.name, 'Skyline TIF district');
+  check('and the disambiguated name is not what was written', heldToo.row.name === collided.name, false);
 
   // ---- WHERE A NAME COMES FROM, after the provisional-name pass ------------
   //
