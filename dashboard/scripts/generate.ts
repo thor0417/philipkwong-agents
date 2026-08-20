@@ -12,6 +12,10 @@
 //           combo=<market>+<category>          both axes at once
 //
 //   options: --referral        the referral section set instead of the default
+//            --no-context      drop context records. The composer INCLUDES them
+//                              by default and so does this.
+//            --dormant         include dormant projects
+//            --watchlist       watch list only
 //            --brand=<name>    the name on the document. Defaults to the
 //                              client's stored brand, then to Philip Kwong.
 //            --to=<name>       WHO THE DOCUMENT IS ADDRESSED TO. Required with
@@ -67,6 +71,13 @@ const BRAND = flag('brand');
 // which is the product surface. A client with a stored brand_name is unaffected:
 // JKR's row holds 'JKR & Associates' and still wins.
 const DEFAULT_BRAND = 'Philip Kwong';
+
+// THE INCLUSION TOGGLES, DEFAULTED TO THE COMPOSER'S. --no-context and
+// --dormant and --watchlist move them, so an internal read can still ask a
+// narrower question than the button does - deliberately, and by saying so.
+const INCLUDE_CONTEXT = !args.includes('--no-context');
+const INCLUDE_DORMANT = args.includes('--dormant');
+const WATCHLIST_ONLY = args.includes('--watchlist');
 const AS_TEXT = args.includes('--text');
 const PERIOD = flag('period') ?? 'all';
 const DETAIL = Number(flag('detail') ?? DETAIL_CAP_DEFAULT);
@@ -266,9 +277,18 @@ async function main(): Promise<void> {
     addressee: t.addressee,
     clientId: t.clientId,
     clientName: t.clientName,
-    watchlistOnly: false,
-    includeDormant: false,
-    includeContext: false,
+    watchlistOnly: WATCHLIST_ONLY,
+    includeDormant: INCLUDE_DORMANT,
+    // ---- THE COMPOSER'S DEFAULT, NOT THIS SCRIPT'S -------------------------
+    //
+    // This was hardcoded false while the composer's checkbox starts CHECKED, so
+    // a brief generated here held fewer records than the same brief generated
+    // from the button and nothing said so. The third default in this file to
+    // disagree with the screen, after the client id and the brand - the same
+    // shape each time: a script that stands in for the product and drifts from
+    // it, which is what the golden case
+    // a-read-back-tool-builds-the-clients-document is about.
+    includeContext: INCLUDE_CONTEXT,
     // THE SAME LABEL THE COMPOSER PASSES. A referral brief covers one project,
     // and a cover reading "all covered markets" over a single-matter document
     // claims coverage the document does not have.

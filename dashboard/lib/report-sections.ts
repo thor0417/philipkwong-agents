@@ -27,6 +27,7 @@ import {
   isFiling,
   pressLine,
   reconcileSentence,
+  stageReconcileSentence,
   recordLine,
   type Entry,
   type Line,
@@ -1327,13 +1328,50 @@ const referralProject: SectionDef = {
     // behind with nothing captured since is a trail going cold at a known point.
     if (e.schedule) {
       const sc = e.schedule;
+      // ---- "NOTHING SINCE" IS A CLAIM ABOUT OUR RECORDS, SO IT IS CHECKED ----
+      //
+      // This sentence asserted it unconditionally on any date in the past, and
+      // it is FALSE whenever the matter has filed again since. Tropicana Land:
+      // "HELD: 04/22/26. That date has passed and we have captured nothing on
+      // this matter since" - printed as [RECORD], six lines above the two
+      // filings we hold from 2026-07-21 and 2026-08-18. A client document
+      // contradicting itself on the same page, in the direction that makes us
+      // look asleep.
+      //
+      // Same shape as the golden case the-honest-negative-does-not-deny-a-fact-
+      // we-hold: a stated absence that the document's own contents refute. The
+      // three states are now distinct and each is read off the record set rather
+      // than assumed.
+      // AND A PRESS REPORT IS NOT A FILING, on a line tagged [RECORD].
+      //
+      // The first version of this compared against every record and said "the
+      // matter has filed again since" over Heart Hotel's 2026-08-03 record,
+      // which is a traveltomorrow.com story. That is the RECORD/PRESS conflation
+      // the whole document is organised to prevent, asserted on a RECORD line.
+      // The two sets are counted separately here for the same reason
+      // assembleSentence counts them separately.
+      const lastOf = (want: 'RECORD' | 'PRESS') =>
+        e.records
+          .filter((r) => r.provenance === want)
+          .map((r) => r.date)
+          .filter((d): d is string => !!d)
+          .sort()
+          .pop();
+      const lastFiling = lastOf('RECORD');
+      const lastPress = lastOf('PRESS');
+      const filedSince = !sc.ahead && !!lastFiling && lastFiling > sc.date;
+      const pressSince = !sc.ahead && !filedSince && !!lastPress && lastPress > sc.date;
       subsections.push({
         title: 'Where this stands',
         lines: [
           recordLine(
             sc.ahead
               ? `${sc.label}: ${sc.display}. That date is still ahead, so this matter is expected back before the body that holds it.`
-              : `${sc.label}: ${sc.display}. That date has passed and we have captured nothing on this matter since, so the record stops there rather than the matter doing so.`,
+              : filedSince
+                ? `${sc.label}: ${sc.display}. That date has passed, and the matter has filed again since: the most recent filing we hold is dated ${lastFiling}.`
+                : pressSince
+                  ? `${sc.label}: ${sc.display}. That date has passed. We have captured no filing on this matter since, though a press report dated ${lastPress} is later than it.`
+                  : `${sc.label}: ${sc.display}. That date has passed and we have captured nothing on this matter since, so the record stops there rather than the matter doing so.`,
             sc.url,
             sc.sourceLabel
           ),
@@ -1432,9 +1470,19 @@ const referralProject: SectionDef = {
       ? [recordLine(e.summary.text, e.summary.url, 'quoted from the filing')]
       : [];
 
+    // The project row, for the two stage columns. soleEntry gives what the
+    // document PRINTS; the stage and the press-reported stage are properties of
+    // the matter and are read off the row, exactly as referralCoverage reads the
+    // market and the naming rule off it.
+    const row = ctx.detailedProjects[0] ?? ctx.projects[0] ?? null;
     const derived = [
       e.assembled,
       reconcileSentence(e.records),
+      // WHERE THE FILINGS AND THE PRESS DISAGREE ABOUT WHAT HAPPENED. Directly
+      // under the reconciliation of the two record sets, because it is the one
+      // place where "where the two differ, the filings are what we can show"
+      // stops being abstract and names the difference.
+      stageReconcileSentence(row?.stage ?? null, row?.stage_press_reported ?? null),
       // The cover counts the records in scope and this section prints the ones
       // that survived deduping. Where those differ, say so.
       captureSentence(ctx.records.length, e.records.length, ctx.mergedRecords),

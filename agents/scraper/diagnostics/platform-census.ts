@@ -213,6 +213,24 @@ async function main(): Promise<void> {
   // {client}.legistar.com is the PUBLIC PORTAL, which every Legistar customer
   // has whether or not the API is enabled. A portal that loads over a slug whose
   // API refuses is a jurisdiction on Legistar that our adapter cannot read.
+  //
+  // ---- AND THE STATUS CODE IS NOT THE ANSWER EITHER ------------------------
+  //
+  // *.legistar.com IS A WILDCARD. Every subdomain resolves and every one answers
+  // HTTP 200, invented ones included: this probe returned 200 for 'gardengrove'
+  // AND 'garden-grove', for 'osceolafl', for 'buffalony' - slugs made up to test
+  // exactly this. A status check would have reported all 54 unanswered
+  // candidates as "on Legistar with the API switched off", which is fiction with
+  // a number attached.
+  //
+  // THE BODY SEPARATES THEM CLEANLY. A real portal serves ~190KB of Legistar
+  // markup with the jurisdiction's name in the <title>. The wildcard serves
+  // NINETEEN BYTES: "Invalid parameters!". So the test is the body, and the
+  // threshold is not a judgement call.
+  //
+  // This is the golden case a-200-is-not-a-live-page, on a different host, found
+  // by probing slugs that could not possibly exist. A verification that cannot
+  // fail is not a verification.
   console.log('');
   console.log('NO ANSWER FROM THE WEB API, AND WHETHER THE PUBLIC PORTAL EXISTS');
   console.log('  state  client                   api    portal   place');
@@ -224,7 +242,17 @@ async function main(): Promise<void> {
         redirect: 'follow',
         signal: AbortSignal.timeout(15_000),
       });
-      portal = res.ok ? `YES ${res.status}` : `no ${res.status}`;
+      const body = await res.text();
+      // The wildcard's answer, verbatim and complete.
+      const wildcard = body.trim() === 'Invalid parameters!';
+      const looksLegistar = /ctl00_|Legistar|CalendarControl\.css/.test(body);
+      portal = !res.ok
+        ? `no ${res.status}`
+        : wildcard
+          ? 'no (wildcard)'
+          : looksLegistar
+            ? `YES ${Math.round(body.length / 1024)}kb`
+            : `no (${body.length}b, not Legistar)`;
     } catch {
       portal = 'no (dns)';
     }
