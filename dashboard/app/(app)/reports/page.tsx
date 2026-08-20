@@ -871,7 +871,13 @@ export default function ReportsPage() {
         </div>
 
         {built.isError ? (
-          <p className={styles.error}>Preview failed: {(built.error as Error).message}</p>
+          // TESTABLE, because a preview that throws is the failure a harness
+          // most needs to be able to see. Today's crash - placeOf on an empty
+          // projects array - rendered exactly here and no test could assert its
+          // absence, because this element had no handle.
+          <p className={styles.error} role="alert" data-testid="preview-failed">
+            Preview failed: {(built.error as Error).message}
+          </p>
         ) : built.isPending || !doc ? (
           <p className={styles.hint}>Building...</p>
         ) : (
