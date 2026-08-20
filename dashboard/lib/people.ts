@@ -156,7 +156,7 @@ function nameableApplicant(r: ScopedRecord): string | null | undefined {
 //
 // NOTHING IS DELETED. Same treatment the public-agency applicant gets: the value
 // stays in the record and on the register's own columns, and the PRINT is gated.
-function presenterIsGovernmentMover(r: ScopedRecord): boolean {
+export function presenterIsGovernmentMover(r: ScopedRecord): boolean {
   return !!tidy(r.presented_by) && isFiling(r.source, r.source_type, r.stream);
 }
 

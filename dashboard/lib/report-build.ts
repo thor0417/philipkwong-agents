@@ -215,6 +215,58 @@ export async function buildReport(req: BuildRequest): Promise<BuiltReport> {
   // ONE PROJECT MEANS A REFERRAL BRIEF, and a brief is not period-scoped. See
   // the record read below and the cover line.
   const singleProject = !!req.projectId;
+
+  // ---- THE MATTER IS READ OFF THE MATTER --------------------------------------
+  //
+  // THE PLACEHOLDER MOVED RATHER THAN WENT AWAY, WHICH IS WHY THIS IS HERE AND
+  // NOT DOWN THERE. The geography race was closed by reading the place off the
+  // project row, and `matter` was then fed from req.geographyLabel - the very
+  // label that races. The composer computes it as
+  //
+  //     projectChoices.find((p) => p.id === projectId)?.name ?? 'one project'
+  //
+  // and projectChoices is loaded asynchronously, so a build that starts before
+  // the picker's list arrives gets the literal string "one project". It stopped
+  // appearing under GEOGRAPHY and started appearing under MATTER, where the PDF
+  // footer reads it: "JKR & Associates | one project | Every record held", on
+  // every page of the brief.
+  //
+  // The comment I left on the old line said req.geographyLabel "is the project's
+  // NAME when one project is selected - the composer and generate.ts both pass
+  // it that way, and correctly". That was an assumption about a caller written
+  // as a statement of fact and never checked, and generate.ts DOES pass it
+  // correctly, which is why every text read-back was clean while the composer's
+  // PDF was not. Same shape as the golden case
+  // a-read-back-tool-builds-the-clients-document.
+  //
+  // So the name comes off the row this document is about, fetched by id where
+  // the scope page does not carry it, and the caller's label is not consulted at
+  // all. It is taken BEFORE the narrowing filters, because a brief whose project
+  // the membership gate withholds must still be able to say which matter it is
+  // about - that is the whole content of such a document.
+  let selectedRow: Project | null = null;
+  if (req.projectId) {
+    selectedRow = projects.find((p) => p.id === req.projectId) ?? null;
+    if (!selectedRow) {
+      const { data: one, error: oneErr } = await supabase
+        .from('projects')
+        .select(PROJECT_COLUMNS)
+        .eq('id', req.projectId)
+        .maybeSingle();
+      if (oneErr) throw new Error(`report project lookup failed: ${oneErr.message}`);
+      selectedRow = (one ?? null) as unknown as Project | null;
+    }
+    // AND THE FALLBACK IS IMPOSSIBLE RATHER THAN PLAUSIBLE. A document that
+    // cannot name its own matter refuses to build. The alternative is a
+    // placeholder, and a placeholder is what put "one project" on six pages of a
+    // client brief.
+    if (!String(selectedRow?.name ?? '').trim()) {
+      throw new Error(
+        `report cannot name its matter: no project row with a name for id ${req.projectId}`
+      );
+    }
+  }
+
   if (req.projectId) projects = projects.filter((p) => p.id === req.projectId);
   if (req.watchlistOnly) projects = projects.filter((p) => p.watch);
 
@@ -841,8 +893,15 @@ export async function buildReport(req: BuildRequest): Promise<BuiltReport> {
       // for this client", and the coverage note states the withheld count. So
       // the place row falls back to the label the caller passed, exactly as a
       // market report does, and the document goes on to say what it withheld.
-      geography: singleProject ? placeOf(projects[0]) || req.geographyLabel : req.geographyLabel,
-      matter: singleProject ? req.geographyLabel : null,
+      // Both read off the selected row, which survives every filter below it
+      // because it is taken before them. See THE MATTER IS READ OFF THE MATTER.
+      // Where the row states no place, the honest negative is the answer: the
+      // old fallback to the caller's label is what printed a project name, and
+      // then a placeholder, under the heading GEOGRAPHY.
+      geography: singleProject
+        ? placeOf(selectedRow ?? undefined) || 'No market or state recorded on this project'
+        : req.geographyLabel,
+      matter: singleProject ? String(selectedRow!.name).trim() : null,
       // THE COVER STATES THE SPAN OF WHAT IT HOLDS, NOT A FILTER IT DID NOT
       // APPLY. A referral brief covers the project's whole history, so printing
       // "August 2026" on it would describe a filter that is not there and would

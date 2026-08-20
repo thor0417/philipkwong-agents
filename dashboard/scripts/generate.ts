@@ -20,6 +20,9 @@
 //                              client's stored brand, then to Philip Kwong.
 //            --to=<name>       WHO THE DOCUMENT IS ADDRESSED TO. Required with
 //                              --referral; see resolveTarget.
+//            --label=<text>   override the caller's geography label. FOR PROVING
+//                              the document does not depend on it; never for a
+//                              document that is sent.
 //            --period=<key>    default 'all'
 //            --detail=<n>      how many projects are described in full
 //            --text            print the whole document
@@ -79,6 +82,8 @@ const INCLUDE_CONTEXT = !args.includes('--no-context');
 const INCLUDE_DORMANT = args.includes('--dormant');
 const WATCHLIST_ONLY = args.includes('--watchlist');
 const AS_TEXT = args.includes('--text');
+// A DELIBERATELY WRONG geographyLabel, for proving the document ignores it.
+const LABEL = flag('label');
 const PERIOD = flag('period') ?? 'all';
 const DETAIL = Number(flag('detail') ?? DETAIL_CAP_DEFAULT);
 // THE RECIPIENT IS AN INPUT, NOT THE OPERATOR.
@@ -309,7 +314,12 @@ async function main(): Promise<void> {
     // THE SAME LABEL THE COMPOSER PASSES. A referral brief covers one project,
     // and a cover reading "all covered markets" over a single-matter document
     // claims coverage the document does not have.
-    geographyLabel: t.projectId ? t.projectName ?? 'one project' : geographyLabel(t.scope),
+    // THE SAME PLACEHOLDER THE COMPOSER CARRIED, AND FOR THE SAME REASON IT HAD
+    // TO GO: it is a caller's guess printed on a client document. --label exists
+    // to PROVE the document no longer depends on this value: pass a deliberately
+    // wrong one and read the cover back. If the matter still names the project,
+    // the builder is reading the row rather than the caller.
+    geographyLabel: LABEL ?? (t.projectId ? t.projectName ?? geographyLabel(t.scope) : geographyLabel(t.scope)),
     projectId: t.projectId,
   });
 

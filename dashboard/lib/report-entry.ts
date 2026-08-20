@@ -34,9 +34,11 @@ import {
 } from '../../agents/scraper/press-facts';
 import type { Project, TimelineRecord } from './projects';
 import {
+  applicantIsPublicAgency,
   buildParties,
   distinctRecordParties,
   noPartiesNote,
+  presenterIsGovernmentMover,
   withheldMovers,
   withPartyHistory,
   type PartyHistory,
@@ -247,12 +249,65 @@ function actionText(
   // As the first words after a date, that reads as a typo.
   text = text.charAt(0).toUpperCase() + text.slice(1);
   text = restoreBrands(text, raw, brands);
-  // A TRAILING ELLIPSIS IS THE SOURCE SPEAKING, NOT NOISE. Press headlines
-  // arrive already cut - "...sells to developer who ..." - and stripping the
-  // dots turned a visibly truncated headline into a sentence that appeared to
-  // stop mid-thought for no reason. One period is punctuation and goes; three
-  // are a statement that there was more, and stay.
-  return /\.\.\.$/.test(text) ? text : text.replace(/[.\s]+$/, '');
+  return wholeHead(text);
+}
+
+// ---- A CUT SENTENCE PRINTS ITS HEAD, AND SAYS IT WAS CUT ---------------------
+//
+// A TRAILING ELLIPSIS IS THE SOURCE SPEAKING, NOT NOISE, and that half was right:
+// press headlines arrive already cut, and stripping the dots turned a visibly
+// truncated headline into one that appeared to stop mid-thought for no reason.
+// What was missing is that the dots are not the only way a source cuts, and that
+// the words left dangling in front of them are not worth printing.
+//
+// Three shapes reached a client brief, none of which a trailing-ellipsis test
+// could see:
+//
+//   "Eli Applebaum Acquires 12-Acre Development Site On"   no ellipsis at all
+//   "Heart-shaped resort approved by Clark County Zoning ... - KTNV"
+//                                                          ellipsis MID-string
+//   "...approve Cooperative Agreement No. 12-0876 ... with Caltrans for de"
+//
+// MEASURED OVER THE WHOLE CORPUS rather than over the examples: 30 of 381
+// records on live projects carry a title that is not whole - 12 by a trailing
+// ellipsis, which is the only test there was, 1 by an ellipsis mid-string, 5
+// ending on a separator and 12 ending on a function word. See
+// diagnostics/title-wholeness-measure, and note that the second population is
+// not press at all: they are agenda lines cut by our own storage width.
+//
+// THE TESTS READ NO NAMES AND NO MEANING. An ellipsis anywhere is the search
+// engine's own truncation marker; a trailing separator is a cut through
+// punctuation; a trailing function word is a cut through a sentence. The word
+// list is closed and written out below, and no English headline ends on one of
+// them.
+const TRAILING_SEPARATOR = /\s*[,\-–—|:;]+\.?\s*$/;
+const TRAILING_FUNCTION_WORD =
+  /\s+(on|in|at|for|to|of|with|by|from|as|and|or|the|a|an|its|his|her|their|that|which|into|over|after|before|near|amid|about)\.?\s*$/i;
+
+function wholeHead(raw: string): string {
+  let text = raw;
+  let cut = false;
+  // Everything after the first ellipsis is a suffix the source added to a
+  // fragment - a publisher tag, most often - and belongs to no sentence. The
+  // pattern requires a non-ellipsis character in front, so a snippet that OPENS
+  // mid-sentence ("...sells to developer who ...") is cut at its second ellipsis
+  // and not at its first.
+  const m = /[^.…]\s*(\.\.\.|…)/.exec(text);
+  if (m) {
+    text = text.slice(0, m.index + 1);
+    cut = true;
+  }
+  for (const re of [TRAILING_SEPARATOR, TRAILING_FUNCTION_WORD]) {
+    const trimmed = text.replace(re, '');
+    if (trimmed !== text && trimmed.trim().length > 0) {
+      text = trimmed;
+      cut = true;
+    }
+  }
+  text = text.replace(/[.\s]+$/, '');
+  // The ellipsis is kept where the source cut and dropped where it did not, so a
+  // reader can tell a whole headline from a head of one.
+  return cut && text ? `${text}...` : text;
 }
 
 /**
@@ -910,9 +965,20 @@ function playersOf(r: ScopedRecord, project: Project, isRecord: boolean): EntryP
       out.push({ name, role });
     }
   };
-  push(r.applicant, 'applicant');
+  // ---- THE SAME GATES THE PEOPLE BLOCK USES, BECAUSE THIS IS A PAGE TOO ------
+  //
+  // AN ENTRY HAS TWO PARTY PATHS AND ONLY ONE OF THEM WAS EVER GATED. buildParties
+  // in lib/people builds the people block; playersOf and contactOf here build the
+  // "Players:" and "Contact:" clauses on the record lines. Every rule about which
+  // names may be printed - the public-agency applicant, the government mover, the
+  // press-sourced contact - was written into the first and none into the second,
+  // so a name refused four inches up the page printed here unchanged.
+  //
+  // The gates are IMPORTED rather than re-implemented. A second copy is a copy
+  // that drifts, and the half that drifts is the half a client reads.
+  push(applicantIsPublicAgency(r) ? null : r.applicant, 'applicant');
   push(r.representative, 'representative');
-  push(r.presented_by, 'presented by');
+  push(presenterIsGovernmentMover(r) ? null : r.presented_by, 'presented by');
   // THE PROJECT-LEVEL FALLBACK, AND THE ONE PLACE IT MUST NOT REACH.
   //
   // Only 9% of records name a representative, while the project carries one
@@ -936,6 +1002,19 @@ function playersOf(r: ScopedRecord, project: Project, isRecord: boolean): EntryP
 // ---- CONTACT -----------------------------------------------------------------
 
 function contactOf(r: ScopedRecord): string | null {
+  // A FILING'S CONTACT BLOCK STATES A CONTACT. AN ARTICLE STATES NOTHING OF THE
+  // KIND. Heart Hotel printed "Contact: Eli Applebaum. No phone or email in the
+  // record." under six press headlines. No record names him as a contact and no
+  // record names him at all: every one of the six is a news story, and
+  // contact_name there was written by the intelligence lane reading prose.
+  //
+  // lib/people already refuses this - it gives a press-sourced name the role
+  // "named in press coverage" instead of "contact named in the record" - and the
+  // fix landed there and not here. The person is not lost by this: the people
+  // block four rows up prints them with that role, the article, and the link,
+  // which is the whole of what we know. Repeating it on the record line added
+  // nothing except the word that was wrong.
+  if (!isFiling(r.source, r.source_type, r.stream)) return null;
   const name = cleanParty(r.contact_name);
   if (!name) return null;
   const ways = [tidy(r.contact_email), tidy(r.contact_phone)].filter(Boolean);

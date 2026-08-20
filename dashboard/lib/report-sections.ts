@@ -1647,6 +1647,11 @@ const referralConditions: SectionDef = {
 // a three-page brief, under fifteen press lines. In a referral the parties are
 // the reason the document is being forwarded at all: somebody is going to call
 // one of them. Press is context and belongs after the thing it is context for.
+// FIVE. What a person reads before they get to the filings, which is what a
+// referral brief is forwarded for. See the note inside build() for why this
+// number took three attempts to reach a page.
+const PRESS_CAP = 5;
+
 const referralPress: SectionDef = {
   id: 'referral-press',
   label: 'Reported beyond our record (referral)',
@@ -1672,18 +1677,54 @@ const referralPress: SectionDef = {
     // exists must be able to see that we hold it and chose not to quote it.
     const citable = press.filter((r) => !isSelfPublished(hostOf(r.url)));
     const withheld = press.length - citable.length;
-    const withheldNote =
+
+    // ---- AND THE OTHER HALF OF THE RULE, WHICH TOOK THREE ATTEMPTS TO SHIP ----
+    //
+    // This was approved as TWO rules - drop the self-published hosts AND cap at
+    // the five most recent, with the withheld count stated - and only the first
+    // was built, twice. Nothing downstream dropped it: it was never written. A
+    // two-part rule with one part named after a helper (isSelfPublished) reads
+    // as done, because the named half is what you go looking for.
+    //
+    // Fifteen press rows printed on the Heart Hotel brief. A referral brief is
+    // forwarded to somebody who will act on the matter, and fifteen rewrites of
+    // one week's approval is not context, it is the reason a reader stops
+    // reading. Five is what a person actually reads before the filings.
+    //
+    // THE CAP KEEPS THE NEWEST, and the section still prints them oldest first,
+    // because the block is read as a sequence. Sorting a copy, not the array:
+    // e.records is shared with every other section.
+    const dated = [...citable].sort((a, b) => String(a.date ?? '').localeCompare(String(b.date ?? '')));
+    const kept = dated.slice(Math.max(0, dated.length - PRESS_CAP));
+    const capped = dated.length - kept.length;
+
+    // TWO REASONS, TWO COUNTS, NEVER ONE NUMBER. They are different facts about
+    // our coverage: one says we hold something we will not cite, the other says
+    // we hold something we did not have room for, and a reader deciding whether
+    // to ask for more needs to know which. Standing rule 3 is about the reason
+    // as much as the count.
+    const reasons = [
       withheld > 0
         ? `${withheld} further item${withheld === 1 ? '' : 's'} we hold on this matter ` +
-          `${withheld === 1 ? 'is' : 'are'} published on a platform where the subject of a post writes ` +
-          `it themselves, so ${withheld === 1 ? 'it is' : 'they are'} not quoted here as coverage. ` +
-          `${withheld === 1 ? 'It is' : 'They are'} on the register and can be sent on request.`
-        : undefined;
+          `${withheld === 1 ? 'is' : 'are'} published on a platform where the subject of a post ` +
+          `writes it themselves, so ${withheld === 1 ? 'it is' : 'they are'} not quoted here as ` +
+          `coverage.`
+        : '',
+      capped > 0
+        ? `${capped} older report${capped === 1 ? '' : 's'} of this matter ${capped === 1 ? 'is' : 'are'} ` +
+          `held back to keep this block readable; the ${kept.length} most recent are above.`
+        : '',
+    ].filter(Boolean);
+    const withheldNote = reasons.length
+      ? `${reasons.join(' ')} ${
+          withheld + capped === 1 ? 'It is' : 'They are'
+        } on the register and can be sent on request.`
+      : undefined;
     return withCommentary('referral-press', ctx, {
       id: 'referral-press',
       title: 'Reported beyond our record',
       lede: 'Press coverage, attributed to its publisher. This is not our filing record.',
-      lines: [...citable.map(recordLineFor), ...commentaryLines(withheldNote)],
+      lines: [...kept.map(recordLineFor), ...commentaryLines(withheldNote)],
       emptyNote:
         citable.length === 0
           ? withheld > 0

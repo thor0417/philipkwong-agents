@@ -306,8 +306,15 @@ export default function ReportsPage() {
         includeContext,
         detailCap,
         projectId: projectId || null,
+        // NO PLACEHOLDER. projectChoices loads asynchronously, so a build that
+        // starts before the picker's list arrives finds nothing, and the old
+        // `?? 'one project'` put that literal string on the cover and in the
+        // footer of every page. buildReport now reads the matter off the project
+        // row and never off this label, so the label is only ever a description
+        // of the SCOPE and can always be one truthfully.
         geographyLabel: projectId
-          ? (projectChoices.find((p) => p.id === projectId)?.name ?? 'one project')
+          ? (projectChoices.find((p) => p.id === projectId)?.name ??
+            geographyLabel(effectiveScope))
           : geographyLabel(effectiveScope),
       }),
   });
