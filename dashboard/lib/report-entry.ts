@@ -1129,9 +1129,13 @@ function dropCircularPrefix(text: string, project: Project, people: ProjectParty
  * that we hold it and placed it deliberately, rather than wonder whether we
  * missed it.
  */
-function moverNote(records: ScopedRecord[]): string | null {
-  const { count, names } = withheldMovers(records);
-  if (count === 0) return null;
+function moverNote(records: ScopedRecord[], printed: { name: string }[]): string | null {
+  const { count, names } = withheldMovers(records, printed);
+  // A mover who is ALSO printed under another role is not withheld, and where
+  // every one of them is, there is nothing to say. Anaheim: the whole note went
+  // away once Lisandro Orozco and Stacy Tran were recognised as standing in the
+  // block already, under contact_name.
+  if (count === 0 || names.length === 0) return null;
   const who = names.slice(0, 3).join('; ');
   const more = names.length > 3 ? `, and ${names.length - 3} other${names.length - 3 === 1 ? '' : 's'}` : '';
   return (
@@ -1255,7 +1259,7 @@ export function buildEntry(
       // did, noPartiesNote above already names the withholding and its count,
       // and two sentences saying it would be the duplicated-withholding blemish
       // in a new place.
-      peopleWithheldNote: people.length > 0 ? moverNote(forParties) : null,
+      peopleWithheldNote: people.length > 0 ? moverNote(forParties, people) : null,
       records: entryRecords,
     },
     held: ordered.length - shown.length,

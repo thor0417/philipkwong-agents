@@ -48,6 +48,11 @@
     // Same crossing again: it calls the real buildParties and noPartiesNote, so
     // what it measures is what a client document prints rather than a count of
     // stored columns.
-    "agents/scraper/diagnostics/party-gate-measure.ts"
+    "agents/scraper/diagnostics/party-gate-measure.ts",
+    // And again: it calls the real buildParties to count what a document prints.
+    "agents/scraper/diagnostics/name-as-party-measure.ts",
+    // And again. Measures contact_name, which unlike presented_by is genuinely
+    // mixed on one column and one stream, so it counts rather than concludes.
+    "agents/scraper/diagnostics/contact-name-measure.ts"
   ]
 }

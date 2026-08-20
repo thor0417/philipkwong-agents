@@ -173,14 +173,34 @@ function nameablePresenter(r: ScopedRecord): string | null | undefined {
  * because the alternative - silence - is indistinguishable from having captured
  * nothing, and those are different facts about our coverage.
  */
-export function withheldMovers(records: ScopedRecord[]): { count: number; names: string[] } {
+export function withheldMovers(
+  records: ScopedRecord[],
+  /**
+   * THE PARTIES THE BLOCK ACTUALLY PRINTED, so the note cannot claim to have
+   * withheld somebody who is standing two lines above it.
+   *
+   * A PERSON CAN ARRIVE THROUGH TWO COLUMNS AT ONCE, and Anaheim is the case:
+   * Lisandro Orozco and Stacy Tran are in presented_by on some records and in
+   * contact_name on others. The presenter gate removes their presenter ROLE and
+   * the contact role keeps them on the page - correctly, that is a different
+   * claim about them - and the first version of this note then named both as
+   * withheld while the block listed both by name with their email addresses. A
+   * document contradicting itself inside four lines.
+   *
+   * So a mover who is printed under any other role is not reported as withheld.
+   * The COUNT still counts the records, because that number is about our
+   * capture; only the naming is filtered, because that part is about the page.
+   */
+  printed: { name: string }[] = []
+): { count: number; names: string[] } {
+  const onPage = new Set(printed.map((p) => normaliseParty(p.name)));
   const names = new Set<string>();
   let count = 0;
   for (const r of records) {
     if (!r.url || !presenterIsGovernmentMover(r)) continue;
     count++;
     const cleaned = cleanPartyName(r.presented_by);
-    if (cleaned) names.add(cleaned);
+    if (cleaned && !onPage.has(normaliseParty(cleaned))) names.add(cleaned);
   }
   return { count, names: [...names] };
 }
@@ -708,6 +728,8 @@ export function noPartiesNote(records: ScopedRecord[]): string {
   // question. Measured before the gate shipped: 16 live projects print no party
   // at all once it fires, and every one of them would have carried this
   // sentence over a name we were holding.
+  // The block is EMPTY on this branch, so nothing is on the page to filter
+  // against and every mover is genuinely withheld.
   const movers = withheldMovers(records);
   if (movers.count > 0) {
     const who = movers.names.slice(0, 2).join(' and ');

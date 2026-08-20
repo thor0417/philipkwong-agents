@@ -37,7 +37,37 @@ async function openClientView(page: Page): Promise<{ id: string; name: string }>
   await client.click();
   await expect(page.getByTestId('client-scope-bar')).toBeVisible({ timeout: 60_000 });
   await expect(page.locator('[data-row-id]').first()).toBeVisible({ timeout: 60_000 });
-  await page.waitForTimeout(2500);
+  // ---- POLL, DO NOT WAIT AND READ -------------------------------------------
+  //
+  // This was `waitForTimeout(2500)`, which is the fixed-pause-then-read defect
+  // this same file names forty lines further down and fixes in its revert loop.
+  // The scope bar appears as soon as the client is open; the ROW LIST is a
+  // separate query and is still showing the PREVIOUS view's rows until it
+  // settles. The caller's first act is to count [data-row-id].
+  //
+  // MEASURED. Run alone this audit reads 45 rows and passes in 38s. Run in
+  // sequence behind the other walkthrough audits - one worker, one browser, a
+  // loaded machine - it read FIFTY, which is exactly the register's page size:
+  // the unscoped list it was still showing. The membership counts were identical
+  // in both (31 proposed, 5 confirmed, 10 excluded = 46), so 46 >= 50 failed and
+  // the push was refused on a harness race rather than on anything in the tree.
+  //
+  // Same family as the referral preview: a fixed pause is a bet on how long
+  // something takes, and it is a bet the suite loses under load. The list is
+  // polled until two consecutive reads agree instead, which is a statement about
+  // the list having stopped changing rather than a guess about the clock.
+  let previous = -1;
+  await expect
+    .poll(
+      async () => {
+        const n = await page.locator('[data-row-id]').count();
+        const settled = n > 0 && n === previous;
+        previous = n;
+        return settled;
+      },
+      { timeout: 120_000, intervals: [500] }
+    )
+    .toBe(true);
   return { id, name };
 }
 
