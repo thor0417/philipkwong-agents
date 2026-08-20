@@ -7,10 +7,13 @@
 //           market=<name>
 //           category=<development category>
 //           client=<client name substring>
-//           project=<project name substring>
+//           project=<project name substring>   with --client=<name> for a
+//                                              client's referral brief
 //           combo=<market>+<category>          both axes at once
 //
 //   options: --referral        the referral section set instead of the default
+//            --brand=<name>    the name on the document. Defaults to the
+//                              client's stored brand, then to Philip Kwong.
 //            --to=<name>       WHO THE DOCUMENT IS ADDRESSED TO. Required with
 //                              --referral; see resolveTarget.
 //            --period=<key>    default 'all'
@@ -46,6 +49,24 @@ const flag = (name: string): string | null => {
   return hit ? hit.slice(name.length + 3) : null;
 };
 const REFERRAL = args.includes('--referral');
+// WHICH CLIENT A project= BRIEF IS FOR. Optional, and the summary states which
+// membership gate actually ran either way, so an internal read of one matter is
+// still possible and cannot be mistaken for a client's document.
+const CLIENT = flag('client');
+// THE NAME ON THE DOCUMENT. --brand overrides; otherwise the client's stored
+// brand; otherwise the default below.
+const BRAND = flag('brand');
+
+// THE DEFAULT BRAND, AND IT IS THE COMPOSER'S.
+//
+// This script defaulted to 'JKR & Associates' in both places it names a brand,
+// while the composer's placeholder is 'Philip Kwong'. So the same scope, built
+// through the button and through this script, came out under two different
+// firms - and a Simtec document generated here was branded JKR, which is a
+// client's document carrying another client's name. Aligned to the screen,
+// which is the product surface. A client with a stored brand_name is unaffected:
+// JKR's row holds 'JKR & Associates' and still wins.
+const DEFAULT_BRAND = 'Philip Kwong';
 const AS_TEXT = args.includes('--text');
 const PERIOD = flag('period') ?? 'all';
 const DETAIL = Number(flag('detail') ?? DETAIL_CAP_DEFAULT);
@@ -125,6 +146,33 @@ interface Resolved {
   projectName?: string | null;
 }
 
+/**
+ * A CLIENT, RESOLVED ONCE, FOR BOTH THE client= AND THE project= TARGET.
+ *
+ * Every field a client document needs comes from here: the stored scope, the ID
+ * the membership gate reads, the brand on the page and who it is addressed to.
+ * One implementation, because the whole reason the project= branch was wrong is
+ * that it built its own version of this and left the id out.
+ */
+async function clientTarget(value: string): Promise<Resolved> {
+  const clients = await fetchClients();
+  const client = clients.find((c) => c.name.toLowerCase().includes(value.toLowerCase()));
+  if (!client) throw new Error(`no client matching "${value}"`);
+  const scope = (await fetchAllScopes()).find((s) => s.client_id === client.id);
+  if (!scope) throw new Error(`client "${client.name}" has no stored scope`);
+  return {
+    scope,
+    label: `client ${client.name}`,
+    clientId: client.id,
+    clientName: client.name,
+    // --to still wins for a client target: a client's document may be sent to a
+    // named person at that client rather than to the account.
+    addressee: TO ?? client.addressee ?? client.name,
+    brandName: BRAND ?? client.brand_name ?? DEFAULT_BRAND,
+    projectId: null,
+  };
+}
+
 async function resolveTarget(): Promise<Resolved> {
   if (REFERRAL && !TO) {
     throw new Error(
@@ -140,7 +188,7 @@ async function resolveTarget(): Promise<Resolved> {
     label: 'the whole register',
     clientName: null,
     addressee: TO ?? 'Philip Kwong',
-    brandName: 'JKR & Associates',
+    brandName: BRAND ?? DEFAULT_BRAND,
     projectId: null,
   };
   if (target === 'all') return base;
@@ -166,31 +214,39 @@ async function resolveTarget(): Promise<Resolved> {
       label: `${market} and ${category}`,
     };
   }
-  if (kind === 'client') {
-    const clients = await fetchClients();
-    const client = clients.find((c) => c.name.toLowerCase().includes(value.toLowerCase()));
-    if (!client) throw new Error(`no client matching "${value}"`);
-    const scope = (await fetchAllScopes()).find((s) => s.client_id === client.id);
-    if (!scope) throw new Error(`client "${client.name}" has no stored scope`);
-    return {
-      scope,
-      label: `client ${client.name}`,
-      clientId: client.id,
-      clientName: client.name,
-      // --to still wins for a client target: a client's document may be sent to
-      // a named person at that client rather than to the account.
-      addressee: TO ?? client.addressee ?? client.name,
-      brandName: client.brand_name ?? 'JKR & Associates',
-      projectId: null,
-    };
-  }
+  if (kind === 'client') return clientTarget(value);
   if (kind === 'project') {
+    // ---- A PROJECT TARGET MAY CARRY A CLIENT, AND USUALLY MUST --------------
+    //
+    // This returned { ...base, projectId } and base holds an EMPTY SCOPE AND A
+    // NULL CLIENT ID, so every referral brief this script has ever produced was
+    // built with no client scope and with the membership gate reporting
+    // 'no-client' - a different document from the one the composer's button
+    // makes, which is the exact failure the golden case
+    // a-read-back-tool-builds-the-clients-document records. That case fixed the
+    // client= branch and left this one, one branch away, untouched.
+    //
+    // So --client applies here too: the scope, the id, the brand and the
+    // addressee all come from the client, and the project is then selected out
+    // of THEIR scope rather than out of the whole register. Without it the
+    // behaviour is unchanged and the summary says which gate ran, so an internal
+    // read is still possible and is never mistaken for a client's document.
+    const withClient = CLIENT ? await clientTarget(CLIENT) : base;
     // Found through the SAME listScopeProjects the composer's picker uses, so a
     // project this script can generate is a project the picker can offer.
-    const candidates = await listScopeProjects(base.scope);
+    const candidates = await listScopeProjects(withClient.scope);
     const hit = candidates.find((p) => p.name.toLowerCase().includes(value.toLowerCase()));
-    if (!hit) throw new Error(`no project matching "${value}" in scope`);
-    return { ...base, label: `project ${hit.name}`, projectId: hit.id, projectName: hit.name };
+    if (!hit) {
+      throw new Error(
+        `no project matching "${value}" in ${CLIENT ? `${withClient.clientName}'s scope` : 'scope'}`
+      );
+    }
+    return {
+      ...withClient,
+      label: CLIENT ? `project ${hit.name} for ${withClient.clientName}` : `project ${hit.name}`,
+      projectId: hit.id,
+      projectName: hit.name,
+    };
   }
   throw new Error(`unknown scope "${target}"`);
 }
