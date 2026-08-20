@@ -426,3 +426,284 @@ documents.
   half-replaced .next and every screen renders empty. Three tests failed on their
   first assertion that way and none of it was real. Belongs in CLAUDE.md next to
   the OneDrive .next note: kill the listener by PID first, `pkill` does not.
+
+## THREE STAGE CHANGES THAT HAPPENED AND ARE NOT RECORDED, 2026-08-19
+
+NOT BACKFILLED, AND THAT IS THE DECISION RATHER THAN AN OMISSION. A
+reconstructed event dated from the record that probably caused it is a fact we
+asserted, not one the system observed, and `project_events` is the audit trail.
+A stated hole beats a plausible fill. This is the statement.
+
+WHAT HAPPENED. `idx_project_events_dedupe` - a unique index applied by hand,
+declared in no migration and named nowhere in this repo - omits `occurred_at`
+from the identity of an event. A second event of the same type on the same
+project carrying the same `from_value`, `to_value` and `lead_id` is therefore
+refused however long afterwards it occurs. `recordManualEvent` swallowed the
+23505 to a `console.error` and `emitProjectEvents` counted it as
+`rejectedAsDuplicate`, which reads as a duplicate correctly removed.
+
+Migration 039 drops that index. It does not recover what was lost.
+
+HOW THEY WERE FOUND: three live projects carry a stage today that their own
+event trail cannot reach. The last recorded transition ends somewhere else.
+
+| project | last recorded transition | ends at | stage today | the missing transition |
+|---|---|---|---|---|
+| Heart Hotel / Kulik River | 2026-08-10 | stalled | approved | stalled to approved |
+| Hudson Yards / Western Rail Yard | 2026-03-22 | under construction | dormant | under construction to dormant |
+| Disneyland Resort | 2026-08-10 | under construction | approved | under construction to approved |
+
+Each of the three had already recorded that exact transition once before, which
+is why the repeat collided. Hudson Yards is the airtight case: its
+`under construction -> dormant` of 2025-05-30 carries `lead_id` NULL, so the
+return trip's key is identical in every constrained column.
+
+WHY IT CANNOT BE RECOVERED. The event carries an `occurred_at`, and that date is
+the fact. Nothing stored says when these three transitions happened: the
+projects table keeps the current stage and not the date it was reached, and the
+run that computed each change printed its counters to stdout and exited. Dating
+them from the most plausible record would put a date we chose into the column a
+reader trusts to say when something happened. `last_activity` is the date of a
+RECORD, not of a stage decision, and the two are not the same thing.
+
+WHAT IS AND IS NOT AFFECTED. None of the three would have printed as an ADVANCE
+in a client document: `stalled` and `dormant` are off the stage ladder, so
+`classifyStageTransition` reads two of them as `liveness`, and
+`under construction -> approved` is a `corrected`. No client document has lost
+an advance. What IS wrong today is the "What moved" section's own withheld
+counters, which state how many corrected and liveness transitions were held
+back, and are short by three.
+
+THE EXPOSURE IS PROSPECTIVE AND REAL. Hilton Resorts advanced
+`filed -> approved` on 2026-08-11 against lead `6820b2aa`. If that reading is
+corrected and the project advances again on the same record, the key is
+identical, the insert is refused, and "What moved" shows nothing while the
+register shows approved.
+
+WHAT WAS DONE INSTEAD OF A BACKFILL
+- migration 039 drops the index, printed and blocking
+- `recordManualEvent` returns a result; the register says "saved, and the
+  history entry was refused" rather than nothing
+- `emitProjectEvents` counts `refusedByACoarserIndex` apart from
+  `rejectedAsDuplicate` and prints it loudly
+- every emit appends its counters to `snapshots/project-events-emit.jsonl`, so
+  "what did the last run attempt" survives the run
+- golden case `a-manual-event-that-repeats-is-refused-and-not-recorded`
+
+### 039 IS RUN, AND WHAT THE DROPPED INDEX CONSTRAINED IS NOT ON RECORD
+
+Run 2026-08-19. `pg_indexes` now returns five rows on `project_events`:
+`idx_project_events_identity` (unique), `idx_project_events_project`,
+`idx_project_events_recent`, `idx_project_events_type`, `project_events_pkey`.
+`idx_project_events_dedupe` is gone.
+
+THE DEFINITION WAS NOT CAPTURED. The migration ran the `pg_indexes` SELECT
+before the drop precisely so it would be, and the `indexdef` column was
+truncated in the Supabase results pane. The index is now dropped, so there is no
+second chance: WHAT IT ACTUALLY CONSTRAINED REMAINS AN INFERENCE and will stay
+one permanently.
+
+THE INFERENCE, and it is well supported but it is not a record. Every
+observation fits an identity of `(project_id, event_type, from_value, to_value,
+lead_id)` with `occurred_at` absent:
+
+- 911 rows held 911 distinct keys on those five columns; no coarse key ever
+  repeated, across four months and three write paths
+- a repeat watch toggle seconds after the first returned 23505 naming this index,
+  while `watch_added` and `watch_removed` on the same project both stored, so
+  `event_type` is in it and `occurred_at` is not
+- three projects carry a stage their trail cannot reach, and all three are
+  projects that returned to a transition already recorded once
+
+WHAT THIS COSTS US. The drop is safe on an argument that does not depend on the
+inference: `idx_project_events_identity` constrains the same five columns PLUS
+`occurred_at`, so whatever subset of those five the dropped index used, the
+surviving index treats strictly fewer row pairs as equal. Nothing that was
+storable is now unstorable, and nothing stored became insertable twice. That
+argument holds without knowing the definition.
+
+What we cannot do is say with certainty WHICH rows it refused historically. The
+three named above are identified by the disagreement between `projects.stage`
+and the last recorded transition, which is evidence of loss and not a list of
+it. If a fourth event was refused on a project whose stage later returned to
+where the trail says it is, that one is invisible and always will be.
+
+THE RULE THIS EARNS. An index, constraint or policy applied by hand is applied
+in a migration file in this repo first. `idx_project_events_dedupe` cost three
+months of a silently lossy audit trail and its own definition, and both costs
+came from the same thing: it existed only in the database.
+
+PROVEN, 2026-08-19, and the proof is the write rather than the migration. A
+`watch_added` on Heart Hotel / Kulik River identical in every constrained column
+to the one stored on 2026-08-10, differing only in `occurred_at`, was ACCEPTED.
+`project_events` went 911 to 912 rows and that project went from 2 watch events
+to 3, having held 2 since 2026-08-10 through roughly thirty toggles.
+
+### DEAD SCHEMA, LOGGED NOT DROPPED, 2026-08-19
+
+Found by `agents/scraper/diagnostics/schema-drift.ts`. Declared in
+`supabase/schema.sql`, absent from the live database, and read by no code in
+either package. They are the v1.0 CRM that was never built.
+
+    activities              table, absent
+    contacts                table, absent
+    deals                   table, absent
+    leads.next_action       column, absent
+    leads.next_action_date  column, absent
+
+NOT DROPPED TODAY, and not because dropping is hard: because there is nothing
+to drop. They do not exist. What exists is the DECLARATION, and deleting that
+from the base schema is a real edit to a file that also creates `leads`, which
+is not an edit to make while a capture run is settling.
+
+They are recorded here so the next reader of `supabase/schema.sql` knows the
+CRM half is aspirational rather than missing, and so a future audit run does
+not re-report them as a finding.
+
+## PER-SOURCE RUN-OVER-RUN COMPARISON BEGINS 2026-08-19. THERE IS NO EARLIER BASELINE.
+
+READ THIS BEFORE READING THE NEXT MOVEMENT REPORT AS A DROP.
+
+No capture run before 2026-08-19 wrote its per-source volume anywhere that
+survived the run. The counts existed in console scrollback and nowhere else, and
+the emit counters that would have shown what the movement layer attempted were
+printed to stdout and discarded with it. So the first report that compares
+"this run against the last run" has, for every source, a left-hand column that
+did not exist.
+
+WHAT THE BASELINE IS. The pair
+`snapshots/corpus-2026-08-19T07-07-19-pre-run.json` and
+`snapshots/corpus-2026-08-19T08-11-52-post-run-complete.json`, plus the two
+lines in `snapshots/project-events-emit.jsonl` dated 2026-08-19:
+
+    Serper half       974 fetched   51 written   emit: 14 attempted, 14 inserted
+    Government half   374 attempted 279 written  emit: 80 attempted, 80 inserted
+                      24 of 26 sources produced records
+
+AND A SEPARATE REASON THE FIRST COMPARISON WILL LOOK WRONG. Every full-capture
+claim in this repo before today ran `npm run scrape:all`, which reaches SERPER
+AND NOTHING ELSE - the orchestrator contains no reference to the government
+lane. So a next run that reports Legistar, NYC ZAP, CEQR, City Record, Anaheim
+and Oakland volumes is not those sources recovering. It is those sources being
+counted for the second time ever.
+
+Both halves ran today only because they were run as two commands by hand. The
+`npm run capture` command that runs every live lane in one process, with a
+captured exit line per lane, is specified and not yet built.
+
+A COUNT WITH NO PRIOR COUNT IS NOT A DROP AND IT IS NOT A RISE. It is the first
+measurement, and this note exists so the second one is not misread as the
+second half of a trend.
+
+## TWO CITY RECORD SHAPES, LOGGED UNFIXED, 2026-08-19
+
+City Record pages to yesterday's notices - 2,352 rows over 3 pages, newest
+2026-08-18 - so nothing here is a capture lag. Both are losses at the gate.
+
+### A TEXT AMENDMENT HAS NO SITE, NO APPLICANT AND NO ACTION VERB
+
+The vocabulary gate reads an item's subject: a strong term, or a weak term plus
+an action. A CITYWIDE TEXT AMENDMENT changes the rules rather than a parcel, so
+it carries none of those and the gate cannot see it.
+
+    2024-01-11  Borough President - Manhattan   Gaming Facility Text Amendment Proposal
+    2024-01-11  Community Boards                PUBLIC HEARING ON THE GAMING FACILITY TEXT AMENDMENT
+
+Both rejected `weak-without-action`. That is the instrument sitting underneath
+Bally's Bronx and Metropolitan Park, both of which ARE in the register: we hold
+the projects and not the rule that enabled them.
+
+MEASURED. Of 2,325 rejected rows, 18 carry a hospitality word and every one is
+`weak-without-action`. FOURTEEN of the 18 are NYC Parks golf and food
+concessions - a snack bar in Alley Pond Park, a driving range concession - and
+the gate is arguably RIGHT to drop those. The loss is two notices, not 2,255.
+
+NOT FIXED TONIGHT. A rule admitting text amendments cannot key on the vocabulary
+that defines this gate, and inventing one at the end of a long session is how a
+gate gets loosened. It needs its own measurement.
+
+### THE KNOWN-ENTITY BYPASS IS A DISCOVERY CEILING
+
+Re-running `gateDecide` over the same 2,352 rows WITHOUT the entity index
+admits 27. The live run admits 97. So roughly 70 of 97 City Record admissions
+arrive because a party we ALREADY TRACK is named in them.
+
+That is the feedback loop working as designed, and it is also the ceiling: City
+Record's yield is a function of what we already hold rather than of what the
+city published. A matter involving nobody we track must clear the vocabulary
+gate alone, and 27 of 2,352 do - roughly 1 percent.
+
+The discovery claim depends on the 27, not the 97. TOMORROW'S WORK.
+
+### AND THE MEASUREMENT ITSELF WAS WRONG TWICE BEFORE IT WAS RIGHT
+
+Recorded because the corrections are the method, not an aside:
+
+  - the first probe read `g.admit`, a field GateVerdict does not have. Every row
+    fell to the else branch and the output printed `strong 18` INSIDE the
+    rejected bucket - a contradiction, which is how it was caught.
+  - the second assembled its own gate text: `additional_description1` where the
+    dataset has `additional_description_1`, and no `building_name`. It admitted
+    19 against the live run's 97.
+
+Only the third used the adapter's own `gateTextOf` and `gateDecide`. A second
+opinion built on a different text is not a measurement of the gate.
+
+## A LICENCE FILING AGAINST AN ADDRESS IS NOT A DEVELOPMENT, 2026-08-19
+
+LOGGED, NOT FILTERED. Found while widening Simtec's scope to include `filed`,
+which was the right change for a different reason - see below - and which let
+these in as a side effect.
+
+Twelve of the 29 projects entering that scope are single-record Las Vegas rows,
+every one at significance 38.8 with exactly one record:
+
+    2427 South Las Vegas Boulevard casino      221 North Rampart Boulevard
+    2000 South Las Vegas Boulevard casino      KLA Capital Series 7 casino
+    Proview Series 39 casino                   Fifth Street Gaming casino
+    Brandywine Bookmaking casino               WILLIAM HILL ll casino
+    Neon Museum                                Nevada Test Site Historical Foundation museum
+    The Smith Center for Performing Arts       2427/2000 S Las Vegas Blvd variants
+
+The shape: a GAMING OR LIQUOR LICENCE application filed against a street
+address. The venue word is real - casino, museum - so the gate admits it, the
+address becomes the project name, and it clusters as a project. It is not a
+development. Nothing is proposed, nothing is built, and there is no applicant
+who wants anything designed.
+
+WHY IT IS NOT FILTERED TONIGHT. The obvious rule - drop single-record projects -
+is a rule about our own capture depth rather than about the world, and it would
+also drop Spring Valley Ice Rink, which is one record and a real ice rink. The
+discriminator is the INSTRUMENT, not the record count, and reading the
+instrument means reading the filing rather than counting rows.
+
+IT WILL RECUR AND GET WORSE. The moment a Nevada Gaming Control Board lane
+exists, licence filings arrive by the hundred against the same addresses. This
+entry is here so that lane is built with an instrument rule from the start
+rather than discovering the same shape at volume.
+
+RELATED, AND THE REASON THIS WAS SEEN AT ALL: `The Smith Center for Performing
+Arts` and `Neon Museum` are among the 17 projects the name-source measurement
+recorded as correctly named from the applicant field. Their names are right.
+What is wrong is that they are on the register as projects at all.
+
+### A HARNESS THAT SLICES BEFORE IT SEARCHES IS TESTING ITS OWN WINDOW, 2026-08-19
+
+`report.shots.ts` read `options.slice(1, 12)` to find a project with a filing in
+the period. That held while a client scope proposed 14 projects. Widening
+Simtec's scope to include `filed` took it to 43 and the slice became a RACE:
+the light run found Heart Hotel and failed later, the dark run found nothing and
+failed at the search. Same data, same moment, two different errors.
+
+Fixed by searching the whole picker. The assertion did not change.
+
+ONE OTHER INSTANCE, PASSING, NOT CHANGED TONIGHT:
+`company.shots.ts:20` reads `els.slice(0, 8)` to find a project carrying a
+party. It is better behaved - its failure message says "no project in the first
+page had an identified party", so it names its own window rather than implying
+it searched everything - but it is the same shape and it will fail the same way
+if parties get sparser in the first eight rows.
+
+THE SHAPE: a loop that probes the first N of a list THE PRODUCT CONTROLS. The
+list length is a product decision, the N is a harness decision, and nothing
+keeps them in step. Worth a sweep when there is time.

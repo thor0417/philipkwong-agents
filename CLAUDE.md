@@ -15,6 +15,23 @@ for it. Not a completed pass list.
 
 ## Commands
 
+### `scrape:all` IS NOT EVERY SOURCE. IT IS SERPER.
+
+`agents/scraper/orchestrator.ts` contains no reference to the government lane -
+not an import, not a call. `npm run scrape:all` reaches Serper and the
+opportunity, fuel, feasibility and TED lanes. Legistar, NYC ZAP, CEQR, City
+Record, Anaheim, Oakland and govdocs live in `npm run scrape:government`, which
+has its own `main()` and its own adapter table.
+
+A FULL CAPTURE IS BOTH COMMANDS. Government first: it feeds the clusterer the
+Serper half then re-runs. The run report prints `SCOPE: FULL RUN (all pipelines,
+all markets, all sources)` over a Serper-only pass, so the label cannot be
+trusted to tell you which happened - check which command was run.
+
+Every full-run claim in this repo before 2026-08-19 covered Serper plus whatever
+was run by hand. See GLI-ROADMAP.md for why the first run-over-run comparison
+has no left-hand column.
+
 ```
 npm run verify                    root gate: typecheck plus every scraper suite
 npm run verify:staleness          is any configured jurisdiction reading a dead feed
@@ -158,6 +175,21 @@ was answering a question this section answers.
   `reuseExistingServer` is true, so Playwright starts its own once the port is
   free. Same shape as the two rules under "NEVER PIPE A GATE": the run reports
   on something other than the thing you meant to test.
+- AND THE PRE-COMMIT HOOK BUILDS TOO. A running server does not only break
+  `verify`, it REFUSES COMMITS: the hook runs `next build` and reports
+  `dashboard build EXIT 1` on a tree whose build is clean when run on its own.
+  That happened once and cost a diagnosis. Kill the server before committing a
+  dashboard change, not merely before gating one.
+- `npm run verify` in the dashboard CANNOT COMPLETE in this working copy. Its
+  `shots` step starts a dev server over the `.next` it just built, and dev's
+  recursive delete of `.next` hits `EINVAL: readlink` on OneDrive-virtualised
+  files. Use the sequence that works:
+
+      kill by PID  ->  rm -rf .next  ->  npm run build  ->  npm run start
+                   ->  npx playwright test
+
+  Playwright reuses the production server and never invokes dev. Typecheck and
+  build are the other two thirds of `verify` and both run standalone.
 
 **Send to a subagent, not to the main context**
 Any question of the form "where is X handled", "is this asserted anywhere",
