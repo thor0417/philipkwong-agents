@@ -6,7 +6,7 @@
       "projects": 3,
       "named": 2,
       "records": 6,
-      "published": "2984d",
+      "published": "2985d",
       "captured": "21d",
       "why": "the source has published nothing for over a year; declared in lib/dead-feeds"
     },
@@ -16,7 +16,7 @@
       "projects": 3,
       "named": 2,
       "records": 15,
-      "published": "34d",
+      "published": "35d",
       "captured": "10d",
       "why": "the source has published nothing for over a year; declared in lib/dead-feeds"
     },
@@ -56,7 +56,7 @@
       "projects": 9,
       "named": 1,
       "records": 21,
-      "published": "2d",
+      "published": "3d",
       "captured": "1d",
       "why": "1 of 9 projects name a party, so a report scoped here comes out mostly empty"
     },
@@ -86,9 +86,9 @@
       "projects": 36,
       "named": 36,
       "records": 99,
-      "published": "1d",
+      "published": "2d",
       "captured": "1d",
-      "why": "36 live projects, 36 naming a party, newest document 1 days old"
+      "why": "36 live projects, 36 naming a party, newest document 2 days old"
     },
     {
       "market": "Anaheim",
@@ -96,9 +96,9 @@
       "projects": 19,
       "named": 17,
       "records": 73,
-      "published": "9d",
+      "published": "10d",
       "captured": "1d",
-      "why": "19 live projects, 17 naming a party, newest document 9 days old"
+      "why": "19 live projects, 17 naming a party, newest document 10 days old"
     },
     {
       "market": "Phoenix",
@@ -108,7 +108,7 @@
       "records": 17,
       "published": "ahead",
       "captured": "1d",
-      "why": "9 live projects, 9 naming a party, newest document -6 days old"
+      "why": "9 live projects, 9 naming a party, newest document -5 days old"
     },
     {
       "market": "Oakland",
@@ -116,9 +116,9 @@
       "projects": 4,
       "named": 4,
       "records": 8,
-      "published": "30d",
+      "published": "31d",
       "captured": "10d",
-      "why": "4 live projects, 4 naming a party, newest document 30 days old"
+      "why": "4 live projects, 4 naming a party, newest document 31 days old"
     },
     {
       "market": "Westchester County",
@@ -126,9 +126,9 @@
       "projects": 1,
       "named": 1,
       "records": 2,
-      "published": "17d",
+      "published": "18d",
       "captured": "12d",
-      "why": "1 live projects, 1 naming a party, newest document 17 days old"
+      "why": "1 live projects, 1 naming a party, newest document 18 days old"
     }
   ],
   "sources": [
@@ -136,7 +136,7 @@
       "source": "iadb",
       "quiet": true,
       "records": 1,
-      "published": "9362d",
+      "published": "9363d",
       "captured": "10d",
       "thisRun": "unknown",
       "feeds": ""
@@ -181,7 +181,7 @@
       "source": "nyc-zap",
       "quiet": true,
       "records": 43,
-      "published": "85d",
+      "published": "86d",
       "captured": "1d",
       "thisRun": "48",
       "feeds": "New York City"
@@ -226,7 +226,7 @@
       "source": "worldbank",
       "quiet": false,
       "records": 76,
-      "published": "14d",
+      "published": "15d",
       "captured": "10d",
       "thisRun": "unknown",
       "feeds": ""
@@ -235,7 +235,7 @@
       "source": "agenda-portal",
       "quiet": false,
       "records": 112,
-      "published": "9d",
+      "published": "10d",
       "captured": "1d",
       "thisRun": "17",
       "feeds": "Anaheim, Las Vegas"
