@@ -17,7 +17,7 @@
       "named": 2,
       "records": 15,
       "published": "34d",
-      "captured": "9d",
+      "captured": "10d",
       "why": "the source has published nothing for over a year; declared in lib/dead-feeds"
     },
     {
@@ -117,7 +117,7 @@
       "named": 4,
       "records": 8,
       "published": "30d",
-      "captured": "9d",
+      "captured": "10d",
       "why": "4 live projects, 4 naming a party, newest document 30 days old"
     },
     {
@@ -191,7 +191,7 @@
       "quiet": false,
       "records": 63,
       "published": "28d",
-      "captured": "9d",
+      "captured": "10d",
       "thisRun": "63",
       "feeds": "New York City"
     },
@@ -200,7 +200,7 @@
       "quiet": false,
       "records": 69,
       "published": "27d",
-      "captured": "9d",
+      "captured": "10d",
       "thisRun": "97",
       "feeds": "New York City"
     },
