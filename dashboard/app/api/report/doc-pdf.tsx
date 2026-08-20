@@ -14,7 +14,16 @@
 
 import React from 'react';
 import { Document, Page, Text, View, StyleSheet, Link, renderToBuffer } from '@react-pdf/renderer';
-import { basisLine, type Entry, type ReportDocument, type Line } from '@/lib/report-model';
+import {
+  basisLine,
+  groupFigures,
+  sharedFigureSource,
+  suppressRepeatedSources,
+  type Entry,
+  type EntryFigure,
+  type ReportDocument,
+  type Line,
+} from '@/lib/report-model';
 
 const INK = '#1a1a1a';
 const MUTED = '#6b6b6b';
@@ -86,6 +95,9 @@ const s = StyleSheet.create({
 
   // A HEADING INSIDE A SECTION: "Record provenance (our captured filings)".
   subTitle: { fontSize: 9, marginTop: 10, marginBottom: 4 },
+  // The one citation a whole block shares, under its heading. Same colour and
+  // size as a per-line link so a reader recognises it as the same thing.
+  subSource: { fontSize: 7.5, color: ACCENT, textDecoration: 'none', marginBottom: 5, paddingLeft: 8 },
 
   // THE PEOPLE BLOCK. Set between the description and the filings, because that
   // is the order the question is asked in: what is this, who is behind it, what
@@ -112,19 +124,60 @@ const s = StyleSheet.create({
   footText: { fontSize: 7, color: MUTED },
 });
 
-function LineRow({ l }: { l: Line }) {
+// hideSource is set when the line above carried the same citation. See
+// suppressRepeatedSources: the claim is unchanged, the repetition is not.
+function LineRow({ l, hideSource }: { l: Line; hideSource?: boolean }) {
   return (
     <View style={s.line} wrap={false}>
       <Text style={[s.tag, l.provenance === 'ASSESSMENT' ? s.tagAssessment : {}]}>[{l.provenance}]</Text>
       <View style={s.body}>
         <Text style={s.text}>{l.text}</Text>
         {l.meta ? <Text style={s.meta}>{l.meta}</Text> : null}
-        {l.source ? (
+        {l.source && !hideSource ? (
           <Link src={l.source} style={s.link}>
             {l.sourceLabel ?? l.source}
           </Link>
         ) : null}
       </View>
+    </View>
+  );
+}
+
+// A FIGURE BLOCK, WITH EACH QUOTATION PRINTED ONCE.
+//
+// Figures read out of the SAME sentence are gathered into one row - see
+// groupFigures - and where the whole block came from one document the citation
+// is printed once at its head instead of once per row. Both are presentation:
+// every figure keeps its own label, value, sentence and link, and the provenance
+// gate has already checked each of them individually.
+function FigureRows({ figures }: { figures: EntryFigure[] }) {
+  const one = sharedFigureSource(figures);
+  const groups = groupFigures(figures);
+  return (
+    <View>
+      {one ? (
+        <Link src={one.url} style={s.subSource}>
+          {one.sourceLabel}
+        </Link>
+      ) : null}
+      {groups.map((g, i) => (
+        <View key={i} style={s.party} wrap={false}>
+          <Text style={s.partyTag}>[{g.provenance}]</Text>
+          <View style={s.partyBody}>
+            <Text style={s.partyName}>
+              {g.items.map((it) => `${it.label}: ${it.display}`).join('; ')}
+            </Text>
+            {/* What the source actually said. The label cannot say what an
+                amount was for; this can. */}
+            <Text style={s.partyDetail}>&ldquo;{g.sentence}&rdquo;</Text>
+            {one ? null : (
+              <Link src={g.url} style={s.link}>
+                {g.sourceLabel}
+              </Link>
+            )}
+          </View>
+        </View>
+      ))}
     </View>
   );
 }
@@ -169,20 +222,9 @@ function EntryBlock({ e }: { e: Entry }) {
       {e.stated.length > 0 && (
         <View style={s.people}>
           <Text style={s.peopleHead}>What the filings state</Text>
-          {e.stated.map((f, i) => (
-            <View key={i} style={s.party} wrap={false}>
-              <Text style={s.partyTag}>[{f.provenance}]</Text>
-              <View style={s.partyBody}>
-                <Text style={s.partyName}>
-                  {f.label}: {f.display}
-                </Text>
-                <Text style={s.partyDetail}>&ldquo;{f.sentence}&rdquo;</Text>
-                <Link src={f.url} style={s.link}>
-                  {f.sourceLabel}
-                </Link>
-              </View>
-            </View>
-          ))}
+          {/* One citation for a block that came from one document. Heart Hotel's
+              sixteen stated fields carried sixteen copies of the same line. */}
+          <FigureRows figures={e.stated} />
           {e.statedHeld > 0 ? (
             <Text style={s.partyDetail}>
               {e.statedHeld} further stated figure{e.statedHeld === 1 ? '' : 's'} held back to keep
@@ -195,22 +237,7 @@ function EntryBlock({ e }: { e: Entry }) {
       {e.scale.length > 0 && (
         <View style={s.people}>
           <Text style={s.peopleHead}>Scale, as reported in the press</Text>
-          {e.scale.map((f, i) => (
-            <View key={i} style={s.party} wrap={false}>
-              <Text style={s.partyTag}>[{f.provenance}]</Text>
-              <View style={s.partyBody}>
-                <Text style={s.partyName}>
-                  {f.label}: {f.display}
-                </Text>
-                {/* What the publication actually said. The label cannot say what
-                    an amount was for; this can. */}
-                <Text style={s.partyDetail}>&ldquo;{f.sentence}&rdquo;</Text>
-                <Link src={f.url} style={s.link}>
-                  {f.sourceLabel}
-                </Link>
-              </View>
-            </View>
-          ))}
+          <FigureRows figures={e.scale} />
           {e.scaleHeld > 0 ? (
             <Text style={s.partyDetail}>
               {e.scaleHeld} further reported figure{e.scaleHeld === 1 ? '' : 's'} held back to keep
@@ -287,6 +314,16 @@ function DocBody({ doc }: { doc: ReportDocument }) {
         {/* THE SCOPING STATEMENT, ON THE COVER, ALWAYS. A report scoped to
             Nevada says so on its face; it never silently omits. */}
         <View style={s.scopeBox}>
+          {/* THE MATTER FIRST WHERE THERE IS ONE. A referral brief is about a
+              thing, and the thing is what a recipient looks for before they
+              look for where it is. Absent on a market report, which is about a
+              place rather than about a matter. */}
+          {doc.scope.matter ? (
+            <View style={s.scopeRow}>
+              <Text style={s.scopeKey}>Matter</Text>
+              <Text style={s.scopeVal}>{doc.scope.matter}</Text>
+            </View>
+          ) : null}
           <View style={s.scopeRow}>
             <Text style={s.scopeKey}>Geography</Text>
             <Text style={s.scopeVal}>{doc.scope.geography}</Text>
@@ -340,15 +377,23 @@ function DocBody({ doc }: { doc: ReportDocument }) {
                 {d}
               </Text>
             ))}
-            {(sec.subsections ?? []).map((sub, i) => (
-              <View key={`s${i}`}>
-                <Text style={s.subTitle}>{sub.title}</Text>
-                {sub.lines.map((l, j) => (
-                  <LineRow key={j} l={l} />
-                ))}
-                {sub.emptyNote ? <Text style={s.empty}>{sub.emptyNote}</Text> : null}
-              </View>
-            ))}
+            {(sec.subsections ?? []).map((sub, i) => {
+              // A CITATION IS PRINTED WHEN IT CHANGES, never twice in a row -
+              // the same rule the geography subheadings use. Heart Hotel's 51
+              // conditions carried 51 copies of one line; its 16 stated fields
+              // carried 16 of which 15 were identical. See
+              // suppressRepeatedSources in lib/report-model.
+              const repeats = suppressRepeatedSources(sub.lines);
+              return (
+                <View key={`s${i}`}>
+                  <Text style={s.subTitle}>{sub.title}</Text>
+                  {sub.lines.map((l, j) => (
+                    <LineRow key={j} l={l} hideSource={repeats[j]} />
+                  ))}
+                  {sub.emptyNote ? <Text style={s.empty}>{sub.emptyNote}</Text> : null}
+                </View>
+              );
+            })}
             {/* GEOGRAPHY AS A SUBHEADING, PRINTED ONLY WHEN IT CHANGES. The
                 entries arrive already ordered by market, so a heading per
                 change is a heading per market: one market, one subheading. */}
@@ -374,7 +419,7 @@ function DocBody({ doc }: { doc: ReportDocument }) {
 
         <View style={s.footer} fixed>
           <Text style={s.footText}>
-            {doc.brandName} | {doc.scope.geography} | {doc.scope.period}
+            {doc.brandName} | {doc.scope.matter ?? doc.scope.geography} | {doc.scope.period}
           </Text>
           <Text style={s.footText} render={({ pageNumber, totalPages }) => `${pageNumber} / ${totalPages}`} />
         </View>

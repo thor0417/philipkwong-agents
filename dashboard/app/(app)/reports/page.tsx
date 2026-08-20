@@ -36,7 +36,7 @@ import {
   SECTION_REGISTRY,
   sectionById,
 } from '@/lib/report-sections';
-import { basisLine, estimatePages, provenanceTally } from '@/lib/report-model';
+import { basisLine, estimatePages, provenanceTally, suppressRepeatedSources } from '@/lib/report-model';
 import styles from './page.module.css';
 
 const TEMPLATE_KEY = 'pk-report-templates';
@@ -882,6 +882,8 @@ export default function ReportsPage() {
 
             <div className={styles.scopeBox}>
               {([
+                // The matter first where there is one; see DocumentScopeStatement.
+                ...(doc.scope.matter ? ([['Matter', doc.scope.matter]] as const) : []),
                 ['Geography', doc.scope.geography],
                 ['Period', doc.scope.period],
                 ['Pipeline', doc.scope.pipeline],
@@ -921,6 +923,51 @@ export default function ReportsPage() {
                     {sec.lines.length - 40} further lines in the generated document.
                   </p>
                 )}
+
+                {/* THE SUBSECTIONS, WHICH THIS PREVIEW DID NOT RENDER AT ALL.
+                    This file opens by saying the preview IS the document - same
+                    sections, same lines, same provenance tags, same order - and
+                    it silently dropped every subsection. On a referral brief that
+                    is the conditions of approval: Heart Hotel's 51 conditions,
+                    the single largest block in the document and the one a
+                    referral is written for, were invisible here while the
+                    heading and its lede were not. Same shape as the golden case
+                    a-read-back-tool-builds-the-clients-document - a preview that
+                    is not the document is worse than none, because it is
+                    trusted. Capped like the entries below, and the cap SAYS SO. */}
+                {(sec.subsections ?? []).map((sub, si) => {
+                  // A citation is printed when it changes, never twice in a row.
+                  // See suppressRepeatedSources in lib/report-model.
+                  const repeats = suppressRepeatedSources(sub.lines);
+                  const shown = sub.lines.slice(0, 12);
+                  return (
+                    <div key={`sub${si}`} className={styles.docSubsection} data-doc-subsection={sub.title}>
+                      <h4 className={styles.docSubTitle}>{sub.title}</h4>
+                      {shown.map((l, i) => (
+                        <div key={i} className={styles.docLine}>
+                          <span
+                            className={`${styles.tag} ${l.provenance === 'ASSESSMENT' ? styles.tagAssessment : ''}`}
+                          >
+                            [{l.provenance}]
+                          </span>
+                          <span className={styles.lineText}>
+                            {l.text}
+                            {l.meta && <div className={styles.lineMeta}>{l.meta}</div>}
+                            {l.source && !repeats[i] && (
+                              <div className={styles.lineSource}>{l.sourceLabel ?? l.source}</div>
+                            )}
+                          </span>
+                        </div>
+                      ))}
+                      {sub.lines.length > shown.length && (
+                        <p className={styles.emptyNote}>
+                          {sub.lines.length - shown.length} further lines in the generated document.
+                        </p>
+                      )}
+                      {sub.emptyNote && <p className={styles.emptyNote}>{sub.emptyNote}</p>}
+                    </div>
+                  );
+                })}
 
                 {/* THE ENTRIES. Capped for the preview only - the generated
                     document carries all of them - and the cap says so, because

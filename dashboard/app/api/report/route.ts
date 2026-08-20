@@ -114,6 +114,7 @@ async function xlsx(doc: ReportDocument): Promise<Buffer> {
   // exactly the silent omission the brief forbids.
   ws.addRow([doc.title]);
   ws.addRow([`Prepared for ${doc.addressee} by ${doc.brandName}`]);
+  if (doc.scope.matter) ws.addRow([`Matter: ${doc.scope.matter}`]);
   ws.addRow([`Geography: ${doc.scope.geography}`]);
   ws.addRow([`Period: ${doc.scope.period}${doc.scope.periodOpen ? ' (not closed)' : ''}`]);
   ws.addRow([`Filters: ${doc.scope.filters.join(' | ') || 'none'}`]);

@@ -26,7 +26,7 @@ function docWith(sections: ReportDocument['sections']): ReportDocument {
     addressee: 'A',
     clientName: null,
     generatedAt: '2026-08-06T00:00:00.000Z',
-    scope: { geography: 'Nevada', period: 'July 2026', pipeline: 'hospitality', filters: [], periodOpen: false },
+    scope: { geography: 'Nevada', matter: null, period: 'July 2026', pipeline: 'hospitality', filters: [], periodOpen: false },
     sections,
     projectCount: 1,
     recordCount: 1,

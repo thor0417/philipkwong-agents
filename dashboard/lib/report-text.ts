@@ -11,11 +11,14 @@
 // actually inspects and therefore the parts a check has to cover.
 
 import type { Entry, ReportDocument, Line, Section } from './report-model';
-import { basisLine, evidenceAdds } from './report-model';
+import { basisLine, evidenceAdds, suppressRepeatedSources } from './report-model';
 
-function lineText(l: Line): string {
+// hideSource is set when the line above carried the same citation. See
+// suppressRepeatedSources: a citation is printed when it CHANGES.
+function lineText(l: Line, hideSource = false): string {
   const meta = l.meta ? `  (${l.meta})` : '';
-  const src = l.source ? `\n           ${l.sourceLabel ?? ''} ${l.source}`.trimEnd() : '';
+  const src =
+    l.source && !hideSource ? `\n           ${l.sourceLabel ?? ''} ${l.source}`.trimEnd() : '';
   return `  [${l.provenance}] ${l.text}${meta}${src}`;
 }
 
@@ -116,7 +119,9 @@ function sectionText(sec: Section): string {
   for (const sub of sec.subsections ?? []) {
     out.push('');
     out.push(`#### ${sub.title}`);
-    for (const l of sub.lines) out.push(lineText(l));
+    // A citation is printed when it changes, never twice in a row.
+    const repeats = suppressRepeatedSources(sub.lines);
+    sub.lines.forEach((l, i) => out.push(lineText(l, repeats[i])));
     if (sub.emptyNote) out.push(`  ${sub.emptyNote}`);
   }
   let lastGroup: string | null | undefined;
@@ -140,6 +145,7 @@ export function renderDocumentText(doc: ReportDocument): string {
   out.push(`## ${doc.title}`);
   out.push(`Prepared for ${doc.addressee || '(no addressee)'}`);
   out.push('');
+  if (doc.scope.matter) out.push(`Matter     ${doc.scope.matter}`);
   out.push(`Geography  ${doc.scope.geography}`);
   out.push(`Period     ${doc.scope.period}`);
   out.push(`Pipeline   ${doc.scope.pipeline}`);

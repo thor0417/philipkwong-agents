@@ -166,6 +166,36 @@ export interface BuiltReport {
   membershipGate: 'enforced' | 'no-client' | 'not-applied';
 }
 
+/**
+ * WHAT THE CLIENT'S SCOPE AXES DID, ON A DOCUMENT ABOUT ONE MATTER.
+ *
+ * A referral brief is selected by project id, not by the scope. The stage and
+ * venue arrays still RAN - they are why this matter was offered in the picker at
+ * all - and they narrowed nothing in the document a recipient is holding. So the
+ * cover states their existence, their size and their effect in one sentence
+ * instead of listing nineteen of them as though each one shaped this brief.
+ *
+ * Nothing is hidden: the counts are here, and the client scope itself is on the
+ * Clients screen. Standing rule 3 asks for the count and the reason, which is
+ * exactly what this is.
+ */
+function scopeAxisSentence(scope: ClientScope): string {
+  const parts: string[] = [];
+  const n = (a: unknown[] | null | undefined) => (a ?? []).length;
+  if (n(scope.stages)) parts.push(`${n(scope.stages)} stages`);
+  if (n(scope.venue_types)) parts.push(`${n(scope.venue_types)} venue types`);
+  if (n(scope.development_categories)) parts.push(`${n(scope.development_categories)} categories`);
+  if (n(scope.streams)) parts.push(`${n(scope.streams)} streams`);
+  if (parts.length === 0) {
+    return 'this brief is restricted to one matter, and the client scope constrains no other axis';
+  }
+  const list = parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`;
+  return (
+    `this brief is restricted to one matter; the client scope (${list}) is what made it eligible ` +
+    `and did not narrow this document further`
+  );
+}
+
 export async function buildReport(req: BuildRequest): Promise<BuiltReport> {
   const { query, postFilters, streams, recordFacets } = resolveScope(req.scope);
 
@@ -772,7 +802,20 @@ export async function buildReport(req: BuildRequest): Promise<BuiltReport> {
     clientName: req.clientName,
     generatedAt: new Date().toISOString(),
     scope: {
-      geography: req.geographyLabel,
+      // ---- A PLACE IN THE PLACE ROW, AND THE MATTER IN ITS OWN --------------
+      //
+      // req.geographyLabel is the project's NAME when one project is selected -
+      // the composer and generate.ts both pass it that way, and correctly, since
+      // it is what the footer and the delivery record want. It is not a place,
+      // and it was printed under the heading GEOGRAPHY three lines above a cover
+      // sentence naming Clark County.
+      //
+      // So the place row is now read off the project itself, and the label the
+      // caller passed moves to `matter`, where the footer reads it. Neither
+      // answer is invented: both are stored columns on the row this document is
+      // about.
+      geography: singleProject ? placeOf(projects[0]) || req.geographyLabel : req.geographyLabel,
+      matter: singleProject ? req.geographyLabel : null,
       // THE COVER STATES THE SPAN OF WHAT IT HOLDS, NOT A FILTER IT DID NOT
       // APPLY. A referral brief covers the project's whole history, so printing
       // "August 2026" on it would describe a filter that is not there and would
@@ -783,15 +826,32 @@ export async function buildReport(req: BuildRequest): Promise<BuiltReport> {
         req.watchlistOnly ? 'watch list only' : '',
         req.includeDormant ? 'dormant included' : 'dormant excluded',
         req.includeContext ? 'context records included' : 'context records excluded',
+        // ---- THE SCOPE AXES, COUNTED ON A BRIEF AND LISTED ON A REPORT -------
+        //
         // EVERY AXIS THE SCOPE CONSTRAINS, on the cover. The list is built from
         // the same arrays resolveScope filters on, so a filter that is applied
         // and a filter that is printed cannot come apart.
-        ...(req.scope.stages ?? []).map((s) => `stage: ${s}`),
-        ...(req.scope.venue_types ?? []).map((s) => `venue: ${s}`),
-        ...(req.scope.development_categories ?? []).map((s) => `category: ${s}`),
-        // The cover names the stream the way the product does, not the way the
-        // column stores it. See lib/streams.
-        ...(req.scope.streams ?? []).map((s) => `stream: ${streamLabel(s)}`),
+        //
+        // On a ONE-MATTER BRIEF that list is nineteen entries of stage and venue
+        // wrapping across four lines, and not one of them narrowed the document:
+        // the project id did. They describe the population this matter was drawn
+        // FROM, which is a fact about the client's scope and not about this
+        // brief - and printing them as this brief's filters tells a recipient
+        // the document was narrowed in ways it was not.
+        //
+        // Counted rather than dropped, because standing rule 3 has no exemption
+        // for a list that reads badly: the reader is told the axes exist, how
+        // many there are, and what they did.
+        ...(singleProject
+          ? [scopeAxisSentence(req.scope)]
+          : [
+              ...(req.scope.stages ?? []).map((s) => `stage: ${s}`),
+              ...(req.scope.venue_types ?? []).map((s) => `venue: ${s}`),
+              ...(req.scope.development_categories ?? []).map((s) => `category: ${s}`),
+              // The cover names the stream the way the product does, not the way
+              // the column stores it. See lib/streams.
+              ...(req.scope.streams ?? []).map((s) => `stream: ${streamLabel(s)}`),
+            ]),
       ].filter(Boolean),
       periodOpen: !req.period.closed,
     },

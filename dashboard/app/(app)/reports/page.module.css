@@ -226,6 +226,19 @@
   margin: 0 0 var(--space-8);
 }
 
+/* A SUBSECTION INSIDE THE PREVIEWED DOCUMENT. On a referral brief this is the
+   conditions of approval, grouped by the matter that carries them. Only tokens
+   from app/tokens.css, like everything else on this screen. */
+.docSubsection {
+  margin: var(--space-8) 0 var(--space-8);
+}
+
+.docSubTitle {
+  font-size: var(--type-caption);
+  color: var(--ink-muted);
+  margin: 0 0 var(--space-4);
+}
+
 .docLine {
   display: flex;
   gap: var(--space-8);

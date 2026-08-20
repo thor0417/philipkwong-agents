@@ -657,6 +657,100 @@ export interface Subsection {
   emptyNote?: string;
 }
 
+/**
+ * FIGURES THAT CAME OUT OF THE SAME SENTENCE, GATHERED INTO ONE ROW.
+ *
+ * Heart Hotel's press block printed this, three times, one after another:
+ *
+ *   [PRESS] rooms: 752 rooms.   "Kulik River Capital purchased the nearly
+ *           12-acre property and proposed building 29-story hotel tower with 752
+ *           rooms, a six-story parking garage, a casino floor, restaurants,
+ *           entertainment, convention space and pool."   news3lv.com
+ *   [PRESS] storeys: 29-story.  "Kulik River Capital purchased the nearly ...
+ *   [PRESS] site: 12-acre.      "Kulik River Capital purchased the nearly ...
+ *
+ * One sentence, three figures read out of it, and the reader meets the same
+ * forty words three times and has to compare them to notice they are identical.
+ * The evidence is one quotation and it is presented as three.
+ *
+ * THE PROVENANCE RULE IS UNTOUCHED, and this is why the grouping key is the URL
+ * AND the sentence rather than the URL alone. Every figure still prints its own
+ * label and value, still sits under the sentence it was quoted from, and still
+ * carries the link to the article. The gate's requirement - that a value appear
+ * in the sentence stored beside it - is a property of each figure and is checked
+ * before this runs. Figures from the same article but DIFFERENT sentences stay
+ * apart, because there the second quotation is carrying information.
+ */
+export interface FigureGroup {
+  provenance: 'PRESS' | 'RECORD';
+  items: { label: string; display: string }[];
+  sentence: string;
+  url: string;
+  sourceLabel: string;
+}
+
+export function groupFigures(figures: EntryFigure[]): FigureGroup[] {
+  const order: string[] = [];
+  const by = new Map<string, FigureGroup>();
+  for (const f of figures) {
+    // NUL-joined so a url ending in the sentence's first characters cannot
+    // collide with a different pair.
+    const key = `${f.url} ${f.sentence}`;
+    if (!by.has(key)) {
+      order.push(key);
+      by.set(key, {
+        provenance: f.provenance,
+        items: [],
+        sentence: f.sentence,
+        url: f.url,
+        sourceLabel: f.sourceLabel,
+      });
+    }
+    by.get(key)!.items.push({ label: f.label, display: f.display });
+  }
+  return order.map((k) => by.get(k)!);
+}
+
+/** The one article or filing a whole figure block came from, where there is one. */
+export function sharedFigureSource(
+  figures: EntryFigure[]
+): { url: string; sourceLabel: string } | null {
+  if (figures.length < 2) return null;
+  const first = figures[0];
+  for (const f of figures) {
+    if (f.url !== first.url || f.sourceLabel !== first.sourceLabel) return null;
+  }
+  return { url: first.url, sourceLabel: first.sourceLabel };
+}
+
+/**
+ * WHICH LINES IN A BLOCK MAY DROP THEIR CITATION: the ones whose citation is the
+ * same as the line immediately above. Returns one flag per line, in order.
+ *
+ * THE SAME IDIOM THE GEOGRAPHY SUBHEADINGS USE - printed when it CHANGES, never
+ * twice in a row - and it is strictly better here than the all-or-nothing test
+ * sharedSource makes. Measured on Heart Hotel's sixteen stated fields: fifteen
+ * come from the July minutes and one, the tentative map's project type, comes
+ * from a different attachment. sharedSource sees two documents and keeps all
+ * sixteen citations; this keeps three - the first, the one that changes, and the
+ * one that changes back - which is exactly the information a reader needs and
+ * none of the repetition.
+ *
+ * THE CLAIM IS UNCHANGED. Every Line still carries its own source and the
+ * provenance gate still checks each one; this decides only whether the renderer
+ * prints it again. A block of 51 conditions from one staff report prints one
+ * citation, and a block whose source alternates prints it at every change.
+ */
+export function suppressRepeatedSources(lines: Line[]): boolean[] {
+  let previous: string | null = null;
+  return lines.map((l) => {
+    const key = l.source ? `${l.source} ${l.sourceLabel ?? ''}` : null;
+    const repeats = key !== null && key === previous;
+    previous = key;
+    return repeats;
+  });
+}
+
 // ---- TWO MORE DERIVED SENTENCES, FOR THE REFERRAL BRIEF ----------------------
 //
 // Both open with their own fixed phrase, checked by the gate for the same
@@ -797,7 +891,23 @@ export interface Section {
 
 export interface DocumentScopeStatement {
   // Printed on the cover, always. A report scoped to Nevada says so.
+  //
+  // A PLACE. It held a PROJECT NAME on every referral brief, because the composer
+  // passes the project's name as the geography label when one is selected, so the
+  // cover read "GEOGRAPHY Heart Hotel / Kulik River" three lines above a sentence
+  // saying the matter is in Clark County. Two answers to "where", one of them not
+  // a place. See `matter`, which is where the name belongs.
   geography: string;
+  /**
+   * THE ONE MATTER A REFERRAL BRIEF IS ABOUT. Null on a market report.
+   *
+   * Split out rather than overloaded onto geography, because the two are read in
+   * different places and a reader needs both: the running footer wants to say
+   * WHICH BRIEF this page belongs to, and the scope block wants to say where the
+   * thing is. Before this they were the same string and only one of them could
+   * be right.
+   */
+  matter: string | null;
   period: string;
   pipeline: string;
   filters: string[];
