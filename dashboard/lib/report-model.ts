@@ -456,6 +456,23 @@ export interface Entry {
   // in the line stored beside it does not print.
   stated: EntryFigure[];
   statedHeld: number;
+  /**
+   * WHERE PUBLICATIONS DISAGREE WITH EACH OTHER, SAID OUT LOUD. Null when they
+   * do not, which is almost every project.
+   *
+   * OCVibe prints $5 billion, $4B, $1 billion, 100 acres and 20 acres, each
+   * correctly quoted and attributed, and nothing on the page tells a reader they
+   * describe different things or different moments. A reader takes the largest
+   * and treats the rest as noise, or takes the first and is wrong.
+   *
+   * THE STAGE GOT A RECONCILIATION SENTENCE THIS WEEK AND FIGURES DID NOT. This
+   * is that sentence for figures: it names the kinds that carry more than one
+   * value and counts them, and it CHARACTERISES NOTHING - it does not say which
+   * is right, does not average them, and does not guess whether they are a
+   * revision or two different scopes. The quotations below it are what a reader
+   * uses to decide, which is why each already carries its publisher.
+   */
+  scaleDisagreement: string | null;
   // WHEN THIS MATTER WAS NEXT DUE TO BE HEARD, and which side of today that is.
   //
   // THE ACTIONABILITY THE BRIEF IS SOLD ON, and it was already captured and

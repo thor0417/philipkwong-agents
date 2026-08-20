@@ -800,6 +800,36 @@ export function distinctRecordParties(
  * attached to. Built by the caller because it needs a query; absent, every
  * alsoOn stays null and nothing is claimed.
  */
+/**
+ * HOW THE RECORD SAYS TO REACH THIS PARTY, INCLUDING WHEN IT DOES NOT.
+ *
+ * Tropicana Land printed "Holland & Hart LLP - representative, contact named in
+ * the filing. 5470 Kietzke Lane #100, Reno, NV 89511. No phone or email in the
+ * record." A reader's next question is "who at Holland & Hart", and the document
+ * left it hanging: it named a contact, gave an address, and never said that no
+ * individual is named there.
+ *
+ * The obvious fix is to detect that Holland & Hart is a firm and say so. That is
+ * refused. A name cannot be told from a firm in this corpus - measured, the
+ * shape rule consolidates 4 identities and misreads 31 company names as people -
+ * and inferring a type from a name is the defect standing rule 8 was written
+ * for, six times over.
+ *
+ * So the sentence states what is true without typing anything: there is no
+ * phone, no email, and no second name given alongside this one. That is exactly
+ * as true of a law firm with no partner named as it is of an individual with no
+ * firm, and it answers the reader's question in both cases.
+ */
+export function reachSentence(p: {
+  contact: PartyContact | null;
+  firm: string | null;
+}): string {
+  const detail = [p.contact?.email, p.contact?.phone].filter(Boolean).join(', ');
+  if (detail) return detail;
+  if (p.firm) return 'No phone or email in the record.';
+  return 'No phone or email in the record, and no other name alongside it.';
+}
+
 export interface PartyHistory {
   /** Projects OTHER than the one being described. */
   projects: { market: string | null; role: string | null }[];

@@ -41,7 +41,7 @@ import { deadFeedForMarket, frozenMarketSentence, monthYear, type DeadFeed } fro
 // is: capture and print must agree about what a client may be shown. See
 // SELF_PUBLISHED_HOSTS there for why this list is NOT the junk list.
 import { hostOf, isSelfPublished } from '../../agents/scraper/junk-domains';
-import type { PartyHistory } from './people';
+import { reachSentence, type PartyHistory } from './people';
 
 export interface SectionContext {
   // Every project in scope, after the scope, dormancy, stream and hollowness
@@ -1457,6 +1457,13 @@ const referralProject: SectionDef = {
               `to keep this list readable.`
             : undefined,
       });
+      // WHERE THE PUBLICATIONS DISAGREE, THE BLOCK SAYS SO. The stage got a
+      // reconciliation sentence and figures did not, so OCVibe printed $5bn,
+      // $4B and $1 billion, and 100 acres against 20, with nothing telling a
+      // reader they are different claims. See Entry.scaleDisagreement.
+      if (e.scaleDisagreement) {
+        subsections[subsections.length - 1].lines.push(...commentaryLines(e.scaleDisagreement));
+      }
     }
     // THE PRESS HEADLINES ARE NOT IN THIS SECTION ANY MORE. See referralPress
     // below: fifteen of them sat between the filings and THE PEOPLE and pushed
@@ -1517,9 +1524,9 @@ const referralPeople: SectionDef = {
       const detail = [
         party.firm,
         party.address,
-        party.contact?.email || party.contact?.phone
-          ? [party.contact?.email, party.contact?.phone].filter(Boolean).join(', ')
-          : 'No phone or email in the record',
+        // See reachSentence: the negative also says that no second name is
+        // given, because "who at the firm" is the reader's next question.
+        reachSentence(party),
         party.alsoOn,
       ]
         .filter(Boolean)

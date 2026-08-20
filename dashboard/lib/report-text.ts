@@ -12,6 +12,7 @@
 
 import type { Entry, ReportDocument, Line, Section } from './report-model';
 import { basisLine, evidenceAdds, suppressRepeatedSources } from './report-model';
+import { reachSentence } from './people';
 
 // hideSource is set when the line above carried the same citation. See
 // suppressRepeatedSources: a citation is printed when it CHANGES.
@@ -67,6 +68,7 @@ function entryText(e: Entry): string {
       out.push(`             "${f.sentence}"`);
       out.push(`             ${f.sourceLabel}: ${f.url}`);
     }
+    if (e.scaleDisagreement) out.push(`    ${e.scaleDisagreement}`);
     if (e.scaleHeld > 0) {
       out.push(
         `    ${e.scaleHeld} further reported figure${e.scaleHeld === 1 ? '' : 's'} ` +
@@ -80,13 +82,7 @@ function entryText(e: Entry): string {
       out.push(`    [${p.provenance}] ${p.name} - ${p.roles.join(', ')}`);
       if (p.firm) out.push(`             ${p.firm}`);
       if (p.address) out.push(`             ${p.address}`);
-      out.push(
-        `             ${
-          p.contact
-            ? [p.contact.email, p.contact.phone].filter(Boolean).join(', ')
-            : 'No phone or email in the record.'
-        }`
-      );
+      out.push(`             ${reachSentence(p)}`);
       if (p.alsoOn) out.push(`             ${p.alsoOn}`);
       if (p.mergedFrom.length) out.push(`             also filed as: ${p.mergedFrom.join('; ')}`);
       out.push(`             named in: ${p.sourceLabel} ${p.sourceUrl}`);

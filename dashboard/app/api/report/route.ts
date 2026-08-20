@@ -31,6 +31,7 @@ import {
 } from '@/lib/report-model';
 import { requireUser } from '@/lib/api-auth';
 import { createClient } from '@supabase/supabase-js';
+import { reachSentence } from '../../../lib/people';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -77,9 +78,7 @@ function toRows(doc: ReportDocument): string[][] {
           party.roles.join('; '),
           party.firm,
           party.address,
-          party.contact
-            ? [party.contact.email, party.contact.phone].filter(Boolean).join(', ')
-            : 'No phone or email in the record.',
+          reachSentence(party),
           party.alsoOn,
         ]
           .filter(Boolean)

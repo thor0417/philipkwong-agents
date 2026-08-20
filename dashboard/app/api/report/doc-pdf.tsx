@@ -14,6 +14,7 @@
 
 import React from 'react';
 import { Document, Page, Text, View, StyleSheet, Link, renderToBuffer } from '@react-pdf/renderer';
+import { reachSentence } from '../../../lib/people';
 import {
   basisLine,
   groupFigures,
@@ -238,6 +239,10 @@ function EntryBlock({ e }: { e: Entry }) {
         <View style={s.people}>
           <Text style={s.peopleHead}>Scale, as reported in the press</Text>
           <FigureRows figures={e.scale} />
+          {/* Where the publications disagree. See Entry.scaleDisagreement. */}
+          {e.scaleDisagreement ? (
+            <Text style={s.partyDetail}>{e.scaleDisagreement}</Text>
+          ) : null}
           {e.scaleHeld > 0 ? (
             <Text style={s.partyDetail}>
               {e.scaleHeld} further reported figure{e.scaleHeld === 1 ? '' : 's'} held back to keep
@@ -260,11 +265,8 @@ function EntryBlock({ e }: { e: Entry }) {
                   {` (${party.roles.join('; ')})`}
                 </Text>
                 {party.address ? <Text style={s.partyDetail}>{party.address}</Text> : null}
-                <Text style={s.partyDetail}>
-                  {party.contact
-                    ? [party.contact.email, party.contact.phone].filter(Boolean).join(', ')
-                    : 'No phone or email in the record.'}
-                </Text>
+                {/* See reachSentence in lib/people. */}
+                <Text style={s.partyDetail}>{reachSentence(party)}</Text>
                 {party.alsoOn ? <Text style={s.partyDetail}>{party.alsoOn}</Text> : null}
                 <Link src={party.sourceUrl} style={s.link}>
                   {party.sourceLabel}

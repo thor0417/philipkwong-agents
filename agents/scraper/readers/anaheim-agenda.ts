@@ -58,7 +58,78 @@ export function isSpanishAgenda(text: string): boolean {
 // with a hotel item and a church item must not merge their acreage.
 const ITEM = /ITEM\s+NO\.\s*(\d{1,2})\s+((?:DEVELOPMENT APPLICATION|CONDITIONAL USE PERMIT|VARIANCE|TENTATIVE)[^\n]{0,80})/gi;
 
-const FIELDS: { kind: FilingFactKind; label: string; re: RegExp; numeric?: boolean }[] = [
+// AND A LINE END IS NOT A VALUE END EITHER, WHICH IS WHERE THIS ONE ACTUALLY
+// CAME FROM. The document says "Categorically Exempt from the provisions of the
+// California \nEnvironmental  Quality  Act  (CEQA)  pursuant  to  State \nCEQA
+// Guidelines  Section  15301..." - a table column in a PDF, wrapped every eight
+// words. norm() collapses spaces and tabs and deliberately keeps newlines, so
+// every pattern written with [^\n] stopped at the first wrap. Found by reading
+// the source document, after two rounds of widening the window changed nothing.
+//
+// Every prose field here had it, so every prose field is fixed: the patterns
+// read across the wrap and tidyLine collapses the whitespace, which is the same
+// normalisation verifyFilingFacts applies before checking a display against the
+// document. The item block still bounds the search and the clip below bounds the
+// value.
+//
+// A FIXED CHARACTER WINDOW ENDS WHERE THE COUNTER RUNS OUT, NOT WHERE THE
+// SENTENCE DOES. The CEQA pattern took 60 characters after "Categorically
+// Exempt", and a client document printed "Categorically Exempt from the
+// provisions of the California" - a value cut in the middle of the name of the
+// act, which reads as a system that does not know what it captured.
+//
+// The window is widened and the capture is then cut back to a boundary INSIDE
+// it, so what is stored ends where the value ends. Every result is a verbatim
+// PREFIX of the matched text and therefore still a verbatim substring of the
+// document, which is what verifyFilingFacts requires: nothing appended, no
+// ellipsis, no reassembly. See the golden case
+// a-character-window-is-not-a-sentence-end.
+//
+// THE FIRST SENTENCE END, NOT THE LAST. The first cut of this took the last
+// period in the window and produced "...and Section 15315, Class 15 (Minor Land
+// Divisions). Approved Resolution No" - it had cut at the full stop inside
+// "No.", which is worse than the truncation it replaced. A captured value is one
+// sentence; where the window runs past the end of it, the end of it is where the
+// value stops.
+//
+// A period only ends a sentence when a capital or the end of the string follows
+// it, and not when the word before it is one of the abbreviations these agendas
+// use. Where no sentence end is found the last clause boundary is taken instead,
+// and where there is none of those either the text is returned untouched.
+const ABBREV = /\b(No|Nos|St|Ave|Blvd|Rd|Dr|Ste|Inc|Corp|Co|Dept|Div|Sec|Ft|Approx|vs|U\.S|[A-Z])$/;
+
+function clipToClause(s: string): string {
+  const SENTENCE = /\.(?=\s+[A-Z(]|\s*$)/g;
+  let m: RegExpExecArray | null;
+  SENTENCE.lastIndex = 0;
+  while ((m = SENTENCE.exec(s)) !== null) {
+    // Short is allowed: "Section 15061(b)(3)." is a whole value at 19
+    // characters, and a minimum of 20 sent it on to swallow "Resolution No.
+    // ______ Staff Report Attachment 1 - Draft Planning Commission..." The
+    // abbreviation list is what keeps a mid-value full stop from ending it, and
+    // it does that job without a length rule on top.
+    if (ABBREV.test(s.slice(0, m.index))) continue;
+    if (m.index < 8) continue;
+    return s.slice(0, m.index).trimEnd();
+  }
+  const ENDS: [RegExp, boolean][] = [
+    [/;(?=\s|$)/g, true],
+    [/\)(?=\s|$)/g, false],
+    [/,(?=\s|$)/g, true],
+  ];
+  for (const [re, drop] of ENDS) {
+    let last = -1;
+    let hit: RegExpExecArray | null;
+    re.lastIndex = 0;
+    while ((hit = re.exec(s)) !== null) last = hit.index;
+    // A boundary in the first third is punctuation inside the value rather than
+    // the end of it, so it is not treated as one.
+    if (last > s.length / 3) return s.slice(0, drop ? last : last + 1).trimEnd();
+  }
+  return s;
+}
+
+const FIELDS: { kind: FilingFactKind; label: string; re: RegExp; numeric?: boolean; clip?: boolean }[] = [
   {
     kind: 'site_acreage', label: 'Location (acreage)',
     re: /(?:approximately\s+)?([\d.]+)[\s-]acre\b/i, numeric: true,
@@ -67,23 +138,32 @@ const FIELDS: { kind: FilingFactKind; label: string; re: RegExp; numeric?: boole
     kind: 'site_address', label: 'Location',
     // Anchored on "located at", never on a bare address, so the Council Chamber
     // in the page header can never be read as a project site.
-    re: /\blocated at\s+([\d]{2,6}[^,.\n]{4,70}?)(?=\s*(?:,|\.|\s+at the|\s+within|\s+approximately|\s+Request))/i,
+    re: /\blocated at\s+([\d]{2,6}[^,.]{4,70}?)(?=\s*(?:,|\.|\s+at the|\s+within|\s+approximately|\s+Request))/i,
   },
   {
     kind: 'cross_streets', label: 'Location (cross street)',
+    // THIS ONE KEEPS ITS LINE BOUND, and it is the exception that proves the
+    // rule above. A cross street is a phrase rather than a sentence and has no
+    // terminator of its own, so reading across the wrap ran it on: "at the
+    // northwest corner of East Stanley Cup Way and South River Road within the
+    // OCVIBE project, in an area" and "approximately 800 feet south of Lincoln
+    // Avenue Request: To approve a conditional use perm". Measured on the
+    // re-capture, and reverted.
     re: /\b(?:at the\s+[a-z]+\s+corner of\s+[^.\n]{6,80}|approximately\s+[\d,]+\s+feet\s+(?:north|south|east|west)\s+of\s+[^.\n]{4,60})/i,
   },
   {
     kind: 'action_sought', label: 'Request',
-    re: /\bRequest:\s*([^\n]{10,300}?)(?=\s*(?:Environmental Determination|Project Planner|Resolution|ITEM NO|$))/i,
+    re: /\bRequest:\s*([\s\S]{10,300}?)(?=\s*(?:Environmental Determination|Project Planner|Resolution|ITEM NO|$))/i,
   },
   {
     kind: 'environmental', label: 'Environmental Determination',
-    re: /\bEnvironmental Determination:\s*([^\n]{10,260}?)(?=\s*(?:Request:|Project Planner|Resolution|ITEM NO|$))/i,
+    re: /\bEnvironmental Determination:\s*([\s\S]{10,400}?)(?=\s*(?:Request:|Project Planner|Resolution|ITEM NO|$))/i,
+    clip: true,
   },
   {
     kind: 'ceqa_class', label: 'CEQA',
-    re: /\b(?:Categorically Exempt|Class\s+\d+|Section\s+15\d{3})[^\n]{0,60}/i,
+    re: /\b(?:Categorically Exempt|Class\s+\d+|Section\s+15\d{3})[\s\S]{0,300}/i,
+    clip: true,
   },
   {
     kind: 'resolution', label: 'Resolution No.',
@@ -150,7 +230,8 @@ export function readAnaheimFacts(
     for (const f of FIELDS) {
       const hit = f.re.exec(b.text);
       if (!hit) continue;
-      const display = tidyLine(hit[1] ?? hit[0]);
+      const captured = tidyLine(hit[1] ?? hit[0]);
+      const display = f.clip ? clipToClause(captured) : captured;
       if (!display) continue;
       out.push({
         kind: f.kind,

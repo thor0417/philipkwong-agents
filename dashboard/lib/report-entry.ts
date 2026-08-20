@@ -64,6 +64,23 @@ function host(url: string | null | undefined): string {
   }
 }
 
+/**
+ * THE DATE A CITATION ENDS WITH, for disambiguating two facts of one kind.
+ *
+ * citationLabel builds "New York City Planning Application, 15 October 2023" and
+ * "Clark County Planning/Zoning Minutes, 21 July 2026". The date is what
+ * separates two documents about the same matter, and it is short enough to sit
+ * in a label where the whole citation is not.
+ *
+ * Null when the citation carries no date, which is the honest answer: a label
+ * with no key is ambiguous, and a label with a key that does not identify
+ * anything is worse.
+ */
+function documentDateOf(sourceLabel: string | null | undefined): string | null {
+  const m = /,\s*(\d{1,2}\s+[A-Z][a-z]+\s+\d{4})\s*$/.exec(String(sourceLabel ?? '').trim());
+  return m ? m[1] : null;
+}
+
 function tidy(s: string | null | undefined): string {
   return String(s ?? '').replace(/\s+/g, ' ').trim();
 }
@@ -760,24 +777,95 @@ function statedOf(records: ScopedRecord[]): { figures: EntryFigure[]; held: numb
     if (!distinctByKind.has(f.kind)) distinctByKind.set(f.kind, new Set());
     distinctByKind.get(f.kind)!.add(f.display);
   }
-  const attributed = survives.map((f) =>
-    (distinctByKind.get(f.kind)?.size ?? 0) > 1 && f.matter
-      ? { ...f, label: `${f.label} (${f.matter})` }
-      : f
-  );
+  // ---- AND WHERE THERE IS NO CASE NUMBER, THE DOCUMENT IT CAME FROM --------
+  //
+  // `matter` is referenceOf(), a Clark County case reference - "UC-26-0219".
+  // A New York record carries none, so this guard was silently false for the
+  // whole market and the labels repeated. Metropolitan Park printed "Current
+  // milestone" twice with different values, "Application filed" twice with
+  // different dates, "Latest environmental milestone" twice and "acres" twice
+  // for two different things: FOUR self-contradictions on one page, in a
+  // document whose entire argument is that its facts can be checked.
+  //
+  // MEASURED over 155 live projects: 18 print a repeated label, 40 labels in
+  // all, and 14 of the 18 are New York City. It is not a New York bug - it is
+  // the disambiguator having exactly one key and New York not carrying it.
+  //
+  // The fallback is the DATE OF THE DOCUMENT the fact came from, taken off the
+  // citation the fact already carries. Nothing is invented: sourceLabel is built
+  // by citationLabel from the record's own source and date, and a reader
+  // following the link lands on the document the suffix names. Where even that
+  // is absent the label is left alone rather than given a made-up key - an
+  // ambiguous label is bad and a wrong one is worse.
+  //
+  // AND THE KEY IS THE FIRST ONE THAT ACTUALLY SEPARATES THEM. A fixed order -
+  // case number, then date - is not enough on its own: Monitor Point holds TWO
+  // ZAP applications filed on the same day, so both lines took "(14 December
+  // 2025)" and went on contradicting each other with a qualifier attached, which
+  // is worse than no qualifier because it looks resolved.
+  //
+  // So each candidate is tested against the kind it is qualifying, and the first
+  // that gives every line a different key wins. Where none does, the label is
+  // left alone - an ambiguous label is bad, and one carrying a key that does not
+  // distinguish is a false resolution.
+  const KEYS: ((f: EntryFigure) => string | null)[] = [
+    (f) => f.matter ?? null,
+    (f) => documentDateOf(f.sourceLabel),
+    // The document itself. A ZAP application's id is the last path segment of
+    // its url, which is what a reader following the link arrives at.
+    (f) => {
+      const seg = String(f.url ?? '').split(/[/?#]/).filter(Boolean).pop();
+      return seg && seg.length <= 24 ? seg : null;
+    },
+  ];
+  const byKind = new Map<string, EntryFigure[]>();
+  for (const f of survives) {
+    if (!byKind.has(f.kind)) byKind.set(f.kind, []);
+    byKind.get(f.kind)!.push(f);
+  }
+  const chosenKey = new Map<string, ((f: EntryFigure) => string | null) | null>();
+  for (const [kind, fs] of byKind) {
+    if ((distinctByKind.get(kind)?.size ?? 0) <= 1) {
+      chosenKey.set(kind, null);
+      continue;
+    }
+    const found = KEYS.find((k) => {
+      const keys = fs.map(k);
+      return keys.every((v) => !!v) && new Set(keys).size === fs.length;
+    });
+    chosenKey.set(kind, found ?? null);
+  }
+  const attributed = survives.map((f) => {
+    const k = chosenKey.get(f.kind);
+    const key = k ? k(f) : null;
+    return key ? { ...f, label: `${f.label} (${key})` } : f;
+  });
 
+  // THE PER-KIND CAP DEMOTES, IT DOES NOT DELETE. It used to discard the third
+  // and later value of a kind outright, and OCVibe then printed ELEVEN facts and
+  // said "2 further stated figures held back to keep this list readable" with
+  // thirteen places still free under ENTRY_STATED_CAP. Two things were wrong
+  // with that: the facts were thrown away with room to spare, and the reason
+  // given was not the reason - they went to breadth, not to length.
+  //
+  // Breadth still wins the top of the block, which is the Metropolitan Park fix
+  // and the point of the rule: one of each thing the filings state comes first,
+  // so the 250-room hotel is not pushed out by a fourth hearing date. What has
+  // changed is what happens to the overflow. It goes AFTER the breadth pass, in
+  // its own order, and it is printed if the block has room. Only the total cap
+  // holds anything back now, so the sentence that says so is true.
   const perKind = new Map<string, number>();
   const spread: EntryFigure[] = [];
-  let dropped = 0;
+  const overflow: EntryFigure[] = [];
   for (const f of attributed) {
     const n = (perKind.get(f.kind) ?? 0) + 1;
     perKind.set(f.kind, n);
-    if (n > PER_KIND_CAP) { dropped++; continue; }
-    spread.push(f);
+    (n > PER_KIND_CAP ? overflow : spread).push(f);
   }
+  const ordered = [...spread, ...overflow];
   return {
-    figures: spread.slice(0, ENTRY_STATED_CAP),
-    held: dropped + Math.max(0, spread.length - ENTRY_STATED_CAP),
+    figures: ordered.slice(0, ENTRY_STATED_CAP),
+    held: Math.max(0, ordered.length - ENTRY_STATED_CAP),
   };
 }
 
@@ -941,10 +1029,37 @@ const SPANISH_MARKERS = new RegExp(
 );
 const SPANISH_MARKER_THRESHOLD = 3;
 
+// AND THE COUNTER-TEST, BECAUSE SPANISH FOUND IS NOT ENGLISH ABSENT.
+//
+// The marker test above answers "is there Spanish in this text". The note it
+// drove says something else: that we hold no English capture of the item. Those
+// came apart on a bilingual capture. Measured: THREE records on live projects
+// carry Spanish markers and ALL THREE are bilingual - one Anaheim PDF holds the
+// English minute and its Spanish twin in one document, so the record opens
+// "Adoption of resolutions dedicating municipal property for public streets" in
+// plain English and the entry printed that sentence with "[Spanish-language
+// record; no English capture of this item]" hung underneath it.
+//
+// Same shape as the six defects standing rule 8 was written for: a label read as
+// the thing it names. So the note now requires BOTH halves - Spanish present and
+// English absent - and where the capture carries both languages the entry prints
+// the English and says nothing, because nothing has been withheld and no English
+// capture is missing. See the golden case
+// a-bilingual-capture-is-not-a-spanish-only-record.
+const ENGLISH_MARKERS = new RegExp(
+  '\\b(the|and|that|for|with|shall|has|have|been|which|from|other|owner|terms|' +
+    'conditions|review|period|adoption|authorization|determination|approve|' +
+    'resolution|ordinance|agreement|hearing|application)\\b',
+  'gi'
+);
+const ENGLISH_MARKER_THRESHOLD = 3;
+
 function isSpanish(r: ScopedRecord): boolean {
   const text = tidy(`${r.action_sought ?? ''} ${r.title ?? ''}`);
-  const hits = new Set((text.match(SPANISH_MARKERS) ?? []).map((m) => m.toLowerCase()));
-  return hits.size >= SPANISH_MARKER_THRESHOLD;
+  const es = new Set((text.match(SPANISH_MARKERS) ?? []).map((m) => m.toLowerCase()));
+  if (es.size < SPANISH_MARKER_THRESHOLD) return false;
+  const en = new Set((text.match(ENGLISH_MARKERS) ?? []).map((m) => m.toLowerCase()));
+  return en.size < ENGLISH_MARKER_THRESHOLD;
 }
 
 function sharedCount(a: Set<string>, b: Set<string>): number {
@@ -1145,6 +1260,31 @@ function moverNote(records: ScopedRecord[], printed: { name: string }[]): string
   );
 }
 
+/**
+ * A SENTENCE NAMING THE FIGURES PUBLICATIONS DISAGREE ABOUT. Null when none.
+ *
+ * Counted per KIND, on the printed display, because that is what a reader sees
+ * repeated: "rooms" twice with two numbers is the contradiction, and the same
+ * number quoted by two publications is not. See Entry.scaleDisagreement.
+ */
+function disagreementNote(scale: EntryFigure[]): string | null {
+  const byKind = new Map<string, Set<string>>();
+  for (const f of scale) {
+    if (!byKind.has(f.label)) byKind.set(f.label, new Set());
+    byKind.get(f.label)!.add(f.display);
+  }
+  const split = [...byKind.entries()].filter(([, v]) => v.size > 1);
+  if (split.length === 0) return null;
+  const parts = split.map(([label, v]) => `${label} (${v.size} figures)`);
+  const list = parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`;
+  return (
+    `Publications do not agree on ${list}. Each figure above is quoted from the article that ` +
+    `printed it and carries its publisher, and we have no filing stating any of them - so this ` +
+    `is a disagreement between sources rather than a correction of one by another, and which is ` +
+    `current is not something our record can settle.`
+  );
+}
+
 export function buildEntry(
   project: Project,
   records: ScopedRecord[],
@@ -1254,6 +1394,7 @@ export function buildEntry(
       scale: scale.figures,
       scaleHeld: scale.held,
       people,
+      scaleDisagreement: disagreementNote(scale.figures),
       noPeopleNote: people.length === 0 ? noPartiesNote(forParties) : null,
       // See Entry.peopleWithheldNote. Only where a party DID print: when none
       // did, noPartiesNote above already names the withholding and its count,
