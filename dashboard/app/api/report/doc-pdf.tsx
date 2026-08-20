@@ -275,6 +275,11 @@ function EntryBlock({ e }: { e: Entry }) {
         </View>
       )}
       {e.noPeopleNote ? <Text style={s.peopleNone}>{e.noPeopleNote}</Text> : null}
+      {/* What the party block held back, where it still printed somebody.
+          See Entry.peopleWithheldNote. */}
+      {e.peopleWithheldNote ? (
+        <Text style={s.peopleNone}>{e.peopleWithheldNote}</Text>
+      ) : null}
 
       {e.records.map((r, i) => (
         <View key={i} style={s.rec} wrap={false}>

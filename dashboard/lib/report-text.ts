@@ -93,6 +93,7 @@ function entryText(e: Entry): string {
     }
   }
   if (e.noPeopleNote) out.push(`  THE PEOPLE\n    ${e.noPeopleNote}`);
+  if (e.peopleWithheldNote) out.push(`    ${e.peopleWithheldNote}`);
   for (const r of e.records) {
     const date = r.date ?? 'no date in the record';
     const ref = r.reference ? ` ${r.reference}.` : '';

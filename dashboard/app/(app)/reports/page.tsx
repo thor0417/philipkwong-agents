@@ -1028,6 +1028,13 @@ export default function ReportsPage() {
                     {e.noPeopleNote && (
                       <p className={styles.entryHeld} data-entry-no-people>{e.noPeopleNote}</p>
                     )}
+                    {/* What the party block held back, where it still printed
+                        somebody. See Entry.peopleWithheldNote. */}
+                    {e.peopleWithheldNote && (
+                      <p className={styles.entryHeld} data-entry-people-withheld>
+                        {e.peopleWithheldNote}
+                      </p>
+                    )}
 
                     {e.records.map((r, i) => (
                       <div key={i} className={styles.entryRec}>

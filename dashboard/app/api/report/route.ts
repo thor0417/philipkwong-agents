@@ -87,6 +87,7 @@ function toRows(doc: ReportDocument): string[][] {
         rows.push([sec.title, e.name, party.provenance, `Party: ${party.name}`, detail, party.sourceUrl]);
       }
       if (e.noPeopleNote) rows.push([sec.title, e.name, '', e.noPeopleNote, e.meta, '']);
+      if (e.peopleWithheldNote) rows.push([sec.title, e.name, '', e.peopleWithheldNote, e.meta, '']);
       for (const r of e.records) {
         const detail = [
           r.reference,

@@ -37,6 +37,7 @@ import {
   buildParties,
   distinctRecordParties,
   noPartiesNote,
+  withheldMovers,
   withPartyHistory,
   type PartyHistory,
   type ProjectParty,
@@ -1115,6 +1116,31 @@ function dropCircularPrefix(text: string, project: Project, people: ProjectParty
   return rest.charAt(0).toUpperCase() + rest.slice(1);
 }
 
+/**
+ * THE WITHHELD-MOVER SENTENCE, for an entry that DID print parties.
+ *
+ * Null when nothing was held back. See Entry.peopleWithheldNote for why this is
+ * separate from noPartiesNote: that one only speaks when the block is empty, and
+ * on 32 of the 48 projects the presenter gate touches a party still prints while
+ * a name is still being withheld.
+ *
+ * It states the count and the reason and names the bodies, because a reader who
+ * knows the Department of City Planning is on the filing must be able to see
+ * that we hold it and placed it deliberately, rather than wonder whether we
+ * missed it.
+ */
+function moverNote(records: ScopedRecord[]): string | null {
+  const { count, names } = withheldMovers(records);
+  if (count === 0) return null;
+  const who = names.slice(0, 3).join('; ');
+  const more = names.length > 3 ? `, and ${names.length - 3} other${names.length - 3 === 1 ? '' : 's'}` : '';
+  return (
+    `${count === 1 ? 'One further record' : `${count} further records`} name${count === 1 ? 's' : ''} ` +
+    `the body that brought this matter forward${who ? ` (${who}${more})` : ''}. That is who moved it ` +
+    `in government rather than who is behind it, so it is not listed above as a party to approach.`
+  );
+}
+
 export function buildEntry(
   project: Project,
   records: ScopedRecord[],
@@ -1225,6 +1251,11 @@ export function buildEntry(
       scaleHeld: scale.held,
       people,
       noPeopleNote: people.length === 0 ? noPartiesNote(forParties) : null,
+      // See Entry.peopleWithheldNote. Only where a party DID print: when none
+      // did, noPartiesNote above already names the withholding and its count,
+      // and two sentences saying it would be the duplicated-withholding blemish
+      // in a new place.
+      peopleWithheldNote: people.length > 0 ? moverNote(forParties) : null,
       records: entryRecords,
     },
     held: ordered.length - shown.length,

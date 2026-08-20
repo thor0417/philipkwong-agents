@@ -512,6 +512,18 @@ export interface Entry {
   // Set instead of `people` when the records name nobody. An empty heading and a
   // stated absence are different claims.
   noPeopleNote: string | null;
+  /**
+   * WHAT THE PARTY BLOCK HELD BACK, PRINTED WHETHER OR NOT IT PRINTED ANYBODY.
+   *
+   * noPeopleNote only speaks when the block is EMPTY, which covers 16 of the 48
+   * projects the presenter gate touches and leaves 32 where a party still prints
+   * and a name was still withheld. Standing rule 3 is about the withholding, not
+   * about whether anything survived it: a reader must be able to see that we
+   * hold a name and chose not to list it as a party to approach.
+   *
+   * Null when nothing was held back, which is the common case.
+   */
+  peopleWithheldNote: string | null;
   records: EntryRecord[];
 }
 

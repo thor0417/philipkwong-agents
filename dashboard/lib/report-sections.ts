@@ -1538,7 +1538,23 @@ const referralPeople: SectionDef = {
       id: 'referral-people',
       title: 'The people',
       lede: 'Every party our filings name, and how the record says to reach them.',
-      lines,
+      // ---- AND WHAT THE BLOCK HELD BACK ------------------------------------
+      //
+      // The presenter gate withholds the body that MOVED a matter from the party
+      // list, and standing rule 3 says the document states the count and the
+      // reason. buildEntry puts that sentence on peopleWithheldNote and this
+      // section did not read it, so the field was set, every renderer printed it,
+      // and the one document a referral actually uses showed nothing.
+      //
+      // Found by reading a generated brief rather than by a test: Metropolitan
+      // Park lost "Deputy Mayor for Housing and Economic Development" from its
+      // parties and said nothing about it. Standing rule 11 - a field that
+      // exists is not a sentence that prints.
+      //
+      // Only where the block PRINTED somebody. When it printed nobody,
+      // noPeopleNote below already names the withholding and its count, and two
+      // sentences saying it is the duplicated-withholding blemish in a new place.
+      lines: [...lines, ...(lines.length > 0 ? commentaryLines(e?.peopleWithheldNote) : [])],
       emptyNote: lines.length === 0 ? (e?.noPeopleNote ?? 'No project selected.') : undefined,
     });
   },

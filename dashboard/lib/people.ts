@@ -123,6 +123,68 @@ function nameableApplicant(r: ScopedRecord): string | null | undefined {
   return applicantIsPublicAgency(r) ? null : r.applicant;
 }
 
+// ---- AND THE COLUMN THAT ANSWERS A DIFFERENT QUESTION ENTIRELY --------------
+//
+// presented_by NAMES WHO MOVED THE ITEM, NEVER WHO IS BEHIND THE PROJECT. That
+// sentence is already in the golden set twice - the-government-mover-is-not-the-
+// party, for Clark County's PETITIONER, and the Legistar sponsors finding before
+// it - and both times it was fixed at the CAPTURE end, for one label, on one
+// source. The print end was never gated, so every other source went on pushing
+// the same class of name onto the page.
+//
+// MEASURED BEFORE THE RULE, over 155 live projects and 381 records with a url:
+// presented_by is populated on 92 records and ALL 92 ARE ON THE GOVERNMENT
+// STREAM. Zero on press, zero on opportunity. Its 47 distinct values are
+// departments, borough presidents, councilmen, commissions, county directors and
+// planning staff - Department of City Planning, Rent Guidelines Board, Borough
+// President of Queens, Councilman Brian Knudsen, Denis Cederburg (Director of
+// Public Works) - and not one is a private developer. Two of them are not even
+// people: "Approved By", a form label, and "Robert C. Lopane, RLA L, So«t,e,s-",
+// which is OCR debris.
+//
+// THE GATE READS NO NAMES, WHICH IS THE WHOLE POINT. It keys on the COLUMN and
+// the STREAM, both facts about how a value arrived. The list above is the
+// EVIDENCE for the rule and never its mechanism: a name-shape rule here would be
+// the label-read-as-the-thing-it-names defect with better manners, and this file
+// says so twenty lines up about the applicant column.
+//
+// AND IT USES isFiling, the same predicate report-model uses to decide RECORD
+// against PRESS, so the gate and the provenance tag can never disagree about
+// what a filing is. A press record carrying a presenter is NOT gated - there are
+// none today, so there is nothing measured to gate, and inventing a rule for an
+// empty set is how a rule ends up wrong when the set fills.
+//
+// NOTHING IS DELETED. Same treatment the public-agency applicant gets: the value
+// stays in the record and on the register's own columns, and the PRINT is gated.
+function presenterIsGovernmentMover(r: ScopedRecord): boolean {
+  return !!tidy(r.presented_by) && isFiling(r.source, r.source_type, r.stream);
+}
+
+/** The presenter, or null on a filing, where the presenter is the government. */
+function nameablePresenter(r: ScopedRecord): string | null | undefined {
+  return presenterIsGovernmentMover(r) ? null : r.presented_by;
+}
+
+/**
+ * THE NAMES THIS GATE HELD BACK, so a document can say so.
+ *
+ * Standing rule 3 has no exemption for an exclusion we are right about. A reader
+ * must be able to see that we hold a name and chose not to print it as a party,
+ * because the alternative - silence - is indistinguishable from having captured
+ * nothing, and those are different facts about our coverage.
+ */
+export function withheldMovers(records: ScopedRecord[]): { count: number; names: string[] } {
+  const names = new Set<string>();
+  let count = 0;
+  for (const r of records) {
+    if (!r.url || !presenterIsGovernmentMover(r)) continue;
+    count++;
+    const cleaned = cleanPartyName(r.presented_by);
+    if (cleaned) names.add(cleaned);
+  }
+  return { count, names: [...names] };
+}
+
 const ROLE_APPLICANT = 'applicant';
 const ROLE_REPRESENTATIVE = 'representative';
 const ROLE_PRESENTER = 'presented by';
@@ -465,7 +527,7 @@ export function buildParties(project: Project, records: ScopedRecord[]): Project
     if (!r.url) continue;
     add(nameableApplicant(r), ROLE_APPLICANT, r);
     add(r.representative, ROLE_REPRESENTATIVE, r);
-    add(r.presented_by, ROLE_PRESENTER, r);
+    add(nameablePresenter(r), ROLE_PRESENTER, r);
     // The contact block is one group of columns, so the detail belongs to the
     // person the block names and to nobody else. Where that person is already
     // the representative, the two merge and the detail rides along.
@@ -637,6 +699,37 @@ export function noPartiesNote(records: ScopedRecord[]): string {
     );
   }
 
+  // AND THE SAME TRAP, ONE COLUMN OVER.
+  //
+  // The sentence below says the filings do not identify who is behind the
+  // matter. Where the presenter gate held a name back, that is FALSE in exactly
+  // the way the agency branch above was written to prevent: we hold a name, and
+  // we are declining to print it as a party because it answers a different
+  // question. Measured before the gate shipped: 16 live projects print no party
+  // at all once it fires, and every one of them would have carried this
+  // sentence over a name we were holding.
+  const movers = withheldMovers(records);
+  if (movers.count > 0) {
+    const who = movers.names.slice(0, 2).join(' and ');
+    return (
+      `No party to approach is named on this project. ` +
+      // "One record of the 1 captured" is what the general form produces when the
+      // project holds a single record, and it reads like a template showing
+      // through. Said plainly instead.
+      `${
+        movers.count === n
+          ? n === 1
+            ? 'The one record captured'
+            : `All ${n} records captured`
+          : `${movers.count === 1 ? 'One record' : `${movers.count} records`} of the ${n} captured`
+      } ` +
+      `${movers.count === 1 ? 'names' : 'name'} the body that brought the matter forward` +
+      `${who ? ` (${who}${movers.names.length > 2 ? `, and ${movers.names.length - 2} other${movers.names.length - 2 === 1 ? '' : 's'}` : ''})` : ''}, ` +
+      `which is who moved it in government rather than who is behind it, so it is not listed here. ` +
+      `The filings identify the matter and no private party on it.`
+    );
+  }
+
   return (
     `No party is named in ${n === 1 ? 'the record' : `any of the ${n} records`} captured for this ` +
     `project. The filings identify the matter but not who is behind it.`
@@ -674,7 +767,7 @@ export function distinctRecordParties(
   };
   push(nameableApplicant(r), ROLE_APPLICANT);
   push(r.representative, ROLE_REPRESENTATIVE);
-  push(r.presented_by, ROLE_PRESENTER);
+  push(nameablePresenter(r), ROLE_PRESENTER);
   return out;
 }
 
