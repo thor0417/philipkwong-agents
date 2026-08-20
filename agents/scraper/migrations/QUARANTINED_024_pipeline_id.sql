@@ -1,3 +1,37 @@
+-- =====================================================================
+--  QUARANTINED 2026-08-19. DO NOT RUN.
+--
+--  Renamed from 024_pipeline_id.sql. It was never applied, and it must not
+--  be applied as written. The schema-drift audit
+--  (agents/scraper/diagnostics/schema-drift.ts) found it: pipeline_id exists
+--  on none of the three tables, while the repo has claimed since 2026-08-03
+--  that it does.
+--
+--  IT WOULD NOT FAIL. THAT IS THE PROBLEM. `pipelines` exists and holds
+--  hospitality, fuel, consulting, signals and compliance, so the NOT NULL and
+--  the foreign key below would both hold and the migration would report
+--  success.
+--
+--  WHAT IT WOULD DO. leads.module holds SEVEN distinct values today:
+--
+--     compliance   feasibility   financial_services   food_beverage_hospitality
+--     fuel         general_consulting                 gli
+--
+--  The CASE below names three of them. The other four collapse to
+--  'consulting', INCLUDING compliance, which has had its own pipelines row
+--  since 2026-08-12. Every compliance record would be filed under legacy
+--  consulting, the foreign key would not complain because 'consulting' is a
+--  real row, and nothing would report it.
+--
+--  A migration that fails is recoverable. One that runs and mis-files is the
+--  shape this repo keeps paying for.
+--
+--  TO REVIVE IT: rewrite the CASE against the module values that exist at that
+--  time, not the ones that existed when it was written, and re-measure first.
+--  The file is kept rather than deleted because the DESIGN is still right -
+--  pipeline_id foreign-keyed to pipelines - and only the mapping is stale.
+-- =====================================================================
+
 -- 024: pipeline_id, foreign-keyed to pipelines. The safe half of the module
 -- migration.
 --
