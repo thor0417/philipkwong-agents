@@ -147,6 +147,21 @@
   font-size: var(--type-meta);
 }
 
+/* PRESENTER IS NOT A PARTY, AND THE ROW SAYS SO WITHOUT SPENDING AN ACCENT.
+   Muted and italic: this screen spends its one accent on reachability, and the
+   per-screen accent budget is enforced by screens.shots. Only tokens from
+   app/tokens.css, like everything else. */
+.rolePresenter {
+  color: var(--ink-muted);
+  font-style: italic;
+}
+
+/* A row whose ONLY role is presenter. Recessive rather than hidden - it is a
+   true fact about the record and this is not a client document. */
+.row[data-presenter-only='yes'] .cellName {
+  color: var(--ink-secondary);
+}
+
 /* THE ONE ACCENT ON THIS SCREEN. Reachability is the commercially valuable
    fact and there are 26 of them in 182 rows, so it is the single most important
    thing in the view - which is exactly what the accent is reserved for. An

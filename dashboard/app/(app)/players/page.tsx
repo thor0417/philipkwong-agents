@@ -39,7 +39,14 @@ const COLUMNS: { key: SortKey | 'roles' | 'reach'; label: string; sort?: SortKey
     help: 'How many distinct markets this company has filed in. More than one is the finding.',
   },
   { key: 'projects', label: 'Projects', sort: 'projects', help: 'Live projects it is attached to.' },
-  { key: 'roles', label: 'Roles' },
+  {
+    key: 'roles',
+    label: 'Roles',
+    help:
+      'applicant, owner and representative are parties. PRESENTER is not: it is who in ' +
+      'government moved the item onto an agenda, and client documents withhold it. It is kept ' +
+      'here because it is a true fact about the record and this screen is not a client document.',
+  },
   {
     key: 'reach',
     label: 'Reach',
@@ -196,6 +203,20 @@ export default function PlayersPage() {
               className={styles.row}
               role="row"
               data-company-id={p.id}
+              // A ROW WHOSE ONLY ROLE IS PRESENTER IS NOT A PLAYER, and saying
+              // so on the row is the whole change. 15 of the 47 government
+              // bodies the document layer withholds are on this screen, every
+              // one of them under `presenter`, and until now they read exactly
+              // like an applicant. No filter and no deletion: the extraction is
+              // recording a true fact, this screen is Philip's own surface
+              // rather than a client document, and knowing that the Borough
+              // President of Queens moved two matters is useful HERE precisely
+              // because it is useless in a brief.
+              data-presenter-only={
+                p.roles.length > 0 && p.roles.every((r) => r.toLowerCase() === 'presenter')
+                  ? 'yes'
+                  : undefined
+              }
             >
               <span className={styles.cellName}>{p.name}</span>
               {/* The markets themselves, not only the count. "2" tells you a
@@ -208,7 +229,28 @@ export default function PlayersPage() {
                 )}
               </span>
               <span className={`${styles.num} mono`}>{p.projects}</span>
-              <span className={styles.cellRoles}>{p.roles.join(', ') || '--'}</span>
+              {/* One token per role, so `presenter` can read as the different
+                  kind of thing it is. Muted rather than accented: this screen
+                  spends its single accent on reachability, and the accent
+                  budget is enforced by screens.shots. */}
+              <span className={styles.cellRoles}>
+                {p.roles.length === 0
+                  ? '--'
+                  : p.roles.map((r, i) => (
+                      <span
+                        key={r}
+                        className={r.toLowerCase() === 'presenter' ? styles.rolePresenter : undefined}
+                        title={
+                          r.toLowerCase() === 'presenter'
+                            ? 'Moved the item in government. Not a party to approach, and withheld from client documents.'
+                            : undefined
+                        }
+                      >
+                        {r}
+                        {i < p.roles.length - 1 ? ', ' : ''}
+                      </span>
+                    ))}
+              </span>
               <span className={styles.cellReach} data-reachable={p.reachable ? 'yes' : 'no'}>
                 {p.reachable ? 'contactable' : ''}
               </span>
