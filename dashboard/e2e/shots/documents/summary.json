@@ -6,9 +6,9 @@
     "prov": "83 record / 22 press / 10 assessment"
   },
   "fullFiles": {
-    "pdf": 66530,
-    "csv": 23586,
-    "xlsx": 14248
+    "pdf": 66533,
+    "csv": 23589,
+    "xlsx": 14229
   },
   "detail15": {
     "p": "126 projects",
@@ -43,6 +43,6 @@
     "prov": "77 record / 18 press / 6 assessment"
   },
   "referralFiles": {
-    "pdf": 40148
+    "pdf": 40295
   }
 }
