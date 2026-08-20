@@ -77,7 +77,12 @@ is told.
 **only for files that import nothing themselves**. An import-free file needs
 nothing resolved, so it cannot reach for a `node_modules` that is not there.
 Today that is `lib/dead-feeds`, `lib/coverage`, `lib/degraded-sources`,
-`lib/corpus-scope`, `agents/scraper/project-summary`, `agents/scraper/press-facts`.
+`lib/corpus-scope`, `agents/scraper/project-summary`, `agents/scraper/press-facts`,
+`agents/scraper/junk-domains`. The last holds the two host lists: JUNK_DOMAINS
+answers "may this ever be captured" and SELF_PUBLISHED_HOSTS answers "may a client
+document cite this as coverage". They are different questions - linkedin.com is
+deliberately absent from the first and present in the second - and the capture
+lane and the referral brief must not hold separate copies of either.
 
 **`agents -> dashboard` is NEVER reachable from a build.** Command line only, run
 with `tsx`, and excluded from the root `tsconfig.json` BY NAME. Today that is

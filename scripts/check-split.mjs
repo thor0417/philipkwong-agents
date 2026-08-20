@@ -53,6 +53,10 @@ const SANCTIONED = new Set([
   'lib/corpus-scope.ts',
   'agents/scraper/project-summary.ts',
   'agents/scraper/press-facts.ts',
+  // The host rules. One list of "never capture" and one of "capture, never cite",
+  // read by the capture lane AND by the referral brief. Two copies is how the
+  // two halves come to disagree about what a client may be shown.
+  'agents/scraper/junk-domains.ts',
 ]);
 
 // Build output and dependencies are not source.

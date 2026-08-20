@@ -23,6 +23,7 @@ import {
   captureSentence,
   commentaryLines,
   evidenceAdds,
+  groupFigures,
   isFiling,
   pressLine,
   reconcileSentence,
@@ -35,6 +36,10 @@ import {
 import { buildEntry, recordSentence } from './report-entry';
 import { categoriesForPipeline, classifyStageTransition, isProvisionalName } from './taxonomy';
 import { deadFeedForMarket, frozenMarketSentence, monthYear, type DeadFeed } from '../../lib/dead-feeds';
+// The host rules, read across the package split for the same reason dead-feeds
+// is: capture and print must agree about what a client may be shown. See
+// SELF_PUBLISHED_HOSTS there for why this list is NOT the junk list.
+import { hostOf, isSelfPublished } from '../../agents/scraper/junk-domains';
 import type { PartyHistory } from './people';
 
 export interface SectionContext {
@@ -1385,8 +1390,28 @@ const referralProject: SectionDef = {
         // one line, because a Line is one string and the quotation is what says
         // what the number is for: "amount reported: $70 million" alone would let
         // a reader take a land price for a development cost.
-        lines: e.scale.map((f) =>
-          pressLine(`${f.label}: ${f.display}. "${f.sentence}"`, f.url, f.sourceLabel)
+        //
+        // ---- ONE SENTENCE IS QUOTED ONCE ------------------------------------
+        //
+        // However many figures were read out of it.
+        //
+        // This mapped one line per figure, so Heart Hotel printed the same forty
+        // words from news3lv.com three times in a row - once under rooms, once
+        // under storeys, once under site - and a reader had to compare three
+        // paragraphs to work out they were identical. One quotation presented as
+        // three pieces of evidence.
+        //
+        // groupFigures keys on the URL AND the sentence, so figures from the same
+        // article but different sentences stay apart: there the second quotation
+        // is carrying information. Every figure keeps its label and its value,
+        // the line keeps the article's link, and the provenance gate has already
+        // checked each figure against the sentence it is printed beside.
+        lines: groupFigures(e.scale).map((g) =>
+          pressLine(
+            `${g.items.map((it) => `${it.label}: ${it.display}`).join('; ')}. "${g.sentence}"`,
+            g.url,
+            g.sourceLabel
+          )
         ),
         emptyNote:
           e.scaleHeld > 0
@@ -1544,14 +1569,43 @@ const referralPress: SectionDef = {
   build: (ctx) => {
     const e = soleEntry(ctx);
     const press = (e?.records ?? []).filter((r) => r.provenance === 'PRESS');
+    // ---- A POST BY THE SUBJECT IS NOT COVERAGE OF THE SUBJECT ----------------
+    //
+    // This section printed everything the project held under a heading reading
+    // "Reported beyond our record", and on Heart Hotel the FIRST item was
+    // "Hospitality Deal Intelligence's Post" from linkedin.com, undated, above
+    // the Review-Journal and the Independent. A recipient reads that as a
+    // publication reporting on the matter. It is the deal's own side posting
+    // about itself.
+    //
+    // The record stays captured - see SELF_PUBLISHED_HOSTS for why that is
+    // deliberate and unchanged - and stops being CITED. The two questions are
+    // different and the two lists answer them separately.
+    //
+    // AND THE COUNT IS STATED, because standing rule 3 has no exemption for an
+    // exclusion the document's author agrees with. A reader who knows the post
+    // exists must be able to see that we hold it and chose not to quote it.
+    const citable = press.filter((r) => !isSelfPublished(hostOf(r.url)));
+    const withheld = press.length - citable.length;
+    const withheldNote =
+      withheld > 0
+        ? `${withheld} further item${withheld === 1 ? '' : 's'} we hold on this matter ` +
+          `${withheld === 1 ? 'is' : 'are'} published on a platform where the subject of a post writes ` +
+          `it themselves, so ${withheld === 1 ? 'it is' : 'they are'} not quoted here as coverage. ` +
+          `${withheld === 1 ? 'It is' : 'They are'} on the register and can be sent on request.`
+        : undefined;
     return withCommentary('referral-press', ctx, {
       id: 'referral-press',
       title: 'Reported beyond our record',
       lede: 'Press coverage, attributed to its publisher. This is not our filing record.',
-      lines: press.map(recordLineFor),
+      lines: [...citable.map(recordLineFor), ...commentaryLines(withheldNote)],
       emptyNote:
-        press.length === 0
-          ? 'We hold no press coverage of this matter. Everything above is from the filings.'
+        citable.length === 0
+          ? withheld > 0
+            ? `We hold ${withheld} item${withheld === 1 ? '' : 's'} on this matter and every one is ` +
+              `published on a platform where the subject writes their own post, so none is quoted here ` +
+              `as coverage. We hold no press coverage of this matter; everything above is from the filings.`
+            : 'We hold no press coverage of this matter. Everything above is from the filings.'
           : undefined,
     });
   },
@@ -1620,7 +1674,35 @@ const referralCoverage: SectionDef = {
     const p = ctx.detailedProjects[0] ?? ctx.projects[0] ?? null;
     const withheld: string[] = [];
 
-    if (ctx.heldRecords) {
+    // ---- THE PROJECT SECTION MAY HAVE SAID THIS ALREADY -----------------------
+    //
+    // referralProject prints captureSentence, which reconciles the captured count
+    // against the printed one and names the reason - and this note then said the
+    // same thing again, in a second wording, four pages later:
+    //
+    //   "Of the 24 records captured for this project, 22 are printed above; the
+    //    other 2 are the same filing captured more than once - a bilingual
+    //    minute, or a document captured page by page - and are shown once."
+    //   "2 records counted here are the same filing captured more than once - a
+    //    document captured page by page, or a bilingual minute - and are shown
+    //    once."
+    //
+    // A reader who notices reads it as two different withholdings and adds them.
+    // A reader who does not notice thinks the document repeats itself.
+    //
+    // SO IT IS STATED ONCE, AND IT IS STILL ALWAYS STATED. The condition is on
+    // whether referral-project is IN THIS DOCUMENT, not on whether it exists in
+    // the registry: the section list is composable, and a brief built without the
+    // project section must still say what it held back. That is why this reads
+    // ctx.sectionIds rather than assuming the default set - a coverage note that
+    // goes silent because another section usually covers it is standing rule 3
+    // broken by the section that was supposed to enforce it.
+    const projectSectionReconciles =
+      ctx.sectionIds.includes('referral-project') &&
+      captureSentence(ctx.records.length, ctx.records.length - ctx.mergedRecords - ctx.heldRecords, ctx.mergedRecords) !==
+        null;
+
+    if (ctx.heldRecords && !projectSectionReconciles) {
       withheld.push(
         `${ctx.heldRecords} record${ctx.heldRecords === 1 ? '' : 's'} we hold on this matter ` +
           `${ctx.heldRecords === 1 ? 'is' : 'are'} not cited above, having fallen beyond the number ` +
@@ -1628,7 +1710,7 @@ const referralCoverage: SectionDef = {
           `sent on request.`
       );
     }
-    if (ctx.mergedRecords) {
+    if (ctx.mergedRecords && !projectSectionReconciles) {
       withheld.push(
         `${ctx.mergedRecords} record${ctx.mergedRecords === 1 ? '' : 's'} counted here ` +
           `${ctx.mergedRecords === 1 ? 'is' : 'are'} the same filing captured more than once - a ` +
@@ -1673,10 +1755,25 @@ const referralCoverage: SectionDef = {
         ...always.flatMap((n) => commentaryLines(n)),
         ...(withheld.length
           ? withheld.flatMap((n) => commentaryLines(n))
-          : commentaryLines(
-              'Nothing else was withheld. Every record we hold on this matter is cited above, none was ' +
-                'dropped by a limit of this document, and the market it sits in is one we are still receiving.'
-            )),
+          : // THE THREE STATES, AND THE MIDDLE ONE IS THE NEW ONE.
+            //
+            // "Nothing else was withheld" is true only when nothing WAS. Where
+            // the project section already reconciled the counts, something was
+            // withheld and this note is silent about it by design - so it says
+            // where the reader will find it rather than claiming the opposite.
+            // Printing the blanket sentence there would have replaced a
+            // duplicated true statement with a single false one, which is worse
+            // than the blemish it was fixing.
+            projectSectionReconciles
+            ? commentaryLines(
+                'What this brief holds back is stated with the record counts under "The project" above, ' +
+                  'and is not repeated here. Nothing else was withheld: no limit of this document dropped ' +
+                  'anything further, and the market it sits in is one we are still receiving.'
+              )
+            : commentaryLines(
+                'Nothing else was withheld. Every record we hold on this matter is cited above, none was ' +
+                  'dropped by a limit of this document, and the market it sits in is one we are still receiving.'
+              )),
       ],
     });
   },
