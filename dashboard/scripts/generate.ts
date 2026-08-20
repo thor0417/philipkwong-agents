@@ -25,6 +25,16 @@
 //                              document that is sent.
 //            --period=<key>    default 'all'
 //            --detail=<n>      how many projects are described in full
+//            --pdf=<path>     ALSO write the PDF the client receives, through
+//                              the same renderer app/api/report calls, and read
+//                              its size back off disk. RUN THIS ONE FROM
+//                              dashboard/, because doc-pdf imports through the
+//                              @/ alias and tsx resolves that from the tsconfig
+//                              at the working directory. From the repo root it
+//                              fails with "Cannot find module '@/lib/report-model'"
+//                              AFTER --text has already printed, which truncates
+//                              a redirected .md file rather than leaving it alone:
+//                                cd dashboard && node --env-file=../.env.local //                                  --env-file=.env.local --import tsx //                                  scripts/generate.ts ... --pdf=<absolute path>
 //            --text            print the whole document
 //            --sections        print the section list with counts (default)
 //
@@ -82,6 +92,8 @@ const INCLUDE_CONTEXT = !args.includes('--no-context');
 const INCLUDE_DORMANT = args.includes('--dormant');
 const WATCHLIST_ONLY = args.includes('--watchlist');
 const AS_TEXT = args.includes('--text');
+// WRITE THE PDF a client would receive, to this path. See the block in main().
+const PDF_PATH = flag('pdf');
 // A DELIBERATELY WRONG geographyLabel, for proving the document ignores it.
 const LABEL = flag('label');
 const PERIOD = flag('period') ?? 'all';
@@ -334,6 +346,33 @@ async function main(): Promise<void> {
   if (AS_TEXT) {
     console.log(renderDocumentText(built.doc));
     console.log('');
+  }
+
+  // ---- AND THE ARTEFACT THE CLIENT ACTUALLY RECEIVES ------------------------
+  //
+  // THE TEXT RENDERER IS NOT THE DOCUMENT, AND THIS SCRIPT SPENT A DAY IMPLYING
+  // THAT IT WAS. Every check run through --text is a check on one renderer, and
+  // the four defects found on the Heart Hotel brief were all in the other one -
+  // the PDF footer most of all, which report-text prints once as a header line
+  // and which @react-pdf repeats `fixed` on every page. "Zero occurrences in the
+  // markdown" was a true statement about a file and an inference about the PDF,
+  // and the inference was wrong three times in one day.
+  //
+  // renderDocumentPdf is the same function app/api/report/route.ts calls. That
+  // route takes an already-built `doc` and renders it, so buildReport ->
+  // renderDocumentPdf is the whole path from scope to artefact, not an
+  // approximation of it.
+  if (PDF_PATH) {
+    const { renderDocumentPdf } = await import('../app/api/report/doc-pdf');
+    const { writeFile } = await import('node:fs/promises');
+    const buf = await renderDocumentPdf(built.doc);
+    await writeFile(PDF_PATH, buf);
+    // READ BACK OFF DISK, never reported from the buffer. Standing rule 11: a
+    // generator that PRINTS an artefact reads it off disk, so a missing file
+    // fails the run instead of manufacturing the appearance of one.
+    const { stat } = await import('node:fs/promises');
+    const st = await stat(PDF_PATH);
+    console.log(`PDF written: ${PDF_PATH}  ${st.size} bytes`);
   }
 
   const tally = provenanceTally(built.doc);
