@@ -237,9 +237,33 @@ test('composer generates three documents', async ({ page }, testInfo) => {
   // guard. A referral brief needs a project with something to cite, so the
   // harness looks for one.
   const picker = page.getByTestId('report-project');
+  // THE WHOLE PICKER, NOT THE FIRST ELEVEN.
+  //
+  // This read `options.slice(1, 12)`, which was an implicit assumption that the
+  // list was short. It held while a client scope proposed 14 projects. Widening
+  // Simtec's scope to include 'filed' grew it, and the window stopped reaching.
+  //
+  // MEASURED, rather than argued from the failure. Under the county chip clicked
+  // above - easy to miss, it is never unclicked, so this picker is Clark County
+  // only - the list is 19 projects and the first with a filing in the period is
+  // HEART HOTEL AT POSITION 12. The old window covered positions 1 to 11. It
+  // ended exactly one slot before the only project that qualifies.
+  //
+  // Which is also why it was intermittent rather than simply broken. The picker
+  // is ordered `last_activity DESC` (listScopeProjects), so a project sitting on
+  // the boundary crosses it whenever anything above or below it files. Off the
+  // county chip the same measurement gives 5 qualifying projects of 45, at
+  // positions 11, 14, 25, 36 and 37 - one inside the old window, in its last
+  // slot.
+  //
+  // The assertion is unchanged - a brief still needs a project with a filing in
+  // the period - only the search is. A loop that probes the first N of a list
+  // THE PRODUCT CONTROLS is testing its own window rather than the product, and
+  // it fails the day the list grows. The same shape is worth looking for
+  // anywhere a harness slices before it searches.
   const options = await picker.locator('option').all();
   let chosen: string | null = null;
-  for (const option of options.slice(1, 12)) {
+  for (const option of options.slice(1)) {
     const value = await option.getAttribute('value');
     if (!value) continue;
     await picker.selectOption(value);
@@ -299,7 +323,43 @@ test('composer generates three documents', async ({ page }, testInfo) => {
   // No commentary. A referral brief without Philip's read is a thin document,
   // and the composer says so on screen; a thin document is still better than
   // one carrying a judgement he never made.
-  await expect(page.getByTestId('report-preview')).toBeVisible();
+  //
+  // ---- THE PREVIEW IS NOT SLOW HERE. IT IS ABSENT. -------------------------
+  //
+  // This line was `toBeVisible()` with no timeout, the ONLY bare assertion in
+  // this file, so it inherited the 20s expect default while every other wait
+  // around it allows 60s or 120s. It failed with "element(s) not found", which
+  // reads like a broken screen and is not one.
+  //
+  // The composer renders "Building..." IN PLACE OF the preview whenever a build
+  // is pending - `built.isPending || !doc` - so `report-preview` does not exist
+  // in the DOM for as long as the last rebuild takes. The fifteen section edits
+  // immediately above fire fifteen rebuilds, and the one this assertion cares
+  // about is the last of them.
+  //
+  // MEASURED, on the run that produced this comment: the 7 removes and 8 adds
+  // fire in 1,176 ms, the preview is absent for 18,335 ms after the final edit,
+  // and the old assertion allowed 20,000 ms. A margin of 1,665 ms - 8% - on a
+  // build whose cost is a network round trip per section. That is the whole
+  // "intermittent referral failure": not a race in the product, an assertion
+  // budgeted a second and a half wider than the work it waits for.
+  //
+  // So the settle wait comes FIRST, on the counts, which are rendered
+  // unconditionally and read '--' while pending - that element is always
+  // present, so polling it cannot fail for absence - and the visibility check
+  // follows with the same timeout the rest of the file uses.
+  //
+  // THE SAME SHAPE IS EVERYWHERE A HARNESS ASSERTS ON A CONDITIONALLY-RENDERED
+  // ELEMENT. Ten more bare toBeVisible() calls exist across clients.shots,
+  // company.shots, palette.shots and project.shots, and every element they name
+  // sits behind an isPending guard on its page. They pass because one page load
+  // resolves inside 20s; none of them has fifteen queued rebuilds in front of
+  // it. Widening this one does not fix those, and they are listed here so the
+  // next one to fail is recognised in a minute rather than diagnosed again.
+  await expect
+    .poll(async () => await page.getByTestId('preview-projects-count').textContent(), { timeout: 120_000 })
+    .not.toContain('--');
+  await expect(page.getByTestId('report-preview')).toBeVisible({ timeout: 120_000 });
   await page.evaluate(() => document.fonts.ready);
 
   const referral = await counts(page);
