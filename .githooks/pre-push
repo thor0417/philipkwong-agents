@@ -22,10 +22,55 @@
 # Skipping is possible - git push --no-verify - and there is one legitimate
 # reason: pushing a branch that is deliberately mid-work. Pushing to main with
 # --no-verify is not that.
+#
+# AND SAYING SO IS NOT THE SAME AS REFUSING, WHICH THIS HOOK LEARNED THE HARD
+# WAY. It printed "NOT RUN: the full Playwright suite. Nothing is on :3000" and
+# then exited 0 over three commits that change report rendering - the exact
+# thing the suite asserts. The banner was honest and the exit code was not, and
+# a caller who reads the exit code, which is every caller, was told the
+# dashboard had been exercised.
+#
+# That is the NEVER PIPE A GATE shape one level up: the thing standing in for
+# the work got checked instead of the work. So the skip is now conditional on
+# what is actually being pushed. A scraper or config change still goes out
+# without a server, because demanding one for those is how the first version of
+# this hook taught everyone to use --no-verify. A change under dashboard/ does
+# not, and the refusal names the files that made it mandatory rather than
+# leaving the author to guess which of their commits triggered it.
 
 echo "--- pre-push gate ---"
 
 fail=0
+
+# ---- WHAT IS ACTUALLY BEING PUSHED ------------------------------------------
+#
+# git feeds the hook one line per ref on stdin: <local ref> <local sha>
+# <remote ref> <remote sha>. A remote sha of all zeros is a branch the remote
+# does not have yet, so there is nothing to diff against and the whole tree is
+# treated as changed; a local sha of all zeros is a deletion and changes no
+# files. Neither case may silently produce an empty file list, because an empty
+# list is what says "no dashboard change here, go ahead".
+Z=0000000000000000000000000000000000000000
+pushed_files=""
+while read -r local_ref local_sha remote_ref remote_sha; do
+  [ -z "$local_sha" ] && continue
+  [ "$local_sha" = "$Z" ] && continue
+  if [ "$remote_sha" = "$Z" ]; then
+    branch="${remote_ref#refs/heads/}"
+    base=$(git merge-base "$local_sha" "${1:-origin}/$branch" 2>/dev/null)
+  else
+    base="$remote_sha"
+  fi
+  if [ -n "$base" ]; then
+    diff_out=$(git diff --name-only "$base" "$local_sha" 2>/dev/null)
+  else
+    diff_out=$(git ls-tree -r --name-only "$local_sha" 2>/dev/null)
+  fi
+  pushed_files="$pushed_files$diff_out
+"
+done
+
+dashboard_files=$(printf '%s\n' "$pushed_files" | grep '^dashboard/' | sort -u)
 
 run() {
   label="$1"
@@ -79,6 +124,22 @@ else
   echo "  #  makes long dev runs fail with EBUSY in ways that read as        #"
   echo "  #  product defects.                                                #"
   echo "  ####################################################################"
+
+  # AND IF THE PUSH TOUCHES THE DASHBOARD, THE BANNER IS NOT ENOUGH.
+  if [ -n "$dashboard_files" ]; then
+    n=$(printf '%s\n' "$dashboard_files" | wc -l | tr -d ' ')
+    echo ""
+    echo "> dashboard playwright"
+    echo "  dashboard playwright EXIT 1"
+    echo ""
+    echo "  This push changes $n file(s) under dashboard/, so the suite is not"
+    echo "  optional for it. These are the files that made it mandatory:"
+    printf '%s\n' "$dashboard_files" | head -20 | sed 's/^/      /'
+    if [ "$n" -gt 20 ]; then
+      echo "      ... and $((n - 20)) more"
+    fi
+    fail=1
+  fi
 fi
 
 echo ""
