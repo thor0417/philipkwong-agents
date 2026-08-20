@@ -41,6 +41,9 @@
   "exclude": [
     "node_modules",
     "dashboard",
-    "agents/scraper/diagnostics/assembled-measure.ts"
+    "agents/scraper/diagnostics/assembled-measure.ts",
+    // Same crossing and the same reason: it calls the real buildEntry so the
+    // depth it reports is the depth that prints, not a count of stored rows.
+    "agents/scraper/diagnostics/depth-ranking.ts"
   ]
 }
