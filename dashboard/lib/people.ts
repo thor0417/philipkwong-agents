@@ -126,8 +126,35 @@ function nameableApplicant(r: ScopedRecord): string | null | undefined {
 const ROLE_APPLICANT = 'applicant';
 const ROLE_REPRESENTATIVE = 'representative';
 const ROLE_PRESENTER = 'presented by';
-const ROLE_CONTACT = 'contact named in the record';
-const ROLE_ORDER = [ROLE_APPLICANT, ROLE_REPRESENTATIVE, ROLE_PRESENTER, ROLE_CONTACT];
+// 'the filing', not 'the record'. THE WORD WAS AMBIGUOUS between the government's
+// document and our row for it, and only one of those names anybody. A reader
+// asking "which record" got no answer from the label.
+const ROLE_CONTACT = 'contact named in the filing';
+
+// A PRESS-SOURCED PARTY TAKES A PRESS-SOURCED ROLE, AND THIS IS IT.
+//
+// contact_name is filled by the contact-label reader from a filing's CONTACT:
+// block, and by the intelligence lane from an article's prose. Both landed on
+// ROLE_CONTACT, so Eli Applebaum printed as "contact named in the record" on
+// Heart Hotel across seven press rows. No record names him as a contact. No
+// record names him at all: every one of the seven is a news story.
+//
+// AND THE PRESS DOES STATE A ROLE, WHICH IS WHY THIS IS NOT ONE. Four of the
+// seven read "Developer Eli Applebaum", one reads "Investor Eli Applebaum", and
+// two give no role word. Printing 'developer' means choosing between sources
+// that disagree, and reading it off the word before a name is a prose pattern -
+// the shape standing rule 1 forbids. This label states what we actually know:
+// a publication connected this person to this project. The press block four
+// rows down carries the sentences, with their links, and lets the sources speak
+// for themselves.
+const ROLE_PRESS_NAMED = 'named in press coverage';
+const ROLE_ORDER = [
+  ROLE_APPLICANT,
+  ROLE_REPRESENTATIVE,
+  ROLE_PRESENTER,
+  ROLE_CONTACT,
+  ROLE_PRESS_NAMED,
+];
 
 // Words printed in capitals that are not acronyms of two letters. Used only to
 // choose between two spellings of the same name.
@@ -442,10 +469,18 @@ export function buildParties(project: Project, records: ScopedRecord[]): Project
     // The contact block is one group of columns, so the detail belongs to the
     // person the block names and to nobody else. Where that person is already
     // the representative, the two merge and the detail rides along.
-    add(r.contact_name, ROLE_CONTACT, r, {
-      email: tidy(r.contact_email) || null,
-      phone: tidy(r.contact_phone) || null,
-    });
+    //
+    // THE ROLE FOLLOWS THE SOURCE. A filing's CONTACT: block states a contact;
+    // an article naming somebody states no such thing. See ROLE_PRESS_NAMED.
+    add(
+      r.contact_name,
+      isFiling(r.source, r.source_type, r.stream) ? ROLE_CONTACT : ROLE_PRESS_NAMED,
+      r,
+      {
+        email: tidy(r.contact_email) || null,
+        phone: tidy(r.contact_phone) || null,
+      }
+    );
   }
 
   // ONE PARTY, ONE ENTRY, EVEN WHEN THE COLUMNS SPELL THEM DIFFERENTLY.
