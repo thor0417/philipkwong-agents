@@ -77,7 +77,26 @@ const HEADER: HeaderField[] = [
   { kind: 'nyc_borough', label: 'Borough' },
   { kind: 'nyc_community_district', label: 'Community district' },
   { kind: 'nyc_council_district', label: 'Council district', numeric: true },
-  { kind: 'site_address', label: 'Address' },
+  // ---- NO site_address HERE, AND THAT IS THE FIX -------------------------
+  //
+  // This mapped `Address:` to a kind literally called `site_address`, and the
+  // only New York adapter that ever wrote that line was nyc-city-record, whose
+  // address columns describe the HEARING VENUE and where plans are on file. A
+  // site_address kind that never holds a site address is the defect in one line.
+  //
+  // MEASURED over the corpus: 14 live records carried it, its seven distinct
+  // values were Brooklyn Borough Hall, Queens Borough Hall, DCP at 120 Broadway,
+  // two further city offices and the literal string "Address Not Listed In The
+  // Dropdown", and NOT ONE was a site. Bally's Bronx - Throggs Neck - printed
+  // DCP's Manhattan office as its address.
+  //
+  // ZAP and CEQR write no Address line at all, so nothing is lost by removing
+  // the mapping, and the stored records that still carry the old line stop
+  // producing the fact immediately rather than at the next re-capture. The venue
+  // is kept and correctly labelled by the adapter; see nyc-city-record.
+  //
+  // sfwmd also writes an `Address:` line and is untouched: isNycRecord admits
+  // only the three New York shapes, so it never reached this list.
 ];
 
 // The value runs to the end of the line, or to the next `Label:` where the

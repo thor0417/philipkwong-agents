@@ -303,7 +303,36 @@ export async function scrapeNycCityRecord(): Promise<NormalizedLead[]> {
 
     const published = isoDay(r.start_date);
     const hits = [...new Set(bypassHits(gateText).map((h) => h.term))];
-    const address = [r.building_name, r.street_address_1, r.city, r.zip_code].filter(Boolean).join(', ');
+    // ---- THIS IS THE NOTICE'S ADDRESS, NOT THE MATTER'S -------------------
+    //
+    // building_name / street_address_1 / city / zip_code describe WHERE THE
+    // HEARING IS HELD and WHERE THE PLANS ARE ON FILE. They have never
+    // described the premises, and this line labelled them `Address:`, which
+    // readers/nyc-records then mapped to a kind called `site_address` and a
+    // client brief printed as "Address".
+    //
+    // WHAT THAT PUT ON A PAGE. Bally's Bronx - a casino in Throggs Neck -
+    // printed "Address: 120 Broadway, New York, 10271", which is the Department
+    // of City Planning's central office, the building whose Lower Concourse
+    // holds the City Planning Commission hearing room. A reader takes it as the
+    // site.
+    //
+    // MEASURED ACROSS THE CORPUS BEFORE THE CHANGE: 14 live records carry this
+    // line and its seven distinct values are Brooklyn Borough Hall, Queens
+    // Borough Hall, DCP at 120 Broadway, two more city offices, and the literal
+    // string "Address Not Listed In The Dropdown". NOT ONE IS A SITE. There is
+    // nothing to filter, because there is no good value mixed in with the bad -
+    // and a venue blocklist would be a name rule wearing a rule's clothes.
+    //
+    // AND THE NOTICE BODY DOES NOT CARRY THE SITE EITHER, so there is nothing to
+    // take instead: every body is "NOTICE IS HEREBY GIVEN that a Land Use Public
+    // Hearing will be held by ... on [date]". The honest answer is no site
+    // address rather than the wrong one.
+    //
+    // So the fact is KEPT AND LABELLED, the same move presented_by got: it is
+    // true, it is occasionally useful, and it has simply never been called what
+    // it is. See readers/nyc-records for the other half.
+    const noticeVenue = [r.building_name, r.street_address_1, r.city, r.zip_code].filter(Boolean).join(', ');
 
     leads.push({
       title,
@@ -326,7 +355,7 @@ export async function scrapeNycCityRecord(): Promise<NormalizedLead[]> {
         // the text - so emitting it would let a printing schedule outrank a real
         // hearing date as the record's milestone.
         r.due_date && isoDay(r.due_date) ? `Response due: ${isoDay(r.due_date)}` : '',
-        address ? `Address: ${address}` : '',
+        noticeVenue ? `Hearing venue or where plans are on file: ${noticeVenue}` : '',
         r.vendor_name ? `Vendor / counterparty: ${r.vendor_name}` : '',
         r.contact_name ? `Contact: ${r.contact_name}` : '',
         description ? `Notice: ${description}` : '',
