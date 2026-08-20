@@ -111,8 +111,84 @@ interface Population {
   name: string;
   predicate: string;
   count: number;
+  /** How many rows this step removed. Zero is the interesting case. */
+  removed: number;
   /** Stated relative to the population above. One line, in words. */
   delta: string;
+  /**
+   * A CLAUSE THAT REMOVES NOTHING IS NOT DOING WHAT ITS AUTHOR THOUGHT.
+   *
+   * Null when the clause fired. A sentence when it did not, printed BESIDE the
+   * number so a reader meets it at the same moment as the figure it qualifies.
+   *
+   * This exists because of 146. It filtered status NOT IN ('archived','deleted')
+   * and this table holds neither value, so the clause removed nothing at all and
+   * the status that does exist was never filtered - and the wrong number was
+   * quoted for a week. Removing zero rows is not proof of a bug: a clause can be
+   * correct and have nothing to catch today. It IS proof that the clause is
+   * untested by the data, which is the condition under which a wrong one hides.
+   */
+  neverFired: string | null;
+  /**
+   * Where a clause names specific column values, which of them the column
+   * actually holds. A named value that appears nowhere is the decisive signal:
+   * the clause cannot ever fire, whatever the data does later.
+   */
+  namesValuesNotPresent?: string[];
+}
+
+/**
+ * Build one rung, measuring what it removed rather than being told.
+ *
+ * `names` are the literal column values the predicate mentions, checked against
+ * the values the column actually holds. See neverFired.
+ */
+function rung<T>(
+  args: {
+    name: string;
+    predicate: string;
+    from: T[];
+    keep: (row: T) => boolean;
+    delta: (removed: number) => string;
+    names?: { values: string[]; column: (row: T) => string | null };
+    all?: T[];
+    /** The starting population. It filters nothing by design, so the
+     *  removed-nothing check does not apply to it. */
+    base?: boolean;
+  }
+): { pop: Population; kept: T[] } {
+  const kept = args.from.filter(args.keep);
+  const removed = args.from.length - kept.length;
+  let notPresent: string[] | undefined;
+  if (args.names) {
+    const held = new Set((args.all ?? args.from).map((r) => String(args.names!.column(r))));
+    notPresent = args.names.values.filter((v) => !held.has(v));
+  }
+  const reasons: string[] = [];
+  if (removed === 0 && !args.base) {
+    reasons.push(
+      `THIS CLAUSE REMOVED NOTHING. It is untested by the data, which is the ` +
+        `condition under which a wrong clause hides. Check it says what it means.`
+    );
+  }
+  if (notPresent && notPresent.length > 0) {
+    reasons.push(
+      `It names value(s) this column does not hold: ${notPresent.map((v) => `'${v}'`).join(', ')}. ` +
+        `A clause naming a value that appears nowhere cannot ever fire.`
+    );
+  }
+  return {
+    pop: {
+      name: args.name,
+      predicate: args.predicate,
+      count: kept.length,
+      removed,
+      delta: args.delta(removed),
+      neverFired: reasons.length ? reasons.join(' ') : null,
+      ...(notPresent && notPresent.length ? { namesValuesNotPresent: notPresent } : {}),
+    },
+    kept,
+  };
 }
 
 async function pageAll<T>(table: string, columns: string): Promise<T[]> {
@@ -188,9 +264,32 @@ async function main(): Promise<void> {
   // on the day somebody quoted it.
   const asQuoted218 = notDismissed.length;
   const asQuoted214 = notDismissed.filter((p) => p.country === 'United States').length;
-  const asQuoted146 = projects.filter(
-    (p) => p.status !== 'archived' && p.status !== 'deleted' && p.stage !== 'dormant'
+
+  // THE OLD PREDICATE, RUN THROUGH THE SAME DETECTOR, so the file shows the
+  // clause that removed nothing rather than describing it in a comment.
+  const oldLiveRungs = [
+    rung<ProjectRow>({
+      name: 'oldLive.statusClause',
+      predicate: "projects WHERE status NOT IN ('archived','deleted')",
+      from: projects,
+      all: projects,
+      keep: (p) => p.status !== 'archived' && p.status !== 'deleted',
+      names: { values: ['archived', 'deleted'], column: (p) => p.status },
+      delta: (n) => `${n} row(s) removed.`,
+    }),
+  ];
+  oldLiveRungs.push(
+    rung<ProjectRow>({
+      name: 'oldLive.dormantClause',
+      predicate: "... AND stage <> 'dormant'",
+      from: oldLiveRungs[0].kept,
+      all: projects,
+      keep: (p) => p.stage !== 'dormant',
+      names: { values: ['dormant'], column: (p) => p.stage },
+      delta: (n) => `${n} row(s) removed.`,
+    })
   );
+  const asQuoted146 = oldLiveRungs[oldLiveRungs.length - 1].kept;
   // The projects the old 'live' predicate counted and this one does not, and why.
   const liveIds = new Set(liveProjects.map((p) => p.id));
   const countedButNotLive = asQuoted146
@@ -215,45 +314,65 @@ async function main(): Promise<void> {
   const quoted146Ids = new Set(asQuoted146.map((p) => p.id));
   const liveButNotCounted = liveProjects.filter((p) => !quoted146Ids.has(p.id)).length;
 
-  const populations: Population[] = [
-    {
+  const rungs = [
+    rung<ProjectRow>({
       name: 'all',
       predicate: 'projects, no filter',
-      count: projects.length,
-      delta: 'every row in the table, tombstones and dormancy included.',
-    },
-    {
+      from: projects,
+      keep: () => true,
+      base: true,
+      delta: () => 'every row in the table, tombstones and dormancy included.',
+    }),
+  ];
+  rungs.push(
+    rung<ProjectRow>({
       name: 'inPipeline',
       predicate: `projects WHERE module = '${LIVE_PIPELINE_STORAGE_KEY}'`,
-      count: inPipeline.length,
-      delta: `${projects.length - inPipeline.length} row(s) belong to another pipeline and are not part of this register.`,
-    },
-    {
+      from: rungs[rungs.length - 1].kept,
+      keep: (p) => p.module === LIVE_PIPELINE_STORAGE_KEY,
+      delta: (n) => `${n} row(s) belong to another pipeline and are not part of this register.`,
+    })
+  );
+  rungs.push(
+    rung<ProjectRow>({
       name: 'register',
       predicate: `... AND status <> 'dismissed'`,
-      count: notDismissed.length,
-      delta:
-        `${inPipeline.length - notDismissed.length} tombstoned project(s) removed. NOTHING IS DELETED, so they ` +
-        `are still in the table and still readable; they are not part of the register.`,
-    },
-    {
+      from: rungs[rungs.length - 1].kept,
+      all: projects,
+      keep: (p) => p.status !== 'dismissed',
+      names: { values: ['dismissed'], column: (p) => p.status },
+      delta: (n) =>
+        `${n} tombstoned project(s) removed. NOTHING IS DELETED, so they are still in the table ` +
+        `and still readable; they are not part of the register.`,
+    })
+  );
+  rungs.push(
+    rung<ProjectRow>({
       name: 'inScope',
       predicate: `... AND inCorpusScope(country)  (${corpusScopeSentence()})`,
-      count: inScope.length,
-      delta:
-        `${notDismissed.length - inScope.length} project(s) resolve outside the covered countries. An ` +
-        `UNRESOLVED country is not a foreign one and stays in: country = 'United States' would instead ` +
-        `have dropped ${notDismissed.filter((p) => p.country !== 'United States').length}, including matters that are in the United States.`,
-    },
-    {
+      from: rungs[rungs.length - 1].kept,
+      keep: (p) => inCorpusScope(p.country),
+      delta: (n) =>
+        `${n} project(s) resolve outside the covered countries. An UNRESOLVED country is not a ` +
+        `foreign one and stays in: country = 'United States' would instead have dropped ` +
+        `${notDismissed.filter((p) => p.country !== 'United States').length}, including matters that are in the United States.`,
+    })
+  );
+  rungs.push(
+    rung<ProjectRow>({
       name: 'live',
       predicate: `... AND stage <> 'dormant'`,
-      count: liveProjects.length,
-      delta:
-        `${inScope.length - liveProjects.length} dormant project(s) removed: no filing for long enough that we no ` +
-        `longer treat them as live. They remain on the register and are counted under 'register' above.`,
-    },
-  ];
+      from: rungs[rungs.length - 1].kept,
+      all: projects,
+      keep: (p) => p.stage !== 'dormant',
+      names: { values: ['dormant'], column: (p) => p.stage },
+      delta: (n) =>
+        `${n} dormant project(s) removed: no filing for long enough that we no longer treat them ` +
+        `as live. They remain on the register and are counted under 'register' above.`,
+    })
+  );
+  const populations: Population[] = rungs.map((r) => r.pop);
+
   const projectById = new Map(projects.map((p) => [p.id, p]));
 
   // ---- FACT REACH, AGAINST THE LIVE SET -----------------------------------
@@ -315,6 +434,15 @@ async function main(): Promise<void> {
       // delta says what the step removed and why. See the Population note near
       // the top of this file for the three counts that made it necessary.
       populations,
+      // EVERY CLAUSE THAT REMOVED NOTHING, ACROSS BOTH LADDERS, HOISTED.
+      //
+      // Beside the number and not buried under it. The 146 was wrong for a week
+      // because a clause that fired on nothing looks exactly like a clause that
+      // fired correctly, and nothing in the output distinguished them.
+      clausesThatRemovedNothing: [...populations, ...oldLiveRungs.map((r) => r.pop)]
+        .filter((x) => x.neverFired)
+        .map((x) => ({ population: x.name, predicate: x.predicate, why: x.neverFired })),
+      oldLivePredicateByClause: oldLiveRungs.map((r) => r.pop),
       reconciliation: {
         about:
           'The counts quoted on 2026-08-18 and 2026-08-19, recomputed against the same data, so a ' +
