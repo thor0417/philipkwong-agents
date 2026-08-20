@@ -674,7 +674,10 @@ export async function buildReport(req: BuildRequest): Promise<BuiltReport> {
     if (!recordsByProject.has(id)) recordsByProject.set(id, []);
     recordsByProject.get(id)!.push(r);
   }
-  const placeOf = (p: Project) => p.market ?? p.region_state ?? '';
+  // TOTAL, because it is called on projects[0] where the array may be empty.
+  // See the note on scope.geography below: a selected project can be filtered
+  // away by nine rules and the document must still build.
+  const placeOf = (p: Project | undefined) => p?.market ?? p?.region_state ?? '';
   const marketWeight = new Map<string, number>();
   for (const p of detailedProjects) {
     marketWeight.set(placeOf(p), (marketWeight.get(placeOf(p)) ?? 0) + 1);
@@ -814,6 +817,30 @@ export async function buildReport(req: BuildRequest): Promise<BuiltReport> {
       // caller passed moves to `matter`, where the footer reads it. Neither
       // answer is invented: both are stored columns on the row this document is
       // about.
+      // A SELECTED PROJECT CAN BE FILTERED AWAY, AND THE DOCUMENT MUST STILL
+      // BUILD.
+      //
+      // This read `placeOf(projects[0])`, which assumed that a projectId being
+      // set meant a project survived to this line. It does not: `projects` is
+      // narrowed by nine filters between the id match and here - dormancy,
+      // hollowness, frozen markets, provisional names, streams, record facets
+      // and, last, the MEMBERSHIP GATE. When the gate drops the selected
+      // project the array is empty, projects[0] is undefined, and placeOf threw
+      // TypeError: Cannot read properties of undefined (reading 'market') -
+      // taking the whole preview down rather than rendering the state the
+      // composer already has a message for.
+      //
+      // MEASURED, and it is not about the client: the same project throws under
+      // Simtec and under JKR and builds fine with no client selected, because
+      // the gate only runs when a clientId is given. JKR merely reaches it more
+      // often - 127 of its rows are not `included`, 119 of them live with
+      // records - so nearly every project its picker offers detonates.
+      //
+      // An empty set is a real and renderable state: membershipEmpty already
+      // says "confirmed membership is switched on and nothing has been confirmed
+      // for this client", and the coverage note states the withheld count. So
+      // the place row falls back to the label the caller passed, exactly as a
+      // market report does, and the document goes on to say what it withheld.
       geography: singleProject ? placeOf(projects[0]) || req.geographyLabel : req.geographyLabel,
       matter: singleProject ? req.geographyLabel : null,
       // THE COVER STATES THE SPAN OF WHAT IT HOLDS, NOT A FILTER IT DID NOT

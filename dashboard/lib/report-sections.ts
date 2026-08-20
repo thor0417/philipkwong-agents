@@ -1800,6 +1800,22 @@ const referralCoverage: SectionDef = {
     }
     for (const n of capNotes(ctx.caps, ctx.withheldSummaries)) withheld.push(n);
 
+    // ---- AND THE GATE THAT CAN WITHHOLD THE WHOLE MATTER --------------------
+    //
+    // membershipSentence already exists and is printed TWICE on a market report,
+    // on the cover and in the coverage note. This section never called it, so a
+    // referral brief whose one project the membership gate dropped printed
+    // "0 projects, 0 records" and then "Nothing else was withheld. Every record
+    // we hold on this matter is cited above" - which is false about the only
+    // thing the document is for.
+    //
+    // Found by fixing the crash that used to hide it: until placeOf was made
+    // total, this state threw before it could print anything, so the sentence
+    // that was missing could not be seen to be missing. A crash is not the worst
+    // failure here; a document that builds and says nothing was withheld is.
+    const membership = membershipSentence(ctx);
+    if (membership) withheld.push(membership);
+
     // ALWAYS PRINTED. These are limits of the document rather than things it
     // withheld, and a reader deciding whether to act on this brief needs them
     // whether or not anything was held back.
