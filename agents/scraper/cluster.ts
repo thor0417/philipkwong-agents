@@ -802,6 +802,18 @@ export interface ClusteredProject {
   country: string | null;
   region_state: string | null;
   stage: ProjectStage;
+  // WHAT THE PRESS SAYS THE STAGE IS, when that runs ahead of what any captured
+  // filing supports. Null when it does not, which is the case for almost every
+  // project: `stage` is what our filings prove and nothing else writes it.
+  //
+  // COMPUTED HERE AND THEN THROWN AWAY, until now. provenStage has returned
+  // pressReported since the press-cannot-promote rule shipped, and migration 040
+  // added the column for it, and nothing carried the value from one to the
+  // other - so the column existed, held nothing, and the entry line it was run
+  // for did not exist either. A brief on Heart Hotel printed 'filed' above
+  // fifteen headlines saying Clark County had approved it, with no sentence
+  // reconciling the two, which is the disagreement a reader most needs named.
+  stage_press_reported: ProjectStage | null;
   development_category: string | null;
   venue_type: string | null;
   primary_applicant: string | null;
@@ -1658,6 +1670,11 @@ export function clusterRecords(
       country: modeOf(recs.map((r) => r.country)),
       region_state: modeOf(recs.map((r) => r.region_state)),
       stage,
+      // Only where the press runs AHEAD of the filings. deriveProjectStage can
+      // move `stage` down for stall or dormancy, and a press stage above a
+      // stalled project is still the thing a reader needs told, so this is taken
+      // from provenStage rather than compared against the final stage.
+      stage_press_reported: proven.pressReported,
       development_category: modeOf(recs.map((r) => r.development_category)),
       venue_type: modeOf(recs.map((r) => r.venue_type)),
       primary_applicant: modeOf(recs.map((r) => r.applicant)),

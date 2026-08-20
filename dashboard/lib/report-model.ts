@@ -760,13 +760,55 @@ export function suppressRepeatedSources(lines: Line[]): boolean[] {
 const RECONCILE_OPENER = 'Our filing record';
 const ABSENCE_OPENER = 'What the record does not say';
 const CAPTURE_OPENER = 'Of the';
+const STAGE_OPENER = 'The stage above';
 
 export const DERIVED_OPENERS = [
   ASSEMBLED_OPENER,
   RECONCILE_OPENER,
   ABSENCE_OPENER,
   CAPTURE_OPENER,
+  STAGE_OPENER,
 ];
+
+/**
+ * WHERE THE FILINGS AND THE PRESS DISAGREE ABOUT WHAT HAPPENED.
+ *
+ * Null unless projects.stage_press_reported holds a stage, which it does only
+ * when the press runs AHEAD of what a captured filing supports. That is 1 live
+ * project of 155 today, and the one it is: Heart Hotel / Kulik River reads
+ * `filed`, and fifteen of the sixteen press reports under it say Clark County
+ * approved the application.
+ *
+ * A BRIEF THAT PRINTS BOTH AND RECONCILES NEITHER IS THE WORST OF THE THREE
+ * OPTIONS. The reader meets a heading saying `filed`, then a page of headlines
+ * saying `approved`, and has to decide for themselves which of us is wrong. The
+ * answer is neither: the press is reporting a hearing outcome and we have not
+ * captured the document recording it, and that is a fact about our capture which
+ * the reader is entitled to.
+ *
+ * DERIVED, NOT ASSESSED, and that is why it opens with a fixed phrase the
+ * provenance gate checks. Every clause is read off two stored columns and the
+ * record set already printed beside it. It characterises nothing: it does not
+ * say the press is right, does not say the matter was approved, and does not
+ * guess why the filing is missing.
+ *
+ * IT NEVER RE-DERIVES THE LADDER. stage_press_reported is computed by
+ * provenStage in lib/taxonomy while clustering and stored on the project. This
+ * package keeps a 249-line hand mirror of that 1400-line file, and re-deriving
+ * the answer here would mean copying the stage vocabulary into it - a copy that
+ * goes stale, on the half that decides what a client is told.
+ */
+export function stageReconcileSentence(
+  stage: string | null,
+  pressReported: string | null
+): Assembled | null {
+  const filed = (stage ?? '').trim();
+  const press = (pressReported ?? '').trim();
+  if (!press || !filed || press === filed) return null;
+  return (`${STAGE_OPENER} is what our captured filings support: ${filed}. The press reports listed ` +
+    `below describe this matter as ${press}. No filing we hold states that, so the stage says ` +
+    `${filed} and the difference is our capture rather than a contradiction between the two.`) as Assembled;
+}
 
 /**
  * THE COVER SAYS 23 AND THE PAGE SHOWS 21. ACCOUNT FOR THE OTHER TWO.

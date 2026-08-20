@@ -111,6 +111,13 @@ export function projectRow(
     region_state: c.region_state,
     market: c.market,
     stage: c.stage,
+    // WHAT THE PRESS SAYS, WHERE IT RUNS AHEAD OF THE FILINGS. Migration 040.
+    // Written unconditionally, null included, because null is the answer for
+    // almost every project and a column that is only ever written when it has a
+    // value cannot go back to having none. It follows `stage` and is NOT in
+    // PROJECT_OVERRIDABLE: a hand-set stage is Philip's judgement about what our
+    // filings support, and this is a statement about what somebody else said.
+    stage_press_reported: c.stage_press_reported,
     development_category: c.development_category,
     venue_type: c.venue_type,
     last_activity: c.last_activity,

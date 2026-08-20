@@ -29,6 +29,9 @@ export const PROJECT_COLUMNS = [
   // The ranking and its breakdown. Read on every register row, so stored
   // rather than recomputed per render - same reason as summary.
   'significance', 'significance_detail', 'significance_computed_at',
+  // See the field note: what the press reports, where it runs ahead of the
+  // filings. Selected here so every surface that reads a Project can print it.
+  'stage_press_reported',
 ].join(',');
 
 export interface Project {
@@ -40,6 +43,13 @@ export interface Project {
   region_state: string | null;
   market: string | null;
   stage: string | null;
+  // WHAT THE PRESS REPORTS THE STAGE AS, when that runs ahead of what our
+  // captured filings support (migration 040). Null on almost every project.
+  // NEVER the project's stage: `stage` is what the filings prove, and this is
+  // what somebody else said about it. The referral entry prints the two side by
+  // side, because a brief reading 'filed' above fifteen headlines saying
+  // 'approved' leaves a reader to reconcile them alone.
+  stage_press_reported: string | null;
   development_category: string | null;
   venue_type: string | null;
   status: string | null;
