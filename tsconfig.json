@@ -53,6 +53,8 @@
     "agents/scraper/diagnostics/name-as-party-measure.ts",
     // And again. Measures contact_name, which unlike presented_by is genuinely
     // mixed on one column and one stream, so it counts rather than concludes.
-    "agents/scraper/diagnostics/contact-name-measure.ts"
+    "agents/scraper/diagnostics/contact-name-measure.ts",
+    // Same crossing: it calls the real buildEntry to count what prints.
+    "agents/scraper/diagnostics/repeated-label-measure.ts"
   ]
 }

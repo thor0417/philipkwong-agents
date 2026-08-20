@@ -36,6 +36,7 @@ import {
   type LegistarJurisdictionStats,
 } from './sources/legistar';
 import { lastAttachmentStats } from './sources/legistar-attachments';
+import { recheckCpcReports } from './migrations/capture-cpc-reports';
 import { resetParseReports, printParseReports, allParseReports } from './sources/schemas';
 import { RunTimer } from './logger';
 import { alarmError } from './alarm';
@@ -754,6 +755,19 @@ async function main(): Promise<void> {
   // Every new record joins its project, or creates one, or lands in the Inbox.
   // Without this the register goes stale the moment the next run happens.
   printAttachReport('Government', await attachOnWrite(report.write?.writtenUrls ?? []));
+
+  // NEW YORK'S DECISIONS, RE-CHECKED ON EVERY RUN.
+  //
+  // A CPC report appears once the Commission votes, and 15 of the 28 ULURP
+  // numbers the corpus holds have no report yet. Those are matters awaiting a
+  // vote rather than misses, and re-checking them is what turns "we are waiting"
+  // into "it was decided on Tuesday". About six seconds for the whole New York
+  // set - a CPC report costs a median 497ms against 1,883ms for a Clark staff
+  // report - so it runs every time rather than on a schedule nobody remembers.
+  //
+  // AFTER the records are written and attached, because it reads the ULURP
+  // numbers those records carry.
+  if (process.env.GOVERNMENT_NO_WRITE !== '1') await recheckCpcReports();
 
   // Per-source health, then the lane total. GOVERNMENT_NO_WRITE runs are
   // excluded: writing nothing is the point of them, so alerting would be noise.
