@@ -53,7 +53,6 @@ import { scrapeAnaheimAgendas } from './sources/agenda-portal';
 import { scrapeLasVegasAgendas } from './sources/lasvegas';
 import { scrapeClarkTabAgendas } from './sources/clark-tab';
 import { scrapeCeqanet } from './sources/ceqanet';
-import { scrapeSfwmd } from './sources/sfwmd';
 import { scrapeNycZap, zapStats, NYC_ZAP_MARKET } from './sources/nyc-zap';
 import {
   scrapeNycCityRecord,
@@ -702,7 +701,19 @@ async function main(): Promise<void> {
       markets: ['Anaheim, CA', 'Orange County, CA', 'California'],
       run: () => scrapeCeqanet(),
     },
-    { source: 'sfwmd', markets: ['South Florida'], run: () => scrapeSfwmd() },
+    // SFWMD REMOVED 2026-08-21. Measured over the adapter's whole life: 25
+    // records, 6 surviving, and TWO published in the last twelve months - both
+    // Bonita Springs, both dismissed. The newest surviving capture is
+    // 2024-02-02. Every one of the 6 projects it produced is SFWMD-only, so
+    // nothing else loses a record. See RETIRED_MARKETS in lib/coverage and
+    // RETIRED_SOURCES in opportunity.
+    //
+    // THE ADAPTER HAD TO GO WITH THE RECORDS, and that is the lesson rather
+    // than an aside. South Florida's records were marked lifecycle='retired'
+    // earlier the same day and the next run brought them straight back: the
+    // scrape path writes lifecycle on every upsert, so a retirement is only as
+    // durable as the adapter's silence. Miami-Dade and San Antonio held because
+    // they left DEFAULT_JURISDICTIONS at the same time.
     // NEW YORK CITY. Three layers, one market: the boroughs fold into
     // 'New York City' (lib/geography MARKET_ALIASES), so all three adapters
     // declare the city rather than a borough list.

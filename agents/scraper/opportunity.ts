@@ -90,6 +90,15 @@ export const RETIRED_SOURCES = [
   'tedeu', 'canadabuys', 'uktenders', 'austender', 'ungm', 'gebiz', 'tenderned',
   'worldbank', 'iadb', 'adb', 'cdb', 'afdb', 'undp',
   'adzuna', 'careerjet', 'jooble', 'reed',
+  // SFWMD, RETIRED 2026-08-21, AND NOT FOR THE REASON THE OTHERS WERE. Every
+  // name above is from the earlier consulting vertical and was never ours. This
+  // one is a US hospitality source, correctly aimed, that does not produce:
+  // 25 records over its whole life, 6 surviving, 2 published in the last twelve
+  // months and both dismissed, newest surviving capture 2024-02-02. It is here
+  // because the list is "sources we have stopped reading", and the reason is
+  // yield rather than scope. A Florida water-permit source is worth having if
+  // one that publishes turns up.
+  'sfwmd',
 ];
 
 /** The reason stamped on every record from a retired source. */

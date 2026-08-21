@@ -60,12 +60,6 @@ export const COVERED_MARKETS: CoveredMarket[] = [
   { market: 'Oakland', regionState: 'California', country: 'United States', sources: ['legistar', 'ceqanet'], layers: 'legislative, entitlement, part of environmental' },
   { market: 'Phoenix', regionState: 'Arizona', country: 'United States', sources: ['legistar'], layers: 'legislative, entitlement' },
   { market: 'Nashville', regionState: 'Tennessee', country: 'United States', sources: ['legistar'], layers: 'legislative, entitlement' },
-  // ADDED 2026-08-21. The table omitted a market we actually read: SFWMD has
-  // produced 4 records here and Lake Buena Vista appeared nowhere on this list,
-  // which is the same defect as San Antonio pointing the other way. It will
-  // compute as `stale` rather than `live` - its newest document is 2024-02-02 -
-  // and that is the honest answer rather than a reason to leave it off.
-  { market: 'Lake Buena Vista', regionState: 'Florida', country: 'United States', sources: ['sfwmd'], layers: 'utility permits only' },
   { market: 'Central Florida Tourism Oversight District', regionState: 'Florida', country: 'United States', sources: ['cftod-pdf'], layers: 'legislative, entitlement' },
   { market: 'New York City', regionState: 'New York', country: 'United States', sources: ['nyc-zap', 'nyc-ceqr', 'nyc-city-record'], layers: 'environmental review and legal notices; entitlement frozen at April 2026; NO council' },
   { market: 'Yonkers', regionState: 'New York', country: 'United States', sources: ['legistar'], layers: 'legislative, entitlement' },
@@ -125,6 +119,22 @@ export const RETIRED_MARKETS: RetiredMarket[] = [
     revivesWhen: 'the feed returns a matter introduced in the last twelve months.',
   },
   {
+    market: 'Lake Buena Vista',
+    regionState: 'Florida',
+    lastDocument: '2024-02-02',
+    retired: '2026-08-21',
+    why:
+      'Added to the table on 2026-08-21 because SFWMD had produced 4 records here and the table ' +
+      'listed it nowhere, and removed the same day because the check written in between said it ' +
+      'was not coverage. Measured over the whole life of the SFWMD adapter: 25 records, 6 surviving, ' +
+      'and TWO published in the last twelve months, both Bonita Springs and both dismissed. All 6 ' +
+      'projects it produced hold SFWMD records and nothing else. The adapter is retired with it.',
+    revivesWhen:
+      'a Florida water-permit source publishes something from this decade. SFWMD is on ' +
+      'RETIRED_SOURCES in agents/scraper/opportunity, so reviving the market means reviving the ' +
+      'adapter first.',
+  },
+  {
     market: 'South Florida',
     regionState: 'Florida',
     lastDocument: '1983-01-03',
@@ -139,6 +149,23 @@ export const RETIRED_MARKETS: RetiredMarket[] = [
   },
 ];
 
+// A RETIREMENT IS ONLY AS DURABLE AS THE ADAPTER'S SILENCE, and this list cost
+// a day learning it.
+//
+// Marking a market's records lifecycle='retired' does NOT hold while something
+// still fetches them. The scrape path writes lifecycle on every upsert, so the
+// next run of a live adapter resurrects the rows it reaches. Measured on
+// 2026-08-21: South Florida's two records were retired in the morning and were
+// back to 'active' by the afternoon's government run, because SFWMD was still in
+// the lane. Miami-Dade and San Antonio stayed retired only because they left
+// DEFAULT_JURISDICTIONS in the same commit.
+//
+// So retiring a market means retiring whatever reaches it. Where that source
+// serves only the retired market, it goes to RETIRED_SOURCES; where it serves
+// live markets too, the market row has to come off the adapter's own list
+// instead. Either way the record-level tombstone is the LAST step and never the
+// only one.
+//
 // YONKERS IS DELIBERATELY NOT HERE, AND THE REASON IS THE FINDING.
 //
 // It was proposed for retirement on the strongest-looking evidence in the pass:
