@@ -133,6 +133,21 @@ export interface ProjectQuery {
   // not what "arrived" means.
   firstSeenFrom?: string;
   firstSeenTo?: string;
+  // WHEN THE PROJECT APPEARED TO US, which is not first_seen and not any date a
+  // document carries.
+  //
+  // created_at is the row's insert time. first_seen is written once as the
+  // OLDEST CAPTURE DATE AMONG THE PROJECT'S RECORDS, so it answers "how old is
+  // the oldest thing behind this" rather than "when did this show up". Measured
+  // 2026-08-21: they disagree on 135 of 235 register rows, widest gap 27 days.
+  // 2565 Park Plaza museum was created 2026-08-19 carrying first_seen
+  // 2026-07-23, so a seven-day window on first_seen would have hidden it on the
+  // day it arrived.
+  //
+  // A 2024 filing captured yesterday is new to us and old to the world, and
+  // this is the column that says so. published_date is the world's date and is
+  // deliberately not an option here.
+  createdFrom?: string;
   // THE PERIOD, on the MOVED axis. project_events lives in another table, so
   // this is a list of project ids resolved from it by the caller. An EMPTY
   // ARRAY IS MEANINGFUL and is not the same as undefined: it means the period
@@ -248,6 +263,7 @@ export function applyProjectFilters<T>(builder: T, q: ProjectQuery): T {
   if (q.venue_type) set(b.eq('venue_type', q.venue_type));
   if (q.watch !== undefined) set(b.eq('watch', q.watch));
   if (q.activeFrom) set(b.gte('last_activity', q.activeFrom));
+  if (q.createdFrom) set(b.gte('created_at', q.createdFrom));
   if (q.firstSeenFrom) set(b.gte('first_seen', q.firstSeenFrom));
   if (q.firstSeenTo) set(b.lt('first_seen', q.firstSeenTo));
   // `!== undefined`, not truthiness: an empty list is a real answer and must

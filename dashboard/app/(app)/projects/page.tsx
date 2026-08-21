@@ -34,6 +34,7 @@ import {
   useMarketFacetFromRecords,
   useProjectMutations,
 } from '@/lib/use-projects';
+import { NEW_WINDOW_DAYS, newWindowSince } from '@/lib/arrival-window';
 import PeriodSelector from '@/components/PeriodSelector';
 import { BUCKETS, PERIOD_AXES, bucketOf, type BucketMode } from '@/lib/period';
 import {
@@ -61,8 +62,15 @@ import styles from './page.module.css';
 // It shipped that way for one build and read as 184 next to All's 184, which is
 // a control that lies about doing something. It belongs on the Records screen,
 // where an unattached record is a real thing.
+// ONE INSTANT FOR THE WHOLE SCREEN. Read once rather than per render, because
+// every query here is keyed on its query object and a boundary that moves on
+// each render is a key that never matches, which is a refetch loop. The window
+// is floored to the day anyway (see newWindowSince), so this only has to be
+// stable, not current to the second.
+const NOW = new Date();
+
 const VIEWS = [
-  { key: 'new', label: 'New' },
+  { key: 'new', label: `New (${NEW_WINDOW_DAYS}d)` },
   { key: 'watchlist', label: 'Watchlist' },
   { key: 'client_ready', label: 'Client ready' },
   { key: 'all', label: 'All' },
@@ -149,10 +157,34 @@ function countryIsCorpusScope(param: string | null): boolean {
   return param === null;
 }
 
-function statusFilter(view: ViewKey): Pick<ProjectQuery, 'status' | 'excludeStatus' | 'watch'> {
+// NEW IS A TIME WINDOW, NOT A STATE.
+//
+// It read `status = 'new'` and returned 235 of 235, because nothing has ever
+// been triaged through that column: New and All were two views over one
+// predicate, and the one that promised to show what arrived showed everything.
+//
+// SEVEN DAYS, matching the weekly cadence the product is built around, so New
+// answers "what arrived since the last report". A project ages out of it on its
+// own and nothing has to be clicked - which is the other half of the fix, because
+// a view that empties only when somebody triages is a view that never empties.
+//
+// STATUS IS UNTOUCHED. It is triage and a dismissal tombstone, and the fact that
+// it currently means nothing is a separate question from this one. Repurposing
+// it would have made the window depend on a column a scrape path must never
+// write.
+
+
+function statusFilter(
+  view: ViewKey,
+  now: Date
+): Pick<ProjectQuery, 'status' | 'excludeStatus' | 'watch' | 'createdFrom'> {
   if (view === 'trash') return { status: 'dismissed' };
   if (view === 'watchlist') return { excludeStatus: 'dismissed', watch: true };
   if (view === 'all') return { excludeStatus: 'dismissed' };
+  // A DISMISSED PROJECT IS NOT AN ARRIVAL. Without excludeStatus a project
+  // captured and thrown out in the same week would sit in New, which is the
+  // register telling you to look at something already decided.
+  if (view === 'new') return { excludeStatus: 'dismissed', createdFrom: newWindowSince(now) };
   return { status: view };
 }
 
@@ -279,7 +311,7 @@ const COLUMNS: { key: string; label: string; sort?: string; numeric?: boolean; h
 function emptyViewSentence(view: ViewKey): string {
   switch (view) {
     case 'new':
-      return 'Nothing is untriaged. Every project has been watched, dismissed or marked client ready.';
+      return `Nothing has arrived in the last ${NEW_WINDOW_DAYS} days. This is a time window, not a list you clear: projects age out of it on their own, so an empty New means the capture lane found nothing new, not that somebody triaged it.`;
     case 'watchlist':
       return 'Nothing is being watched. Press W on a row, or use Watch in the detail pane; the watchlist is a flag you set, not a stage a project reaches.';
     case 'client_ready':
@@ -643,7 +675,7 @@ export default function ProjectsPage() {
   const baseQuery: ProjectQuery = useMemo(
     () => ({
       module: LIVE_PIPELINE_STORAGE_KEY,
-      ...statusFilter(viewKey),
+      ...statusFilter(viewKey, NOW),
       stage: stage ?? undefined,
       // venue_type, development_category and market are deliberately absent:
       // they are resolved against the records into idFilter above. The ABSENCE
@@ -700,17 +732,27 @@ export default function ProjectsPage() {
   const bucketMode = ((): BucketMode =>
     bucket === 'week' || bucket === 'month' ? bucket : 'none')();
   const bucketField = axis === 'moved' ? 'last_activity' : 'first_seen';
-  const effectiveSort = bucketMode === 'none' ? sortField : bucketField;
+  // NEW SORTS NEWEST FIRST, and the window owns the sort while it is on.
+  //
+  // Significance is the right default everywhere else and the wrong one here:
+  // measured 2026-08-21, the 23 projects that arrived inside seven days ranked
+  // 11th to 147th by significance and were scattered across three pages, so
+  // there was no page you could look at to see what had arrived. A view that
+  // answers "what is new" has to be ordered by when, or it is the same list
+  // again in a different order.
+  const effectiveSort =
+    viewKey === 'new' && bucketMode === 'none' ? 'created_at' : bucketMode === 'none' ? sortField : bucketField;
+  const effectiveDir = viewKey === 'new' && bucketMode === 'none' ? 'desc' : sortDir === 'asc' ? 'asc' : 'desc';
 
   const listQuery: ProjectQuery = useMemo(
     () => ({
       ...baseQuery,
       sortField: effectiveSort,
-      sortDir: sortDir === 'asc' ? 'asc' : 'desc',
+      sortDir: effectiveDir,
       page,
       pageSize: DEFAULT_PROJECT_PAGE_SIZE,
     }),
-    [baseQuery, effectiveSort, sortDir, page]
+    [baseQuery, effectiveSort, effectiveDir, page]
   );
 
   // EVERY QUERY BELOW IS HELD UNTIL THE FACET IDS EXIST. Without the gate each
@@ -730,14 +772,22 @@ export default function ProjectsPage() {
 
   // View counts share every filter EXCEPT the status axis, so a view's count is
   // exactly the rows it shows when clicked.
+  // createdFrom IS PART OF THE VIEW AXIS NOW, so it is stripped here with the
+  // rest of it. Left in, the New window would narrow every OTHER chip's count
+  // the moment New was the active view, and each chip would report a number
+  // that is not what clicking it returns.
   const withoutStatus: ProjectQuery = {
     ...baseQuery,
     status: undefined,
     excludeStatus: undefined,
     watch: undefined,
+    createdFrom: undefined,
   };
   const counts: Record<ViewKey, number | undefined> = {
-    new: useProjectCount({ ...withoutStatus, status: 'new' }, facetsReady).data,
+    new: useProjectCount(
+      { ...withoutStatus, excludeStatus: 'dismissed', createdFrom: newWindowSince(NOW) },
+      facetsReady
+    ).data,
     watchlist: useProjectCount(
       { ...withoutStatus, excludeStatus: 'dismissed', watch: true },
       facetsReady
