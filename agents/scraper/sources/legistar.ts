@@ -333,6 +333,14 @@ interface Harvest<T> {
 // report, which states which of the two each jurisdiction used.
 const BACKFILL_MONTHS = Number(process.env.LEGISTAR_BACKFILL_MONTHS ?? '12');
 const OVERLAP_DAYS = Number(process.env.LEGISTAR_OVERLAP_DAYS ?? '30');
+// Set for a cold start or a recovery run. See matterBound for why the
+// incremental derivation cannot discover that it needs to do this itself.
+// argv AS WELL AS env, because an `FOO=1 node ...` prefix in an npm script is a
+// POSIX shell construct and npm on Windows runs scripts through cmd, where it is
+// a syntax error rather than an environment variable. The flag has to survive
+// the platform the product is developed on.
+const FORCE_BACKFILL =
+  process.env.LEGISTAR_BACKFILL === '1' || process.argv.includes('--backfill');
 
 function isoDay(d: Date): string {
   return d.toISOString().slice(0, 10);
@@ -353,9 +361,24 @@ function backfillBound(now: Date): string {
  */
 export function matterBound(
   newestHeld: string | null,
-  now: Date = new Date()
+  now: Date = new Date(),
+  forceBackfill: boolean = FORCE_BACKFILL
 ): { since: string; reason: 'backfill' | 'incremental' } {
   const floor = backfillBound(now);
+  // THE FIRST RUN CANNOT BACKFILL BY DERIVATION, AND THAT IS NOT A DETAIL.
+  //
+  // Caught in the first real run after this change: Yonkers went "incremental
+  // since 2026-01-03" because it holds exactly ONE stray record dated 2026-02-02
+  // - dismissed, from some earlier pass - and one record is enough to set a
+  // recent bound. The MGM Yonkers matter is dated 2025-09-05, before that bound,
+  // so the run that was supposed to recover it skipped straight over it.
+  //
+  // The derivation is right for steady state and cannot be right for a cold
+  // start, because "the newest thing we hold" is not "the oldest thing we are
+  // missing". So the backfill is an EXPLICIT MODE rather than something the
+  // heuristic is expected to notice: LEGISTAR_BACKFILL=1 takes every
+  // jurisdiction to the full window regardless of what it holds.
+  if (forceBackfill) return { since: floor, reason: 'backfill' };
   if (!newestHeld) return { since: floor, reason: 'backfill' };
   const d = new Date(newestHeld);
   if (Number.isNaN(d.getTime())) return { since: floor, reason: 'backfill' };
