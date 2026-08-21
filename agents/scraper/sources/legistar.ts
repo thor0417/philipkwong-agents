@@ -133,6 +133,25 @@ export interface LegistarJurisdictionStats {
   droppedWeakNoAction: number;
   droppedNoMatch: number;
   bypassed: boolean;
+  // ---- WHAT THIS READ ACTUALLY COVERED --------------------------------------
+  //
+  // A LANE THAT READS A SLICE AND DOES NOT SAY SO is the pre-push gate exiting 0
+  // over a suite it skipped, one layer down. `fetched` was the only number here
+  // and it is the number of rows the REQUEST RETURNED, which was 200 whenever
+  // the cap bound - so a truncated read and a complete one printed identically.
+  //
+  // Measured 2026-08-21, before the fix: all six jurisdictions were truncated,
+  // and 53 matters the gate would admit had never been fetched by any run.
+  // Clark County alone accounted for 31 of them, against a corpus holding 119
+  // Legistar matters in total.
+  /** The lower bound this run asked from, ISO day. */
+  since: string;
+  /** Pages walked by the cursor. */
+  pages: number;
+  /** False when the page budget ran out before the feed did. */
+  complete: boolean;
+  /** Why the bound is what it is: 'backfill' on a cold jurisdiction, else 'incremental'. */
+  boundReason: 'backfill' | 'incremental';
 }
 let lastStats: Record<string, LegistarJurisdictionStats> = {};
 export function lastLegistarStats(): Record<string, LegistarJurisdictionStats> {
@@ -231,6 +250,154 @@ function latestIso(...values: (string | undefined)[]): string | null {
   return new Date(Math.max(...times)).toISOString();
 }
 
+// ---- THE DATE WINDOW, PAGED TO EXHAUSTION ----------------------------------
+//
+// THE DEFECT THIS REPLACES. This lane asked for
+//
+//     Matters?$top=200&$orderby=MatterId desc
+//
+// with no date filter and no cursor, so every run re-read the same newest 200 by
+// insertion id. Anything that aged past #200 between runs was never seen again,
+// and nothing said so.
+//
+// MEASURED 2026-08-21, per jurisdiction, matters introduced in the last twelve
+// months against what the top-200 reaches, with the real gate run over the
+// remainder and cross-referenced against the corpus:
+//
+//   clark                1000+ in window   200 reached   53 admissible unseen   31 never captured
+//   phoenix              1000+             200            15                     8
+//   nashville            1000+             200            14                     7
+//   oakland               926              200             7                     6
+//   yonkersny             274              200             1                     1
+//   westchestercountyny   543              200             0                     0
+//
+// 53 admissible matters in no run we have ever made, against a corpus holding
+// 119 Legistar matters in total. Yonkers' single one is the MGM Yonkers
+// community benefits agreement, which is why that market reads as empty.
+//
+// A LARGER $top IS NOT THE FIX. Any fixed top-N binds silently the moment a
+// jurisdiction files more than N between runs; it only moves the day it starts
+// lying. The bound has to be a DATE, so the question becomes "everything since
+// X" rather than "the most recent N, whatever that covers".
+//
+// KEY-SET PAGING, NOT $skip. Legistar's OData returns an empty body for $skip on
+// this endpoint - probed twice on nashville, 0 bytes both times - so offset
+// paging is not available. It does support comparison in $filter, so the cursor
+// is the last MatterId seen:
+//
+//     $filter=MatterIntroDate gt datetime'<since>' and MatterId gt <last>
+//     $orderby=MatterId & $top=<page>
+//
+// MatterId is a stable insertion sequence, so ascending order over it is a total
+// order with no ties, which is what makes the cursor safe. Same shape as the
+// City Record adapter's exhaustive harvest, which is the proof this repo already
+// pages correctly somewhere.
+//
+// IT REPORTS COMPLETENESS RATHER THAN ASSUMING IT. The loop stops when a page
+// comes back short - that is the feed ending - or when the page budget runs out,
+// which sets complete=false and is stated in the run report. A partial harvest
+// that announced itself would have made this defect visible years ago.
+const MATTER_PAGE = Number(process.env.LEGISTAR_PAGE ?? '200');
+// A backstop against a runaway cursor, not a coverage limit: at 200 a page this
+// is 40,000 matters from one jurisdiction, far beyond any real docket. If it
+// ever binds, complete=false says so.
+const MAX_MATTER_PAGES = Number(process.env.LEGISTAR_MAX_PAGES ?? '200');
+
+interface Harvest<T> {
+  rows: T[];
+  pages: number;
+  complete: boolean;
+}
+
+// ---- WHERE THE BOUND COMES FROM -------------------------------------------
+//
+// SINCE THE LAST SUCCESSFUL RUN, NOT A FIXED WINDOW, so nothing can age out
+// between runs the way it did under the cap. A rolling "last 90 days" would
+// reintroduce the same defect on a different axis: a jurisdiction quiet for a
+// quarter, then busy, loses whatever it filed while nobody looked.
+//
+// THE BOUND IS DERIVED FROM THE CORPUS RATHER THAN STORED. The newest matter we
+// already hold for this jurisdiction IS the record of the last successful run,
+// and it needs no new column, no migration, and cannot drift out of step with
+// what was actually written. A run that failed halfway leaves the bound where it
+// was, so the next run re-reads the gap rather than skipping it.
+//
+// MINUS AN OVERLAP, because a matter can be introduced with a date earlier than
+// the day it appears in the feed, and a bound set exactly at our newest would
+// step over it. Thirty days is far wider than any observed lag and costs one
+// page of re-reads, which the writer deduplicates by URL anyway.
+//
+// AND FLOORED AT THE BACKFILL BOUND. A jurisdiction we hold nothing for - Yonkers
+// today - has no last run to be incremental from, so it gets the full twelve
+// months. That is the cold-start case and it is the expensive one; see the run
+// report, which states which of the two each jurisdiction used.
+const BACKFILL_MONTHS = Number(process.env.LEGISTAR_BACKFILL_MONTHS ?? '12');
+const OVERLAP_DAYS = Number(process.env.LEGISTAR_OVERLAP_DAYS ?? '30');
+
+function isoDay(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
+
+function backfillBound(now: Date): string {
+  const d = new Date(now);
+  d.setMonth(d.getMonth() - BACKFILL_MONTHS);
+  return isoDay(d);
+}
+
+/**
+ * The lower bound for one jurisdiction, and why.
+ *
+ * `newestHeld` is the newest published_date the corpus holds for this client,
+ * or null when we hold nothing. Passed in rather than read here so this file
+ * stays a source adapter with no database of its own.
+ */
+export function matterBound(
+  newestHeld: string | null,
+  now: Date = new Date()
+): { since: string; reason: 'backfill' | 'incremental' } {
+  const floor = backfillBound(now);
+  if (!newestHeld) return { since: floor, reason: 'backfill' };
+  const d = new Date(newestHeld);
+  if (Number.isNaN(d.getTime())) return { since: floor, reason: 'backfill' };
+  d.setDate(d.getDate() - OVERLAP_DAYS);
+  const since = isoDay(d);
+  // Never reach further back than the backfill bound, and never further forward
+  // than it either: a jurisdiction whose newest held matter is ancient must not
+  // be asked for everything since 2018.
+  return since < floor ? { since: floor, reason: 'backfill' } : { since, reason: 'incremental' };
+}
+
+async function fetchMattersSince(client: string, sinceIso: string): Promise<Harvest<LegistarMatter>> {
+  const rows: LegistarMatter[] = [];
+  let lastId = 0;
+  let pages = 0;
+  for (; pages < MAX_MATTER_PAGES; ) {
+    const filter = encodeURIComponent(
+      `MatterIntroDate gt datetime'${sinceIso}' and MatterId gt ${lastId}`
+    );
+    const url =
+      `${BASE}/${client}/Matters?$filter=${filter}` +
+      `&$top=${MATTER_PAGE}&$orderby=${encodeURIComponent('MatterId')}`;
+    const raw = await fetchJson<unknown>(url, `${client} Matters page ${pages + 1}`);
+    pages++;
+    const parsed = parseRecords(LegistarMatterSchema, raw, {
+      source: `legistar:${client}`,
+      endpoint: 'Matters',
+    }).records as LegistarMatter[];
+    if (parsed.length === 0) return { rows, pages, complete: true };
+    rows.push(...parsed);
+    const maxId = parsed.reduce((n, m) => (typeof m.MatterId === 'number' && m.MatterId > n ? m.MatterId : n), lastId);
+    // A page that did not advance the cursor would loop forever. It cannot
+    // happen while MatterId is ordered and unique, which is exactly why this
+    // guards rather than trusts.
+    if (maxId <= lastId) return { rows, pages, complete: false };
+    lastId = maxId;
+    // A SHORT PAGE IS THE END OF THE FEED. Anything else is another page.
+    if (parsed.length < MATTER_PAGE) return { rows, pages, complete: true };
+  }
+  return { rows, pages, complete: false };
+}
+
 async function fetchJson<T>(url: string, label: string): Promise<T[]> {
   try {
     const res = await fetch(url, {
@@ -275,17 +442,16 @@ function eventContent(e: LegistarEvent, jurisdiction: string): string {
 // Events. Records the fetched/matched counts for the report. Never throws.
 async function scrapeJurisdiction(
   j: LegistarJurisdiction,
-  byUrl: Map<string, NormalizedLead>
+  byUrl: Map<string, NormalizedLead>,
+  newestHeld: string | null
 ): Promise<void> {
-  const order = encodeURIComponent('MatterId desc');
-  const mattersUrl = `${BASE}/${j.client}/Matters?$top=${TOP}&$orderby=${order}`;
-  const rawMatters = await fetchJson<unknown>(mattersUrl, `${j.client} Matters`);
-  // Validated at the boundary: a record that does not match the schema is
+  // THE DATE WINDOW, PAGED TO EXHAUSTION. See fetchMattersSince and matterBound
+  // for what this replaces and what it was costing. Validation still happens at
+  // the boundary inside the harvest: a record that does not match the schema is
   // skipped and counted, never written half-understood, and never fatal.
-  const matters = parseRecords(LegistarMatterSchema, rawMatters, {
-    source: `legistar:${j.client}`,
-    endpoint: 'Matters',
-  }).records as LegistarMatter[];
+  const { since, reason } = matterBound(newestHeld);
+  const harvest = await fetchMattersSince(j.client, since);
+  const matters = harvest.rows;
 
   const eventOrder = encodeURIComponent('EventId desc');
   const eventsUrl = `${BASE}/${j.client}/Events?$top=${TOP}&$orderby=${eventOrder}`;
@@ -418,14 +584,32 @@ async function scrapeJurisdiction(
     droppedWeakNoAction,
     droppedNoMatch,
     bypassed: !!j.bypassGate,
+    since,
+    pages: harvest.pages,
+    complete: harvest.complete,
+    boundReason: reason,
   };
+  // WHAT IT REACHED AGAINST WHAT EXISTS, on the same line as the counts, because
+  // a lane that reads a slice and does not say so is a green gate over a skipped
+  // suite one layer down. `complete` is the harvest running out of feed rather
+  // than out of budget.
   console.log(
-    `Legistar ${j.jurisdictionLabel}: ${matters.length + events.length} fetched, ${matched} matched` +
+    `Legistar ${j.jurisdictionLabel}: ${matters.length} matters since ${since} (${reason}) ` +
+      `over ${harvest.pages} page${harvest.pages === 1 ? '' : 's'}` +
+      (harvest.complete ? '' : ' PARTIAL - page budget exhausted before the feed was') +
+      `, ${events.length} events, ${matched} matched` +
       (j.bypassGate
         ? ' (gate bypassed)'
         : ` (dropped: ${droppedExcluded} excluded, ${droppedWeakNoAction} weak-no-action, ${droppedNoMatch} no-match)`) +
       '.'
   );
+  if (!harvest.complete) {
+    console.warn(
+      `Legistar ${j.jurisdictionLabel}: PARTIAL HARVEST. The page budget ran out before the feed ` +
+        `did, so this run covered less than "everything since ${since}". Raise LEGISTAR_MAX_PAGES ` +
+        'or narrow the bound; do not read the counts above as coverage.'
+    );
+  }
 }
 
 // The markets this adapter covers, for run scoping. Exported so government.ts
@@ -433,6 +617,54 @@ async function scrapeJurisdiction(
 // jurisdiction list.
 export function legistarMarkets(): string[] {
   return JURISDICTIONS.map((j) => j.jurisdictionLabel);
+}
+
+/**
+ * The newest matter date the corpus already holds, per Legistar client.
+ *
+ * THE STORED URL CARRIES THE JURISDICTION, which is what makes this derivable
+ * with no new column: the lane writes
+ * `https://<client>.legistar.com/gateway.aspx?M=l&ID=<matter>` (or the
+ * Legislation.aspx fallback), so the host names the client.
+ *
+ * FAILS TO BACKFILL, NEVER TO SKIP. Any error returns an empty map, every
+ * jurisdiction reads as cold, and the run does the full twelve months. That is
+ * expensive and correct; the opposite default would silently narrow a run on a
+ * database hiccup, which is the class of failure this whole change is about.
+ */
+async function newestHeldByClient(clients: string[]): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  try {
+    const { supabaseAdmin } = await import('../../../lib/supabase-admin');
+    const PAGE = 1000;
+    for (let from = 0; ; from += PAGE) {
+      const { data, error } = await supabaseAdmin
+        .from('leads')
+        .select('url,published_date')
+        .eq('source', 'legistar')
+        .range(from, from + PAGE - 1);
+      if (error) throw new Error(error.message);
+      const rows = (data ?? []) as { url: string | null; published_date: string | null }[];
+      for (const r of rows) {
+        const host = String(r.url ?? '').match(/^https?:\/\/([^.]+)\.legistar\.com/);
+        if (!host) continue;
+        const client = host[1];
+        if (!clients.includes(client)) continue;
+        const d = r.published_date ? String(r.published_date).slice(0, 10) : null;
+        if (!d) continue;
+        const prev = out.get(client);
+        if (!prev || d > prev) out.set(client, d);
+      }
+      if (rows.length < PAGE) break;
+    }
+  } catch (e) {
+    console.warn(
+      `Legistar: could not read the incremental bound (${(e as Error).message}). Every ` +
+        'jurisdiction will backfill, which is the safe direction and the slow one.'
+    );
+    return new Map();
+  }
+  return out;
 }
 
 // SCOPED INTERNALLY, not skipped wholesale. Legistar covers six jurisdictions,
@@ -452,8 +684,17 @@ export async function scrapeLegistar(scope: RunScope = FULL_SCOPE): Promise<Norm
         `skipped ${skipped.join(', ')}.`
     );
   }
+  // THE BOUND PER JURISDICTION, READ ONCE. The newest matter we already hold IS
+  // the record of the last successful run; see matterBound. Read here rather
+  // than inside the adapter so one database round trip serves every
+  // jurisdiction, and so a failure to read it degrades to a backfill - the safe
+  // direction - instead of skipping the run.
+  const newestHeld = await newestHeldByClient(inScope.map((j) => j.client));
+
   // Each jurisdiction runs independently; one broken client cannot kill the run.
-  await Promise.allSettled(inScope.map((j) => scrapeJurisdiction(j, byUrl)));
+  await Promise.allSettled(
+    inScope.map((j) => scrapeJurisdiction(j, byUrl, newestHeld.get(j.client) ?? null))
+  );
   const leads = [...byUrl.values()];
   console.log(
     `Legistar: ${leads.length} keyword-matched records across ${inScope.length} jurisdictions.`
