@@ -60,16 +60,108 @@ export const COVERED_MARKETS: CoveredMarket[] = [
   { market: 'Oakland', regionState: 'California', country: 'United States', sources: ['legistar', 'ceqanet'], layers: 'legislative, entitlement, part of environmental' },
   { market: 'Phoenix', regionState: 'Arizona', country: 'United States', sources: ['legistar'], layers: 'legislative, entitlement' },
   { market: 'Nashville', regionState: 'Tennessee', country: 'United States', sources: ['legistar'], layers: 'legislative, entitlement' },
-  { market: 'San Antonio', regionState: 'Texas', country: 'United States', sources: ['legistar'], layers: 'legislative, entitlement' },
-  { market: 'Miami-Dade County', regionState: 'Florida', country: 'United States', sources: ['legistar'], layers: 'legislative, entitlement' },
-  { market: 'South Florida', regionState: 'Florida', country: 'United States', sources: ['sfwmd'], layers: 'utility permits only' },
+  // ADDED 2026-08-21. The table omitted a market we actually read: SFWMD has
+  // produced 4 records here and Lake Buena Vista appeared nowhere on this list,
+  // which is the same defect as San Antonio pointing the other way. It will
+  // compute as `stale` rather than `live` - its newest document is 2024-02-02 -
+  // and that is the honest answer rather than a reason to leave it off.
+  { market: 'Lake Buena Vista', regionState: 'Florida', country: 'United States', sources: ['sfwmd'], layers: 'utility permits only' },
   { market: 'Central Florida Tourism Oversight District', regionState: 'Florida', country: 'United States', sources: ['cftod-pdf'], layers: 'legislative, entitlement' },
   { market: 'New York City', regionState: 'New York', country: 'United States', sources: ['nyc-zap', 'nyc-ceqr', 'nyc-city-record'], layers: 'environmental review and legal notices; entitlement frozen at April 2026; NO council' },
   { market: 'Yonkers', regionState: 'New York', country: 'United States', sources: ['legistar'], layers: 'legislative, entitlement' },
   { market: 'Westchester County', regionState: 'New York', country: 'United States', sources: ['legistar'], layers: 'legislative, entitlement' },
 ];
 
+// ---- RETIRED FROM THE TABLE, TOMBSTONED RATHER THAN DELETED -----------------
+//
+// A market leaves this table when it stops being coverage. It does NOT leave the
+// database: its records are marked lifecycle = 'retired' the way the tender and
+// development-bank sources were, so a row read later says business decision
+// rather than capture failure. Same rule as opportunity/RETIRED_SOURCES, applied
+// to a market instead of a source.
+//
+// THE NAMES STAY HERE SO NOBODY RE-ADDS THEM. That is the whole point of the
+// list: each entry carries the date of the newest document the feed ever gave
+// us, so a future reader can see it was measured rather than guessed, and knows
+// what would have to change before the row comes back.
+//
+// MEASURED 2026-08-21 by probing each feed's BODY, not its status code. All
+// three answer HTTP 200 and two of them have answered 200 for years while
+// serving nothing new.
+export interface RetiredMarket {
+  market: string;
+  regionState: string;
+  /** The newest document the feed ever produced for us. */
+  lastDocument: string;
+  retired: string;
+  why: string;
+  /** What would have to be true for it to come back. */
+  revivesWhen: string;
+}
+
+export const RETIRED_MARKETS: RetiredMarket[] = [
+  {
+    market: 'Miami-Dade County',
+    regionState: 'Florida',
+    lastDocument: '2018-06-18',
+    retired: '2026-08-21',
+    why:
+      'Legistar client `miamidade` answers 200 and its newest matter was introduced 2018-06-15. ' +
+      'Probed again 2026-08-21: newest three are all June 2018 proclamations. Eight years dead, ' +
+      'declared in lib/dead-feeds since 2026-08-19, and it went on being listed as coverage.',
+    revivesWhen:
+      'the Legistar Web API returns a matter introduced in the last twelve months, or an adapter ' +
+      'reads www.miamidade.gov/govaction directly.',
+  },
+  {
+    market: 'San Antonio',
+    regionState: 'Texas',
+    lastDocument: '2021-09-20',
+    retired: '2026-08-21',
+    why:
+      'Legistar client `sanantonio` answers 200 and its newest matter is 2021-09-24, a Head Start ' +
+      'grant approval. Five years dead. It was the only Texas market on the table, so US Texas ' +
+      'coverage is now openly zero rather than nominally one.',
+    revivesWhen: 'the feed returns a matter introduced in the last twelve months.',
+  },
+  {
+    market: 'South Florida',
+    regionState: 'Florida',
+    lastDocument: '1983-01-03',
+    retired: '2026-08-21',
+    why:
+      'Two SFWMD permits, published November 1982 and January 1983, captured 2026-07-24. The ' +
+      'CAPTURE is fresh and the DOCUMENTS are 43 years old, which is the Miami-Dade signature one ' +
+      'stage further gone. It was never declared anything: not dead, not stale, just listed.',
+    revivesWhen:
+      'the SFWMD adapter produces a permit from this decade. The same adapter still serves Lake ' +
+      'Buena Vista, which is why sfwmd is not a retired source.',
+  },
+];
+
+// YONKERS IS DELIBERATELY NOT HERE, AND THE REASON IS THE FINDING.
+//
+// It was proposed for retirement on the strongest-looking evidence in the pass:
+// zero records from any source, ever, against a covered-market claim. Probing
+// the feed BODY rather than trusting the count refuted it. webapi.legistar.com
+// /v1/yonkersny returns matters dated 2026-06-12, and the newest three are
+// inter-municipal DEVELOPER agreements - exactly the vertical. The jurisdiction
+// is in DEFAULT_JURISDICTIONS, so the lane reads it on every government run.
+//
+// So Yonkers is not a market with nothing behind it. It is a LIVE feed carrying
+// relevant matters that our gate admits none of, which is a capture defect
+// wearing a coverage problem's clothes. Retiring it would have deleted the
+// evidence and closed the question. It stays on the table, and it reads `thin`
+// with the honest sentence the coverage audit already prints for it: "an adapter
+// is pointed here and it has produced nothing at all".
 const COVERED_KEYS = new Set(COVERED_MARKETS.map((m) => m.market.toLowerCase()));
+
+const RETIRED_KEYS = new Set(RETIRED_MARKETS.map((m) => m.market.toLowerCase()));
+
+/** True when a market was claimed once and has been retired from the table. */
+export function isRetiredMarket(market: string | null | undefined): boolean {
+  return !!market && RETIRED_KEYS.has(market.trim().toLowerCase());
+}
 
 /** True when a market value names a market an adapter is pointed at. */
 export function isCoveredMarket(market: string | null | undefined): boolean {
@@ -118,7 +210,21 @@ export interface CoverageInput {
   projectsNamingAParty: number;
   /** Every live record naming this market, attached or not. */
   records: number;
-  /** Age in days of the newest document we hold for it, or null if none. */
+  /**
+   * Age in days of the newest document we hold for it, or null if none.
+   *
+   * THIS CAN BE NEGATIVE AND THAT IS NOT AN ERROR. Legistar publishes agendas
+   * for meetings that have not happened, so a market's newest document is
+   * routinely dated in the future. Measured 2026-08-21: Phoenix's newest matter
+   * is dated 2026-08-25, four days ahead, giving newestDocumentDays = -4.
+   *
+   * Every threshold below is an upper bound (`> STALE_DAYS`), so a negative
+   * reads as very fresh and behaves correctly. What must not happen is a caller
+   * treating negative as a bad value and reporting it as a failure, or clamping
+   * it to zero and quietly losing the fact that we hold a scheduled hearing. A
+   * future-dated agenda is the most valuable document in the corpus: it is the
+   * only thing that says what happens next.
+   */
   newestDocumentDays: number | null;
   /** Declared dead in lib/dead-feeds. */
   deadFeed: boolean;

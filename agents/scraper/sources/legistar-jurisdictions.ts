@@ -24,10 +24,15 @@ export interface LegistarJurisdiction {
 // than a second copy that can drift from it.
 export const DEFAULT_JURISDICTIONS: LegistarJurisdiction[] = [
   { client: 'clark', jurisdictionLabel: 'Clark County, NV', reason: 'Strip-adjacent entitlement; Top Gun / The Strat county layer; Area15 territory.' },
-  { client: 'miamidade', jurisdictionLabel: 'Miami-Dade County, FL', reason: 'Hospitality supply pipeline; proven producer.' },
+  // miamidade and sanantonio REMOVED 2026-08-21 with their markets. Both answer
+  // HTTP 200 and have for years; probed by BODY on the day they were retired,
+  // miamidade's newest matter is 2018-06-15 and sanantonio's is 2021-09-24. A
+  // config row for a feed we no longer claim is a request made on every run for
+  // documents we have already decided not to sell, and it is what kept them
+  // looking maintained. See RETIRED_MARKETS in lib/coverage for the tombstones
+  // and for what would have to be true before either row comes back.
   { client: 'nashville', jurisdictionLabel: 'Nashville, TN', reason: 'East Bank redevelopment, stadium district, hotel boom; proven producer.' },
   { client: 'phoenix', jurisdictionLabel: 'Phoenix, AZ', reason: 'Proven producer; hotel and entertainment growth.' },
-  { client: 'sanantonio', jurisdictionLabel: 'San Antonio, TX', reason: 'Lowest priority; produced 8 real records and costs nothing once verified.' },
   { client: 'oakland', jurisdictionLabel: 'Oakland, CA', reason: 'Waterfront / ballpark / Coliseum-site redevelopment; verified live on Legistar.' },
   // DOWNSTATE NEW YORK, added off the back of the NYC test. New York City itself
   // is NOT here and cannot be: its Legistar Web API answers 403 for client 'nyc'

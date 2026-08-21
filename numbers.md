@@ -36,6 +36,12 @@ against the tables the generator queried.
 Identical on every axis. The pass that produced this file was read only, and the
 pair on disk is what says so rather than the claim.
 
+`snapshots/` is gitignored, so the files named in this document are working
+evidence on one machine rather than something a fresh clone can open: the
+figures and predicates written here are the durable record, and
+`npm run corpus:snapshot -- --label <label>` regenerates an equivalent artefact
+at any time.
+
 ---
 
 ## 1. The corpus

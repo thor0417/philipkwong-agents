@@ -1,5 +1,27 @@
 # Coverage map
 
+> **RETIRED 2026-08-21.** Miami-Dade County, San Antonio and South Florida left
+> the covered-markets table. Each feed was probed by BODY on the day, not by
+> status code: `miamidade` newest matter 2018-06-15, `sanantonio` 2021-09-24,
+> South Florida's newest SFWMD document 1983-01-03. Their records are kept and
+> marked `lifecycle = 'retired'`; nothing was deleted. See `RETIRED_MARKETS` in
+> `lib/coverage.ts` for the tombstones and for what would revive each row.
+>
+> **ADDED 2026-08-21.** Lake Buena Vista, which SFWMD has been producing records
+> for while the table did not list it. It reads `stale`, not `live`: its newest
+> document is 2024-02-02.
+>
+> **YONKERS STAYS, and the reason matters.** It holds zero records from any
+> source, which looked like the strongest retirement case in the pass. Probing
+> the feed refuted it: `webapi.legistar.com/v1/yonkersny` returns matters dated
+> 2026-06-12 and the newest three are inter-municipal DEVELOPER agreements. It is
+> a live feed carrying relevant matters that our gate admits none of, which is a
+> capture defect rather than an absence of coverage. Retiring it would have
+> closed the question instead of answering it.
+>
+> The table below predates all of this and is kept as the 2026-08-17 measurement.
+
+
 What each market is actually covered on, and what it is not.
 
 **This document exists because a market name on a client's cover page is a

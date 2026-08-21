@@ -62,6 +62,7 @@
     "capture:filings": "node --env-file=.env.local --import tsx agents/scraper/migrations/capture-filing-facts.ts",
     "capture:cpc": "node --env-file=.env.local --import tsx agents/scraper/migrations/capture-cpc-reports.ts",
     "capture:headlines": "node --env-file=.env.local --import tsx agents/scraper/migrations/capture-press-headlines.ts",
+    "retire:markets": "node --env-file=.env.local --import tsx agents/scraper/migrations/retire-market-records.ts",
     "check:split": "node scripts/check-split.mjs",
     "verify:deploy": "node scripts/verify-deploy.mjs"
   },

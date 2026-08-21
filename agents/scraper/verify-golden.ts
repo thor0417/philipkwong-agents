@@ -266,6 +266,25 @@ const INLINE: Record<string, () => string | null> = {
     return open.length ? open.join('; ') : null;
   },
 
+  'a-trade-press-article-is-not-a-project': () => {
+    // PENDING AND DELIBERATELY OPEN. The decision is whether the intelligence
+    // gate should refuse a press item carrying no place and no party, and that
+    // rule has to be COSTED across the press lane before it ships (standing rule
+    // 2), because the same shape describes a real project we have not placed yet.
+    //
+    // SOURCE-LEVEL, because verify:fast has no database. It reports whether the
+    // gate has grown a rule of this kind, so the case closes itself the day one
+    // lands rather than waiting for someone to remember this file.
+    const gate = readFileSync('lib/taxonomy.ts', 'utf8');
+    const hasPlacelessRule =
+      /placeless|no place and no party|articleNotProject|isTradePress/i.test(gate);
+    if (hasPlacelessRule) return null;
+    return (
+      'the intelligence gate still admits a press item that names no place and no party; ' +
+      'measured 2026-08-21 at 2 live projects and 4 records'
+    );
+  },
+
   'a-client-scope-naming-a-country-drops-the-unresolved-ones': () => {
     // PENDING BY DECISION, not by neglect. Philip reviewed this on 2026-08-21
     // and left it: a client scope naming a country is the CLIENT saying what

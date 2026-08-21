@@ -42,6 +42,7 @@
 import { pathToFileURL } from 'node:url';
 import { DEFAULT_JURISDICTIONS } from './sources/legistar-jurisdictions';
 import { DEAD_FEEDS, deadFeedForClient } from '../../lib/dead-feeds';
+import { isRetiredMarket } from '../../lib/coverage';
 
 const UA = 'Mozilla/5.0 (compatible; philipkwong-agents/1.0 +scraper)';
 const BASE = 'https://webapi.legistar.com/v1';
@@ -193,6 +194,29 @@ async function main(): Promise<void> {
   for (const f of DEAD_FEEDS) {
     const r = readings.find((x) => x.client === f.client);
     if (!r) {
+      // A RETIRED MARKET IS THE THIRD STATE, and without it this check was
+      // wrong in a way that pushed towards the worse fix.
+      //
+      // The rule below is right for a market we still CLAIM: withholding one on
+      // an unprobed fact is a document shaped by something nobody measures. But
+      // a market that has left the covered table is not being withheld from a
+      // client, it is not being sold to them, and there is no jurisdiction left
+      // to probe BECAUSE we stopped reading it. Demanding a probe here would
+      // force one of two bad answers: put the dead client back in
+      // DEFAULT_JURISDICTIONS so a request is made on every run for documents we
+      // have decided not to sell, or delete the dead-feeds entry and lose the
+      // withholding language that keeps its old records out of a document.
+      //
+      // So a declaration is only unprobed if its market is still claimed. The
+      // entry stays, the language stays, and RETIRED_MARKETS carries the reason
+      // with the date of the newest document the feed ever gave us.
+      if (isRetiredMarket(f.market)) {
+        console.log(
+          `retired, not probed: ${f.market} (${f.client}) left the covered-markets table. Its ` +
+            `dead-feed entry is kept for the withholding language; see RETIRED_MARKETS.`
+        );
+        continue;
+      }
       failures++;
       console.log(
         `DECLARATION WITH NO PROBE: ${f.market} names client "${f.client}", which is not in ` +

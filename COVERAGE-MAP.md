@@ -26,8 +26,10 @@ already hold. No new fetch, no new source.
 | CFTOD | 1 | measured, no reader | 908,921 characters of comprehensive plan, policy not project |
 | **Nashville** | 9 | **0** | see below |
 | **Phoenix** | 8 | **0** | see below |
-| Miami-Dade | 3 | **0** | dead feed |
-| San Antonio | 3 | **0** | dead feed |
+| ~~Miami-Dade~~ | 3 | **0** | **RETIRED 2026-08-21, newest matter 2018-06-15** |
+| ~~San Antonio~~ | 3 | **0** | **RETIRED 2026-08-21, newest matter 2021-09-24** |
+| ~~South Florida~~ | 2 | **0** | **RETIRED 2026-08-21, newest document 1983-01-03** |
+| Lake Buena Vista | 0 | 4 SFWMD records | **ADDED 2026-08-21**, newest 2024-02-02, reads `stale` |
 
 ---
 
