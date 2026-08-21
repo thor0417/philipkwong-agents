@@ -178,11 +178,12 @@ test('register filtering audit', async ({ page }) => {
     })),
     {
       // THE DEFAULT ITSELF, measured. No country parameter at all, which is how
-      // the Register opens: it must return fewer than the cleared baseline, or
-      // the default is not being applied.
+      // the Register opens. It is CORPUS SCOPE and not an equality: a country
+      // this system covers, or no country at all. See the assertion below for
+      // why "fewer than the cleared baseline" was the wrong test of it.
       filter: 'Geography default (no parameter)',
       url: '/projects?view=all',
-      filtersOn: "projects.country = 'United States' by default",
+      filtersOn: 'projects.country IS NULL OR projects.country IN (corpus) by default',
     },
     {
       filter: 'Geography L1: United States',
@@ -242,15 +243,37 @@ test('register filtering audit', async ({ page }) => {
     );
   }
 
-  // THE DEFAULT MUST BE CLEARABLE. Opening on the United States is only
-  // acceptable if All countries genuinely removes it, so both numbers are read
-  // through the real UI and compared.
+  // THE DEFAULT MUST BE CLEARABLE, AND IT IS THE CORPUS RATHER THAN A COUNTRY.
+  //
+  // THIS ASSERTION USED TO READ `defaulted < cleared` AND IT PINNED A DEFECT IN
+  // PLACE. That inequality could only be satisfied by a default that REMOVED
+  // rows the cleared view holds, and the corpus contains no foreign undismissed
+  // project - so the only rows it could remove were the ones whose country did
+  // not resolve. Five of them, Austin and Sacramento among them, absent from
+  // the screen projects are confirmed on, with a green test asserting they
+  // stayed absent. An honest default and the cleared view are the SAME SIZE
+  // today, which the old expectation called a failure.
+  //
+  // The relationship that means something is against the EXPLICIT pick, which
+  // is still an equality and still drops the unresolved rows. The default must
+  // be at least as wide as that and no wider than clearing the filter. The
+  // exact gap is held against the database in corpus-scope.audit; the ordering
+  // is held here, where the numbers are already being read through the UI.
   const defaulted = await totalFor(page, '/projects?view=all');
+  const explicitUs = await totalFor(page, '/projects?view=all&country=United+States');
   const cleared = await totalFor(page, '/projects?view=all&country=any');
   console.log(
-    `${'Default US vs cleared'.padEnd(34)} ${String(defaulted).padStart(5)} -> ${String(cleared).padStart(5)}`
+    `${'Explicit US / corpus default / cleared'.padEnd(38)} ${String(explicitUs).padStart(5)} -> ` +
+      `${String(defaulted).padStart(5)} -> ${String(cleared).padStart(5)}`
   );
-  expect(defaulted, 'the United States default is not being applied').toBeLessThan(cleared);
+  expect(
+    explicitUs,
+    'the corpus default is NARROWER than an explicit pick of one country, so it is still an equality'
+  ).toBeLessThanOrEqual(defaulted);
+  expect(
+    defaulted,
+    'the corpus default is wider than clearing the country filter entirely'
+  ).toBeLessThanOrEqual(cleared);
   expect(cleared, 'clearing the country filter did not restore the global set').toBe(baseline);
 
   // Sorting must NOT change the count: it reorders the same set. A sort that

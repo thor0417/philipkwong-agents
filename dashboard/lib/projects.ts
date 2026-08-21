@@ -8,6 +8,7 @@
 
 import { LIVE_PIPELINE_STORAGE_KEY } from './pipelines';
 import { supabase } from './supabase';
+import { CORPUS_COUNTRIES } from '../../lib/corpus-scope';
 
 export const DEFAULT_PROJECT_PAGE_SIZE = 50;
 
@@ -89,6 +90,26 @@ export interface ProjectQuery {
   status?: string;
   excludeStatus?: string;
   country?: string;
+  // CORPUS SCOPE, WHICH IS NOT AN EQUALITY ON ONE COUNTRY.
+  //
+  // When true this replaces the `country` equality with the same test
+  // lib/corpus-scope makes: a country we cover, OR NO COUNTRY AT ALL. Set by
+  // the register's default state, where the question is "show me the corpus"
+  // rather than "show me this country".
+  //
+  // WHY IT IS NOT `country = 'United States'`. Equality drops every row whose
+  // country did not resolve, and an unresolved country is not a foreign one.
+  // Measured 2026-08-21: 5 of the 235 projects on the register carry a null
+  // country and were absent from the default view, and they are not foreign -
+  // they are Austin, Sacramento, and a California street address, captured by
+  // the press lane with no country parsed. That is the exact harm corpus-scope
+  // was written to prevent, reintroduced by a screen default. The snapshot has
+  // been labelling this predicate WRONG since 2026-08-19 while the register
+  // went on using it.
+  //
+  // Reopening a country stays one line in lib/corpus-scope: this reads
+  // CORPUS_COUNTRIES rather than naming a country, so the register follows.
+  countryInScope?: boolean;
   region_state?: string;
   market?: string;
   development_category?: string;
@@ -183,6 +204,16 @@ function projectSearchFilter(term: string): string {
 
 const NO_SUCH_ID = '00000000-0000-0000-0000-000000000000';
 
+// `country IS NULL OR country IN (<the corpus>)`, as one PostgREST or-filter.
+//
+// Double-quoted for the same reason projectSearchFilter quotes: PostgREST reads
+// `or` as a comma-separated filter list, so a country legitimately containing a
+// comma would otherwise split into two filters.
+function corpusScopeFilter(): string {
+  const list = CORPUS_COUNTRIES.map((c) => `"${c.replace(/"/g, '\\"')}"`).join(',');
+  return `country.is.null,country.in.(${list})`;
+}
+
 export function applyProjectFilters<T>(builder: T, q: ProjectQuery): T {
   let b = builder as unknown as {
     eq: (c: string, v: unknown) => unknown;
@@ -202,7 +233,12 @@ export function applyProjectFilters<T>(builder: T, q: ProjectQuery): T {
   if (q.stage) set(b.eq('stage', q.stage));
   if (q.status) set(b.eq('status', q.status));
   if (q.excludeStatus) set(b.not('status', 'eq', q.excludeStatus));
-  if (q.country) set(b.eq('country', q.country));
+  // CORPUS SCOPE WINS OVER THE EQUALITY, and both are never applied together:
+  // the register carries `country` for the rail and the filter chip even while
+  // the query is scoped to the corpus, so ANDing the two would put the equality
+  // back and drop the unresolved rows again.
+  if (q.countryInScope) set(b.or(corpusScopeFilter()));
+  else if (q.country) set(b.eq('country', q.country));
   if (q.region_state) set(b.eq('region_state', q.region_state));
   if (q.market) set(b.eq('market', q.market));
   if (q.development_category) set(b.eq('development_category', q.development_category));

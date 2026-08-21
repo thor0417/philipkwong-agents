@@ -132,6 +132,23 @@ function effectiveCountry(param: string | null): string | undefined {
   return param;
 }
 
+// THE DEFAULT IS THE CORPUS, NOT AN EQUALITY ON ONE COUNTRY.
+//
+// `country = 'United States'` drops every project whose country did not
+// resolve, and an unresolved country is not a foreign one - lib/corpus-scope
+// says so in full and every reader in the agent runtime already obeys it. The
+// dashboard obeyed it nowhere, and this screen is the one projects are
+// confirmed on, so five US projects were absent from the list used to decide
+// what a client is shown: Austin, Sacramento and a California street address
+// among them.
+//
+// TRUE ONLY IN THE DEFAULT STATE. An explicit pick is a question about that
+// country and stays an equality; 'any' is every country and filters nothing.
+// The three URL states are unchanged, only what the absent one MEANS.
+function countryIsCorpusScope(param: string | null): boolean {
+  return param === null;
+}
+
 function statusFilter(view: ViewKey): Pick<ProjectQuery, 'status' | 'excludeStatus' | 'watch'> {
   if (view === 'trash') return { status: 'dismissed' };
   if (view === 'watchlist') return { excludeStatus: 'dismissed', watch: true };
@@ -552,6 +569,7 @@ export default function ProjectsPage() {
   }, [searchDraft, search, setSearch, setPage]);
 
   const country = effectiveCountry(countryParam);
+  const corpusScoped = countryIsCorpusScope(countryParam);
 
   // market is NOT here: it is a mode over the project's records and is resolved
   // against them, alongside venue and category. country and region_state stay on
@@ -633,6 +651,11 @@ export default function ProjectsPage() {
       // it - it is a constraint on the project row and goes to the server.
       ...(nullFields.length ? { nullFields } : {}),
       ...geo,
+      // AFTER `geo`, because it OVERRIDES the equality geo carries. `country`
+      // stays on the query for the rail's active node and the filter chip; this
+      // flag is what the server actually filters on in the default state. See
+      // countryIsCorpusScope and ProjectQuery.countryInScope.
+      countryInScope: corpusScoped || undefined,
       ...idFilter,
       search: search.trim() || undefined,
     }),
@@ -658,7 +681,13 @@ export default function ProjectsPage() {
     // nullFields is named here for exactly the reason the note above gives: a
     // value that reaches the URL and stops one line short of the query key is a
     // control that does nothing, and this axis has been that once already.
-    [viewKey, stage, geo, idFilter, search, nullFields]
+    // corpusScoped IS NAMED HERE, and for the reason the note above gives. It
+    // flips while `country` does not move: pressing United States on the rail
+    // when the register is already defaulting to it changes the query from
+    // corpus scope to an equality and changes the count by five. A value that
+    // reaches the URL and stops one line short of the query key is a control
+    // that does nothing, and this file has paid for that twice.
+    [viewKey, stage, geo, corpusScoped, idFilter, search, nullFields]
   );
 
   // BUCKETING OWNS THE SORT WHILE IT IS ON.
@@ -759,9 +788,14 @@ export default function ProjectsPage() {
     { ...categoryBase, nullFields: ['development_category'] },
     facetsReady
   );
+  // A FACET NEVER FILTERS ITSELF, and the corpus scope is a country filter.
+  // Left on, the country tree would count the corpus rather than the register
+  // and could never offer a country the corpus does not yet cover - which is
+  // the one thing this tree exists to show.
   const geoBase: ProjectQuery = {
     ...baseQuery,
     country: undefined,
+    countryInScope: undefined,
     region_state: undefined,
     market: undefined,
   };
@@ -1184,7 +1218,13 @@ export default function ProjectsPage() {
       out.push({
         key: 'country',
         axis: 'country',
-        label: country,
+        // THE CHIP SAYS WHICH OF THE TWO FILTERS IS ON. The default is the
+        // corpus and admits a project whose country did not resolve; an
+        // explicit pick is an equality and does not. Labelling both "United
+        // States" would leave the one filter that is always on describing
+        // itself as the stricter thing it is not, which is how it went five
+        // days unnoticed.
+        label: corpusScoped ? `${country} or unresolved` : country,
         clear: () => {
           void setCountry(null);
           void setRegion(null);
@@ -1244,6 +1284,7 @@ export default function ProjectsPage() {
     return out;
   }, [
     country,
+    corpusScoped,
     region,
     market,
     stage,

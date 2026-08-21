@@ -98,7 +98,7 @@ though it removes nothing today: an unresolved country is not a foreign one, and
 equality throws away every project whose country did not resolve. See the next
 figure.
 
-### 230, the register as the interface actually filters it
+### 230, an explicit pick of one country
 
 ```sql
 select count(*) from projects
@@ -108,15 +108,37 @@ select count(*) from projects
 ```
 
 Snapshot key `projects.reconciliation.asQuoted.unitedStates214`, which labels
-this predicate WRONG in the snapshot's own words: equality drops every project
-whose country did not resolve.
+this predicate WRONG **as a statement about coverage**, in the snapshot's own
+words: equality drops every project whose country did not resolve.
 
-It is recorded here because it is not only a historical mistake. It is the
-default filter on `/projects` today: `DEFAULT_COUNTRY = 'United States'` in
-`dashboard/app/(app)/projects/page.tsx`, applied whenever the `country`
-parameter is absent. Five projects carry a null country and are therefore
-missing from the register's default view. Clearing the country control
-(`?country=any`) restores them and the count reads 235.
+It is still the right predicate for one thing, and only that thing: a person
+asking the register for a named country. `/projects?country=United+States`
+returns 230 and should, because that is the question asked.
+
+**IT WAS ALSO THE REGISTER'S DEFAULT UNTIL 2026-08-21, AND THAT WAS THE DEFECT.**
+`DEFAULT_COUNTRY = 'United States'` was applied whenever the `country` parameter
+was absent, so the screen a project is confirmed on opened on 230 and hid five
+projects whose country did not resolve. None of them is foreign: UMusic Hotel
+Austin, Sacramento lodging growth, 1020 West Imperial Highway and two more, all
+captured by the press lane with no country parsed. An invisible project cannot
+be confirmed, and an unconfirmed project can never reach a client document.
+
+The default is now corpus scope. Measured through the pager before and after:
+
+| the register's default view | count |
+|---|---:|
+| before, `country = 'United States'` | 230 |
+| after, `country IS NULL OR country IN (corpus)` | **235** |
+| explicit pick, unchanged | 230 |
+| cleared, `?country=any` | 235 |
+
+Guarded by `dashboard/e2e/corpus-scope.audit.ts`, which asserts the gap against
+the database rather than against an inequality, and by golden case
+`an-unresolved-country-is-not-a-foreign-one-on-the-screen-either`.
+
+The corpus did not move: `corpus-2026-08-21T06-35-44-pre-default-country.json`
+and `corpus-2026-08-21T06-43-23-post-default-country.json` are identical at 243
+all, 155 live, 80 dormant. This changed what the screen shows, not what is held.
 
 ### 184, the filter audit baseline
 
@@ -136,6 +158,11 @@ select count(*) from projects
 The audit's own next row is `Geography: United States | 184 -> 162`, which is
 what establishes that the country filter was off at the baseline. So 184 is the
 `register` population above, which on 2026-08-21 returns **235**.
+
+Since the corpus-scope fix the register's DEFAULT view also returns 235, so the
+audit's baseline and the screen as it opens are now the same predicate. They
+were not when the audit was written, which is why it had to clear the country
+control to get a baseline worth comparing against.
 
 No snapshot on disk has ever held 184; the counts recorded across the eight
 snapshots in `snapshots/` are 226, 228 and 243 for `all` and 138, 140, 146 and
