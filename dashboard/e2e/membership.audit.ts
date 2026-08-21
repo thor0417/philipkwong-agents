@@ -74,14 +74,40 @@ async function openClientView(page: Page): Promise<{ id: string; name: string }>
 /**
  * ONE ROW'S MEMBERSHIP, READ OFF THE REGISTER. A proposed row renders no mark at
  * all - only a decision shows - so the absence of the mark is the third state.
+ *
+ * ONE DOM READ, AND THAT IS THE WHOLE POINT. This used to COUNT the mark and
+ * then READ its attribute:
+ *
+ *     if ((await mark.count()) === 0) return 'proposed';
+ *     const v = await mark.first().getAttribute('data-membership');
+ *
+ * which is a check-then-use across a re-render, and it turned the full suite red
+ * at random. count() said 1; the register re-rendered underneath - the client
+ * view calls proposeProjects on open AND on window focus, and eleven queries are
+ * settling - and getAttribute then waited out its ENTIRE 15s action timeout on
+ * an element that had legitimately gone. Run alone this file passes; it failed
+ * once in a full run and passed the next, which is the signature.
+ *
+ * ABSENCE IS A REAL STATE HERE, so a read that BLOCKS ON PRESENCE turns the
+ * third state into a failure. That is what made the old shape wrong rather than
+ * merely racy: waiting for the mark to come back is waiting for a thing that
+ * correctly is not there. evaluateAll resolves against whatever is in the DOM at
+ * that instant and returns [] rather than waiting, so this cannot block and
+ * cannot throw - which is why no caller needs a .catch() around it any more, and
+ * three of them used to have one while the fourth, the one that failed, did not.
+ *
+ * The row's own presence is the CALLER's precondition, not this function's: a
+ * row that has not rendered is not "proposed", and the one caller that reads a
+ * state cold asserts the row first rather than letting absence answer for it.
  */
 async function memberState(
   page: Page,
   id: string
 ): Promise<'proposed' | 'included' | 'excluded'> {
-  const mark = page.locator(`[data-row-id="${id}"] [data-membership]`);
-  if ((await mark.count()) === 0) return 'proposed';
-  const v = await mark.first().getAttribute('data-membership');
+  const marks = await page
+    .locator(`[data-row-id="${id}"] [data-membership]`)
+    .evaluateAll((els) => els.map((e) => e.getAttribute('data-membership')));
+  const v = marks[0];
   return v === 'included' || v === 'excluded' ? v : 'proposed';
 }
 
@@ -155,6 +181,12 @@ test('opening a client proposes, and the register can confirm', async ({ page })
     // holds whatever the table contains is to read the row's state, work from
     // it, and restore it exactly.
     const target = rows[0];
+    // THE ROW BEFORE ITS STATE. memberState reads the DOM as it stands and
+    // reports "proposed" when no mark is there, which is right for a proposed
+    // row and wrong for a row that has not rendered. The two are the same shape
+    // and opposite meanings, and this is the one place a state is read cold, so
+    // the row is asserted rather than assumed.
+    await expect(page.locator(`[data-row-id="${target}"]`)).toHaveCount(1, { timeout: 30_000 });
     const startState = await memberState(page, target);
     touched.push({ id: target, was: startState });
     console.log(`  target ${target} starts ${startState}`);
@@ -236,7 +268,7 @@ test('opening a client proposes, and the register can confirm', async ({ page })
     for (const { id, was } of touched) {
       await page.locator(`[data-row-id="${id}"]`).click().catch(() => {});
       for (let attempt = 0; attempt < 4; attempt++) {
-        const now = await memberState(page, id).catch(() => 'proposed' as const);
+        const now = await memberState(page, id);
         if (now === was) break;
         // C and X are each their own way back, so one press moves one step:
         // whatever the row currently is, press the key that leaves it at `was`.
@@ -249,10 +281,10 @@ test('opening a client proposes, and the register can confirm', async ({ page })
         // because the read beat the invalidation. A cleanup that reports its own
         // success wrongly is worse than one that does not report at all.
         await expect
-          .poll(async () => memberState(page, id).catch(() => 'unknown'), { timeout: 15_000 })
+          .poll(async () => memberState(page, id), { timeout: 15_000 })
           .not.toBe(now);
       }
-      const final = await memberState(page, id).catch(() => 'unknown' as const);
+      const final = await memberState(page, id);
       expect(final, `cleanup left ${id} at ${final}, not the ${was} it started as`).toBe(was);
       console.log(`  restored ${id}: back to ${was}`);
     }

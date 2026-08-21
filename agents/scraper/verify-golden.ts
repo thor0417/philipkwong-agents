@@ -266,6 +266,37 @@ const INLINE: Record<string, () => string | null> = {
     return open.length ? open.join('; ') : null;
   },
 
+  'a-client-scope-naming-a-country-drops-the-unresolved-ones': () => {
+    // PENDING BY DECISION, not by neglect. Philip reviewed this on 2026-08-21
+    // and left it: a client scope naming a country is the CLIENT saying what
+    // they bought, which lib/corpus-scope itself separates from the system
+    // saying what it covers. Reach is 0 of 5 today. It is recorded so that the
+    // day a client scope does name a country, the question is already written
+    // down rather than rediscovered.
+    //
+    // SOURCE-LEVEL, because verify:fast runs with no database and no network,
+    // and because agents may not import dashboard code - the split is one way.
+    // So this reports the SHAPE that is still there rather than the rows it
+    // would drop.
+    const clients = readFileSync('dashboard/lib/clients.ts', 'utf8');
+    const open: string[] = [];
+    // The country axis goes to `loose`, which applyProjectFilters renders as an
+    // ilike. ilike on a NULL column is NULL, so the row is excluded: exactly
+    // the register's old DEFAULT_COUNTRY behaviour, on the client axis.
+    if (/axis\(countries, 'country'\)/.test(clients)) {
+      open.push(
+        "resolveScope still routes a scope's country through the loose ilike axis, which excludes a null country"
+      );
+    }
+    // If the register ever regressed to an equality default, the two would be
+    // wrong together and this case would be the wrong place to read about it.
+    const projects = readFileSync('dashboard/lib/projects.ts', 'utf8');
+    if (!/countryInScope/.test(projects)) {
+      open.push('the REGISTER default is no longer corpus scope either, which is a regression rather than this case');
+    }
+    return open.length ? open.join('; ') : null;
+  },
+
   'a-200-is-not-a-live-page': () => {
     const src = readFileSync('agents/scraper/sources/nyc-ceqr.ts', 'utf8');
     const verifiesBody = /Page Not Found|Error Code 404|bodyLooksLikeAnError|soft.?404/i.test(src);
