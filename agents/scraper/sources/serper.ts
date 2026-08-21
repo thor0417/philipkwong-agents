@@ -38,6 +38,7 @@ import { clientWatchTerms } from '../client-watch-terms';
 import { JUNK_DOMAINS } from '../junk-domains';
 import { SerperOrganicSchema, parseRecords } from './schemas';
 import { subDays, format } from 'date-fns';
+import { COVERED_MARKETS as DECLARED_MARKETS } from '../../../lib/coverage';
 
 const API_KEY = process.env.SERPER_API_KEY;
 
@@ -206,21 +207,52 @@ const MARKET_NOUNS = [
   '"visitor attraction"',
 ];
 
-// The twelve markets the government lane covers, named as the press names them
-// rather than as our jurisdiction labels do.
-export const COVERED_MARKETS = [
-  'New York City',
-  'Las Vegas',
-  'Clark County Nevada',
-  'Anaheim California',
-  'Orlando Florida',
-  'Miami Florida',
-  'Nashville Tennessee',
-  'Phoenix Arizona',
-  'San Antonio Texas',
-  'Oakland California',
-  'Yonkers New York',
-  'South Florida',
+// THE MARKETS THE GOVERNMENT LANE COVERS, DERIVED RATHER THAN TYPED.
+//
+// THIS WAS A SECOND HAND-MAINTAINED LIST AND IT HAD ALREADY DRIFTED. It named
+// twelve markets while lib/coverage named thirteen, and two of its entries -
+// 'Orlando Florida' and 'Miami Florida' - are not markets this system has ever
+// covered. So the press lane spent part of its search budget every run looking
+// for stories in two places no adapter is pointed at, and stopped looking the
+// day a market was added to the real table without being added here.
+//
+// Two lists that must agree and are maintained separately do not agree; they
+// agree until someone forgets. lib/coverage.COVERED_MARKETS is the declaration,
+// this is a projection of it, and adding a market there now adds its search here
+// with no second edit.
+//
+// THE PRESS DOES NOT USE OUR JURISDICTION LABELS, which is the one real thing
+// the old list carried and the reason this is not a bare map(). "Central Florida
+// Tourism Oversight District" is what the district calls itself and nothing a
+// journalist writes; "Clark County" alone collides with Clark County in six
+// other states. So a market may declare the string the press would use, and the
+// override is EXPLICIT and per market rather than a transformation rule - a
+// clever rule would silently mis-render the next market added.
+//
+// A market with no override searches under its own name plus its state, which is
+// what the press calls most places.
+const PRESS_NAME: Record<string, string> = {
+  // The district's legal name appears in filings and nowhere in a newspaper.
+  // Orlando is the city the press names for this geography, and it is the one
+  // entry the old list got right for a reason rather than by accident.
+  'Central Florida Tourism Oversight District': 'Orlando Florida',
+  // A resort destination the press names without its state.
+  'Las Vegas': 'Las Vegas',
+  'New York City': 'New York City',
+  // Lake Buena Vista is inside the Orlando press geography above. Searching it
+  // separately returns the same stories under a name only Disney uses.
+  'Lake Buena Vista': 'Orlando Florida',
+};
+
+function pressName(m: { market: string; regionState: string }): string {
+  return PRESS_NAME[m.market] ?? `${m.market} ${m.regionState}`;
+}
+
+// Deduplicated, because two markets can legitimately share one press geography:
+// CFTOD and Lake Buena Vista are both Orlando to a journalist, and searching the
+// same phrase twice spends the budget twice for one set of results.
+export const COVERED_MARKETS: string[] = [
+  ...new Set(DECLARED_MARKETS.map(pressName)),
 ];
 
 const MARKET_ENABLED = process.env.SERPER_MARKET_PASS !== '0';
