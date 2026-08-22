@@ -716,6 +716,57 @@ const PLAN_NAME = new RegExp(
   'g'
 );
 
+// THREE MORE NAMES THAT ARE NOT VENUES, AND THEY ARE VENUE-ONLY ON PURPOSE.
+//
+// Same shape as PLAN_NAME above: a venue noun inside a proper name, a street, or
+// a definition is not a statement that a venue exists. Measured 2026-08-22 over
+// the whole live corpus by ablation against classifyVenueType itself - blank
+// each word, ask again, and the word whose removal changes the answer is the one
+// the answer rests on. 66 of the 576 live records that carry a venue rest on a
+// word inside a name, and 25 live projects carry a venue_type no record
+// supports. Three of those projects are NAMED after the street the word came
+// from - 1555 S Casino Center Drive, 500 North Casino Center Drive, 163 At
+// Casino Drive, all filed under Casino/Gaming - so the error prints twice.
+//
+// THEY ARE NOT IN BORROWED_CONTEXT, AND THE MEASUREMENT IS WHY. That list is
+// read by gateReadableText as well, and the same three rules run through the
+// real gate over the labelled corpus cost 46 admissions, 24 of them labelled
+// relevant: OCVIBE Residential Phase I, DisneylandForward, Bally's Bronx,
+// Willetts Point, Western Rail Yard, the Hudson Yards cluster. Recall 75.2% to
+// about 64.8% for no precision gain. New York NAMES ITS PROJECTS AFTER ITS
+// STREETS, so a street-name blanker that the gate can see deletes the project.
+//
+// Second time this corpus has produced that shape - the first was a mixed-use
+// gate change that helped New York and strictly harmed Anaheim - which is what
+// standing rule 2 is for. Whoever adds a fourth entry here: measure the GATE as
+// well as the venue before moving any of it up into BORROWED_CONTEXT.
+//
+// Cost at the venue layer, per market: Clark County 164 records carrying a venue
+// to 104, Las Vegas 57 to 53, CFTOD 9 to 8, and 61 of 64 markets unchanged. No
+// record is reclassified into a DIFFERENT venue; every change is to null, which
+// is the honest answer the header above already argues for.
+const VENUE_ONLY_NAMES: RegExp[] = [
+  // "Corridor Mixed-Use (CM)", "Entertainment Mixed-Use (EM)": Clark County's
+  // land use CATEGORY names. A plan amendment redesignating a parcel from one to
+  // another names a designation on a map, not a building. 43 records.
+  /\b[A-Z][\w-]*(?:[ \t]+[A-Z][\w-]*)*[ \t]*\((?:CM|EM|MN|CN|UN|LN|BE|OL|RN|NC)\)/g,
+  /\bland use category (?:from|to)\b[^.;]{0,90}/gi,
+  // THE STREET RULE WAS PROPOSED HERE AND IS DELIBERATELY ABSENT. Measured over
+  // full record text it cleared 82 records across NINE markets, and the losses
+  // were real venues: Anaheim's Theme Park and Integrated Resort applications,
+  // Lincoln Center West, the Mary Cali Dalton Recreation Center, Hollywood's
+  // Cinerama Dome. The reason is the same one that killed it for the gate, and
+  // it is worth stating because it will be proposed again: A PLACE NAMES ITS
+  // STREETS AFTER ITS LANDMARKS. Anaheim has a Disneyland Drive and a Disney
+  // Way, New York names projects after avenues, so a rule that blanks the street
+  // blanks the venue with it. "1555 S Casino Center Drive" is still wrong and
+  // still needs an answer; a blanket street blanker is not it.
+  //
+  // "definitions for Inflatable Amusement Device, Community Facility and
+  // Recreational Vehicle" is a fee schedule, not an amusement park. 3 records.
+  /\bdefinitions?\s+for\b[^.;]{0,90}/gi,
+];
+
 /** The text a venue rule reads, with plan names blanked. */
 // A ZONING DISTRICT IS NOT A VENUE TYPE EITHER.
 //
@@ -732,7 +783,33 @@ const PLAN_NAME = new RegExp(
 export function venueReadableText(text: string): string {
   let out = text.replace(PLAN_NAME, ' ');
   for (const re of BORROWED_CONTEXT) out = out.replace(re, ' ');
+  // VENUE ONLY. gateReadableText deliberately does not apply these; see the note
+  // on VENUE_ONLY_NAMES for the 24 relevant admissions it would cost the gate.
+  for (const re of VENUE_ONLY_NAMES) out = out.replace(re, ' ');
   return out;
+}
+
+/**
+ * WHAT THE CLASSIFIER SAID BEFORE VENUE_ONLY_NAMES EXISTED.
+ *
+ * PLAN_NAME and BORROWED_CONTEXT, and not the three constructs added on
+ * 2026-08-22. Used for exactly one question, by clear-name-venues: did this
+ * record's STORED venue depend on a phrase we now blank? A migration that
+ * cannot ask that question cannot tell the damage it is meant to repair from
+ * staleness it has no business touching - the first draft could not, and
+ * proposed clearing 101 records across nine markets when the real reach was
+ * Clark County alone.
+ *
+ * Not for classifying anything. Nothing may call this to decide what a record
+ * is; it only describes what we used to think.
+ */
+export function venueTypeWithoutNameRules(raw: string): VenueType | null {
+  let text = raw.replace(PLAN_NAME, ' ');
+  for (const re of BORROWED_CONTEXT) text = text.replace(re, ' ');
+  for (const rule of VENUE_RULES) {
+    if (rule.keywords.some((k) => hasWord(text, k))) return rule.venue;
+  }
+  return null;
 }
 
 // WHAT THE CLASSIFIER SAID BEFORE THE BOILERPLATE WAS NEUTRALISED.

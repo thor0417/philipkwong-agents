@@ -266,31 +266,21 @@ const INLINE: Record<string, () => string | null> = {
     return open.length ? open.join('; ') : null;
   },
 
-  'a-venue-noun-inside-a-proper-name-is-not-a-venue': () => {
-    // PENDING, AND THE REACH IS THE ARGUMENT. venueReadableText already blanks a
-    // "<Name> Redevelopment Plan" (PLAN_NAME) and zoning boilerplate
-    // (BORROWED_CONTEXT) for exactly this reason: a proper name containing a
-    // venue noun is not a statement that a venue exists. Three more constructs
-    // reach 66 live records and 25 live projects and are not covered yet.
+  'a-project-named-after-a-street-takes-the-street-s-venue': () => {
+    // PENDING, AND THE OBVIOUS FIX IS THE ONE THAT WAS MEASURED AND REJECTED.
+    // A blanket street-name neutraliser cleared 82 records across nine markets
+    // and took real venues with it, because a place names its streets after its
+    // landmarks. So this reports the shape rather than demanding that rule.
     //
-    // SOURCE-LEVEL, because verify:fast has no database. It reports which of the
-    // three the neutraliser has grown, so the case closes itself the day they
-    // land rather than waiting for someone to remember this file.
+    // SOURCE-LEVEL, because verify:fast has no database. It asks whether any
+    // narrower mechanism has landed, so the case closes itself when one does.
     const tax = readFileSync('lib/taxonomy.ts', 'utf8');
-    const missing: string[] = [];
-    // A land use CATEGORY name - "Corridor Mixed-Use (CM)" - names a
-    // designation, not a building. 43 records, the largest of the three.
-    if (!/LAND_USE_CATEGORY|land use category|\(CM\|EM/i.test(tax)) missing.push('land use category (43 records)');
-    // A street - "Casino Center Drive", "Convention Center Drive". 20 records.
-    if (!/STREET_NAME|street suffix|Casino Center Drive/i.test(tax)) missing.push('street name (20 records)');
-    // A code definition - "definitions for Inflatable Amusement Device". 3.
-    if (!/CODE_DEFINITION|definitions? for/i.test(tax)) missing.push('code definition (3 records)');
-    if (missing.length === 0) return null;
+    const hasNarrowRule = /SITE_ADDRESS_SPAN|streetNamedVenue|titleOnlyStreet|address span/i.test(tax);
+    if (hasNarrowRule) return null;
     return (
-      'venueReadableText still neutralises none of: ' + missing.join('; ') +
-      '. Measured 2026-08-22 over the whole corpus by ablation: 66 of 576 live records ' +
-      'that carry a venue rest on a word inside a name, and 25 live projects carry a ' +
-      'venue_type no record supports - 20 Clark County, 3 Las Vegas, 2 dormant'
+      'a venue noun inside a street name still sets venue_type, and where name_source is ' +
+      "'site' it sets the project name too; 3 projects print it twice (1555 S Casino Center " +
+      'Drive, 500 North Casino Center Drive, 163 At Casino Drive), 20 records affected'
     );
   },
 
