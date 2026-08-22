@@ -747,11 +747,54 @@ two membership decisions, and there is no measurement yet of how often a re-key
 is a MERGE rather than a rename. That has to be measured before the code is
 written.
 
-ALSO FOUND, NOT FIXED: `PROJECTS_NO_WRITE=1` returns from `runBackfill` at the
-top of the write section, BEFORE the orphan sweep. The one hard delete in the
-system is the one path the dry-run flag cannot preview, so what the sweep is
-about to delete can only be discovered by letting it delete. The guard is
-asserted in `verify-curation` against the exported pure `orphanIsCurated`
-instead, which is a test of the rule and not of the sweep. A dry run that
-reports what WOULD be deleted, and keeps returning before the writes, is the fix.
+## THE ONLY HARD DELETE HAS NO DRY RUN, COSTED 2026-08-22
+
+`PROJECTS_NO_WRITE=1` returns from `runBackfill` at line 368, at the top of the
+write section and BEFORE the orphan sweep at step 6. So the one path in this
+system that hard-deletes is the one path the dry-run flag cannot preview: what
+the sweep is about to remove can only be discovered by letting it remove it. The
+guard shipped today is asserted in `verify-curation` against the exported pure
+`orphanIsCurated`, which tests the RULE and not the sweep.
+
+WHAT IT WOULD TAKE. Four changes, and one of them is a simplification that makes
+the other three easy.
+
+1. **KEY THE SWEEP ON `project_key`, NOT ON A STORED ID.** This is the change
+   that matters and it is worth making on its own merits. Today:
+
+       attachedCounts.set(stored.get(p.project_key)?.id, p.record_count)   // 571
+       if ((attachedCounts.get(p.id) ?? 0) > 0) continue;                  // 574
+
+   The sweep asks "does a cluster resolve to this row's ID", which requires the
+   upserts in step 1 to have happened. Under a dry run they have not, so a
+   cluster whose key is NEW has no id, and every row it should have claimed
+   looks orphaned. Keying the map on `project_key` instead - which is one-to-one
+   with the id inside a module - gives an identical answer in a real run and a
+   CORRECT one in a dry run, with no dependency on writes at all.
+
+2. **MOVE THE EARLY RETURN PAST THE SWEEP**, and guard each write where it
+   happens rather than by leaving the function. Steps 3, 4 and 5 write only
+   through `updateLeads`, so one `if (noWrite) return 0` inside it covers all
+   three. Step 6 needs its `projects.update` and `projects.delete` guarded, and
+   step 7's `emitProjectEvents` needs skipping.
+
+3. **`loadProjects` MUST RUN UNDER `noWrite`.** It is a read, and step 2 already
+   sits after the return purely by accident of ordering.
+
+4. **THE PREVIEW WRITES A FILE, IT DOES NOT PRINT.** Standing rule 11: a
+   generator that prints has produced nothing. `snapshots/orphans-would-remove-<stamp>.json`,
+   the same shape as `orphans-removed-<stamp>.json` and named so the two cannot
+   be confused when someone greps the directory a month later.
+
+WHAT THE PREVIEW MUST SAY ABOUT ITSELF. Even with (1), a dry run has not created
+the project rows a real run would, so a row whose records are moving to a
+brand-new key is genuinely orphaned in the preview and genuinely swept in the
+real run - the same answer for the same reason. That is correct and should be
+stated rather than left for someone to rediscover: the preview reports what the
+sweep WOULD do given the clustering it just computed, which is exactly the
+question.
+
+NOT DONE TODAY. It touches the write path of the only destructive step in the
+system, which is not something to change in the same pass as the guard that
+stops it losing data.
 
