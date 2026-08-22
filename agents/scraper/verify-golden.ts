@@ -294,25 +294,6 @@ const INLINE: Record<string, () => string | null> = {
     );
   },
 
-  'an-ordinance-record-carries-no-facts-and-its-title-holds-four': () => {
-    // PENDING. The fact reader is pointed at the staff-report PDF, and Clark
-    // County ordinances do not publish one - so 112 ordinance and agreement
-    // records carry zero facts while their TITLES state an acreage, a use, a set
-    // of cross streets and a counterparty.
-    //
-    // SOURCE-LEVEL for the same reason as the others. It asks whether a reader
-    // for the ORD/AG shape exists at all, rather than re-measuring the corpus.
-    const dispatch = readFileSync('agents/scraper/migrations/capture-filing-facts.ts', 'utf8');
-    const hasOrdReader = /clark-ordinance|ordinance-title|ORD-\d|readOrdinanceTitle/i.test(dispatch);
-    if (hasOrdReader) return null;
-    return (
-      'no reader handles the Clark ORD/AG title shape, so 112 ordinance and agreement ' +
-      'records carry 0 filing_facts between them; measured 2026-08-22, 65 of those titles ' +
-      'yield at least one fact with no document fetch, across 57 live projects, including ' +
-      'Athletics StadCo which states 35.11 acres and a baseball stadium in its title'
-    );
-  },
-
   'a-trade-press-article-is-not-a-project': () => {
     // PENDING AND DELIBERATELY OPEN. The decision is whether the intelligence
     // gate should refuse a press item carrying no place and no party, and that

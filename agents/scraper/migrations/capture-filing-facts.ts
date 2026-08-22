@@ -23,6 +23,7 @@ import { supabaseAdmin } from '../../../lib/supabase-admin';
 import { fetchPdfPages } from '../sources/pdf-agenda';
 import { verifyFilingFacts, type FilingFact } from '../readers/core';
 import { readFilingFacts, isClarkAgendaSheet } from '../readers/clark-agenda-sheet';
+import { isClarkOrdinanceTitle, readOrdinanceTitleFacts } from '../readers/clark-ordinance-title';
 import { readNycFacts, isNycRecord } from '../readers/nyc-records';
 import { readOaklandFacts, isOaklandDocument, isCodeAmendment } from '../readers/oakland-ordinance';
 import { readAnaheimFacts, isAnaheimAgenda, isSpanishAgenda } from '../readers/anaheim-agenda';
@@ -58,7 +59,7 @@ function laneOf(l: Lead): LaneName | null {
 // and "we have not tried" are different facts about our coverage and only one is
 // worth doing something about.
 type Form =
-  | 'clark-agenda-sheet' | 'nyc-zap' | 'nyc-ceqr' | 'nyc-city-record'
+  | 'clark-agenda-sheet' | 'clark-ordinance-title' | 'nyc-zap' | 'nyc-ceqr' | 'nyc-city-record'
   | 'oakland-ordinance' | 'anaheim-agenda'
   | 'no-document' | 'unreadable-scan' | 'form-not-supported'
   | 'anaheim-spanish' | 'oakland-code-amendment' | 'anaheim-item-not-on-agenda'
@@ -114,11 +115,78 @@ async function main(): Promise<void> {
     return { text, form: null };
   }
 
+  // THE ONE WRITE, SHARED BY EVERY PATH THROUGH THE WORKER.
+  //
+  // It was inline at the bottom of the loop, which is fine while there is one
+  // path and a trap the moment there are two: the ordinance branch below pushes
+  // its result and continues, and continuing skipped the write. The run reported
+  // "clark-ordinance-title 59" and the database held nothing - the run report
+  // standing in for the work, standing rule 11, caught only by reading the rows
+  // back afterwards. A shared function cannot be skipped by a `continue`.
+  // A FAILED FETCH IS NOT A DOCUMENT THAT SAYS NOTHING.
+  //
+  // This wrote `filing_facts: facts.length ? facts : null` on every path, so a
+  // transient network failure - the county timing out, a PDF served short -
+  // came back as 'unreadable-scan' with no facts and ERASED a good read from a
+  // previous run. Seen on 2026-08-22: a report-only pass read 162 agenda sheets
+  // and the write pass immediately after read 140 and called 26 unreadable. The
+  // same records, four minutes apart, and the difference was the network.
+  //
+  // So a read that FAILED may record that it failed and may not overwrite what a
+  // successful read stored. A read that SUCCEEDED and legitimately found nothing
+  // still clears the column, because that is a fact about the document.
+  const TRANSIENT: Form[] = ['unreadable-scan', 'no-document'];
+  async function persist(l: Lead, form: Form, facts: FilingFact[]): Promise<void> {
+    if (!WRITE) return;
+    const patch: Record<string, unknown> = {
+      filing_read_at: new Date().toISOString(),
+      filing_form: form,
+    };
+    if (!facts.length && TRANSIENT.includes(form)) {
+      // Record the failure, keep whatever a better run already read.
+    } else {
+      patch.filing_facts = facts.length ? facts : null;
+    }
+    const { error } = await supabaseAdmin.from('leads').update(patch).eq('id', l.id);
+    if (error) throw new Error(`write failed for ${l.id}: ${error.message}`);
+  }
+
   async function worker(): Promise<void> {
     while (next < targets.length) {
       const { l, lane } = targets[next++];
       done++;
       if (done % 25 === 0) console.log(`  ...${done}/${targets.length}`);
+
+      // AN ORDINANCE HAS NO STAFF SHEET, AND ITS TITLE HOLDS THE FACTS.
+      //
+      // Measured 2026-08-22: Clark's 197 land-use cases carry 2,802 facts and
+      // publish a document 100% of the time; its 64 ORD/AG records carried ZERO
+      // and publish one 13% of the time. They were not failing the reader, they
+      // were never reaching one - textFor returns 'no-document' and the worker
+      // moves on. So this runs BEFORE the fetch, and costs no request at all.
+      //
+      // Clark only. The same four patterns yield nothing on Nashville's 35
+      // ordinance records and only a counterparty on Phoenix's 13, because those
+      // are different forms. isClarkOrdinanceTitle refuses them by prefix.
+      if (lane === 'clark' && isClarkOrdinanceTitle(l.title ?? '')) {
+        let titleFacts: FilingFact[] = [];
+        let titleForm: Form = 'clark-ordinance-title';
+        try {
+          titleFacts = readOrdinanceTitleFacts(l.title ?? '');
+        } catch (e) {
+          console.error(`  REFUSED ${(l.title ?? '').slice(0, 44)}: ${String(e).slice(0, 130)}`);
+          titleFacts = [];
+          titleForm = 'refused-by-guard';
+        }
+        // A title that states nothing is a real answer, not a failure: the five
+        // that yield nothing are fee-schedule and "discuss whether to initiate"
+        // items, which state no acreage, no use and no counterparty because
+        // there is no scheme behind them.
+        if (!titleFacts.length && titleForm === 'clark-ordinance-title') titleForm = 'form-not-supported';
+        await persist(l, titleForm, titleFacts);
+        results.push({ lead: l, lane, form: titleForm, facts: titleFacts });
+        continue;
+      }
 
       const { text, form: earlyForm } = await textFor(l, lane);
       if (!text) {
@@ -162,14 +230,7 @@ async function main(): Promise<void> {
       }
       results.push({ lead: l, lane, form, facts });
 
-      if (WRITE) {
-        const { error } = await supabaseAdmin.from('leads').update({
-          filing_facts: facts.length ? facts : null,
-          filing_read_at: new Date().toISOString(),
-          filing_form: form,
-        }).eq('id', l.id);
-        if (error) throw new Error(`write failed for ${l.id}: ${error.message}`);
-      }
+      await persist(l, form, facts);
     }
   }
   await Promise.all(Array.from({ length: Math.min(CONCURRENCY, targets.length) }, worker));
