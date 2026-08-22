@@ -824,7 +824,27 @@ report - and it is deliberately NOT bundled with a market addition, because it
 changes the write path of the capture lane. It wants its own pass and its own
 gate, the same way the orphan-sweep dry run does.
 
-WORTH CHECKING IN THE SAME PASS: whether any OTHER runtime flag is honoured by
-one lane and documented for both. `PROJECTS_NO_WRITE` and `HEALTH_NO_WRITE` are
-the two candidates.
+PART OF THE SAME PASS, NOT A SUGGESTION (Philip, 2026-08-22): sweep
+`PROJECTS_NO_WRITE` and `HEALTH_NO_WRITE` for the same shape before the pass is
+called done. A flag the runbook tells you to use, that does nothing, is worse
+than no flag - it is the runbook actively misleading the person following it.
+
+What the sweep has to answer for each flag, and the answer goes in the file that
+documents it:
+
+  1. which module reads it, by grep, not by reputation;
+  2. which commands the runbook tells you to use it with;
+  3. whether (1) covers (2), and where it does not, either make the code honour
+     it or delete the claim from the doc. Both are acceptable; leaving the gap is
+     not.
+
+`PROJECTS_NO_WRITE` is already known to be half-honoured: it stops the writes in
+`runBackfill` and returns BEFORE the orphan sweep, so the destructive step it
+most needs to preview is the one step it cannot reach. That is written up above
+as its own item and the two should be done together, because they are the same
+question asked of two flags.
+
+`HEALTH_NO_WRITE` is untested here. `source-health-never-applied` in the memory
+notes says to keep it out of real runs and in every harness, which is a claim
+about behaviour nobody has verified since.
 
