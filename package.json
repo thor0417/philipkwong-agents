@@ -71,7 +71,8 @@
     "check:split": "node scripts/check-split.mjs",
     "verify:deploy": "node scripts/verify-deploy.mjs",
     "diag:backfill-cohort": "node --env-file=.env.local --import tsx agents/scraper/diagnostics/backfill-cohort.ts",
-    "diag:venue-name-reach": "node --env-file=.env.local --import tsx agents/scraper/diagnostics/venue-name-reach.ts"
+    "diag:venue-name-reach": "node --env-file=.env.local --import tsx agents/scraper/diagnostics/venue-name-reach.ts",
+    "diag:venue-neutraliser-cost": "node --env-file=.env.local --import tsx agents/scraper/diagnostics/venue-neutraliser-cost.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.20.0",
