@@ -707,3 +707,51 @@ if parties get sparser in the first eight rows.
 THE SHAPE: a loop that probes the first N of a list THE PRODUCT CONTROLS. The
 list length is a product decision, the N is a harness decision, and nothing
 keeps them in step. Worth a sweep when there is time.
+
+## MEMBERSHIP MUST TRAVEL WITH A RE-KEY, LOGGED NOT BUILT, 2026-08-22
+
+Shipped today, in `agents/scraper/migrations/backfill-projects.ts`: the orphan
+sweep reads `client_projects` before it deletes and keeps any project a client
+holds a row for, whatever the status and whoever wrote it. Migration
+`042_client_projects_restrict.sql` is printed and BLOCKING: it turns the
+`on delete cascade` on `client_projects.project_id` into `on delete restrict`,
+so a future write path that grows its own delete fails loudly instead of erasing
+a confirmation.
+
+THAT STOPS THE LOSS. IT DOES NOT FINISH THE JOB. The kept row now points at a
+dead shell while the records live under a new project id, so the membership is
+preserved and useless: the client's document will not print the project, because
+the project it is confirmed against holds no records. Philip has to notice and
+re-confirm against the new row.
+
+WHAT THE REAL FIX IS. The clusterer knows the old key and the new key at the
+moment it re-keys - that is the whole reason the shell exists to be swept. So
+membership rows move in that same step:
+
+  1. `project_key` changes; the leads are written to the new project id.
+  2. Before the sweep runs, `client_projects` rows pointing at the old id are
+     updated to the new id, per client, respecting the unique index on
+     `(client_id, project_id)`: if the client already holds a row for the new
+     id, keep the STRONGER state - `excluded` beats `included` beats `proposed`,
+     because a refusal is a judgement and a proposal is a question.
+  3. The move is logged the way deletions are, to
+     `snapshots/membership-moved-<stamp>.json`, naming client, project, old id,
+     new id and the status carried. A move nobody can see is the same defect as
+     a deletion nobody can see.
+  4. Only then does the sweep run. With the rows moved, the shell is genuinely
+     uncurated and deletes cleanly.
+
+WHY IT WAITS. Step 2 is the only part that can be wrong, and it can be wrong in
+a way that silently changes what a client is sold: merging two projects merges
+two membership decisions, and there is no measurement yet of how often a re-key
+is a MERGE rather than a rename. That has to be measured before the code is
+written.
+
+ALSO FOUND, NOT FIXED: `PROJECTS_NO_WRITE=1` returns from `runBackfill` at the
+top of the write section, BEFORE the orphan sweep. The one hard delete in the
+system is the one path the dry-run flag cannot preview, so what the sweep is
+about to delete can only be discovered by letting it delete. The guard is
+asserted in `verify-curation` against the exported pure `orphanIsCurated`
+instead, which is a test of the rule and not of the sweep. A dry run that
+reports what WOULD be deleted, and keeps returning before the writes, is the fix.
+

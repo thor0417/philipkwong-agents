@@ -266,6 +266,53 @@ const INLINE: Record<string, () => string | null> = {
     return open.length ? open.join('; ') : null;
   },
 
+  'a-venue-noun-inside-a-proper-name-is-not-a-venue': () => {
+    // PENDING, AND THE REACH IS THE ARGUMENT. venueReadableText already blanks a
+    // "<Name> Redevelopment Plan" (PLAN_NAME) and zoning boilerplate
+    // (BORROWED_CONTEXT) for exactly this reason: a proper name containing a
+    // venue noun is not a statement that a venue exists. Three more constructs
+    // reach 66 live records and 25 live projects and are not covered yet.
+    //
+    // SOURCE-LEVEL, because verify:fast has no database. It reports which of the
+    // three the neutraliser has grown, so the case closes itself the day they
+    // land rather than waiting for someone to remember this file.
+    const tax = readFileSync('lib/taxonomy.ts', 'utf8');
+    const missing: string[] = [];
+    // A land use CATEGORY name - "Corridor Mixed-Use (CM)" - names a
+    // designation, not a building. 43 records, the largest of the three.
+    if (!/LAND_USE_CATEGORY|land use category|\(CM\|EM/i.test(tax)) missing.push('land use category (43 records)');
+    // A street - "Casino Center Drive", "Convention Center Drive". 20 records.
+    if (!/STREET_NAME|street suffix|Casino Center Drive/i.test(tax)) missing.push('street name (20 records)');
+    // A code definition - "definitions for Inflatable Amusement Device". 3.
+    if (!/CODE_DEFINITION|definitions? for/i.test(tax)) missing.push('code definition (3 records)');
+    if (missing.length === 0) return null;
+    return (
+      'venueReadableText still neutralises none of: ' + missing.join('; ') +
+      '. Measured 2026-08-22 over the whole corpus by ablation: 66 of 576 live records ' +
+      'that carry a venue rest on a word inside a name, and 25 live projects carry a ' +
+      'venue_type no record supports - 20 Clark County, 3 Las Vegas, 2 dormant'
+    );
+  },
+
+  'an-ordinance-record-carries-no-facts-and-its-title-holds-four': () => {
+    // PENDING. The fact reader is pointed at the staff-report PDF, and Clark
+    // County ordinances do not publish one - so 112 ordinance and agreement
+    // records carry zero facts while their TITLES state an acreage, a use, a set
+    // of cross streets and a counterparty.
+    //
+    // SOURCE-LEVEL for the same reason as the others. It asks whether a reader
+    // for the ORD/AG shape exists at all, rather than re-measuring the corpus.
+    const dispatch = readFileSync('agents/scraper/migrations/capture-filing-facts.ts', 'utf8');
+    const hasOrdReader = /clark-ordinance|ordinance-title|ORD-\d|readOrdinanceTitle/i.test(dispatch);
+    if (hasOrdReader) return null;
+    return (
+      'no reader handles the Clark ORD/AG title shape, so 112 ordinance and agreement ' +
+      'records carry 0 filing_facts between them; measured 2026-08-22, 65 of those titles ' +
+      'yield at least one fact with no document fetch, across 57 live projects, including ' +
+      'Athletics StadCo which states 35.11 acres and a baseball stadium in its title'
+    );
+  },
+
   'a-trade-press-article-is-not-a-project': () => {
     // PENDING AND DELIBERATELY OPEN. The decision is whether the intelligence
     // gate should refuse a press item carrying no place and no party, and that

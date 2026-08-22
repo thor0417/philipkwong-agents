@@ -73,6 +73,33 @@ async function loadLeads(): Promise<LeadRow[]> {
   return all;
 }
 
+/**
+ * MAY THE ORPHAN SWEEP DELETE THIS EMPTY PROJECT SHELL?
+ *
+ * Pure, exported and separately tested, because it is the guard on the only
+ * hard delete in the system and it could not be exercised any other way:
+ * PROJECTS_NO_WRITE=1 returns from runBackfill before the sweep is reached, so
+ * the one destructive path here has no dry run. See verify-curation.
+ *
+ * `memberOfAClient` is true when ANY client_projects row points at the project,
+ * whatever its status and whoever wrote it. A `proposed` row is the question
+ * Philip has been asked; an `included` row is his answer; an `excluded` row is
+ * the tombstone migration 033 says must never be deleted. All three are
+ * destroyed by `on delete cascade` if the shell goes, so all three protect it.
+ */
+export function orphanIsCurated(
+  p: { status: string | null; watch: boolean | null; notes: string | null; manual_overrides: unknown },
+  memberOfAClient: boolean
+): boolean {
+  return (
+    memberOfAClient ||
+    Boolean(p.notes) ||
+    Boolean(p.watch) ||
+    Boolean(p.manual_overrides) ||
+    (p.status !== null && p.status !== 'new')
+  );
+}
+
 export interface BackfillReport {
   leadsRead: number;
   dismissedSkipped: number;
@@ -96,6 +123,8 @@ export interface BackfillReport {
   orphansRemovedNamed: { id: string; name: string; project_key: string }[];
   // Orphans that carried curation and were kept, with record_count corrected.
   orphansKept: string[];
+  /** Of orphansKept, how many were spared ONLY because a client holds a membership row. */
+  orphansKeptForMembership: number;
   // What this run recorded in the project_events table.
   events: EmitReport;
 }
@@ -177,6 +206,7 @@ export async function runBackfill(): Promise<{
     orphansRemoved: 0,
     orphansRemovedNamed: [],
     orphansKept: [],
+    orphansKeptForMembership: 0,
     events: emptyEmitReport(),
   };
 
@@ -482,6 +512,37 @@ export async function runBackfill(): Promise<{
   // never discarded. An orphan with notes, a status, a watch flag, or a manual
   // override is KEPT, its record_count corrected to zero, and reported so he can
   // decide. Only untouched shells are removed.
+  //
+  // A MEMBERSHIP ROW IS CURATION, WHOEVER WROTE IT.
+  //
+  // The four tests above missed the one that mattered. client_projects.project_id
+  // is declared `on delete cascade` in migration 033, so deleting a shell here
+  // did not orphan Philip's confirmation - it ERASED it, with no tombstone and
+  // no line in the removal log. Measured on 2026-08-21: the backfill re-keyed
+  // three projects, the sweep deleted the shells they left behind, and JKR's
+  // confirmed count fell from 116 to 115. Which project it was is not
+  // recoverable, because nothing on disk enumerates a confirmed set - only its
+  // count. The re-clustered projects came back as `proposed` the next morning.
+  //
+  // It is worse for an `excluded` row, which migration 033's own header calls a
+  // tombstone that must never be deleted: erasing it lets the next scope
+  // resolution re-propose a project Philip has already refused, and asks him the
+  // same question forever with no record that he answered it.
+  //
+  // So any project carrying ANY membership row is curated by definition. The
+  // status does not matter and neither does the author: `scope-resolution`
+  // proposed it, and that proposal is the question Philip has been asked.
+  const { rows: membershipRows, complete: membershipComplete } = await selectAllPaged<{ project_id: string }>(
+    'client_projects',
+    'project_id',
+    (q) => q,
+    'Orphan sweep membership read'
+  );
+  if (!membershipComplete) {
+    console.error('Orphan sweep: membership read incomplete; skipping rather than deleting a row that may be confirmed.');
+    return { report, projects: cluster.projects, unclustered: cluster.unclustered, cluster };
+  }
+  const hasMembership = new Set(membershipRows.map((m) => m.project_id));
   // PAGED. This runs on every scrape through attachOnWrite, and projects are
   // projected to reach ~1500 at 25 markets. Unbounded, the orphan sweep would
   // silently stop seeing anything past the first thousand.
@@ -511,14 +572,12 @@ export async function runBackfill(): Promise<{
   }
   for (const p of allProjects) {
     if ((attachedCounts.get(p.id) ?? 0) > 0) continue;
-    const curated =
-      Boolean(p.notes) ||
-      Boolean(p.watch) ||
-      Boolean(p.manual_overrides) ||
-      (p.status !== null && p.status !== 'new');
+    const memberOfAClient = hasMembership.has(p.id);
+    const curated = orphanIsCurated(p, memberOfAClient);
     if (curated) {
       await supabaseAdmin.from('projects').update({ record_count: 0 }).eq('id', p.id);
-      report.orphansKept.push(p.name);
+      report.orphansKept.push(memberOfAClient ? `${p.name}  (kept: a client holds a membership row)` : p.name);
+      if (memberOfAClient) report.orphansKeptForMembership++;
     } else {
       // ---- A DELETION IS NAMED, NEVER COUNTED ----------------------------
       //
@@ -557,11 +616,17 @@ export async function runBackfill(): Promise<{
         {
           removedAt: new Date().toISOString(),
           what:
-            'Empty project rows deleted by the orphan sweep: no attached record, and no notes, ' +
-            'watch, manual override or status set by hand. The RECORDS all survive. What does ' +
-            'NOT survive is each project_events row for these ids - the record_attached history, ' +
-            'dated at each record own date - which cannot be rebuilt from the records and is ' +
-            'gone. Do not look for it later.',
+            'Empty project rows deleted by the orphan sweep: no attached record, no membership ' +
+            'row in client_projects, and no notes, watch, manual override or status set by hand. ' +
+            'The RECORDS all survive. What does NOT survive is each project_events row for these ' +
+            'ids - the record_attached history, dated at each record own date - which cannot be ' +
+            'rebuilt from the records and is gone. Do not look for it later.',
+          membership:
+            'NO CLIENT HELD A MEMBERSHIP ROW FOR ANY OF THESE. Since 2026-08-22 the sweep reads ' +
+            'client_projects first and keeps any project a client has proposed, confirmed or ' +
+            'excluded, because client_projects.project_id is `on delete cascade` and a delete ' +
+            'here would erase the confirmation rather than orphan it. Before that date it did ' +
+            'not, and one JKR confirmation was lost this way on 2026-08-21 (116 to 115).',
           count: report.orphansRemovedNamed.length,
           removed: report.orphansRemovedNamed,
         },
@@ -654,7 +719,14 @@ export function printBackfillReport(
   console.log(`Orphaned empty project rows removed: ${report.orphansRemoved}`);
   if (report.orphansKept.length) {
     console.log(`Orphans KEPT because they carry curation (record_count zeroed, decide by hand):`);
-    for (const n of report.orphansKept) console.log(`    ${n.slice(0, 80)}`);
+    for (const n of report.orphansKept) console.log(`    ${n.slice(0, 96)}`);
+  }
+  if (report.orphansKeptForMembership) {
+    console.log(
+      `  ${report.orphansKeptForMembership} of those were kept ONLY because a client holds a membership row.`
+    );
+    console.log('    Before 2026-08-22 each of these would have been deleted, and the');
+    console.log('    confirmation cascaded away with it rather than being orphaned.');
   }
   if (report.writeFailures) console.log(`WRITE FAILURES:                 ${report.writeFailures}`);
 

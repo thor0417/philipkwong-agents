@@ -18,6 +18,7 @@ import { pathToFileURL } from 'node:url';
 import { supabaseAdmin } from '../../lib/supabase-admin';
 import { guardedUpsert, emptyWriteReport, OWNED_BY_USER } from './write-guard';
 import { PROJECT_OWNED_BY_USER } from './project-write';
+import { orphanIsCurated } from './migrations/backfill-projects';
 import type { NormalizedLead } from './sources/types';
 
 const FIXTURE_URL = 'https://verify-curation.invalid/fixture#1';
@@ -160,6 +161,38 @@ async function main(): Promise<void> {
     (p) => (p.record_count ?? 0) !== (liveCounts.get(p.id) ?? 0)
   );
   check('every project record_count matches its live rows', drift.length, 0);
+
+  // ---- THE ORPHAN SWEEP MAY NOT DELETE A PROJECT A CLIENT HOLDS -------------
+  //
+  // client_projects.project_id is `on delete cascade` (migration 033), so a
+  // shell deleted by the sweep does not orphan Philip's confirmation, it erases
+  // it: no tombstone, no line in the removal log, and nothing on disk that
+  // enumerates a confirmed set to reconstruct it from. It happened on
+  // 2026-08-21, when the backfill re-keyed three projects and JKR's confirmed
+  // count fell from 116 to 115. Which project it was is not recoverable.
+  //
+  // Asserted here rather than through the sweep itself because the sweep has no
+  // dry run: PROJECTS_NO_WRITE=1 returns from runBackfill before it is reached.
+  const bare = { status: 'new' as string | null, watch: null, notes: null, manual_overrides: null };
+  check('an untouched empty shell may be deleted', orphanIsCurated(bare, false), false);
+  check('a shell a client PROPOSED is kept', orphanIsCurated(bare, true), true);
+  check('a shell with notes is kept', orphanIsCurated({ ...bare, notes: 'x' }, false), true);
+  check('a shell that is watched is kept', orphanIsCurated({ ...bare, watch: true }, false), true);
+  check('a shell with a manual override is kept', orphanIsCurated({ ...bare, manual_overrides: { name: 1 } }, false), true);
+  check('a shell with a hand-set status is kept', orphanIsCurated({ ...bare, status: 'dismissed' }, false), true);
+
+  // Every membership row in the database points at a project that still exists.
+  // If the sweep ever deletes one again this reads zero anyway, because the
+  // cascade removes the evidence with it - so the real guard is the six checks
+  // above and this is the corroborating read.
+  const { data: memberships } = await supabaseAdmin.from('client_projects').select('project_id');
+  const memberIds = [...new Set(((memberships ?? []) as { project_id: string }[]).map((m) => m.project_id))];
+  const alive = new Set<string>();
+  for (let i = 0; i < memberIds.length; i += 40) {
+    const { data } = await supabaseAdmin.from('projects').select('id').in('id', memberIds.slice(i, i + 40));
+    for (const p of (data ?? []) as { id: string }[]) alive.add(p.id);
+  }
+  check('every client_projects row points at a live project', memberIds.filter((id) => !alive.has(id)).length, 0);
 
   await cleanup();
   const gone = await readFixture();
