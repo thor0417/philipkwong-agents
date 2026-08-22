@@ -150,8 +150,33 @@ SCOPE: PARTIAL RUN (pipeline=all; markets=New York City; sources=all)
   adapters skipped:  legistar, govdocs, cftod-pdf, anaheim-agendas, ...
 ```
 
-Use `DRY_RUN=1` for the first run. It skips Haiku scoring and all writes, so a
-misaimed scope costs nothing.
+**`DRY_RUN=1` DOES NOTHING IN THIS LANE.** It is read by `orchestrator.ts`, which
+is the Serper lane, and by nothing in `government.ts`. This page told you to use
+it for the first run of a new market, and the first run of a new market is a
+GOVERNMENT run, so the safety net was documented in the one lane that does not
+have it. Measured 2026-08-22 adding Broward County: `DRY_RUN=1 npm run
+scrape:government -- --market="Broward County"` printed a scope banner, said
+"92 gate-admitted | 92 inserted", and wrote all 92 rows. Same shape as
+`scrape:all` not being every source.
+
+So the first run is protected by SCOPE, not by a dry-run flag. Read the scope
+banner before you let it finish:
+
+```
+SCOPE: PARTIAL RUN (pipeline=all; markets=Broward County; sources=all)
+  adapters in scope: legistar
+  adapters skipped:  govdocs, cftod-pdf, anaheim-agendas, ...
+```
+
+If the market string does not match, nothing is in scope and nothing is written.
+Take a `corpus:snapshot --label pre-<market>` first either way, because that is
+what makes step 7 possible and it is the only thing that makes a misaimed run
+reversible by knowing what changed.
+
+AND THE FIRST RUN NEEDS `LEGISTAR_BACKFILL=1` OR `--backfill`. A cold
+jurisdiction does not backfill by derivation - the cursor is fixed and the run
+goes incremental, which on Broward fetched 45 matters since 2026-07-20 and wrote
+nothing. With the flag it fetched 1,006 over 6 pages.
 
 ## Step 7: prove isolation with numbers
 

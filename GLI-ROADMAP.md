@@ -798,3 +798,33 @@ NOT DONE TODAY. It touches the write path of the only destructive step in the
 system, which is not something to change in the same pass as the guard that
 stops it losing data.
 
+## DRY_RUN IS A SERPER FLAG DOCUMENTED AS A UNIVERSAL ONE, FOUND 2026-08-22
+
+`DRY_RUN=1` is read by `orchestrator.ts` and by nothing in `government.ts`.
+`docs/ADDING-A-MARKET.md` step 6 told you to use it for the first run of a new
+market, and the first run of a new market is a government run.
+
+Found by using it. Adding Broward County for Brief O item 2:
+
+    DRY_RUN=1 npm run scrape:government -- --market="Broward County"
+    Broward County, FL: 1152 fetched / 92 matched / 92 gate-admitted
+                        | 92 inserted / 0 updated
+
+Ninety-two rows written by the command documented as the one that writes
+nothing. It cost nothing here because Broward was being added anyway and the
+scope was right, which is exactly why it would not have been noticed.
+
+Same shape as `scrape:all` not being every source: a flag that belongs to one
+lane, described as if it belonged to the runtime.
+
+DOC FIXED TODAY, CODE NOT. The page now says the flag does nothing in this lane
+and that the first run is protected by SCOPE instead. The code fix is to make
+`government.ts` honour `DRY_RUN` - refuse every write and say so in the run
+report - and it is deliberately NOT bundled with a market addition, because it
+changes the write path of the capture lane. It wants its own pass and its own
+gate, the same way the orphan-sweep dry run does.
+
+WORTH CHECKING IN THE SAME PASS: whether any OTHER runtime flag is honoured by
+one lane and documented for both. `PROJECTS_NO_WRITE` and `HEALTH_NO_WRITE` are
+the two candidates.
+
