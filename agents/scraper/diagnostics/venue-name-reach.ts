@@ -32,7 +32,12 @@ import { supabaseAdmin } from '../../../lib/supabase-admin';
 import { classifyVenueType, venueReadableText } from '../../../lib/taxonomy';
 
 const OUT = 'snapshots/venue-name-reach.json';
-const CAP = 2500; // chars of raw_content considered, so the ablation stays tractable
+// CHARS OF raw_content CONSIDERED. Stated beside every number this file
+// produces, and not only here: an identical cap in venue-neutraliser-cost
+// understated a per-market cost table by a factor of two and nearly shipped a
+// rule that would have taken Anaheim's Theme Park applications with it. Standing
+// rule 13.
+const CAP = 2500;
 
 const STREET = String.raw`(?:Drive|Street|Avenue|Boulevard|Road|Lane|Way|Place|Court|Parkway|Highway|Blvd|Ave|Rd|Dr)`;
 const CORP = String.raw`(?:LLC|L\.L\.C|Inc|Incorporated|Corporation|Corp|Company|LP|Ltd|Limited|Partnership|Holdings|Associates)`;
@@ -155,6 +160,7 @@ async function main() {
   const out = {
     about:
       'For every live record the classifier gives a venue_type, the word whose removal changes that answer, and whether that word sits inside a name. Load-bearing word found by ablation against the real classifyVenueType; construct tests are anchored to the word, not to a character window.',
+    inputCap: `title + the first ${CAP} characters of raw_content. Every figure below is against that text and not against the whole record; a longer window finds more.`,
     liveRecords: rows.length,
     classifierGivesAVenue: classified,
     venueWordIsInsideAName: Object.values(findings).reduce((a, b) => a + b.count, 0),

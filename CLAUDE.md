@@ -259,6 +259,18 @@ The service role key bypasses RLS. Server-side only, never shipped to the browse
     scrape-and-display; the intake agent drafts replies, and every draft queues as
     `pending` in Supabase `outreach` for manual review. Nothing sends.
 
+13. A MEASUREMENT THAT CAPS ITS INPUT STATES THE CAP BESIDE THE NUMBER. Not in
+    a comment in the source, next to the figure, every time it is printed and in
+    the JSON it writes. A per-market venue cost table read 65 records across 3
+    markets against the first 2,500 characters of `raw_content` and 130 across 9
+    over the full text, because long documents carry more street names; the
+    understated version nearly shipped a rule that would have stripped Anaheim's
+    Theme Park applications. Where the capped figure is a pass/fail rather than a
+    display, remove the cap instead of stating it - `verify-curation` read
+    attached rows with `.limit(5000)` and projects with PostgREST's silent
+    default of 1000, and both fed an assertion. A cap nobody can see turns a
+    window into a corpus answer.
+
 ## Commit discipline
 
 One commit per component. `tsc --noEmit` clean and `npm run build` passing before

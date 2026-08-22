@@ -21,6 +21,12 @@ import { supabaseAdmin } from '../../../lib/supabase-admin';
 import { classifyVenueType, venueReadableText } from '../../../lib/taxonomy';
 
 const OUT = 'snapshots/venue-neutraliser-cost.json';
+// CHARS OF raw_content CONSIDERED, AND THE REASON THIS LINE IS COMMENTED.
+// The first run of this file reported 65 records across 3 markets against this
+// window. Over FULL record text the same rules cleared 130 across nine, because
+// long documents carry more street names - and the difference was the street
+// rule, which was dropped as a result. A cap that is not printed beside the
+// number is a number that reads as a corpus answer. Standing rule 13.
 const CAP = 2500;
 
 // ---- THE PROPOSED RULES, EXACTLY AS THEY WOULD BE ADDED ---------------------
@@ -190,6 +196,7 @@ async function main() {
     OUT,
     JSON.stringify(
       {
+        inputCap: `title + the first ${CAP} characters of raw_content. Full text finds materially more; see the note on CAP.`,
         about:
           'Dry cost of three proposed venue neutralisers, per market. The proposed rules are applied to a COPY of each record text and the real classifyVenueType is asked about both versions. Nothing is written to the database and lib/taxonomy is unchanged.',
         rules: RULES.map((r) => ({ name: r.name, patterns: r.res.map((x) => x.source) })),

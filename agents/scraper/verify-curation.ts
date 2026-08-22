@@ -19,6 +19,7 @@ import { supabaseAdmin } from '../../lib/supabase-admin';
 import { guardedUpsert, emptyWriteReport, OWNED_BY_USER } from './write-guard';
 import { PROJECT_OWNED_BY_USER } from './project-write';
 import { orphanIsCurated } from './migrations/backfill-projects';
+import { selectAllPaged } from './page-select';
 import type { NormalizedLead } from './sources/types';
 
 const FIXTURE_URL = 'https://verify-curation.invalid/fixture#1';
@@ -120,13 +121,28 @@ async function main(): Promise<void> {
   // be silently reattached.
   console.log('\n--- 4. PROJECT CURATION: owned columns and detachment ---');
   console.log(`       project owned columns: ${PROJECT_OWNED_BY_USER.join(', ')}`);
+  // THE COUNT IS COUNTED, THE SAMPLE IS SAMPLED, AND THEY ARE TWO QUERIES.
+  //
+  // This read five rows and then printed "N project(s) currently carry
+  // curation" from the length of the five, so the answer was 5 whenever it was
+  // 5 or more. Standing rule 13: a figure taken from a capped read states the
+  // cap beside it, and the honest fix here is not to state the cap but to stop
+  // capping the thing being counted.
+  const { count: curatedTotal } = await supabaseAdmin
+    .from('projects')
+    .select('id', { count: 'exact', head: true })
+    .or('notes.not.is.null,watch.is.true');
+  const SAMPLE = 5;
   const { data: curated } = await supabaseAdmin
     .from('projects')
     .select('id,name,status,notes,watch,manual_overrides,record_count')
     .or('notes.not.is.null,watch.is.true')
-    .limit(5);
+    .limit(SAMPLE);
   const curatedRows = (curated ?? []) as Record<string, unknown>[];
-  console.log(`       ${curatedRows.length} project(s) currently carry curation:`);
+  console.log(
+    `       ${curatedTotal ?? '?'} project(s) currently carry curation` +
+      `${(curatedTotal ?? 0) > curatedRows.length ? `, showing the first ${curatedRows.length}` : ''}:`
+  );
   for (const p of curatedRows) {
     console.log(
       `         ${String(p.id).slice(0, 8)} status=${p.status} watch=${p.watch} ` +
@@ -146,20 +162,32 @@ async function main(): Promise<void> {
   console.log(`       ${detached} live GLI records sit in the Inbox with no project.`);
 
   // Cached counts must agree with the rows behind them, on every project.
-  const { data: projects } = await supabaseAdmin.from('projects').select('id,record_count');
-  const { data: attached } = await supabaseAdmin
-    .from('leads')
-    .select('project_id,status')
-    .not('project_id', 'is', null)
-    .limit(5000);
+  //
+  // PAGED, NOT CAPPED. This read the leads with `.limit(5000)` and the projects
+  // with no range at all, which PostgREST answers with its own default of 1000.
+  // Both caps fed an ASSERTION rather than a display: past them, a project's
+  // rows stop being counted, its cached count stops matching, and the check
+  // reports drift that is really truncation. 713 attached rows today and 340
+  // projects, so neither had bitten - which is the condition under which a
+  // wrong clause hides. Standing rule 13 says state the cap beside the number;
+  // where the number is a pass/fail, the answer is to remove the cap.
+  const { rows: projects, complete: projectsComplete } = await selectAllPaged<{
+    id: string;
+    record_count: number | null;
+  }>('projects', 'id,record_count', (q) => q, 'record_count drift: projects');
+  const { rows: attached, complete: attachedComplete } = await selectAllPaged<{
+    project_id: string;
+    status: string;
+  }>('leads', 'project_id,status', (q) => (q as { not: (c: string, o: string, v: unknown) => unknown }).not('project_id', 'is', null), 'record_count drift: attached leads');
+  check('the drift check read every project', projectsComplete, true);
+  check('the drift check read every attached record', attachedComplete, true);
   const liveCounts = new Map<string, number>();
-  for (const l of (attached ?? []) as { project_id: string; status: string }[]) {
+  for (const l of attached) {
     if (l.status === 'dismissed') continue;
     liveCounts.set(l.project_id, (liveCounts.get(l.project_id) ?? 0) + 1);
   }
-  const drift = ((projects ?? []) as { id: string; record_count: number | null }[]).filter(
-    (p) => (p.record_count ?? 0) !== (liveCounts.get(p.id) ?? 0)
-  );
+  const drift = projects.filter((p) => (p.record_count ?? 0) !== (liveCounts.get(p.id) ?? 0));
+  console.log(`       drift checked over ${projects.length} projects and ${attached.length} attached records, uncapped.`);
   check('every project record_count matches its live rows', drift.length, 0);
 
   // ---- THE ORPHAN SWEEP MAY NOT DELETE A PROJECT A CLIENT HOLDS -------------
