@@ -206,6 +206,8 @@ const CONFIGURED_JURISDICTIONS: Record<string, { region: string; market: string 
   'bonita springs': { region: 'Florida', market: 'Bonita Springs' },
   'lake buena vista': { region: 'Florida', market: 'Lake Buena Vista' },
   miami: { region: 'Florida', market: 'Miami' },
+  broward: { region: 'Florida', market: 'Broward County' },
+  'broward county': { region: 'Florida', market: 'Broward County' },
   atlanta: { region: 'Georgia', market: 'Atlanta' },
   nashville: { region: 'Tennessee', market: 'Nashville' },
   phoenix: { region: 'Arizona', market: 'Phoenix' },

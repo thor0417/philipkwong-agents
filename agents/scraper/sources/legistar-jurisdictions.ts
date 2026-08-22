@@ -41,4 +41,13 @@ export const DEFAULT_JURISDICTIONS: LegistarJurisdiction[] = [
   // same shape of error as the Las Vegas Strip not being in Las Vegas.
   { client: 'yonkersny', jurisdictionLabel: 'Yonkers, NY', reason: 'MGM Empire City / MGM Yonkers; a community benefits agreement with MGM Yonkers Inc is already in the record. 274 matters in 12 months, 28 leisure or entitlement. Verified live 2026-08-08.' },
   { client: 'westchestercountyny', jurisdictionLabel: 'Westchester County, NY', reason: 'County that contains Yonkers, and owns Rye Playland, a county-run amusement park. Low yield (3 of 560 matters) but a Legistar config row costs two lines. Verified live 2026-08-08.' },
+  // FLORIDA, LIVE FOR THE FIRST TIME. CFTOD covers Disney's own district and
+  // nothing else, so Fort Lauderdale, Hollywood, the beach hotel corridor and
+  // the county's convention business were all invisible. Probed by BODY on
+  // 2026-08-22: 1,006 matters in twelve months, newest 2026-08-19, and the gate
+  // admits 92 of the newest 1,000 - a 9% admit rate, the best of any
+  // jurisdiction measured for Brief O item 2 and better than several already
+  // configured. Its bodies are County Commission, Unified Direct Procurement
+  // Authority and Sunshine Notices.
+  { client: 'broward', jurisdictionLabel: 'Broward County, FL', reason: 'First live Florida market beyond Disney own district. Convention, beach hotel and stadium-adjacent entitlement; 1,006 matters in 12 months and 92 admitted from the newest 1,000, measured 2026-08-22.' },
 ];

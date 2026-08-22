@@ -61,6 +61,7 @@ export const COVERED_MARKETS: CoveredMarket[] = [
   { market: 'Phoenix', regionState: 'Arizona', country: 'United States', sources: ['legistar'], layers: 'legislative, entitlement' },
   { market: 'Nashville', regionState: 'Tennessee', country: 'United States', sources: ['legistar'], layers: 'legislative, entitlement' },
   { market: 'Central Florida Tourism Oversight District', regionState: 'Florida', country: 'United States', sources: ['cftod-pdf'], layers: 'legislative, entitlement' },
+  { market: 'Broward County', regionState: 'Florida', country: 'United States', sources: ['legistar'], layers: 'legislative, entitlement' },
   { market: 'New York City', regionState: 'New York', country: 'United States', sources: ['nyc-zap', 'nyc-ceqr', 'nyc-city-record'], layers: 'environmental review and legal notices; entitlement frozen at April 2026; NO council' },
   { market: 'Yonkers', regionState: 'New York', country: 'United States', sources: ['legistar'], layers: 'legislative, entitlement' },
   { market: 'Westchester County', regionState: 'New York', country: 'United States', sources: ['legistar'], layers: 'legislative, entitlement' },
