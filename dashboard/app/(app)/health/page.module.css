@@ -136,6 +136,9 @@
   color: var(--ink-muted);
   white-space: nowrap;
 }
+/* Same reasoning as the rail: 'failing' shares the accent rather than adding a
+   hue, and lib/coverage's severity order puts it first on its own. */
+.state[data-state='failing'],
 .state[data-state='dead'],
 .state[data-state='degraded'] {
   color: var(--accent);

@@ -36,7 +36,7 @@
 // what a client is told. This file imports nothing, which is what lets the Next
 // build reach it (see experimental.externalDir in dashboard/next.config.js).
 
-export type CoverageState = 'live' | 'degraded' | 'stale' | 'thin' | 'dead';
+export type CoverageState = 'live' | 'degraded' | 'stale' | 'thin' | 'dead' | 'failing';
 
 export interface CoveredMarket {
   /** Exactly the value stored in projects.market and leads.market. */
@@ -258,6 +258,16 @@ export interface CoverageInput {
   deadFeed: boolean;
   /** Declared degraded in the known-degraded register. */
   degraded: boolean;
+  /**
+   * The most recent run of the source feeding this market, from source_health,
+   * or null when there is no run history for it.
+   *
+   * NULL IS NOT ZERO. A market with no run history says nothing about its health
+   * and must fall through to the corpus-derived states below; filling it with a
+   * zero would report every unmeasured market as failing, which is the loudest
+   * possible way to be wrong.
+   */
+  lastRun?: { fetched: number; kept: number; at: string } | null;
 }
 
 export interface Coverage {
@@ -274,8 +284,43 @@ export interface Coverage {
  * Each state is the WORST thing true of the market.
  */
 export function coverageFor(input: CoverageInput): Coverage {
-  const { liveProjects, projectsNamingAParty, records, newestDocumentDays, deadFeed, degraded } =
+  const { liveProjects, projectsNamingAParty, records, newestDocumentDays, deadFeed, degraded, lastRun } =
     input;
+
+  // A SOURCE THAT BROKE THIS WEEK, BEFORE ANYTHING ELSE.
+  //
+  // THE NINETY-DAY HOLE THIS CLOSES. Every other state below is derived from the
+  // CORPUS - how many records, how old the newest one is - so a feed that starts
+  // 403ing, timing out, or serving an error page with a 200 changes nothing here
+  // until its newest document drifts past STALE_DAYS. That is ninety days of a
+  // dead source reading as `live` on the working surface, and it is exactly what
+  // "a dead source looks like a quiet week" meant.
+  //
+  // The run log already knew. health.ts records per UNIT on every run - what it
+  // fetched and what it kept - and source_health holds that history. Nothing
+  // downstream of it reached the market state.
+  //
+  // TWO SHAPES OF FAILURE, AND BOTH ARE THE UNIT'S OWN REPORT rather than an
+  // inference from the corpus: a unit that fetched nothing at all, and a unit
+  // that fetched something and kept none of it. The second is the CFTOD shape -
+  // 874 pages parsed across two board packets, nothing kept, and the lane called
+  // itself healthy because the LANE had written records.
+  if (lastRun && lastRun.fetched === 0) {
+    return {
+      state: 'failing',
+      why:
+        `the source feeding this market fetched nothing on its last run (${lastRun.at.slice(0, 10)}); ` +
+        'every figure below is from the corpus and predates that',
+    };
+  }
+  if (lastRun && lastRun.fetched > 0 && lastRun.kept === 0) {
+    return {
+      state: 'failing',
+      why:
+        `the source feeding this market fetched ${lastRun.fetched} and kept none of them on its last ` +
+        `run (${lastRun.at.slice(0, 10)}), so it is reading something it no longer understands`,
+    };
+  }
 
   if (deadFeed) {
     return { state: 'dead', why: 'the source has published nothing for over a year; declared in lib/dead-feeds' };
@@ -319,6 +364,11 @@ export function coverageFor(input: CoverageInput): Coverage {
 
 /** Ordering for a list a person reads worst-first. */
 export const COVERAGE_ORDER: Record<CoverageState, number> = {
+  // FAILING OUTRANKS DEAD, because dead is a decision already taken and failing
+  // is one nobody has looked at yet. A market declared dead in lib/dead-feeds has
+  // been read, argued and written down; a market whose feed broke on the last run
+  // is news.
+  failing: -1,
   dead: 0,
   degraded: 1,
   stale: 2,
@@ -327,6 +377,7 @@ export const COVERAGE_ORDER: Record<CoverageState, number> = {
 };
 
 export const COVERAGE_LABEL: Record<CoverageState, string> = {
+  failing: 'failing',
   dead: 'dead',
   degraded: 'degraded',
   stale: 'stale',

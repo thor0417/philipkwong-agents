@@ -120,6 +120,20 @@ export interface SourceHealth {
   markets: string[];
 }
 
+// The worst of the latest runs across a market's feeding sources, or null when
+// none of them has run history. "Worst" is fetched-nothing, then kept-nothing,
+// then whatever is left, matching the order coverageFor tests them in.
+function worstLastRun(
+  sources: readonly string[],
+  latest: Map<string, { fetched: number; kept: number; run_at: string }>
+): { fetched: number; kept: number; at: string } | null {
+  const runs = sources.map((s) => latest.get(s)).filter((r): r is NonNullable<typeof r> => !!r);
+  if (!runs.length) return null;
+  const rank = (r: { fetched: number; kept: number }) => (r.fetched === 0 ? 0 : r.kept === 0 ? 1 : 2);
+  const worst = runs.reduce((a, b) => (rank(b) < rank(a) ? b : a));
+  return { fetched: worst.fetched, kept: worst.kept, at: worst.run_at };
+}
+
 export interface CoverageReport {
   markets: MarketCoverage[];
   press: PressGeography[];
@@ -157,22 +171,28 @@ export async function fetchCoverage(module: string): Promise<CoverageReport> {
   );
   const live = new Set(projects.filter((p) => p.status !== 'dismissed').map((p) => p.id));
 
-  // source_health is the run log. It holds one row today, so nothing can be said
-  // about "records this run" for any lane but the one that has written - and
-  // that absence is REPORTED rather than filled with a zero, because a zero here
-  // reads as "this source produced nothing", which is a different and much
-  // louder claim.
-  const runs = await pageAll<{ unit: string; lane: string; kept: number; run_at: string }>(
-    (a, b) => supabase.from('source_health').select('unit,lane,kept,run_at').range(a, b),
+  // source_health is the run log, and IT NOW HAS HISTORY. The comment here used
+  // to say it held one row, which was true when it was written and stopped being
+  // true without anything noticing: measured 2026-08-23 it holds 111 rows over 27
+  // distinct units and 4 run days, and every unit has at least two observations.
+  // That is what makes a per-market health state possible at all.
+  //
+  // An absence is still REPORTED rather than filled with a zero, because a zero
+  // here reads as "this source produced nothing", which is a different and much
+  // louder claim than "we have not measured it".
+  const runs = await pageAll<{ unit: string; lane: string; fetched: number; kept: number; run_at: string }>(
+    (a, b) => supabase.from('source_health').select('unit,lane,fetched,kept,run_at').range(a, b),
     'source_health'
   );
-  const latestRun = new Map<string, { kept: number; run_at: string }>();
+  const latestRun = new Map<string, { fetched: number; kept: number; run_at: string }>();
   for (const r of runs) {
     // The unit is 'adapter:x' or 'source:x'; the source column on a lead is the
     // bare name. Match on the tail so the two vocabularies meet.
     const key = r.unit.includes(':') ? r.unit.slice(r.unit.indexOf(':') + 1) : r.unit;
     const prev = latestRun.get(key);
-    if (!prev || r.run_at > prev.run_at) latestRun.set(key, { kept: r.kept, run_at: r.run_at });
+    if (!prev || r.run_at > prev.run_at) {
+      latestRun.set(key, { fetched: r.fetched, kept: r.kept, run_at: r.run_at });
+    }
   }
 
   type Agg = {
@@ -272,6 +292,11 @@ export async function fetchCoverage(module: string): Promise<CoverageReport> {
         newestDocumentDays,
         deadFeed: deadMarkets.has(m.market.toLowerCase()),
         degraded: isDegraded(m),
+        // THE WORST LAST RUN AMONG THE SOURCES THAT FEED THIS MARKET, because a
+        // market fed by two adapters is broken when EITHER is: reporting the
+        // healthier of the two would hide exactly the failure worth seeing.
+        // Sources with no run history contribute nothing rather than a zero.
+        lastRun: worstLastRun(m.sources, latestRun),
       }),
     };
   });

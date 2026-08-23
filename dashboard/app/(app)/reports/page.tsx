@@ -237,6 +237,37 @@ export default function ReportsPage() {
     []
   );
 
+  // A CLIENT CHANGE CLEARS EVERY OVERRIDE, AND THIS IS THE ONLY PLACE THAT MAY
+  // DECIDE THAT.
+  //
+  // Every override on this screen was sticky across the client selector, and
+  // nothing cleared any of them. Type a brand for JKR, switch the dropdown to
+  // Simtec, generate: the Simtec document goes out branded JKR & Associates.
+  // Simtec carries a null brand and a null addressee, so its correct output -
+  // "Philip Kwong" and "Simtec Attractions" - is exactly what a stale override
+  // replaces, silently and on the cover.
+  //
+  // AND IT WAS NOT ONLY THE TWO. All EIGHT are sticky, and the six scope
+  // narrowings are the worse half: effectiveScope applies them on top of the
+  // stored scope, which DOES reload per client, so a market narrowing typed for
+  // one client silently narrows the next client's document while the scope
+  // panel reads as theirs.
+  //
+  // The screen already promised this behaviour - "Selecting a client loads their
+  // stored scope, brand and addressee. Overriding anything here changes this
+  // report only." Both sentences were false for a typed override. This is the
+  // code catching up with the label rather than the label being corrected.
+  useEffect(() => {
+    setBrandOverride('');
+    setAddresseeOverride('');
+    setCountryOverride([]);
+    setRegionOverride([]);
+    setMarketOverride([]);
+    setVenueOverride([]);
+    setCategoryOverride([]);
+    setStreamOverride([]);
+  }, [clientId]);
+
   const brandName = brandOverride || client?.brand_name || 'Philip Kwong';
   const addressee = addresseeOverride || client?.addressee || client?.name || 'Internal';
 

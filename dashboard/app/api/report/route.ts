@@ -161,7 +161,34 @@ export async function POST(req: Request) {
 
   const doc = body.doc;
   const tally = provenanceTally(doc);
-  const stamp = (doc.generatedAt ?? new Date().toISOString()).slice(0, 10);
+  // THE STAMP CARRIES THE TIME, NOT ONLY THE DAY.
+  //
+  // It was `.slice(0, 10)` - a date. Adding the document type (see below) fixed
+  // the case that was found by hand, a report and a brief colliding, and left
+  // the far larger one standing: two market reports for one client on one day
+  // are one filename.
+  //
+  // MEASURED 2026-08-23 over all 1,447 delivery rows, paged to exhaustion:
+  //
+  //   1,447 rows carry a file_path
+  //      97 DISTINCT file_path values
+  //      91 of those 97 are used by more than one delivery
+  //   1,441 of 1,447 rows share a path with another  -  99.6%
+  //
+  // And the collided rows are not copies of each other. One value,
+  // "philip-kwong-market-intelligence-report-2026-08-16.pdf", is shared by 39
+  // deliveries carrying SEVEN distinct project/record pairs: 97/94, 1/5, 0/0,
+  // 1/13, 1/16, 141/206, 139/205. So the one column whose whole purpose is to
+  // answer "exactly what this client received" cannot answer it for 99.6% of the
+  // table.
+  //
+  // Seconds are enough: two generations of the same document type for one client
+  // inside one second is a double-submit, and that is a collision worth having
+  // because the two really are the same artefact. Colons and dots come out so the
+  // value is a filename on every platform.
+  const stamp = (doc.generatedAt ?? new Date().toISOString())
+    .slice(0, 19)
+    .replace(/[:T]/g, '-');
   // THE DOCUMENT TYPE IS PART OF THE FILENAME, not just of the row.
   //
   // Without it a full report, a county report and a referral brief generated for

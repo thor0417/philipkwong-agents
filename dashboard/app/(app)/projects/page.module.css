@@ -1022,6 +1022,12 @@
   color: var(--ink-muted);
   white-space: nowrap;
 }
+/* FAILING JOINS THE ACCENT SET RATHER THAN INVENTING A COLOUR.
+   The accent budget per screen is enforced by e2e/screens.shots, and a market
+   whose feed broke on the last run is the same KIND of thing as one declared
+   dead: something to look at. It ranks above dead in lib/coverage's severity
+   order, so it sorts to the top of the rail on its own without a second hue. */
+.railState[data-coverage-state='failing'],
 .railState[data-coverage-state='dead'],
 .railState[data-coverage-state='degraded'] {
   color: var(--accent);
