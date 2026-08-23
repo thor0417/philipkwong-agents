@@ -55,6 +55,10 @@
     // mixed on one column and one stream, so it counts rather than concludes.
     "agents/scraper/diagnostics/contact-name-measure.ts",
     // Same crossing: it calls the real buildEntry to count what prints.
-    "agents/scraper/diagnostics/repeated-label-measure.ts"
+    "agents/scraper/diagnostics/repeated-label-measure.ts",
+    // And again. Brief Q item 1: the sub-measures it reports - a named party, a
+    // stated fact, a condition, a contact - are properties of what an entry
+    // PRINTS, so it calls the real buildEntry rather than counting stored rows.
+    "agents/scraper/diagnostics/holdings-judgement.ts"
   ]
 }
