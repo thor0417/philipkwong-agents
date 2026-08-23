@@ -41,6 +41,7 @@ import {
   passesSectorGate,
   signalSector,
   isLeisureOpportunity,
+  NO_VENUE_ESTABLISHED,
 } from './classify';
 import { scoreLeads, type ScorerInput } from './scorer';
 import { crossReference, normalizeCompany } from './cross-reference';
@@ -308,7 +309,10 @@ export interface ScrapeReport {
   opportunitySamples: Array<{
     title: string;
     source: string;
-    venue_type: string;
+    // Null when nothing established one; the run report counts those in a
+    // named bucket rather than hiding them behind a default. See
+    // opportunityVenueHint in classify.
+    venue_type: string | null;
     signal_type: string;
     region: string;
     deadline: string;
@@ -978,7 +982,10 @@ export async function orchestrate(): Promise<ScrapeReport> {
   const opportunitySamples: Array<{
     title: string;
     source: string;
-    venue_type: string;
+    // Null when nothing established one; the run report counts those in a
+    // named bucket rather than hiding them behind a default. See
+    // opportunityVenueHint in classify.
+    venue_type: string | null;
     signal_type: string;
     region: string;
     deadline: string;
@@ -1020,7 +1027,7 @@ export async function orchestrate(): Promise<ScrapeReport> {
     written++;
     if (lead.deadline) opportunityWithDeadline++;
     inc(opportunityPerSource, lead.source);
-    inc(opportunityPerVenueType, tag.venue_type);
+    inc(opportunityPerVenueType, tag.venue_type ?? NO_VENUE_ESTABLISHED);
     inc(opportunityPerSignalType, tag.signal_type);
     inc(opportunityPerRegion, region);
     inc(writtenPerSource, lead.source);

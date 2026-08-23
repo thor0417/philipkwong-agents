@@ -573,9 +573,54 @@ const SECTOR_TO_VENUE: Record<string, string> = {
   leisure: 'Leisure Destination/Mixed',
 };
 
-export function opportunityVenueHint(lead: NormalizedLead): string {
+// A VENUE IS EARNED, NEVER ASSUMED - the same rule opportunitySignalHint states
+// twenty lines above, and this function was the one place that broke it.
+//
+// It ended `?? 'Leisure Destination/Mixed'`, so a text that matched NO sector got
+// the same answer as a text that matched the tourism sector. Nothing downstream
+// could tell the two apart, and the value went straight into the record's
+// score_reason, where it reads as a finding.
+//
+// MEASURED 2026-08-23 over the whole leads table, paged to exhaustion:
+// 1,196 records carry the pre-tender reason line, and 515 of them (43%) print
+// 'Leisure Destination/Mixed'. 400 of those 515 (78%) have venue_type NULL in
+// their own column, because classifyVenueType judged the same text on evidence
+// and found nothing. So the row asserted a venue in its reason and denied one in
+// its column, 400 times, across all fourteen markets that carry the line.
+//
+// Broward County is the case that surfaced it: 73 of its 78 comprehensive-plan
+// procedural records read "pre-tender signal: Origination, Leisure
+// Destination/Mixed" and not one of them mentions a leisure venue anywhere in its
+// full text. A default that reads as a positive signal is worse than a null,
+// because a null is visibly absent and a default is invisibly wrong.
+export function opportunityVenueHint(lead: NormalizedLead): string | null {
   const sector = feasibilitySector(deaccent(haystack(lead)));
-  return SECTOR_TO_VENUE[sector] ?? 'Leisure Destination/Mixed';
+  return SECTOR_TO_VENUE[sector] ?? null;
+}
+
+/**
+ * The run-report bucket for a record that established no venue type.
+ *
+ * A NAMED BUCKET RATHER THAN A DROPPED ROW. The tallies are keyed by string, so
+ * a null would have to be coerced by every call site; each of them would coerce
+ * it differently, and the count of records that established nothing - the number
+ * this whole change exists to make visible - would go unprinted.
+ */
+export const NO_VENUE_ESTABLISHED = '(no venue type established)';
+
+/**
+ * How a record's pre-tender signal reads in its own score_reason.
+ *
+ * ONE BUILDER, SO THE THREE LANES CANNOT DISAGREE. government.ts, opportunity.ts
+ * and gli.ts each interpolated the pair themselves, which is how a null could
+ * print as the string "null" in one lane and a silent default in another.
+ *
+ * An absent value is NAMED as absent. "no venue type established" is longer than
+ * a category name and that is the point: a reader who sees it knows nothing was
+ * found, where a reader who sees a category believes something was.
+ */
+export function signalPhrase(signal: string | null, venue: string | null): string {
+  return `${signal ?? 'no signal type established'}, ${venue ?? 'no venue type established'}`;
 }
 
 // Fuel-module leads: real fuel supply -> category 'fuel'; otherwise excluded.

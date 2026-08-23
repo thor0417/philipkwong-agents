@@ -22,7 +22,7 @@ import {
 import Anthropic from '@anthropic-ai/sdk';
 import type { NormalizedLead } from './sources/types';
 import { classifyGli } from './gli';
-import { opportunityVenueHint } from './classify';
+import { opportunityVenueHint, signalPhrase, NO_VENUE_ESTABLISHED } from './classify';
 import { regionFor, regionOf } from './regions';
 import { classifyVenueType, categoryForVenue } from '../../lib/taxonomy';
 import { geographyFields } from '../../lib/geography';
@@ -182,7 +182,10 @@ async function extractPlayersBatch(leads: NormalizedLead[]): Promise<GovernmentP
 // A tagged government record: venue_type / signal_type always populated, plus any
 // contact the classifier surfaced. signal_type defaults to Origination.
 export interface GovernmentTag {
-  venue_type: string;
+  // Null when neither the classifier nor the keyword hint established one. It
+  // used to be non-null only because opportunityVenueHint defaulted; see the
+  // note there and signalPhrase below.
+  venue_type: string | null;
   signal_type: string;
   contact_name: string | null;
   contact_email: string | null;
@@ -242,7 +245,9 @@ export function buildGovernmentRow(
       title: lead.title,
       raw_content: lead.raw_content,
       score: null,
-      score_reason: `GLI Tier 2 government record captured on legitimacy (pre-tender signal: ${tag.signal_type}, ${tag.venue_type}); not fit-scored.`,
+      score_reason:
+        'GLI Tier 2 government record captured on legitimacy (pre-tender signal: ' +
+        `${signalPhrase(tag.signal_type, tag.venue_type)}); not fit-scored.`,
       // status is Philip's column and is never written by a scrape path; the
       // database default covers a new row. lifecycle is the scraper's axis: a
       // government record is a project event, so it is always active.
@@ -319,7 +324,10 @@ export interface GovernmentReport {
     title: string;
     jurisdiction: string;
     source_type: string;
-    venue_type: string;
+    // Null when nothing established one; the run report counts those in a
+    // named bucket rather than hiding them behind a default. See
+    // opportunityVenueHint in classify.
+    venue_type: string | null;
     signal_type: string;
     presented_by: string | null;
     applicant: string | null;
@@ -387,7 +395,7 @@ export async function runGovernmentLane(leads: NormalizedLead[]): Promise<Govern
     }
     const { row } = buildGovernmentRow(lead, tag, p);
     inc(report.perJurisdiction, lead.location ?? '(unknown)');
-    inc(report.perVenueType, tag.venue_type);
+    inc(report.perVenueType, tag.venue_type ?? NO_VENUE_ESTABLISHED);
     inc(report.perSignalType, tag.signal_type);
     inc(report.perSourceType, lead.source_type ?? 'Council Agenda');
     if (lead.has_primary_document) report.primaryDocs++;

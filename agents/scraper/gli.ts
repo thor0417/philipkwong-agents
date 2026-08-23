@@ -38,7 +38,7 @@ import { primeClientWatchTerms } from './client-watch-terms';
 import { gliQueries } from './profiles';
 import { normalizeCompany } from './cross-reference';
 import { keywordMatches } from './prefilter';
-import { opportunityVenueHint, opportunitySignalHint } from './classify';
+import { opportunityVenueHint, opportunitySignalHint, signalPhrase } from './classify';
 import { classifyVenueType, categoryForVenue } from '../../lib/taxonomy';
 import { configuredPrimaryDocument } from './sources/govdocs';
 import { deriveLeadDates, objectFields, shouldDelete } from './lead-date';
@@ -489,7 +489,8 @@ async function classifyBatch(leads: NormalizedLead[]): Promise<GliClassification
 // surfaced. venue_type / signal_type are always populated (LLM value or keyword
 // fallback), so an opportunity lead is never left untagged.
 export interface OpportunityTag {
-  venue_type: string;
+  // Null when nothing established one. See opportunityVenueHint in classify.
+  venue_type: string | null;
   // Null when no signal was earned (LLM returned none and no hint term matched);
   // such a lead is NOT written to the opportunity stream. A signal is earned.
   signal_type: string | null;
@@ -835,7 +836,7 @@ export async function runGliLane(rawLeads: NormalizedLead[]): Promise<GliReport>
         title: lead.title,
         raw_content: lead.raw_content,
         score: null,
-        score_reason: `GLI lane: ${c.signal_type} (${venue}). ${c.reason}`,
+        score_reason: `GLI lane: ${signalPhrase(c.signal_type, venue)}. ${c.reason}`,
         // status is Philip's; lifecycle is the scraper's. Intelligence coverage
         // is a project event and is always active.
         lifecycle: 'active',

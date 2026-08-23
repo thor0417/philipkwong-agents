@@ -29,7 +29,7 @@ import {
 } from './run-scope';
 import type { NormalizedLead } from './sources/types';
 import { LEISURE_CPV_CODES } from './profiles';
-import { isLeisureOpportunity, isDeadNotice } from './classify';
+import { isLeisureOpportunity, isDeadNotice, signalPhrase, NO_VENUE_ESTABLISHED } from './classify';
 import { tagOpportunities, sourceTier, type OpportunityTag } from './gli';
 import { regionFor, regionOf } from './regions';
 import { classifyVenueType, categoryForVenue } from '../../lib/taxonomy';
@@ -141,7 +141,9 @@ export function buildOpportunityRow(
       title: lead.title,
       raw_content: lead.raw_content,
       score: null,
-      score_reason: `GLI Tier 1 opportunity captured on legitimacy (leisure/tourism advisory solicitation): ${tag.signal_type} (${tag.venue_type}). Not fit-scored.`,
+      score_reason:
+        'GLI Tier 1 opportunity captured on legitimacy (leisure/tourism advisory ' +
+        `solicitation): ${signalPhrase(tag.signal_type, tag.venue_type)}. Not fit-scored.`,
       // Freshness keyed to the record's own deadline, not to scrape time, and
       // written to lifecycle (the scraper's axis). status belongs to Philip and
       // is never written here. Closed solicitations are kept as market
@@ -203,7 +205,10 @@ export interface OpportunityReport {
   samples: Array<{
     title: string;
     source: string;
-    venue_type: string;
+    // Null when nothing established one; the run report counts those in a
+    // named bucket rather than hiding them behind a default. See
+    // opportunityVenueHint in classify.
+    venue_type: string | null;
     signal_type: string;
     region: string;
     deadline: string;
@@ -323,7 +328,7 @@ export async function runOpportunityLane(all: NormalizedLead[]): Promise<Opportu
     if (opportunityClosed(lead)) report.closed++;
     else report.open++;
     inc(report.perSource, lead.source);
-    inc(report.perVenueType, tag.venue_type);
+    inc(report.perVenueType, tag.venue_type ?? NO_VENUE_ESTABLISHED);
     inc(report.perSignalType, tag.signal_type);
     inc(report.perRegion, region);
     if (lead.deadline) report.withDeadline++;
