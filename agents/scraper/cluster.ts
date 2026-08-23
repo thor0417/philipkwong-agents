@@ -43,6 +43,10 @@ import {
   type TargetDef,
 } from './targets';
 import { extractProjectNames, nameSignalApplies } from './project-name';
+// The covered-markets table, read across the package split by both packages for
+// the same reason lib/dead-feeds is: one copy, because the copy that goes stale
+// is the one that decides what a client is told.
+import { isCoveredMarket } from '../../lib/coverage';
 import { deriveSummary } from './project-summary';
 import { score as significanceOf } from './significance';
 import {
@@ -1241,10 +1245,39 @@ export function clusterRecords(
     });
     targets.push(target);
     if (target) {
+      // A perMARKET KEY IS BUILT ONLY FROM A MARKET THE SYSTEM RECOGNISES.
+      //
+      // perMarket is not the defect and must not be dropped: 'walt disney'
+      // matches the Disneyland Resort in Anaheim and the CFTOD district in
+      // Florida, and merging those two would be worse than splitting them. The
+      // defect was that the key took r.market AS GIVEN, so an unrecognised
+      // string minted a new portfolio member.
+      //
+      // MEASURED 2026-08-23. 'Disney / CFTOD' had become EIGHT projects. Two
+      // were right - Central Florida Tourism Oversight District (14 rows) and
+      // Anaheim (5 rows), both government-sourced. The other five keys held 8
+      // rows between them under 'Walt Disney World', 'Disneyland', 'Disneyland
+      // Resort', a retired 'Lake Buena Vista' and two nulls, and every one of
+      // those 8 rows came from the press lane. Those are venue names, not
+      // markets.
+      //
+      // WHY REFUSING THE KEY IS THE RIGHT ANSWER rather than guessing one. An
+      // unrecognised market has not established WHICH member of the portfolio
+      // the record belongs to, and an unestablished market is not a new project.
+      // The record is not lost: it falls through to the site, entity and case
+      // signals like any other, and if none of them claims it, it sits
+      // unattached in the Inbox where it is visible - which is what an
+      // unresolved record is. Inventing a register entry for it is the one
+      // outcome that hides the problem.
+      //
+      // A NON-perMARKET TARGET IS UNTOUCHED. It is one project wherever it
+      // appears, so it never consulted the market column in the first place.
       const key = target.perMarket
-        ? `target:${slug(target.name)}:${mk}`
+        ? isCoveredMarket(r.market)
+          ? `target:${slug(target.name)}:${mk}`
+          : null
         : `target:${slug(target.name)}`;
-      sigs.push({ key, reason: 'target' });
+      if (key) sigs.push({ key, reason: 'target' });
     }
 
     // 2. Case family (market-scoped). Suppressed for citywide legislation and

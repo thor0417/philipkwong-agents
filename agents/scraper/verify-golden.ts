@@ -27,11 +27,13 @@
 
 import { readFileSync } from 'node:fs';
 import { bestTargetForClustering } from './targets';
-import { bestDate } from './cluster';
+import { bestDate, clusterRecords, type ClusterRecord } from './cluster';
 import { deriveProjectName } from './project-naming';
 import { classifyVenueType, governmentGate, provenStage } from '../../lib/taxonomy';
 import { resolveGeography } from '../../lib/geography';
 import { inCorpusScope } from '../../lib/corpus-scope';
+import { isCoveredMarket } from '../../lib/coverage';
+import { deriveLeadDates } from './lead-date';
 import {
   extractPressFacts, verifyNoInvention, attributionTerms, factsForEntry,
 } from './press-facts';
@@ -74,6 +76,139 @@ interface Result {
 
 const INLINE: Record<string, () => string | null> = {
   // Returns null on pass, or the reason it failed.
+
+  'a-watched-target-sharded-by-a-market-column-the-press-lane-fills': () => {
+    const rec = (market: string | null, url: string): ClusterRecord =>
+      ({
+        market,
+        stream: 'intelligence',
+        source: 'gli_serper',
+        status: 'new',
+        published_date: '2026-07-01',
+        url,
+        title: 'Walt Disney World files for a new resort hotel',
+        raw_content: 'Walt Disney World filing, reported.',
+      }) as ClusterRecord;
+    const keysOf = (rs: ClusterRecord[]): string[] =>
+      clusterRecords(rs, { now: Date.parse('2026-08-23T00:00:00Z') })
+        .projects.map((p) => p.project_key)
+        .filter((k) => k.startsWith('target:'));
+
+    // 1. VENUE NAMES ARE NOT MARKETS, so neither may mint a shard. These are the
+    //    real stored strings: 'Walt Disney World', 'Disneyland', 'Disneyland
+    //    Resort' each held a project of its own.
+    const venueNames = keysOf([
+      rec('Walt Disney World', 'https://x/a'),
+      rec('Disneyland Resort', 'https://x/b'),
+      rec('Disneyland', 'https://x/c'),
+    ]);
+    if (venueNames.length > 0) {
+      return `venue names still mint target keys: ${venueNames.join(' | ')}`;
+    }
+
+    // 2. A NULL MARKET IS NOT A MARKET EITHER. Two of the eight shards were
+    //    named "Disney / CFTOD ((unknown market))" with a date appended, because
+    //    the disambiguator had nothing else to tell them apart with.
+    const noMarket = keysOf([rec(null, 'https://x/d'), rec(null, 'https://x/e')]);
+    if (noMarket.length > 0) {
+      return `a null market still mints a target key: ${noMarket.join(' | ')}`;
+    }
+
+    // 3. A RETIRED MARKET IS NOT A COVERED ONE. 'Lake Buena Vista' left the
+    //    table on 2026-08-21 and its shard survived the retirement.
+    const retired = keysOf([rec('Lake Buena Vista', 'https://x/f')]);
+    if (retired.length > 0) {
+      return `a retired market still mints a target key: ${retired.join(' | ')}`;
+    }
+
+    // 4. AND THE HALF THAT MATTERS MORE: the two real members of the portfolio
+    //    still separate. This is what perMarket is FOR, and a fix that merged
+    //    Anaheim into the Florida district would be worse than the defect.
+    const real = keysOf([
+      rec('Anaheim', 'https://x/g'),
+      rec('Central Florida Tourism Oversight District', 'https://x/h'),
+    ]);
+    if (real.length !== 2) {
+      return `the two covered markets no longer separate: ${real.join(' | ') || '(no target key at all)'}`;
+    }
+    return null;
+  },
+
+  'a-planning-document-admitting-a-county-s-whole-agenda': () => {
+    // PENDING. A real Broward title, verbatim. It names no venue and is admitted
+    // on 'comprehensive plan' alone.
+    const broward =
+      'MOTION TO ENACT Ordinance adopting a Small-Scale amendment to the Broward County Land ' +
+      'Use Plan map (PC 25-5), located in the City of Weston (Commission District 1), as an ' +
+      'amendment to the Broward County Comprehensive Plan, the title of which is as follows: ' +
+      'AN ORDINANCE OF BROWARD COUNTY, FLORIDA, ADOPTING A SMALL-SCALE AMENDMENT TO THE ' +
+      'BROWARD COUNTY COMPREHENSIVE PLAN; AMENDING THE BROWARD COUNTY LAND USE PLAN WITHIN ' +
+      'THE CITY OF WESTON; AND PROVIDING FOR SEVERABILITY AND AN EFFECTIVE DATE.';
+    const v = governmentGate(broward, 'Broward County');
+    if (!v.matched) return null;
+    const others = v.strongHits.filter((t) => t !== 'comprehensive plan');
+    return (
+      `admitted as '${v.reason}' on strong=[${v.strongHits.join('|')}]` +
+      (others.length ? '' : ', and \'comprehensive plan\' is the ONLY strong hit') +
+      '. The record names no venue.'
+    );
+  },
+
+  'the-press-lane-writes-venue-names-into-the-market-column': () => {
+    // PENDING, AND DELIBERATELY NOT GUARDED BY THE SHARD FIX. That fix stopped
+    // ONE reader trusting the column; it did not make the column right. This
+    // check asserts the column is still wrong, so the case cannot be quietly
+    // considered closed by the guard that went in beside it.
+    //
+    // Pure, so it names the shape rather than counting the corpus: the lane
+    // writes lead.location / the article's place straight through, and nothing
+    // in the write path consults the covered-market table.
+    const src = readFileSync('agents/scraper/gli.ts', 'utf8');
+    const resolves = /isCoveredMarket|coveredMarket\(/.test(src);
+    if (resolves) return null;
+    return (
+      'the intelligence lane still writes its market without consulting the covered-market table. ' +
+      'Measured 2026-08-23: 143 of 194 live press records (74%) carry a market that is not a market, ' +
+      'against 1 of 799 government records (0%), over 182 distinct non-market strings.'
+    );
+  },
+
+  'a-market-claimed-on-a-feed-we-read-and-capture-nothing-from': () => {
+    // PENDING. Nothing in the tree compares a covered market's newest CAPTURED
+    // document against its feed's newest PUBLISHED matter, so the check that
+    // would catch Yonkers cannot be pointed at. Both existing checks read one
+    // side only.
+    if (!isCoveredMarket('Yonkers')) return null;
+    const cov = readFileSync('lib/coverage.ts', 'utf8');
+    const stale = readFileSync('agents/scraper/verify-staleness.ts', 'utf8');
+    if (/captureLag|capturedVsPublished|CAPTURE_LAG/.test(cov + stale)) return null;
+    return (
+      'Yonkers is claimed and no check reads both sides: verify:staleness probes the feed, ' +
+      'verify:coverage-table reads the corpus, and neither compares what a feed published ' +
+      'against what we captured from it.'
+    );
+  },
+
+  'a-freshness-figure-quoted-off-a-placeholder-date': () => {
+    // PENDING. A Phoenix Legistar record whose only date is 2026-12-31. It is
+    // taken as a published date with provenance 'source', which is what puts it
+    // at the top of the market's newest-document ordering.
+    const lead = {
+      source: 'legistar',
+      url: 'https://phoenix.legistar.com/gateway.aspx?M=l&ID=1',
+      title: 'Liquor License - AC Hotel Biltmore - District 6',
+      raw_content: 'Government record (Legistar Matter): Jurisdiction: Phoenix, AZ',
+      published_date: '2026-12-31',
+      first_seen: '2026-08-01',
+    } as unknown as Parameters<typeof deriveLeadDates>[0];
+    const d = deriveLeadDates(lead, 'government');
+    if (d.published_date !== '2026-12-31') return null;
+    return (
+      `published_date kept as ${d.published_date} with date_source '${d.date_source}'. ` +
+      'Measured 2026-08-23 that is 130 days in the future, and it sets the figure every ' +
+      'Phoenix coverage statement rests on.'
+    );
+  },
 
   'hudson-yards-district-term': () => {
     // The record that caused it: a Port Authority Bus Terminal matter that
