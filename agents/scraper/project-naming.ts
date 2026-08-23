@@ -465,7 +465,41 @@ export function venuePhrase(venueType: string | null | undefined): string | null
 // the applicant on hundreds of unrelated filings. This mirrors the clusterer's
 // own generic-applicant guard, which exists for the same reason.
 const GENERIC_APPLICANT =
-  /\b(city|county|state|department|dept|agency|authority|commission|board|district|bureau|division|office|municipality|town|village|government|ministry)\b/i;
+  /\b(city|county|state|department|dept|agency|authority|commission|board|district|bureau|division|office|municipality|town|village|government|ministry)\b/gi;
+
+// A HARD LEGAL SUFFIX, which is the one piece of evidence in an applicant string
+// that says "this is a registered company" rather than "this is a place".
+// 'Company', 'Partnership' and 'Trust' are deliberately absent for the same
+// reason cleanApplicant does not strip them: they are as often descriptive as
+// they are a suffix.
+const HARD_LEGAL_SUFFIX =
+  /[,\s](?:LLC|L\.L\.C\.?|LLP|L\.P\.?|LP|INC\.?|INCORPORATED|LTD\.?|CORP\.?|CORPORATION|PLC)\s*$/i;
+
+// A GENERIC WORD CONDEMNS UNLESS IT IS THE FINAL WORD OF A REGISTERED COMPANY.
+//
+// "Moapa North Village, LLC" was refused because GENERIC_APPLICANT contains
+// 'village'. It is a Nevada company holding a 2,046.9-acre concept specific plan,
+// and it was thrown out for containing a place noun. The generic list exists to
+// stop "City of Las Vegas" and "County of Clark" becoming project names, and
+// those lead on the generic word; a place noun at the END of a name is part of
+// the name.
+//
+// BOTH CONDITIONS ARE LOAD-BEARING, and the measurement is why. Of the 14
+// applicant strings this rule currently refuses, requiring the generic word to be
+// the ONLY one AND the final word AND the original to carry a hard legal suffix
+// frees exactly one - Moapa North Village - and leaves all thirteen others
+// refused, including every New York City agency ("New York City Economic
+// Development Corporation", "Department of Housing Preservation and Development",
+// "HPD - NYC Dept of Housing Preservation & Development") and both Board of
+// Regents strings. Dropping either condition lets those through.
+function genericApplicant(cleaned: string, original: string): boolean {
+  const hits = cleaned.match(GENERIC_APPLICANT) ?? [];
+  if (hits.length === 0) return false;
+  if (hits.length > 1) return true;
+  const last = cleaned.split(/\s+/).pop() ?? '';
+  if (!new RegExp(`^${hits[0]}$`, 'i').test(last)) return true;
+  return !HARD_LEGAL_SUFFIX.test(original);
+}
 
 // AN APPLICANT MUST LOOK LIKE AN ORGANISATION, not a person.
 //
@@ -479,8 +513,35 @@ const GENERIC_APPLICANT =
 // The test is applied to the RAW string, before suffixes are stripped, because
 // stripping is what erases the evidence: "Weston Urban, LLC" is an organisation
 // and "Weston Urban" alone would not look like one.
+// THE ADDITIONS AT THE END WERE MEASURED ONE AT A TIME, not proposed as a set.
+//
+// 313 distinct applicant strings sit on live records; 89 are refused, 74 of them
+// for having no marker at all. Each candidate below was run against those 74
+// separately and kept only if it fired on a real party and dragged in no
+// government body - the same rule the gate vocabulary is held to.
+//
+//   KEPT       ministries 1, distributor 1, council 1, partnerships 1,
+//              studios 2, hospitality 1, gaming 1, arena 2.
+//   REJECTED   services   2 hits, BOTH New York City departments
+//                         ("Department of Citywide Administrative Services").
+//              park       3 hits, all real, but it is a place noun that would
+//                         fire on "Park Road Redevelopment". Its two real
+//                         parties were reachable through 'alliance' and
+//                         'conservancy' instead - and those were then rejected
+//                         too, because they produce "Centennial Park
+//                         Conservancy museum", which the naming rules already
+//                         cite as a name worse than the address it replaced.
+//              school     1 hit, "SCHOOL BOARD OF TRUSTEES", condemned by
+//                         'board' anyway, so it admits nothing.
+//              supplies   redundant: its only hit is the string 'distributor'
+//                         already catches.
+//   DEAD WEIGHT, 0 hits, not added: ministry, distributors, ranch, vineyard(s),
+//              hospital, medical, systems, solutions, supply, academy, clinic,
+//              farms, productions, logistics, industries, manufacturing,
+//              brewing, dairy, lodging, theatre, theater, stadium, plaza,
+//              tower, towers.
 const ORGANISATION_MARKER =
-  /\b(llc|l\.l\.c|llp|lp|l\.p|inc|incorporated|ltd|limited|corp|corporation|co|company|plc|partnership|partners|trust|holdings|group|associates|properties|development|developments|enterprises|capital|ventures|investments|bank|club|church|association|foundation|society|institute|university|college|hotels?|resorts?|casino|entertainment|realty|estates?|builders|construction|management|international|center|centre|museum)\b/i;
+  /\b(llc|l\.l\.c|llp|lp|l\.p|inc|incorporated|ltd|limited|corp|corporation|co|company|plc|partnership|partners|trust|holdings|group|associates|properties|development|developments|enterprises|capital|ventures|investments|bank|club|church|association|foundation|society|institute|university|college|hotels?|resorts?|casino|entertainment|realty|estates?|builders|construction|management|international|center|centre|museum|ministries|distributor|council|partnerships|studios|hospitality|gaming|arena)\b/i;
 
 // Tidy a raw applicant string into something printable: drop the legal suffix
 // noise a filing stacks on, drop a co-applicant list after the first party, and
@@ -490,7 +551,25 @@ export function cleanApplicant(raw: string | null | undefined): string | null {
   const original = String(raw).replace(/\s+/g, ' ').trim();
   if (!ORGANISATION_MARKER.test(original)) return null;
 
-  let s = original.replace(/\([^)]*\)/g, ' ');
+  // BRACKETS ARE STRIPPED TO A FIXED POINT, AND ORPHANS ARE STRIPPED AFTER.
+  //
+  // A single `\([^)]*\)` pass cannot remove a NESTED group: on
+  // "ET-25-400124 (AR-23-400123 (UC-21-0332))-Erbr, LLC" it matches the inner
+  // pair and leaves the outer ')' behind, which produced "ET-25-400124 )-Erbr" -
+  // a name with a stray bracket in it. Innermost-first, repeated, then any
+  // unbalanced bracket removed, because a filing writes brackets by hand and one
+  // of them is eventually unmatched.
+  let s = original;
+  for (let pass = 0; pass < 4; pass++) {
+    const next = s.replace(/\([^()]*\)/g, ' ');
+    if (next === s) break;
+    s = next;
+  }
+  s = s.replace(/[()]/g, ' ');
+  // A LEADING FILING REFERENCE IS THE CLERK'S HANDLE FOR THE MATTER, NOT A PARTY.
+  // Clark County writes an extension-of-time item as "ET-25-400124 (...)-Erbr,
+  // LLC": the company is Erbr and everything before it is the case chain.
+  s = s.replace(/^\s*[A-Z]{2,4}-\d{2}-\d{3,6}\s*[-–—]?\s*/i, '');
   // First named party only. "Anaheim Real Estate Partners, LLC, TS Anaheim, LLC,
   // and FCD, LLC" is one project's applicant list, and the first is the one that
   // recurs across its records.
@@ -511,11 +590,16 @@ export function cleanApplicant(raw: string | null | undefined): string | null {
     if (next === s) break;
     s = next;
   }
-  s = s.replace(/\s+/g, ' ').trim().replace(/[.,;:]+$/, '');
+  s = s.replace(/\s+/g, ' ').trim().replace(/^[-,.;:\s]+/, '').replace(/[.,;:]+$/, '');
   // A trailing article or preposition means the strip cut into the phrase.
   if (/\b(?:an?|the|of|for|in|at|by|to)$/i.test(s)) return null;
   if (s.length < 4) return null;
-  if (GENERIC_APPLICANT.test(s)) return null;
+  // Tested on the CLEANED first party, never on the raw string. Testing the raw
+  // string refuses "East 138th Street JV Associates LLC and the New York City
+  // Department of Housing Preservation and Development", whose first party is a
+  // company and whose second is an agency - four such strings in the corpus, all
+  // correctly named today.
+  if (genericApplicant(s, original)) return null;
   return fixShouting(s);
 }
 

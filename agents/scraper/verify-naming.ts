@@ -22,7 +22,7 @@
 import { pathToFileURL } from 'node:url';
 import { clusterRecords, type ClusterRecord } from './cluster';
 import { projectRow } from './project-write';
-import { cleanProjectTitle } from './project-naming';
+import { cleanApplicant, cleanProjectTitle } from './project-naming';
 
 let pass = 0;
 let fail = 0;
@@ -309,9 +309,15 @@ function main(): void {
   //
   // Through the engine, because the interesting part is the ORDER: the record
   // does carry an applicant, and it is the applicant field that clusters these
-  // two Phoenix records into one project. cleanApplicant refuses "Fire N Ice
-  // Arena" - it carries no organisation marker - so the title rule is reached,
-  // which is exactly the production shape.
+  // two Phoenix records into one project.
+  //
+  // UPDATED 2026-08-23: 'arena' is now an organisation marker, so cleanApplicant
+  // ACCEPTS "Fire N Ice Arena" and the applicant rule is reached before the title
+  // rule. The name is byte-identical either way; what changes is name_source,
+  // from 'title' to 'applicant', which stops the project being marked
+  // provisional in the register and in every client document. The venue phrase
+  // 'arena' is not appended because withVenue's endsWithVenue guard finds the
+  // word already in the name - the guard that stops "Neon Museum museum".
   const liquor = nameOf([
     rec({
       market: 'Phoenix',
@@ -395,6 +401,61 @@ function main(): void {
   console.log(`  forward:  ${forward.name}`);
   console.log(`  reversed: ${backward.name}`);
   check('record order does not change the name', forward.name, backward.name);
+
+  // ---- WHAT cleanApplicant MAY AND MAY NOT CALL A PARTY --------------------
+  //
+  // Unit-level rather than through the engine, because the whole point of these
+  // is the REFUSALS, and a refusal through the engine is invisible: the name
+  // simply comes from the next rule down and the test cannot tell whether the
+  // applicant rule declined or was never reached.
+  //
+  // Measured 2026-08-23 over all 313 distinct applicant strings on live records.
+  // Accepted rose from 224 to 235. Nothing that was accepted became refused.
+  console.log('\n--- cleanApplicant ---');
+  const APPLICANTS: [string, string | null][] = [
+    // A PLACE NOUN AT THE END OF A REGISTERED COMPANY IS PART OF THE NAME.
+    // 'village' is on the generic list to stop "Village of X"; it was refusing a
+    // Nevada company holding a 2,046.9-acre concept specific plan.
+    ['MOAPA NORTH VILLAGE, LLC', 'Moapa North Village'],
+    // Markers the corpus needed. Each was measured alone before it was added.
+    ['MOUNTAINTOP FAITH MINISTRIES', 'Mountaintop Faith Ministries'],
+    ['REFRIGERATION SUPPLIES DISTRIBUTOR', 'Refrigeration Supplies Distributor'],
+    ['SUMMERLIN COUNCIL', 'Summerlin Council'],
+    ['NEURODIVERSE PARTNERSHIPS', 'Neurodiverse Partnerships'],
+    ['Hospitality United', 'Hospitality United'],
+    ['York Studios', 'York Studios'],
+    // A NESTED BRACKET GROUP AND A LEADING CASE NUMBER. The single-pass strip
+    // left the outer ')' behind and produced "ET-25-400124 )-Erbr", a name with
+    // a stray bracket in it.
+    ['ET-25-400124 (AR-23-400123 (UC-21-0332))-Erbr, LLC', 'Erbr'],
+    // STILL REFUSED, AND THIS IS THE HALF THAT MATTERS. Every one is a
+    // government body that the relaxed generic rule must not admit.
+    ['City of Las Vegas', null],
+    ['COUNTY OF CLARK (AVIATION)', null],
+    ['New York City Economic Development Corporation (NYCEDC)', null],
+    ['Department of Housing Preservation and Development (HPD)', null],
+    ['HPD - NYC Dept of Housing Preservation & Development', null],
+    ['SCHOOL BOARD OF TRUSTEES', null],
+    // A PERSON IS NOT AN ORGANISATION.
+    ['TAJALLI, HAMID R', null],
+    ['JANET GOYER', null],
+    // UNCHANGED, and each of these broke a draft of the rule before it shipped.
+    // "ZL II" carries no three-letter word; the first draft required one.
+    ['ZL II, LLC', 'ZL II'],
+    // The first party is a company and the second is an agency. The first draft
+    // tested the generic words on the RAW string and refused all four of these.
+    [
+      'East 138th Street JV Associates LLC and the New York City Department of Housing Preservation and Development',
+      'East 138th Street JV Associates',
+    ],
+    ['GO Quay, LLC and Metropolitan Transit Authority (MTA)', 'GO Quay'],
+    ['OTR, an Ohio Partnership', 'OTR, an Ohio Partnership'],
+    ['SUNSET BAY RESORTS, LLC', 'Sunset Bay Resorts'],
+    ['LCLV MD, LLC', 'LCLV MD'],
+  ];
+  for (const [input, expected] of APPLICANTS) {
+    check(`cleanApplicant(${JSON.stringify(input.slice(0, 46))})`, cleanApplicant(input), expected);
+  }
 
   console.log(`\n${pass} passed, ${fail} failed`);
   if (fail > 0) process.exitCode = 1;
