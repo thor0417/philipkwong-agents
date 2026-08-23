@@ -586,3 +586,33 @@ Of the 657 Anaheim rows: 251 (38%) carry a parcel number, 371 (56%) an acreage,
 **This is a source, not an identifier follow.** It does not need an SCH from our
 own text; it needs a way to match 657 CEQA filings against 19 Anaheim projects,
 which is a matching build and is not costed.
+
+### The Anaheim match, costed 2026-08-23: it does not hold
+
+```
+agents/scraper/diagnostics/ceqanet-match-cost.ts
+```
+
+The agency route returns 657 Anaheim filings with 251 parcel numbers. Joining
+them to our 19 Anaheim projects was costed on all three available keys and none
+of them works.
+
+| key | result |
+|---|---|
+| the city's own application number | **1 of 19** projects carries a DEV/CUP/VAR/RCL/TTM number in any record. Nothing to join to. |
+| street name, project side vs CEQAnet cross streets | 6 of 19 get a candidate. **1 of 19** has a candidate set small enough to resolve (<=5 rows), and that one carries **0 parcel numbers**. |
+| project or applicant name vs CEQAnet Project Title | 16 of 19 "match" and essentially every one is a false positive: GardenWalk Hotel II to "Brookhurst Street Improvements", Good Hope International to "Grandma's House of Hope", Platinum Triangle to "Metropolitan West Condominiums". |
+
+**The cause is structural, not a weak matcher.** Anaheim's arterials are long:
+Katella carries 39 filings, State College 35, Santa Ana Canyon 31. A project on
+Katella Avenue matching 39 CEQA filings is a street, not a match. And **CEQAnet
+publishes no street address field at all** - its location fields are cross
+streets, zip, coordinates, acreage and parcel number. Our Anaheim projects are
+named for a company or a street ADDRESS. There is no shared key, and the one that
+would be shared is the parcel number, which is the thing we are trying to obtain.
+
+9 of the 19 carry no street on the project side at all, because they are named
+after companies.
+
+**CEQAnet stays a two-project gain.** The agency route is a real source with real
+fields and we have nothing to join it on.
