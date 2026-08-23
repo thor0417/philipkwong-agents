@@ -135,8 +135,8 @@ const INLINE: Record<string, () => string | null> = {
   },
 
   'a-planning-document-admitting-a-county-s-whole-agenda': () => {
-    // PENDING. A real Broward title, verbatim. It names no venue and is admitted
-    // on 'comprehensive plan' alone.
+    // CLOSED 2026-08-23. A real Broward title, verbatim. It names no venue, and
+    // the term that used to admit it is gone from GOV_GATE_STRONG.
     const broward =
       'MOTION TO ENACT Ordinance adopting a Small-Scale amendment to the Broward County Land ' +
       'Use Plan map (PC 25-5), located in the City of Weston (Commission District 1), as an ' +
@@ -145,13 +145,25 @@ const INLINE: Record<string, () => string | null> = {
       'BROWARD COUNTY COMPREHENSIVE PLAN; AMENDING THE BROWARD COUNTY LAND USE PLAN WITHIN ' +
       'THE CITY OF WESTON; AND PROVIDING FOR SEVERABILITY AND AN EFFECTIVE DATE.';
     const v = governmentGate(broward, 'Broward County');
-    if (!v.matched) return null;
-    const others = v.strongHits.filter((t) => t !== 'comprehensive plan');
-    return (
-      `admitted as '${v.reason}' on strong=[${v.strongHits.join('|')}]` +
-      (others.length ? '' : ', and \'comprehensive plan\' is the ONLY strong hit') +
-      '. The record names no venue.'
+    if (v.matched) {
+      return (
+        `a Broward land-use-plan housekeeping item is still admitted as '${v.reason}' on ` +
+        `strong=[${v.strongHits.join('|')}] action=[${v.actionHits.join('|')}]`
+      );
+    }
+    // AND THE CONTROL, WHICH IS THE HALF THAT MATTERS. A term removal that also
+    // silenced the real Broward filings would be a worse defect than the one it
+    // fixed. Five Broward candidates survive on a genuine venue noun and this is
+    // one of them; if it stops matching, the removal went too far.
+    const realVenue = governmentGate(
+      'MOTION TO ACKNOWLEDGE AND FILE Office of the County Auditor Follow-up Review of Audit of ' +
+        'Central Broward Regional Park and Stadium - Report No. 26-01.',
+      'Broward County'
     );
+    if (!realVenue.matched) {
+      return 'the removal also silenced a Broward record that names a real venue (stadium)';
+    }
+    return null;
   },
 
   'new-york-conditions-are-in-a-document-we-do-not-hold': () => {

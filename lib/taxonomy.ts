@@ -870,7 +870,7 @@ export const GOV_GATE_STRONG = [
   'convention center', 'exposition', 'fairgrounds', 'museum', 'aquarium', 'zoo',
   'cultural center', 'performing arts', 'visitor center', 'attraction',
   'tourism improvement district', 'tourism development', 'marina', 'pier',
-  'master-planned community', 'master planned community', 'comprehensive plan',
+  'master-planned community', 'master planned community',
   'downtown redevelopment', 'urban regeneration',
   'transit-oriented development', 'transit oriented development',
   'entertainment district overlay',
@@ -881,6 +881,41 @@ export const GOV_GATE_STRONG = [
   'market square',
 ] as const;
 
+// REMOVED 2026-08-23: 'comprehensive plan'.
+//
+// IT WAS THE ONLY TERM ON THIS LIST THAT NAMED A DOCUMENT. Every other entry
+// names a venue (theme park, casino, arena, museum, marina) or a project type
+// (master-planned community, downtown redevelopment, transit-oriented
+// development). A comprehensive plan is the planning instrument every US county
+// maintains, and Broward County writes it into the title of every land-use-plan
+// housekeeping item it files.
+//
+// MEASURED ON ONE CORPUS, both halves, after a re-harvest that was run precisely
+// because the previous corpus predated Broward and could not see the market the
+// change was for:
+//
+//   frozen candidate corpus, 7,553 candidates
+//     admitted 285 -> 275. Ten removals, and only two markets move:
+//     Broward County 14 -> 5, and one New York City community board notice
+//     ("Proud Nation/Urban Zone will present its comprehensive plan for Floyd
+//     Bennett Field") which is attached to no project. Every other market: zero.
+//     All nine Broward removals carry action=[land use] and no venue noun.
+//
+//   stored corpus, 799 live government records
+//     76 stop matching the vocabulary: Broward 74, that one NYC notice, and the
+//     CFTOD 2045 Comprehensive Plan - which is NOT a casualty, because govdocs
+//     consults no gate at all (it declares bypass:true and never calls
+//     gateDecide). 71 projects are emptied, every one Broward, highest
+//     significance 18.8.
+//
+// FIVE BROWARD CANDIDATES SURVIVE AND SHOULD: the Performing Arts Center
+// Authority budget and audit, a convention-centre easement, and the Central
+// Broward Regional Park and Stadium audit all carry a real venue noun.
+//
+// DEMOTING IT TO WEAK WAS MEASURED AND REJECTED: 60 of the 74 Broward records
+// return immediately on the ACTION term 'land use', so the demotion buys almost
+// nothing and keeps the ambiguity.
+//
 // PART 4, TESTED AND DROPPED. Recorded so the same fourteen candidates are not
 // re-proposed from intuition, and so a future run can re-test them in one command
 // (GATE_TERMS="..." npm run gate:terms) against a corpus that may have moved.

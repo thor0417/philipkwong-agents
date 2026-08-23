@@ -616,3 +616,80 @@ after companies.
 
 **CEQAnet stays a two-project gain.** The agency route is a real source with real
 fields and we have nothing to join it on.
+
+## 9. The gate term removal. Brief R items 1 and 2, 2026-08-23
+
+### The re-harvest took two attempts and the first was the finding
+
+`gate-corpus/` is gitignored, so these are working evidence on one machine.
+
+| corpus | candidates | Broward | retired markets |
+|---|---:|---:|---:|
+| 2026-08-09, the one every prior gate figure was taken against | 7,419 | **0** | 314 |
+| 2026-08-23 re-harvest, default | 6,994 | 191, **0 admitted** | 0 |
+| 2026-08-23 with `LEGISTAR_BACKFILL=1` | 7,553 | 346, **14 admitted** | 0 |
+
+**`npm run gate:harvest` does not page to exhaustion.** It inherits each
+jurisdiction's stored incremental cursor, so the default run fetched 45 Broward
+matters over one page and still could not see the items the change was for. Only
+the backfill could. **And even the backfill is capped: page 2 timed out on all six
+Legistar jurisdictions, so the window is 200 matters per jurisdiction rather than
+twelve months.** Every figure below rests on that.
+
+**Phoenix fetched zero matters on the default run** - `0 matters since 2026-12-01`,
+because its cursor sits in the future on the `2026-12-31` placeholder dates. The
+open case `a-freshness-figure-quoted-off-a-placeholder-date` is not hypothetical;
+it silently cost a jurisdiction a whole harvest.
+
+`verify:staleness` passed 7 of 7 after both runs. No throttling.
+
+### Removing `comprehensive plan`: 76 records, 71 projects, one market
+
+Frozen corpus, **both halves from the backfilled corpus**:
+
+```
+admitted 285 -> 275.  Removed 10, added 0.
+  Broward County   14 -> 5     nine removals, every one action=[land use], no venue noun
+  New York City   193 -> 192   one community board notice, attached to no project
+  every other market            0
+```
+
+Stored corpus, 799 live government records, **paged to exhaustion and measured
+with the real gate on both sides** (the taxonomy change stashed and restored, not
+emulated):
+
+```
+matched BEFORE 684, AFTER 608.  LOST 76, GAINED 0.
+  Broward County                               74
+  New York City                                 1
+  Central Florida Tourism Oversight District     1   <- NOT a casualty: govdocs consults no gate
+projects whose every matched record is lost: 71, all Broward
+```
+
+**A CORRECTION TO METHOD, worth recording because it nearly changed the headline.**
+An intermediate measurement used `hasWord(text, 'comprehensive plan')` as a proxy
+for "would have matched before" and reported 42 records rather than 76. The proxy
+was wrong. Stashing the change and running the real gate on both sides is the only
+instrument that answers the question, and it is what the numbers above use. An
+earlier variant of the same measurement also hit PostgREST's silent 1000-row
+default and reported 247 live government records instead of 799.
+
+### The quality gain, as a number
+
+Buckets over the Brief Q judged set, before and after removing the 71:
+
+| bucket | before | share | after | share |
+|---|---:|---:|---:|---:|
+| a hospitality or entertainment DEVELOPMENT | 45 | 13.2% | 45 | **16.7%** |
+| a development, outside the vertical | 60 | 17.6% | 60 | 22.3% |
+| an instrument rather than a project | 141 | 41.5% | 141 | 52.4% |
+| municipal housekeeping | **94** | 27.6% | **23** | **8.6%** |
+| | 340 | | 269 | |
+
+**All 71 removals come out of housekeeping and nothing else moves.** Housekeeping
+falls from 27.6% of the live register to 8.6%.
+
+**THE 71 ARE STILL IN THE REGISTER.** The gate governs CAPTURE, and
+`regate-stored` is read-only by design. The "after" column is what the register
+becomes once they are removed, which is a separate write that has not happened and
+was not authorised by this brief.
