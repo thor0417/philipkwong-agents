@@ -373,3 +373,140 @@ The watch list a market report prints reads `projects.watch` directly, and on
 Vegas), Heart Hotel / Kulik River (Clark County) and Nevada Palace (Clark
 County). The two Clark County rows are exactly the two the Clark County report
 prints. There is no second watch column.
+
+## 6. What we hold, judged. Brief Q item 1, measured 2026-08-23
+
+`snapshots/holdings-judgement-live.md`, produced by
+`agents/scraper/diagnostics/holdings-judgement.ts`. Labels cached in
+`agents/scraper/fixtures/holdings-labels.jsonl`, which IS versioned, so unlike
+the snapshots above these figures can be reproduced from a fresh clone.
+
+### The three population counts, and section 1 of this file is now stale
+
+| count | predicate |
+|---:|---|
+| 424 | every row in `projects` |
+| 416 | `module='gli' and status <> 'dismissed'` and `inCorpusScope(country)` |
+| 340 | the above and `stage not in ('dormant','archived')` |
+
+**The predicate recorded above under "235, the register" now returns 416.** The
+figure did not change because a filter changed; the corpus grew from 243 rows to
+424 between 2026-08-19 and 2026-08-23, principally Broward County. Section 1 of
+this file is a true record of 2026-08-19 and is not a current number. This is the
+failure this file exists to catch, caught by this file.
+
+### 45 hospitality developments, AND IT IS A FLOOR
+
+```
+population: the 340 live projects above
+judge:      claude-sonnet-5, rubric q1-v1, one call per project
+buckets:    development-vertical | development-other | instrument | housekeeping
+```
+
+| bucket | count | share of 340 |
+|---|---:|---:|
+| a hospitality or entertainment DEVELOPMENT | 45 | 13.2% |
+| a development, outside the vertical | 60 | 17.6% |
+| an instrument rather than a project | 141 | 41.5% |
+| municipal housekeeping | 94 | 27.6% |
+
+**ANYONE QUOTING 45 SHOULD QUOTE THE CALIBRATION WITH IT.** All 108 projects of
+the 2026-08-22 backfill cohort sit inside this population, so the two judgements
+cover the same rows and can be compared directly:
+
+| judgement | hospitality of 108 |
+|---|---:|
+| 2026-08-22, read by hand | 18 (16.7%) |
+| this classifier | 12 (11.1%) |
+
+The classifier is roughly a third stricter than a human read on the only cohort
+where both exist. **45 is therefore a floor, not a count**, and the equivalent
+hand figure would plausibly be in the sixties. The per-project labels from
+2026-08-22 were never stored, so the six that differ cannot be named; the seam is
+the one real ambiguity in the buckets, which is whether a use permit ON a hotel
+is a scheme being decided or an instrument attached to an address.
+
+### 15 referral-ready, and 116 that should not be there
+
+```
+referral-ready: bucket = development-vertical
+                and name_source <> 'title'
+                and the entry PRINTS at least one party
+                and at least one stated fact
+                and at least one condition of approval
+```
+
+15 projects, **every one of them Clark County**, because conditions are the
+binding term and Clark County is the only jurisdiction with a conditions reader.
+
+```
+should not be there: bucket = housekeeping                                   94
+                     or (bucket = instrument and no party, no fact, no condition)  22
+                     union                                                  116
+```
+
+73 of the 94 housekeeping projects are Broward County, which is the open golden
+case `a-planning-document-admitting-a-county-s-whole-agenda`.
+
+## 7. New York identifiers and CPC reports. Brief Q items 2 and 3, 2026-08-23
+
+### 123 was wrong, and it reached a brief
+
+Brief O item 4.4 reported "123 live records carry a ULURP-shaped number in their
+text". **That figure counted records matching a regex that included the literal
+word `ULURP`**, so every record merely mentioning the process was counted as
+carrying an identifier. It made an unopened opportunity look roughly nine times
+larger than it is, and it was quoted back into Brief Q as the reason to run the
+pass.
+
+The correct figures, on the published-field separation
+`agents/scraper/diagnostics/nyc-cpc-reach` already draws:
+
+| count | predicate |
+|---:|---|
+| 97 | live New York projects |
+| **14** | projects carrying a ULURP number |
+| **28** | distinct numbers, all of them published by ZAP as a field |
+| **0** | distinct numbers that exist only in prose |
+| **13** | of the 28 that return a CPC report PDF |
+| **7** | distinct projects those 13 reports belong to |
+
+A number in a ZAP column is the source stating its own identifier. There is no
+prose-only set to harvest: the regex and the field agree exactly, at 28.
+
+### 0 projects would gain a party or a decision
+
+```
+agents/scraper/diagnostics/cpc-gain.ts
+```
+
+All 7 projects with a reachable report already hold the applicant, a
+`City Planning Commission action` fact and a
+`Commissioners recorded as an exception on the vote` fact. The CPC route was not
+unopened; it had already been run and its output is already in the corpus.
+Checked per project by fact LABEL, not by "has any facts".
+
+### 2 genuine obligations across 13 documents, which is why no conditions reader was built
+
+```
+agents/scraper/diagnostics/resolution-clause-measure.ts
+```
+
+| shape | occurrences | distinct |
+|---|---:|---:|
+| `RESOLVED, that ...` | 30 | 25 |
+| `... subject to ...` | **0** | **0** |
+| `<party> shall ...` | 38 | 14 |
+
+Counts are not the finding; what the clauses SAY is. Of the 14 distinct `shall`
+clauses: 5 are City Map filing mechanics, 4 are the Zoning Resolution quoted back
+(they carry NYC's own `#defined term#` markers), 1 is a community letter of
+commitment, 2 are extraction garbage from a sentence-boundary rule that misread a
+colon, and **2 are genuine project obligations on the applicant**. The 25 distinct
+`RESOLVED` clauses are procedural recitals - what the Commission considered and
+found - not conditions of approval.
+
+Cost per document, measured on 13 real fetches: median 1.51MB, 40 pages, 45ms
+fetch, 179ms parse, 2ms extract, no model call. **Cost is not the reason not to
+build it. Yield is.**
+
