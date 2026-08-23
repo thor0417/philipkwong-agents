@@ -22,7 +22,15 @@ import { overriddenFields } from './write-guard';
 import type { ClusteredProject } from './cluster';
 
 // Columns only Philip writes on a project. Stripped from every payload.
-export const PROJECT_OWNED_BY_USER = ['status', 'notes', 'watch', 'manual_overrides'] as const;
+// manual_identifiers JOINS THIS LIST RATHER THAN manual_overrides, and the
+// distinction is the whole reason it is a separate column. manual_overrides is a
+// set of FIELD NAMES protecting values the clusterer also derives; a hand-supplied
+// SCH or APN is a value the clusterer cannot derive at all, so there is nothing to
+// protect it FROM except a careless payload. Being on this list is what makes a
+// careless payload impossible. See migration 043.
+export const PROJECT_OWNED_BY_USER = [
+  'status', 'notes', 'watch', 'manual_overrides', 'manual_identifiers',
+] as const;
 
 // Columns a manual override can protect. These are the ones the register lets
 // Philip set by hand.

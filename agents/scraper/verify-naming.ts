@@ -21,7 +21,12 @@
 
 import { pathToFileURL } from 'node:url';
 import { clusterRecords, type ClusterRecord } from './cluster';
-import { projectRow } from './project-write';
+import { projectRow, PROJECT_OWNED_BY_USER } from './project-write';
+import {
+  readManualIdentifiers,
+  normalizeIdentifier,
+  identifierUrl,
+} from '../../lib/manual-identifiers';
 import { cleanApplicant, cleanProjectTitle } from './project-naming';
 
 let pass = 0;
@@ -157,9 +162,45 @@ function main(): void {
   const written = projectRow(clustered, notRenamed);
   check('a project with no override is renamed', written.row.name, clustered.name);
 
-  // The four owned columns are never written by any clustering path.
-  const owned = ['status', 'notes', 'watch', 'manual_overrides'].filter((c) => c in held.row);
+  // THE OWNED COLUMNS ARE NEVER WRITTEN BY ANY CLUSTERING PATH, and this reads
+  // the real list rather than restating it. The literal used to be spelled out
+  // here as four names; adding a fifth to PROJECT_OWNED_BY_USER would have left
+  // the assertion passing while the new column went unguarded, which is two
+  // statements of one rule drifting apart - the shape half this suite exists for.
+  const owned = PROJECT_OWNED_BY_USER.filter((c) => c in held.row);
   check('owned columns are never written', owned, []);
+  check('and the owned list still holds every column a person writes', [...PROJECT_OWNED_BY_USER], [
+    'status', 'notes', 'watch', 'manual_overrides', 'manual_identifiers',
+  ]);
+
+  // ---- HAND-SUPPLIED IDENTIFIERS -------------------------------------------
+  //
+  // A value that fails its issuer's shape is REFUSED rather than stored: a
+  // mistyped identifier routes to somebody else's document, which is worse than
+  // an absent one. Fails closed per VALUE, not per row, so one bad entry cannot
+  // discard the good ones beside it.
+  console.log('\n--- manual identifiers ---');
+  check('a well-formed map survives', readManualIdentifiers({ sch: '2023100503', apn: '234-161-04' }), {
+    sch: '2023100503',
+    apn: '234-161-04',
+  });
+  check('an unknown key is dropped', readManualIdentifiers({ ceqr: '24DCP129K' }), {});
+  check('a malformed SCH is refused', readManualIdentifiers({ sch: '99' }), {});
+  check(
+    'and one bad value does not discard the good one beside it',
+    readManualIdentifiers({ sch: '2023100503', apn: 'not a parcel' }),
+    { sch: '2023100503' }
+  );
+  check('a non-string value is refused', readManualIdentifiers({ sch: 20231005 }), {});
+  check('an array is not a map', readManualIdentifiers(['2023100503']), {});
+  check('null is empty, not a throw', readManualIdentifiers(null), {});
+  check('a ULURP number normalises to upper case', normalizeIdentifier('ulurp', '250108mmk'), '250108MMK');
+  check('a ULURP report url uses the six-digit stem', identifierUrl('ulurp', '250108MMK'),
+    'https://www.nyc.gov/assets/planning/download/pdf/about/cpc/250108.pdf');
+  // AN APN HAS NO URL AND MUST NOT INVENT ONE. It is scoped to a county and every
+  // assessor has its own route, so a constructed link would point at the wrong
+  // county's parcel.
+  check('an APN has no url', identifierUrl('apn', '234-161-04'), null);
 
   // ---- 4. TWO PROJECTS CANNOT SHARE A NAME ----------------------------------
   //
