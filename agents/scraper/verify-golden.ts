@@ -154,6 +154,24 @@ const INLINE: Record<string, () => string | null> = {
     );
   },
 
+  'new-york-conditions-are-in-a-document-we-do-not-hold': () => {
+    // PENDING. Two candidate documents, and the check asserts that NEITHER is
+    // reachable yet rather than that conditions are missing - "New York has no
+    // conditions" is the symptom and this case is about the cause.
+    const council = readFileSync('agents/scraper/sources/legistar-jurisdictions.ts', 'utf8');
+    // A CLIENT ENTRY, not a mention. The first version of this check matched the
+    // string 'nyc' anywhere in the file and passed on a COMMENT, which is the
+    // same defect class the golden set exists for.
+    const readsNycCouncil = /client:\s*'(?:nyc|newyorkcity|nyccouncil)[a-z]*'/i.test(council);
+    const acris = readFileSync('agents/scraper/diagnostics/cpc-gain.ts', 'utf8');
+    const readsAcris = /acris/i.test(acris);
+    if (readsNycCouncil && readsAcris) return null;
+    const open: string[] = [];
+    if (!readsNycCouncil) open.push('no New York City Legistar jurisdiction is configured, so the Council approval resolution is unreachable');
+    if (!readsAcris) open.push('nothing probes ACRIS, so the restrictive declaration is unreachable');
+    return open.join('; ');
+  },
+
   'the-press-lane-writes-venue-names-into-the-market-column': () => {
     // PENDING, AND DELIBERATELY NOT GUARDED BY THE SHARD FIX. That fix stopped
     // ONE reader trusting the column; it did not make the column right. This

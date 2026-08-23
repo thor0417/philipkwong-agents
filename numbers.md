@@ -510,3 +510,79 @@ Cost per document, measured on 13 real fetches: median 1.51MB, 40 pages, 45ms
 fetch, 179ms parse, 2ms extract, no model call. **Cost is not the reason not to
 build it. Yield is.**
 
+## 8. CEQAnet reach. Brief Q item 5, 2026-08-23
+
+```
+agents/scraper/diagnostics/ceqanet-reach.ts [--fetch]
+```
+
+### The reach we have today is 3 projects, not 4
+
+Brief O reported "it attaches to 4 of 28 live California projects". **4 was the
+count of live ceqanet RECORDS, not projects.** Same shape as the 123 in section 7,
+smaller. The projects are:
+
+| project | market | SCH |
+|---|---|---|
+| OCVibe | Anaheim | 2023100503, 2004121045 |
+| Disneyland Resort | Anaheim | 2021100402 |
+| 1020 West Imperial Highway | (no market) | 2026071116 |
+
+**The third has `region_state` null**, so a California equality alone reports the
+reach one project short. CEQAnet is a California-only source, so a project holding
+one of its records IS in California whether or not geography resolved.
+
+30 of the 34 have no route to an SCH at all. One further project, OTR (an Ohio
+Partnership), carries an SCH-shaped number only in prose; it is reported as a
+candidate rather than as reach.
+
+### What the fields hold, over the 4 reachable records
+
+| field | populated |
+|---|---:|
+| Location Parcel Number | 3 of 4 |
+| Location Total Acres | 3 of 4 |
+| Location Cross Streets | 3 of 4 |
+| NOD Approved By Lead Agency / Approved Date | 3 of 4 |
+| Contact Full Name / Authority / Job Title | 4 of 4, all agency staff |
+| NOC Development Type / NOC Local Action | **0 of 4** |
+
+One of the three parcel values is the literal string `Multiple parcels`, which is
+not a lookup key. **Usable parcel numbers: 2** - `234-161-04 and 231-161-26`
+(OCVibe) and `019-171-24` (1020 West Imperial Highway). So following every
+identifier we hold takes California from 0 projects with a parcel number to 2.
+
+### The developer is not in the title, on our own records
+
+Brief O asked whether the developer in the title prose is extractable without a
+name rule. On the four titles we can actually reach - "Pacific Resort Plaza",
+"DEV2021-00131 A-Town Development Area F", "DisneylandForward Draft Subsequent
+Environmental Impact Report", "Conditional Use Permit 26-0003 (CUP26-0003)" -
+**none names a developer at all.** The question does not arise. The Brief O
+example that suggested it might ("Pyka Inc. Administrative Use Permit") was a
+lucky draw, and extracting "Pyka Inc." from it would still require deciding that a
+leading proper noun is a company, which is a name rule.
+
+### The route that IS worth something: search by lead agency
+
+```
+https://ceqanet.lci.ca.gov/Search?LeadAgency=Anaheim%2C%20City%20of&OutputFormat=CSV
+   -> 657 rows, 55 fields, 854KB, one request, no auth
+```
+
+**The value form is exact and a wrong one returns a 200 with a header row and no
+data.** `LeadAgency=City of Anaheim` and `LeadAgency=Anaheim` both return 1,171
+bytes of column names and nothing else; only `Anaheim, City of` returns rows. A
+status check would have called all three a success.
+
+Two further traps, both measured: the CSV is **cp1252, not utf-8**, and it carries
+**embedded newlines inside quoted description fields**, so a line count reports
+1,382 where the row count is 657.
+
+Of the 657 Anaheim rows: 251 (38%) carry a parcel number, 371 (56%) an acreage,
+428 (65%) cross streets, 154 (23%) an approval date, and 90 (14%) were received in
+2024 or later.
+
+**This is a source, not an identifier follow.** It does not need an SCH from our
+own text; it needs a way to match 657 CEQA filings against 19 Anaheim projects,
+which is a matching build and is not costed.
