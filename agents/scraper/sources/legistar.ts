@@ -307,6 +307,13 @@ interface Harvest<T> {
   rows: T[];
   pages: number;
   complete: boolean;
+  // WHY IT STOPPED, because 'complete: false' had two causes and reported one.
+  // A page that TIMED OUT returned [] from fetchJson, the loop read zero rows as
+  // "the feed ran out", and the read was reported COMPLETE. So a 30-second
+  // network failure was indistinguishable from a finished jurisdiction, and the
+  // 2026-08-23 backfill reported six jurisdictions complete at exactly 200
+  // matters each. Same shape as a gate exiting 0 over a suite it never ran.
+  stopped: 'feed-exhausted' | 'page-budget' | 'fetch-failed' | 'cursor-stalled';
 }
 
 // ---- WHERE THE BOUND COMES FROM -------------------------------------------
@@ -403,25 +410,32 @@ async function fetchMattersSince(client: string, sinceIso: string): Promise<Harv
       `&$top=${MATTER_PAGE}&$orderby=${encodeURIComponent('MatterId')}`;
     const raw = await fetchJson<unknown>(url, `${client} Matters page ${pages + 1}`);
     pages++;
+    // A FAILED REQUEST IS NOT AN EMPTY FEED, and this is the whole point of the
+    // change. fetchJson returns null when it could not read the page at all, and
+    // the read stops as INCOMPLETE rather than reporting the rows it happened to
+    // get as the whole window.
+    if (raw === null) return { rows, pages, complete: false, stopped: 'fetch-failed' };
     const parsed = parseRecords(LegistarMatterSchema, raw, {
       source: `legistar:${client}`,
       endpoint: 'Matters',
     }).records as LegistarMatter[];
-    if (parsed.length === 0) return { rows, pages, complete: true };
+    if (parsed.length === 0) return { rows, pages, complete: true, stopped: 'feed-exhausted' };
     rows.push(...parsed);
     const maxId = parsed.reduce((n, m) => (typeof m.MatterId === 'number' && m.MatterId > n ? m.MatterId : n), lastId);
     // A page that did not advance the cursor would loop forever. It cannot
     // happen while MatterId is ordered and unique, which is exactly why this
     // guards rather than trusts.
-    if (maxId <= lastId) return { rows, pages, complete: false };
+    if (maxId <= lastId) return { rows, pages, complete: false, stopped: 'cursor-stalled' };
     lastId = maxId;
     // A SHORT PAGE IS THE END OF THE FEED. Anything else is another page.
-    if (parsed.length < MATTER_PAGE) return { rows, pages, complete: true };
+    if (parsed.length < MATTER_PAGE) return { rows, pages, complete: true, stopped: 'feed-exhausted' };
   }
-  return { rows, pages, complete: false };
+  return { rows, pages, complete: false, stopped: 'page-budget' };
 }
 
-async function fetchJson<T>(url: string, label: string): Promise<T[]> {
+// NULL MEANS THE REQUEST FAILED. An empty array means the feed had nothing.
+// Collapsing the two is what let a timeout read as a finished jurisdiction.
+async function fetchJson<T>(url: string, label: string): Promise<T[] | null> {
   try {
     const res = await fetch(url, {
       headers: { 'User-Agent': UA, Accept: 'application/json' },
@@ -429,13 +443,13 @@ async function fetchJson<T>(url: string, label: string): Promise<T[]> {
     });
     if (!res.ok) {
       console.warn(`Legistar ${label}: HTTP ${res.status} (skipping).`);
-      return [];
+      return null;
     }
     const data = await res.json();
     return Array.isArray(data) ? (data as T[]) : [];
   } catch (error) {
     console.warn(`Legistar ${label}: fetch failed (${String(error).slice(0, 70)}).`);
-    return [];
+    return null;
   }
 }
 
@@ -479,7 +493,13 @@ async function scrapeJurisdiction(
   const eventOrder = encodeURIComponent('EventId desc');
   const eventsUrl = `${BASE}/${j.client}/Events?$top=${TOP}&$orderby=${eventOrder}`;
   const rawEvents = await fetchJson<unknown>(eventsUrl, `${j.client} Events`);
-  const events = parseRecords(LegistarEventSchema, rawEvents, {
+  // The events read is a single page and has no cursor, so a failure here costs
+  // the events and nothing else. It is still SAID rather than folded into "zero
+  // events", which reads as a jurisdiction that held no meetings.
+  if (rawEvents === null) {
+    console.warn(`Legistar ${j.jurisdictionLabel}: EVENTS READ FAILED - 0 events below is a failure, not a fact.`);
+  }
+  const events = parseRecords(LegistarEventSchema, rawEvents ?? [], {
     source: `legistar:${j.client}`,
     endpoint: 'Events',
   }).records as LegistarEvent[];
@@ -619,7 +639,13 @@ async function scrapeJurisdiction(
   console.log(
     `Legistar ${j.jurisdictionLabel}: ${matters.length} matters since ${since} (${reason}) ` +
       `over ${harvest.pages} page${harvest.pages === 1 ? '' : 's'}` +
-      (harvest.complete ? '' : ' PARTIAL - page budget exhausted before the feed was') +
+      (harvest.complete
+        ? ''
+        : harvest.stopped === 'fetch-failed'
+          ? ' *** TRUNCATED: A PAGE REQUEST FAILED, so this window is short by an unknown amount ***'
+          : harvest.stopped === 'cursor-stalled'
+            ? ' *** TRUNCATED: the id cursor stalled ***'
+            : ' PARTIAL - page budget exhausted before the feed was') +
       `, ${events.length} events, ${matched} matched` +
       (j.bypassGate
         ? ' (gate bypassed)'

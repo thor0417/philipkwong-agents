@@ -219,25 +219,68 @@ const INLINE: Record<string, () => string | null> = {
     );
   },
 
-  'a-freshness-figure-quoted-off-a-placeholder-date': () => {
-    // PENDING. A Phoenix Legistar record whose only date is 2026-12-31. It is
-    // taken as a published date with provenance 'source', which is what puts it
-    // at the top of the market's newest-document ordering.
-    const lead = {
-      source: 'legistar',
-      url: 'https://phoenix.legistar.com/gateway.aspx?M=l&ID=1',
-      title: 'Liquor License - AC Hotel Biltmore - District 6',
-      raw_content: 'Government record (Legistar Matter): Jurisdiction: Phoenix, AZ',
-      published_date: '2026-12-31',
-      first_seen: '2026-08-01',
-    } as unknown as Parameters<typeof deriveLeadDates>[0];
-    const d = deriveLeadDates(lead, 'government');
-    if (d.published_date !== '2026-12-31') return null;
+  'a-project-with-no-records-keeps-a-live-stage': () => {
+    // PENDING. Pure: the rule is that nothing recomputes a stage downward when
+    // the last record leaves, so the check asserts no such path exists rather
+    // than counting the register.
+    const cluster = readFileSync('agents/scraper/cluster.ts', 'utf8');
+    const write = readFileSync('agents/scraper/project-write.ts', 'utf8');
+    if (/zero[- ]record|emptied|hasRecords|no live records/i.test(cluster + write)) return null;
     return (
-      `published_date kept as ${d.published_date} with date_source '${d.date_source}'. ` +
-      'Measured 2026-08-23 that is 130 days in the future, and it sets the figure every ' +
-      'Phoenix coverage statement rests on.'
+      'nothing recomputes a stage when a project loses its last record; measured 2026-08-23 at 71 Broward ' +
+      'projects holding zero live records and still reading hearing scheduled, approved, filed or stalled'
     );
+  },
+
+  'a-failed-page-reads-as-an-exhausted-feed': () => {
+    // The rule lives in one file and the assertion points at it, but the SHAPE
+    // is worth asserting here too: a fetch helper that cannot say "I failed"
+    // makes every caller guess.
+    const src = readFileSync('agents/scraper/sources/legistar.ts', 'utf8');
+    const open: string[] = [];
+    if (!/Promise<T\[\] \| null>/.test(src)) {
+      open.push('fetchJson no longer distinguishes a failed request from an empty feed');
+    }
+    if (!/stopped: 'fetch-failed'/.test(src)) {
+      open.push('the paging loop no longer records that it stopped on a failed page');
+    }
+    if (!/TRUNCATED: A PAGE REQUEST FAILED/.test(src)) {
+      open.push('a truncated read no longer says so in the run report');
+    }
+    return open.length ? open.join('; ') : null;
+  },
+
+  'a-freshness-figure-quoted-off-a-placeholder-date': () => {
+    // CLOSED 2026-08-23. The real Phoenix record, whose only date is the clerk's
+    // end-of-year filler. Judged against a FIXED now, so the case does not
+    // silently start passing for the wrong reason as the date recedes.
+    const now = Date.parse('2026-08-23T00:00:00Z');
+    const lead = (published: string) =>
+      ({
+        source: 'legistar',
+        url: 'https://phoenix.legistar.com/gateway.aspx?M=l&ID=1',
+        title: 'Liquor License - AC Hotel Biltmore - District 6',
+        raw_content: 'Government record (Legistar Matter): Jurisdiction: Phoenix, AZ',
+        published_date: published,
+        first_seen: '2026-08-01',
+      }) as unknown as Parameters<typeof deriveLeadDates>[0];
+
+    const placeholder = deriveLeadDates(lead('2026-12-31'), 'government', now);
+    if (placeholder.published_date === '2026-12-31') {
+      return `a placeholder 130 days ahead is still taken as a published date (${placeholder.date_source})`;
+    }
+
+    // AND THE TWO CONTROLS, which are why the constant is 30 and not 7. Both of
+    // these are real dates from the corpus and both must survive.
+    const nashville = deriveLeadDates(lead('2026-08-31'), 'government', now); // +8d
+    if (nashville.published_date !== '2026-08-31') {
+      return 'a real hearing date nine days ahead was refused as a placeholder';
+    }
+    const clark = deriveLeadDates(lead('2026-08-25'), 'government', now); // +2d
+    if (clark.published_date !== '2026-08-25') {
+      return 'a real hearing date two days ahead was refused as a placeholder';
+    }
+    return null;
   },
 
   'hudson-yards-district-term': () => {

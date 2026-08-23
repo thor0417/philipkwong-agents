@@ -33,6 +33,29 @@ import { scrapeNycCeqr } from './sources/nyc-ceqr';
 
 export async function harvestGateCorpus(): Promise<number> {
   if (!process.env.LEGISTAR_ATTACHMENTS) process.env.LEGISTAR_ATTACHMENTS = '0';
+
+  // A HARVEST PAGES TO EXHAUSTION BY DEFAULT, AND SAYS SO WHEN IT DOES NOT.
+  //
+  // It used to inherit each jurisdiction's stored INCREMENTAL cursor, which is
+  // right for a capture run and wrong for this: the corpus a gate change is
+  // measured against has to be the twelve-month window, not "whatever arrived
+  // since the last scrape". Measured 2026-08-23 - a default harvest run to cost
+  // the Broward gate change fetched 45 Broward matters over one page and yielded
+  // ZERO admitted candidates, so the change appeared to cost nothing in the one
+  // market it was for. The corpus looked complete. Nothing said otherwise.
+  //
+  // GATE_HARVEST_INCREMENTAL=1 opts out, for a quick re-run against a corpus
+  // whose shape is already understood. It prints a warning, because a corpus
+  // built that way must never be the basis of a before-and-after.
+  const incremental = process.env.GATE_HARVEST_INCREMENTAL === '1';
+  if (incremental) {
+    console.warn(
+      'Gate harvest: INCREMENTAL by request. The corpus will be whatever each cursor reached, ' +
+        'which is NOT a twelve-month window and MUST NOT be used to cost a vocabulary change.'
+    );
+  } else if (!process.env.LEGISTAR_BACKFILL) {
+    process.env.LEGISTAR_BACKFILL = '1';
+  }
   // The known-entity bypass consults the project register, so the index is built
   // before any adapter gates anything. Without this the bypass is inert and the
   // harvest would record decisions the live lane would not have taken.

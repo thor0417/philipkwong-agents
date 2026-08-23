@@ -39,13 +39,50 @@ function usable(iso: string | null | undefined): string | null {
 // `now` is threaded through so a caller that pins a clock (classifyLead, the
 // object-model checks) gets the same answer from the age parser as from the
 // milestone parser. Without it the two disagreed about what "future" meant.
+// A PUBLICATION DATE IN THE FAR FUTURE IS A PLACEHOLDER, NOT A DATE.
+//
+// Phoenix files three liquor and wagering permits with published_date
+// 2026-12-31, which is the clerk's end-of-year filler rather than anything that
+// happened. It cost a whole harvest: the Legistar incremental cursor is taken
+// from the newest stored date, so Phoenix's cursor sat at 2026-12-01 and the
+// 2026-08-23 harvest fetched "0 matters since 2026-12-01" and said so in one
+// line nobody was reading. A placeholder does not merely misreport freshness; it
+// stops the source being read at all.
+//
+// THIRTY DAYS, CHOSEN FROM THE DISTRIBUTION RATHER THAN PICKED. Measured over
+// all 864 live records carrying a published_date, 11 are in the future:
+//
+//   Phoenix       +131d x3   the placeholders        +3d x3
+//   Nashville      +9d       a real hearing date
+//   Clark County   +2d x4    real hearing dates
+//
+// A cutoff anywhere from +14d to +120d demotes exactly those three and nothing
+// else, so the answer is not sensitive to the constant - which is the strongest
+// argument available for any threshold. 30 sits in the middle of that range, is
+// comfortably clear of the largest legitimate near-future date observed (+9d),
+// and is a month, which is a defensible unit for "a hearing a source published
+// early".
+//
+// IT DEMOTES RATHER THAN DELETES. The date falls through to the parsed-then-
+// first_seen ladder below, so the record keeps a date and its date_source says
+// which kind it is. Refusing the record, or nulling the column outright, would
+// throw away a filing because its clerk typed a round number.
+export const FUTURE_DATE_LIMIT_DAYS = 30;
+
+export function notAPlaceholder(iso: string | null, now: number): string | null {
+  if (!iso) return null;
+  const t = Date.parse(iso);
+  if (Number.isNaN(t)) return null;
+  return t - now > FUTURE_DATE_LIMIT_DAYS * 86_400_000 ? null : iso;
+}
+
 export function deriveLeadDates(
   lead: NormalizedLead,
   _stream: LeadStream = 'opportunity',
   now: number = Date.now()
 ): DerivedDates {
   const deadline = usable(lead.deadline);
-  const published = usable(lead.published_date);
+  const published = notAPlaceholder(usable(lead.published_date), now);
 
   // 1. A real date the source exposed always wins.
   if (deadline || published) {

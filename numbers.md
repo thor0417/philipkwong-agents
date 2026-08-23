@@ -693,3 +693,91 @@ falls from 27.6% of the live register to 8.6%.
 `regate-stored` is read-only by design. The "after" column is what the register
 becomes once they are removed, which is a separate write that has not happened and
 was not authorised by this brief.
+
+## 10. The cleanup. Brief R follow-up, 2026-08-23
+
+### The 71 are tombstoned. The register count did not move, and that is the finding.
+
+`npm run retire:ungated -- --apply` wrote `lifecycle = 'retired'` on **75 records**
+(Broward 74, plus one unattached New York City notice) with a reason naming the
+term. Nothing deleted, nothing dismissed. The CFTOD 2045 Comprehensive Plan is
+correctly untouched: `govdocs` consults no gate, so a vocabulary change cannot
+have removed it.
+
+| | before | after |
+|---|---:|---:|
+| every `projects` row | 424 | **424** |
+| register (`module='gli'`, not dismissed, in scope) | 416 | **416** |
+| register rows holding at least one live record | 410 | **334** |
+| register rows holding ZERO live records | 6 | **82** |
+| **live by stage (`stage NOT IN ('dormant','archived')`)** | **340** | **340** |
+
+**The live-by-stage count did not move at all.** All 71 emptied Broward projects
+still carry a live stage - 69 `hearing scheduled`, 8 `approved`, 6 `filed`, 1
+`stalled` across the 84 Broward rows - because nothing recomputes a stage
+downward when the last record leaves. The six SFWMD shells only *looked* correct
+because their last activity was 1998 to 2024 and the dormancy window caught them;
+Broward's records are from 2026, so these will never age out. Logged as
+`a-project-with-no-records-keeps-a-live-stage`, pending.
+
+All 84 Broward projects carry a `proposed` `client_projects` row, so
+`orphanIsCurated` protected every one of them from the orphan sweep. Zero hard
+deletes.
+
+### The buckets, against what is actually there
+
+| bucket | judged | still holding a record | share |
+|---|---:|---:|---:|
+| a hospitality or entertainment DEVELOPMENT | 45 | **40** | 15.2% |
+| a development, outside the vertical | 60 | 60 | 22.7% |
+| an instrument rather than a project | 141 | 141 | 53.4% |
+| municipal housekeeping | **94** | **23** | **8.7%** |
+| | 340 | 264 | |
+
+76 judged projects now hold zero live records: **71 from this change, all
+housekeeping**, plus **5 Disney / CFTOD shards** emptied by the `perMarket`
+clustering fix landing on this re-cluster. The five are the venue-name shards
+(`Walt Disney World`, `Disneyland`, `Disneyland Resort` and two null markets),
+not real developments - which is why `development-vertical` reads 40 rather than
+45 and why that is not a loss.
+
+### Phoenix: the cursor was the cost, not the display
+
+| | |
+|---|---|
+| newest stored Phoenix `published_date`, before | **2026-12-31** |
+| after `fix:placeholder-dates --apply` (3 rows) | **2026-08-25** |
+| matters the poisoned cursor asked for (`since 2026-12-01`) | **0** |
+| matters the corrected cursor asks for (`since 2026-07-26`) | **30** |
+
+The three rows re-derive to `2026-01-01` with `date_source = 'parsed'` - an age
+signal with honest provenance rather than a fabricated precise date.
+
+**Thirty days is chosen from the distribution, not picked.** Over all 864 live
+records carrying a `published_date`, 11 are in the future: Phoenix +131d x3 and
++3d x3, Nashville +9d, Clark County +2d x4. Any cutoff from **+14d to +120d**
+demotes exactly the three placeholders and nothing else, so the answer is not
+sensitive to the constant.
+
+### The silent cap, measured before it was changed
+
+The Legistar page fetch used `AbortSignal.timeout(30000)`. On failure `fetchJson`
+logged a warning and **returned `[]`**, and the paging loop read a zero-row page
+as `complete: true`. So a 30-second network failure was indistinguishable from a
+finished jurisdiction, and the 2026-08-23 backfill reported **six jurisdictions
+complete at exactly 200 matters each**.
+
+`fetchJson` now returns `null` on failure, the loop stops as `complete: false`
+with `stopped: 'fetch-failed'`, and the run line says
+`*** TRUNCATED: A PAGE REQUEST FAILED, so this window is short by an unknown
+amount ***`. `gate:harvest` now backfills by default;
+`GATE_HARVEST_INCREMENTAL=1` opts out and warns that such a corpus must not be
+used to cost a vocabulary change.
+
+### And one that had been red for two days
+
+`backfill-projects`' own acceptance test names `Weston Urban (San Antonio)`. San
+Antonio was retired on 2026-08-21, so the cluster cannot exist and the script had
+been exiting 1 ever since. Nothing reported it: the script is not in the gate.
+The case now consults `RETIRED_MARKETS` and skips loudly rather than failing, so
+the next retirement does the same on its own.

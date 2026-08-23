@@ -24,6 +24,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { LIVE_PIPELINE_STORAGE_KEY } from '../pipelines';
 import { supabaseAdmin } from '../../../lib/supabase-admin';
+import { isRetiredMarket } from '../../../lib/coverage';
 import { bestDate, clusterRecords, type ClusterRecord, type ClusteredProject } from '../cluster';
 import { loadProjects, projectRow, dropEmptyEnrichment } from '../project-write';
 import {
@@ -670,7 +671,12 @@ Orphan deletions logged to ${logFile}`);
 
 // The ten clusters assembled by hand for the July report. They are known
 // correct, so they are the pass condition: each must come back as ONE project.
-const ACCEPTANCE: { label: string; match: (p: ClusteredProject) => boolean }[] = [
+const ACCEPTANCE: {
+  label: string;
+  match: (p: ClusteredProject) => boolean;
+  /** Set when the cluster's market has been retired; the case is skipped, loudly. */
+  retiredMarket?: string;
+}[] = [
   { label: 'OCVibe', match: (p) => p.name === 'OCVibe' },
   { label: 'Heart Hotel / Kulik River', match: (p) => p.name === 'Heart Hotel / Kulik River' },
   { label: 'Platinum Triangle / PT Metro', match: (p) => p.name === 'Platinum Triangle / PT Metro' },
@@ -687,6 +693,22 @@ const ACCEPTANCE: { label: string; match: (p: ClusteredProject) => boolean }[] =
   {
     label: 'Weston Urban (San Antonio)',
     match: (p) => p.members.some((m) => /weston urban/i.test(m.record.applicant ?? '')),
+    // ITS MARKET WAS RETIRED, so this case cannot pass and must not fail the run.
+    // San Antonio left the covered table on 2026-08-21 and its records were
+    // tombstoned; Weston Urban held eight and all eight were San Antonio
+    // Legistar. The acceptance list is a set of clusters that are KNOWN CORRECT,
+    // and a cluster whose whole feed has been retired is no longer a statement
+    // about the clusterer.
+    //
+    // IT IS SKIPPED RATHER THAN DELETED, and read off RETIRED_MARKETS rather
+    // than hardcoded, so the next retirement does the same thing on its own. The
+    // entry stays because if San Antonio ever comes back this is still the right
+    // assertion.
+    //
+    // FOUND 2026-08-23, TWO DAYS AFTER IT STARTED FAILING. Nothing reported it:
+    // this script is not in the gate, so its own acceptance test had been red
+    // since the retirement and the only symptom was an exit code nobody read.
+    retiredMarket: 'San Antonio',
   },
   {
     label: 'Las Vegas Museum of Art / Symphony Park',
@@ -803,6 +825,10 @@ export function printBackfillReport(
   console.log('\n----- ACCEPTANCE TEST (the July report clusters) -----');
   let allPass = true;
   for (const a of ACCEPTANCE) {
+    if (a.retiredMarket && isRetiredMarket(a.retiredMarket)) {
+      console.log(`  SKIP   ${a.label}: market retired, so this cluster cannot exist. Not a failure.`);
+      continue;
+    }
     const hits = projects.filter(a.match);
     if (hits.length === 0) {
       console.log(`  FAIL   ${a.label}: no project`);
