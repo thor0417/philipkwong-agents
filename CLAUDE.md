@@ -211,6 +211,20 @@ was answering a question this section answers.
   `dashboard build EXIT 1` on a tree whose build is clean when run on its own.
   That happened once and cost a diagnosis. Kill the server before committing a
   dashboard change, not merely before gating one.
+- AND `rm -rf .next` BEFORE THAT COMMIT, WITH THE SERVER ALREADY DOWN. A killed
+  server is necessary and is not sufficient. `next build` begins by recursively
+  deleting the existing `.next`, and after a Playwright run OneDrive has
+  virtualised those files, so the delete dies on
+  `EINVAL: invalid argument, readlink .next/app-build-manifest.json`. The hook
+  runs the build with its output silenced and prints only
+  `dashboard build EXIT 1`, so there is nothing on screen to read and it looks
+  like the change under commit. It is not: the same tree builds clean the moment
+  `.next` is gone. Same family as the `npm run dev` EINVAL two bullets up, and
+  the same fix.
+
+      cd dashboard && rm -rf .next && cd .. && git commit ...
+
+  Cost one refused commit and one reproduction to find, 2026-08-25.
 - `npm run verify` in the dashboard CANNOT COMPLETE in this working copy. Its
   `shots` step starts a dev server over the `.next` it just built, and dev's
   recursive delete of `.next` hits `EINVAL: readlink` on OneDrive-virtualised
