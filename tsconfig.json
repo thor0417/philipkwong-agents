@@ -59,6 +59,18 @@
     // And again. Brief Q item 1: the sub-measures it reports - a named party, a
     // stated fact, a condition, a contact - are properties of what an entry
     // PRINTS, so it calls the real buildEntry rather than counting stored rows.
-    "agents/scraper/diagnostics/holdings-judgement.ts"
+    "agents/scraper/diagnostics/holdings-judgement.ts",
+    // And again, for Brief T. The four criteria it measures - a named party, a
+    // stated fact about the scheme, a condition, a decision - are properties of
+    // what an entry PRINTS, so it calls the real buildEntry rather than counting
+    // filing_facts rows, which would overcount by every fact the entry dedupes,
+    // caps or refuses for failing the quotation check.
+    "agents/scraper/diagnostics/market-standard.ts",
+    // AND THE CHECK ITSELF, which is the first non-diagnostic to cross. It calls
+    // the real buildEntry because the four criteria it gates on are properties
+    // of what an entry PRINTS: counting filing_facts rows would count facts the
+    // entry dedupes, caps or refuses, and the gate would then pass on something
+    // no client ever sees. Run by npm run verify with tsx, never by a build.
+    "agents/scraper/verify-market-standard.ts"
   ]
 }

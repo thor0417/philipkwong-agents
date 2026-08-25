@@ -36,6 +36,7 @@ has no left-hand column.
 npm run verify                    root gate: typecheck plus every scraper suite
 npm run verify:staleness          is any configured jurisdiction reading a dead feed
 npm run gate:measure              precision and recall over the labelled corpus
+npm run verify:market-standard    is every market at the standard it is declared at
 cd dashboard && npm run verify    build plus the full Playwright suite
 cd dashboard && npm run audit:exclusions   does every document state what it withheld
 ```
@@ -140,6 +141,12 @@ was answering a question this section answers.
 - `provenStage` is the stage ladder, `HIGHEST_UNPROVEN_STAGE` its bar.
 - `isProvisionalName` decides whether a project may be printed to a client.
 - `lib/dead-feeds.ts` is read across the package split by both packages.
+- `lib/market-standard.ts` is what COVERED means: the four criteria a project
+  must carry, `MARKETS_AT_STANDARD` declaring which markets reach them, and the
+  sentence a document prints about one that does not. Import-free, so both
+  packages read the one copy. `verify:market-standard` reconciles the
+  declaration against the corpus BOTH ways, the way `verify:coverage-table`
+  does, and a market below standard is reported rather than failed.
 
 **The dashboard** (`dashboard/`)
 - `app/(app)/projects/` is the register, and is the working surface: `page.tsx`,
