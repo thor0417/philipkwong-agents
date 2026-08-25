@@ -2,29 +2,29 @@
   "full": {
     "p": "5 projects",
     "r": "54 records",
-    "pg": "~8 pages",
-    "prov": "100 record / 22 press / 11 assessment"
+    "pg": "~9 pages",
+    "prov": "100 record / 22 press / 14 assessment"
   },
   "fullFiles": {
-    "pdf": 75345,
-    "csv": 26219,
-    "xlsx": 14911
+    "pdf": 75862,
+    "csv": 27182,
+    "xlsx": 15234
   },
   "detail15": {
     "p": "211 projects",
     "r": "182 records",
     "pg": "~15 pages",
-    "prov": "270 record / 33 press / 15 assessment"
+    "prov": "270 record / 33 press / 18 assessment"
   },
   "detail30": {
     "p": "211 projects",
     "r": "182 records",
     "pg": "~22 pages",
-    "prov": "426 record / 33 press / 15 assessment"
+    "prov": "426 record / 33 press / 20 assessment"
   },
   "detailFiles": {
-    "at15": 152603,
-    "at30": 220933
+    "at15": 153198,
+    "at30": 223434
   },
   "deliveryStatus": "Generated CSV. Delivery recorded.",
   "narrowed": {

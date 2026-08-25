@@ -57,6 +57,13 @@ const SANCTIONED = new Set([
   // read by the capture lane AND by the referral brief. Two copies is how the
   // two halves come to disagree about what a client may be shown.
   'agents/scraper/junk-domains.ts',
+  // WHAT COVERED MEANS. The four criteria, the markets declared to reach them,
+  // and the two sentences a document prints about a market that does not. Read
+  // by verify-market-standard in agents/ AND by the coverage note in
+  // report-sections, which is the point: a second copy is how a document comes
+  // to tell a client we do not read something the publisher never printed.
+  // Verified import-free by inspection on 2026-08-25.
+  'lib/market-standard.ts',
 ]);
 
 // Build output and dependencies are not source.

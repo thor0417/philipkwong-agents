@@ -26,9 +26,9 @@
       "projects": 1,
       "named": 0,
       "records": 1,
-      "published": "343d",
+      "published": "344d",
       "captured": "4d",
-      "why": "the newest document we hold is 343 days old, past the 90-day line"
+      "why": "the newest document we hold is 344 days old, past the 90-day line"
     },
     {
       "market": "Nashville",
@@ -66,9 +66,9 @@
       "projects": 20,
       "named": 20,
       "records": 42,
-      "published": "ahead",
+      "published": "0d",
       "captured": "4d",
-      "why": "20 live projects, 20 naming a party, newest document -1 days old"
+      "why": "20 live projects, 20 naming a party, newest document 0 days old"
     },
     {
       "market": "Anaheim",
@@ -76,9 +76,9 @@
       "projects": 19,
       "named": 17,
       "records": 78,
-      "published": "14d",
+      "published": "15d",
       "captured": "4d",
-      "why": "19 live projects, 17 naming a party, newest document 14 days old"
+      "why": "19 live projects, 17 naming a party, newest document 15 days old"
     },
     {
       "market": "Broward County",
@@ -86,9 +86,9 @@
       "projects": 13,
       "named": 12,
       "records": 97,
-      "published": "5d",
+      "published": "6d",
       "captured": "3d",
-      "why": "13 live projects, 12 naming a party, newest document 5 days old"
+      "why": "13 live projects, 12 naming a party, newest document 6 days old"
     },
     {
       "market": "Oakland",
@@ -96,9 +96,9 @@
       "projects": 10,
       "named": 10,
       "records": 14,
-      "published": "35d",
+      "published": "36d",
       "captured": "4d",
-      "why": "10 live projects, 10 naming a party, newest document 35 days old"
+      "why": "10 live projects, 10 naming a party, newest document 36 days old"
     },
     {
       "market": "Westchester County",
@@ -106,9 +106,9 @@
       "projects": 1,
       "named": 1,
       "records": 2,
-      "published": "22d",
+      "published": "23d",
       "captured": "17d",
-      "why": "1 live projects, 1 naming a party, newest document 22 days old"
+      "why": "1 live projects, 1 naming a party, newest document 23 days old"
     }
   ],
   "sources": [
@@ -116,7 +116,7 @@
       "source": "iadb",
       "quiet": true,
       "records": 1,
-      "published": "9367d",
+      "published": "9368d",
       "captured": "15d",
       "thisRun": "unknown",
       "feeds": ""
@@ -161,7 +161,7 @@
       "source": "nyc-zap",
       "quiet": true,
       "records": 43,
-      "published": "90d",
+      "published": "91d",
       "captured": "6d",
       "thisRun": "48",
       "feeds": "New York City"
@@ -206,7 +206,7 @@
       "source": "worldbank",
       "quiet": false,
       "records": 76,
-      "published": "19d",
+      "published": "20d",
       "captured": "15d",
       "thisRun": "unknown",
       "feeds": ""
@@ -215,7 +215,7 @@
       "source": "agenda-portal",
       "quiet": false,
       "records": 117,
-      "published": "14d",
+      "published": "15d",
       "captured": "4d",
       "thisRun": "17",
       "feeds": "Anaheim, Las Vegas"

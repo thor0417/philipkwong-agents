@@ -61,6 +61,52 @@ export const SCHEME_FACT_KINDS: ReadonlySet<string> = new Set([
 export const STANDARD_CRITERIA = ['party', 'facts', 'conditions', 'decision'] as const;
 export type StandardCriterion = (typeof STANDARD_CRITERIA)[number];
 
+// ---- THREE OF THE FOUR ARE UNIVERSAL AND ONE IS NOT --------------------------
+//
+// The first definition asked every market for all four, which made the standard
+// unreachable everywhere but Clark and said nothing about why. PROBED 2026-08-25,
+// 69 distinct documents fetched and parsed, 100% parse rate, with three Clark
+// documents whose conditions already reached the corpus carried as CONTROLS so a
+// silent probe could not pass for a negative result:
+//
+//   Nashville           9 documents   0 with a conditions heading
+//   Oakland             7 documents   2 headings, both REFERENCES not lists
+//   CFTOD               3 documents   1 heading, bond covenant language
+//   Clark, unread       19 documents  1 heading, pre-application meeting boilerplate
+//   Clark, Legistar     31 documents  2 headings, Title 30 zoning CODE text
+//   Clark CONTROL       3 documents   3 headings, 5 to 10 real conditions each
+//
+// NOT ONE per-project condition outside the Clark County agenda sheet. The two
+// Oakland hits are the sharpest evidence, because they are the near miss: a
+// staff report says the project must "comply with the applicable mitigation
+// measures identified in the LMSAP EIR and the City's Standard Conditions of
+// Approval". Oakland HAS standard conditions - as a standing citywide document
+// the report cites and does not reproduce. Clark's Title 30 hit is the same
+// shape: "Conditions of Approval" as a procedure heading in the zoning code.
+//
+// A STANDING CODE CONDITION IS NOT A FACT ABOUT THE PROJECT, and printing one
+// under a project's name would be the label-read-as-the-thing-it-names defect
+// with a county link under it. So conditions stay a criterion and stop being a
+// universal one: they are asked of a market only where the market publishes
+// them per project.
+export const UNIVERSAL_CRITERIA: readonly StandardCriterion[] = ['party', 'facts', 'decision'];
+
+/**
+ * WHERE CONDITIONS ARE PUBLISHED PER PROJECT, measured rather than assumed. A
+ * market absent from this list is not failing: its publisher does not print the
+ * thing, and a document that says otherwise misdescribes the source.
+ *
+ * Re-probe with agents/scraper/diagnostics/conditions-probe before adding one.
+ */
+export const MARKETS_PUBLISHING_CONDITIONS: readonly string[] = ['Clark County'];
+
+export const conditionsApply = (market: string): boolean =>
+  MARKETS_PUBLISHING_CONDITIONS.includes(market);
+
+/** What this market is actually asked for. */
+export const criteriaFor = (market: string): readonly StandardCriterion[] =>
+  conditionsApply(market) ? STANDARD_CRITERIA : UNIVERSAL_CRITERIA;
+
 /** What one project carries, as the entry that would print it carries it. */
 export interface ProjectStandard {
   party: boolean;
@@ -69,11 +115,11 @@ export interface ProjectStandard {
   decision: boolean;
 }
 
-export const meetsStandard = (p: ProjectStandard): boolean =>
-  p.party && p.facts && p.conditions && p.decision;
+export const meetsStandard = (market: string, p: ProjectStandard): boolean =>
+  criteriaFor(market).every((c) => p[c]);
 
-export const shortfall = (p: ProjectStandard): StandardCriterion[] =>
-  STANDARD_CRITERIA.filter((c) => !p[c]);
+export const shortfall = (market: string, p: ProjectStandard): StandardCriterion[] =>
+  criteriaFor(market).filter((c) => !p[c]);
 
 /**
  * THE MARKETS DECLARED AT STANDARD, and the check reconciles BOTH WAYS against
@@ -88,8 +134,20 @@ export const shortfall = (p: ProjectStandard): StandardCriterion[] =>
  *
  * Measured 2026-08-25. Adding a market here without the measurement behind it is
  * the defect this file exists to prevent.
+ *
+ * NEW YORK CITY ARRIVED THE MOMENT CONDITIONS STOPPED BEING UNIVERSAL, and that
+ * is the whole argument for the split. Under the first definition it read as
+ * below standard on conditions its publisher does not print. Asked only what it
+ * can answer, 5 of its 40 live projects carry a named party, stated facts and a
+ * decision with a body and a date - through readers/nyc-records rather than any
+ * document, since all 175 of its primary_document_url values are application
+ * pages and none is a file.
+ *
+ * The check found this itself: it failed as "meeting the standard and not
+ * declared" on the first run after the split, which is the both-ways
+ * reconciliation earning its place on its first real use.
  */
-export const MARKETS_AT_STANDARD: readonly string[] = ['Clark County'];
+export const MARKETS_AT_STANDARD: readonly string[] = ['Clark County', 'New York City'];
 
 /**
  * WHAT A CLIENT DOCUMENT SAYS ABOUT A MARKET BELOW STANDARD.
@@ -102,21 +160,63 @@ export const MARKETS_AT_STANDARD: readonly string[] = ['Clark County'];
  * It states the market and what is missing, and it does NOT refuse to build. A
  * stated gap is the product; a refusal is an outage.
  */
-export function belowStandardNote(market: string, missing: readonly StandardCriterion[]): string {
-  if (missing.length === 0) return '';
-  const words: Record<StandardCriterion, string> = {
-    party: 'the parties to the application',
-    facts: 'the stated facts of the scheme',
-    conditions: 'the conditions of approval',
-    decision: 'the decision, its body and its date',
-  };
-  const named = missing.map((m) => words[m]);
-  const list =
-    named.length === 1
-      ? named[0]
-      : named.slice(0, -1).join(', ') + ' and ' + named[named.length - 1];
+// ---- WHAT A CLIENT DOCUMENT SAYS, IN TWO SENTENCES THAT ARE NOT THE SAME ----
+//
+// Standing rule 3: nothing is silently absent. A Nashville project reading thin
+// without the document saying the market cannot go deeper is exactly the failure
+// the provenance layer exists to prevent - the reader takes a thin entry for a
+// quiet project rather than for a limit.
+//
+// BUT "BELOW STANDARD ON CONDITIONS" IS A CLAIM ABOUT US AND IT IS FALSE
+// EVERYWHERE BUT CLARK. Probed 2026-08-25 over 69 documents: no jurisdiction
+// outside the Clark County agenda sheet publishes a per-project condition at
+// all. Telling a reader we do not reach Nashville's conditions sends them
+// looking for a document nobody wrote. So the two limits get two sentences: one
+// about what we do not read, which is ours to close, and one about what the
+// publisher does not print, which is not.
+//
+// Neither refuses to build. A stated gap is the product; a refusal is an outage.
+
+const CRITERION_WORDS: Record<StandardCriterion, string> = {
+  party: 'the parties to the application',
+  facts: 'the stated facts of the scheme',
+  conditions: 'the conditions of approval',
+  decision: 'the decision, its body and its date',
+};
+
+const listOf = (xs: readonly string[]): string =>
+  xs.length === 0 ? '' : xs.length === 1 ? xs[0] : xs.slice(0, -1).join(', ') + ' and ' + xs[xs.length - 1];
+
+/** What WE do not read in this market. Empty where nothing is missing. */
+export function coverageLimitNote(market: string, missing: readonly StandardCriterion[]): string {
+  const ours = missing.filter((m) => m !== 'conditions' || conditionsApply(market));
+  if (ours.length === 0) return '';
   return (
-    `Coverage of ${market} does not reach ${list}. ` +
+    `Coverage of ${market} does not reach ${listOf(ours.map((m) => CRITERION_WORDS[m]))}. ` +
     `This is a limit of what we read in ${market}, not a finding that the record is silent on it.`
+  );
+}
+
+/**
+ * What the PUBLISHERS do not print, named together in one sentence rather than
+ * repeated per market, because it is one fact about several places.
+ *
+ * Oakland is the reason this is worded as "per project" rather than "at all": a
+ * staff report there requires compliance with "the City's Standard Conditions of
+ * Approval", which exist as a standing citywide document it cites and does not
+ * reproduce. A standing code requirement is not a term attached to this
+ * approval, and printing one under a project's name would be a wrong quotation
+ * under a government link.
+ */
+export function conditionsNotPublishedNote(markets: readonly string[]): string {
+  const absent = [...new Set(markets.filter((m) => m && !conditionsApply(m)))].sort();
+  if (absent.length === 0) return '';
+  const publish = listOf([...MARKETS_PUBLISHING_CONDITIONS].sort());
+  return (
+    `Conditions of approval are published per project in ${publish}, and nowhere else this ` +
+    `document covers: ${listOf(absent)} ${absent.length === 1 ? 'does' : 'do'} not publish them per ` +
+    `project. Nothing here should be read as saying an approval in ${absent.length === 1 ? absent[0] : 'those markets'} ` +
+    `carries no conditions. Where such requirements exist they are standing requirements of the ` +
+    `jurisdiction rather than terms attached to this approval, and we do not reproduce them.`
   );
 }

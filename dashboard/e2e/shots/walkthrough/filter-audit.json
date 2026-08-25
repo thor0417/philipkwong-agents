@@ -339,12 +339,6 @@
     },
     {
       "region": "New York",
-      "market": "Nashville",
-      "rail": 1,
-      "click": 1
-    },
-    {
-      "region": "New York",
       "market": "Westchester County",
       "rail": 1,
       "click": 1

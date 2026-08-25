@@ -42,6 +42,14 @@ import { deadFeedForMarket, frozenMarketSentence, monthYear, type DeadFeed } fro
 // SELF_PUBLISHED_HOSTS there for why this list is NOT the junk list.
 import { hostOf, isSelfPublished } from '../../agents/scraper/junk-domains';
 import { reachSentence, type PartyHistory } from './people';
+import {
+  SCHEME_FACT_KINDS,
+  DECISION_FACT_KINDS,
+  shortfall,
+  coverageLimitNote,
+  conditionsNotPublishedNote,
+  type ProjectStandard,
+} from '../../lib/market-standard';
 
 export interface SectionContext {
   // Every project in scope, after the scope, dormancy, stream and hollowness
@@ -241,6 +249,40 @@ export function frozenByFeed(ctx: SectionContext): { feed: DeadFeed; projects: n
   return [...byMarket.values()].sort(
     (a, b) => b.projects - a.projects || a.feed.market.localeCompare(b.feed.market)
   );
+}
+
+// ---- WHAT THIS DOCUMENT'S MARKETS DO NOT REACH ------------------------------
+//
+// The same shape as frozenByFeed above: a limit on the COVERAGE STATEMENT rather
+// than on the selection. A market whose entries carry no decision is not a
+// market with nothing happening, and a reader who has seen a Clark County
+// referral brief will otherwise read a Nashville one as a thinner project rather
+// than as a thinner source.
+//
+// MEASURED OFF THIS DOCUMENT'S OWN ENTRIES, not off the corpus. The check in
+// agents/scraper/verify-market-standard asks the corpus; this asks what is on
+// the page, for the same reason the provisional-name count is per report and not
+// per register: a document stating a number that is not about itself is the
+// exact failure this layer exists to prevent.
+//
+// A criterion counts as reached when ANY entry in that market carries it. That
+// is deliberately the weakest reading: the sentence claims a limit, and claiming
+// one that is not there is worse than staying quiet.
+function standardByMarket(ctx: SectionContext): Map<string, ProjectStandard> {
+  const marketOf = new Map(ctx.projects.map((p) => [p.id, p.market ?? '']));
+  const out = new Map<string, ProjectStandard>();
+  for (const e of ctx.entries) {
+    const market = marketOf.get(e.id);
+    if (!market) continue;
+    const cur = out.get(market) ?? { party: false, facts: false, conditions: false, decision: false };
+    const stated = e.stated ?? [];
+    cur.party = cur.party || (e.people ?? []).length > 0;
+    cur.facts = cur.facts || stated.some((f) => SCHEME_FACT_KINDS.has(f.kind));
+    cur.conditions = cur.conditions || e.conditions.some((c) => c.conditions.length > 0);
+    cur.decision = cur.decision || stated.some((f) => DECISION_FACT_KINDS.has(f.kind));
+    out.set(market, cur);
+  }
+  return out;
 }
 
 /** 'San Antonio' / 'Miami-Dade County and San Antonio', for the cover sentence. */
@@ -988,6 +1030,23 @@ const coverage: SectionDef = {
         );
       }
     }
+    // ---- WHAT THE COVERAGE REACHES IN EACH MARKET, AND WHAT IT DOES NOT ----
+    //
+    // Two different claims and two different sentences. The first is about US
+    // and is ours to close. The second is about the PUBLISHER: probed
+    // 2026-08-25 over 69 documents, no jurisdiction outside Clark's agenda sheet
+    // prints a per-project condition, so telling a reader we do not reach
+    // Nashville's conditions would send them after a document nobody wrote.
+    const carried = standardByMarket(ctx);
+    for (const [market, has] of [...carried].sort((a, b) => a[0].localeCompare(b[0]))) {
+      const note = coverageLimitNote(market, shortfall(market, has));
+      if (note) notes.push(note);
+    }
+    // Grouped rather than repeated per market, because it is one fact about
+    // several places and one sentence is what a reader will actually read.
+    const publicationNote = conditionsNotPublishedNote([...carried.keys()]);
+    if (publicationNote) notes.push(publicationNote);
+
     // THE REASON AND THE COUNT. The reason alone was here for as long as this
     // section has existed, and it is half a statement: a reader learns a rule
     // fired without learning whether it removed one project or forty.

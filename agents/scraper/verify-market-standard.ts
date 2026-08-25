@@ -43,6 +43,8 @@ import {
   SCHEME_FACT_KINDS,
   MARKETS_AT_STANDARD,
   STANDARD_CRITERIA,
+  criteriaFor,
+  conditionsApply,
   meetsStandard,
   type ProjectStandard,
   type StandardCriterion,
@@ -138,7 +140,7 @@ async function main(): Promise<void> {
       decision: stated.some((f) => DECISION_FACT_KINDS.has(f.kind)),
     };
     for (const c of STANDARD_CRITERIA) if (carries[c]) r[c]++;
-    if (meetsStandard(carries)) r.all++;
+    if (meetsStandard(m, carries)) r.all++;
   }
 
   const ordered = [...rows.values()].sort((a, b) => b.projects - a.projects);
@@ -151,10 +153,18 @@ async function main(): Promise<void> {
   for (const r of ordered) {
     const declared = MARKETS_AT_STANDARD.includes(r.market);
     const met = r.all > 0;
-    const missing: StandardCriterion[] = STANDARD_CRITERIA.filter((c) => r[c] === 0);
+    // ASKED OF THIS MARKET, not asked of every market. Conditions are put to a
+    // market only where the market publishes them per project - probed, not
+    // assumed - so a market that does not is not failing on them and must not
+    // read as though it were.
+    const asked = criteriaFor(r.market);
+    const missing: StandardCriterion[] = asked.filter((c) => r[c] === 0);
+    const suffix = conditionsApply(r.market) ? '' : ' [no conditions published here]';
     const verdict = met
-      ? declared ? 'AT STANDARD' : 'AT STANDARD, NOT DECLARED'
-      : declared ? 'DECLARED AND NOT MET' : 'below: missing ' + (missing.join(', ') || 'nothing on any one project');
+      ? (declared ? 'AT STANDARD' : 'AT STANDARD, NOT DECLARED') + suffix
+      : declared
+        ? 'DECLARED AND NOT MET'
+        : 'below: missing ' + (missing.join(', ') || 'nothing on any one project') + suffix;
     console.log(
       r.market.slice(0, pad - 1).padEnd(pad) + String(r.projects).padStart(6) + String(r.party).padStart(7) +
       String(r.facts).padStart(7) + String(r.conditions).padStart(7) + String(r.decision).padStart(7) +
@@ -181,7 +191,7 @@ async function main(): Promise<void> {
         console.log('  ' + m + ' - holds no live project at all');
         continue;
       }
-      const missing = STANDARD_CRITERIA.filter((c) => r[c] === 0);
+      const missing = criteriaFor(m).filter((c) => r[c] === 0);
       console.log(
         '  ' + m + ' - ' + r.projects + ' live projects, none clearing all four. ' +
         (missing.length ? 'No project carries: ' + missing.join(', ') + '.' : 'Every criterion is carried by some project, none by one project at once.')
