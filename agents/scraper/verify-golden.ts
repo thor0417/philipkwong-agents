@@ -25,7 +25,7 @@
 // message rather than on a line number, because line numbers move on every edit
 // and a guard that fails on unrelated edits is a guard that gets deleted.
 
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { bestTargetForClustering } from './targets';
 import { bestDate, clusterRecords, type ClusterRecord } from './cluster';
 import { deriveProjectName } from './project-naming';
@@ -76,6 +76,79 @@ interface Result {
 
 const INLINE: Record<string, () => string | null> = {
   // Returns null on pass, or the reason it failed.
+
+  'a-recommendation-read-as-the-decision': () => {
+    // PENDING. Reports what the entry does today and does not fail the gate.
+    //
+    // The stage ladder takes the MOST ADVANCED proven stage; the entry prints
+    // the FIRST decision fact it finds. Two different questions, one page, and
+    // nothing reconciles them. What would close it is a rule about which body's
+    // action IS the decision - so the check looks for any sign that one exists.
+    const src = readFileSync('dashboard/lib/report-entry.ts', 'utf8');
+    if (/decision.{0,40}reconcil|reconcil.{0,40}decision/i.test(src)) return null;
+    return 'report-entry prints the first decision fact and never compares it with the stage; 18 of the 32 projects that print a decision print one that disagrees';
+  },
+
+  'a-listing-page-stored-as-the-document': () => {
+    // PENDING. Reports what the corpus does today and does not fail the gate.
+    //
+    // primary_document_url is read as "the document behind this record" - the
+    // entry cites it in place of the record page for exactly that reason - and
+    // for three markets it holds a page that LISTS documents. Closing it needs a
+    // predicate that can tell one from the other; this looks for one.
+    const here = readdirSync('lib').filter((f) => f.endsWith('.ts'));
+    const anySplit = here.some((f) => {
+      const t = readFileSync('lib/' + f, 'utf8');
+      return /isDocumentUrl|isListingPage|documentVsListing/.test(t);
+    });
+    if (anySplit) return null;
+    return 'nothing anywhere distinguishes a fetched file from a page that lists files; 299 of 579 records holding a primary_document_url point at a portal or viewer page and none of those is a file';
+  },
+
+  'a-tracked-artefact-written-by-two-projects': () => {
+    // The light and dark capture projects both match /\.shots\.ts/, so every
+    // file with that suffix runs TWICE against one filesystem. Two of the
+    // directories a test can write are COMMITTED, and a write to a committed
+    // path that resolves the same in both projects is two processes calling
+    // saveAs on one file. The convention that prevents it is either a mode
+    // guard around the write or a destination that carries the mode; this
+    // checks that no .shots.ts has drifted off it.
+    const DIR = 'dashboard/e2e';
+    const dual = readdirSync(DIR).filter((f) => f.endsWith('.shots.ts'));
+    if (dual.length === 0) {
+      return `no .shots.ts under ${DIR}: the capture projects' testMatch has moved and this case is reading nothing`;
+    }
+
+    // And the helper must still be the thing that separates them.
+    const helper = readFileSync(`${DIR}/artefacts.ts`, 'utf8');
+    if (!helper.includes("mode === 'light' ? 'documents' : 'documents-dark'")) {
+      return 'e2e/artefacts.ts no longer sends dark to a documents directory of its own';
+    }
+
+    const bad: string[] = [];
+    for (const file of dual) {
+      const text = readFileSync(`${DIR}/${file}`, 'utf8');
+
+      // walkthrough/ has ONE destination for both projects, so the only
+      // defence there is not writing it twice.
+      if (/walkthroughOut\(|walkthroughDir\(/.test(text) && !text.includes("mode === 'light'")) {
+        bad.push(
+          `${file} writes the committed walkthrough directory from both capture projects and carries no mode guard`
+        );
+      }
+
+      // documents/ separates by mode instead, which only works if the mode is
+      // the thing that reaches it.
+      for (const m of text.matchAll(/documentsDir\(([^)]*)\)/g)) {
+        if (!/\bmode\b/.test(m[1])) {
+          bad.push(
+            `${file} calls documentsDir(${m[1]}) without the mode, so light and dark resolve to one path`
+          );
+        }
+      }
+    }
+    return bad.length > 0 ? bad.join('; ') : null;
+  },
 
   'a-watched-target-sharded-by-a-market-column-the-press-lane-fills': () => {
     const rec = (market: string | null, url: string): ClusterRecord =>
