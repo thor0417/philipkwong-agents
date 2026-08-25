@@ -18,6 +18,7 @@
 import { test, expect } from '@playwright/test';
 import path from 'node:path';
 import { mkdirSync, writeFileSync } from 'node:fs';
+import { walkthroughDir, walkthroughOut } from './artefacts';
 
 const VIEWPORT = { width: 1920, height: 1080 };
 
@@ -233,9 +234,9 @@ test('the rail', async ({ page }, testInfo) => {
   ).toHaveAttribute('aria-expanded', 'false');
 
   if (mode === 'light') {
-    mkdirSync('e2e/shots/walkthrough', { recursive: true });
+    mkdirSync(walkthroughDir(), { recursive: true });
     writeFileSync(
-      'e2e/shots/walkthrough/rail-measure.json',
+      walkthroughOut('rail-measure.json'),
       JSON.stringify({ nav, ...measured, rail }, null, 2)
     );
   }

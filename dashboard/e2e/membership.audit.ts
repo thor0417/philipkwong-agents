@@ -22,6 +22,7 @@
 
 import { test, expect } from '@playwright/test';
 import { mkdirSync, writeFileSync } from 'node:fs';
+import { walkthroughDir, walkthroughOut } from './artefacts';
 
 const VIEWPORT = { width: 1920, height: 1080 };
 
@@ -253,8 +254,8 @@ test('opening a client proposes, and the register can confirm', async ({ page })
       /document would cover \d+ of the \d+ confirmed/
     );
 
-    mkdirSync('e2e/shots/walkthrough', { recursive: true });
-    writeFileSync('e2e/shots/walkthrough/membership-audit.json', JSON.stringify(out, null, 2));
+    mkdirSync(walkthroughDir(), { recursive: true });
+    writeFileSync(walkthroughOut('membership-audit.json'), JSON.stringify(out, null, 2));
   } finally {
     // ---- PUT IT BACK. ------------------------------------------------------
     //

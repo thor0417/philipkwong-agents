@@ -12,6 +12,7 @@
 
 import { test, expect } from '@playwright/test';
 import { writeFileSync, mkdirSync } from 'node:fs';
+import { walkthroughDir, walkthroughOut } from './artefacts';
 
 type Row = {
   filter: string;
@@ -561,9 +562,9 @@ test('register filtering audit', async ({ page }) => {
     }
   }
 
-  mkdirSync('e2e/shots/walkthrough', { recursive: true });
+  mkdirSync(walkthroughDir(), { recursive: true });
   writeFileSync(
-    'e2e/shots/walkthrough/filter-audit.json',
+    walkthroughOut('filter-audit.json'),
     JSON.stringify(
       {
         baseline,
@@ -763,8 +764,8 @@ test('clicking a filter chip requeries the list', async ({ page }) => {
     rows.push({ axis: a.axis, value, before, expected: byUrl, afterClick: landed, requests });
   }
 
-  mkdirSync('e2e/shots/walkthrough', { recursive: true });
-  writeFileSync('e2e/shots/walkthrough/filter-click-audit.json', JSON.stringify({ rows }, null, 2));
+  mkdirSync(walkthroughDir(), { recursive: true });
+  writeFileSync(walkthroughOut('filter-click-audit.json'), JSON.stringify({ rows }, null, 2));
 
   // ---- JUDGE LAST, so a failing axis still leaves the other two measured. ---
   for (const r of rows) {

@@ -11,6 +11,7 @@
 
 import { test, expect } from '@playwright/test';
 import { writeFileSync, mkdirSync } from 'node:fs';
+import { walkthroughDir, walkthroughOut } from './artefacts';
 
 interface ScreenResult {
   name: string;
@@ -154,6 +155,6 @@ test('every screen renders', async ({ page }) => {
     results.push({ name, url, ok: visible, primary, rows: null, consoleErrors, pageErrors, failedRequests: [], notes: [] });
   }
 
-  mkdirSync('e2e/shots/walkthrough', { recursive: true });
-  writeFileSync('e2e/shots/walkthrough/screens-audit.json', JSON.stringify(results, null, 2));
+  mkdirSync(walkthroughDir(), { recursive: true });
+  writeFileSync(walkthroughOut('screens-audit.json'), JSON.stringify(results, null, 2));
 });

@@ -31,6 +31,7 @@ import { test, expect } from '@playwright/test';
 import { REFERRAL_SECTION_IDS } from '../lib/report-sections';
 import path from 'node:path';
 import { mkdirSync, writeFileSync, statSync } from 'node:fs';
+import { documentsDir } from './artefacts';
 
 // ---- LIGHT AND DARK BOTH GENERATE, AND THEY MUST NOT GENERATE ONTO ONE PATH -
 //
@@ -48,9 +49,8 @@ import { mkdirSync, writeFileSync, statSync } from 'node:fs';
 // So the assertions stay in both projects and only the destination separates.
 // documents/ is the committed set and stays light's, because a PDF has no
 // colour scheme; documents-dark/ is a scratch copy nobody reads and is
-// gitignored.
-const documentsFor = (mode: string) =>
-  path.join('e2e', 'shots', mode === 'light' ? 'documents' : 'documents-dark');
+// gitignored. Both hang off SHOTS_ROOT, so the pre-push gate's own run lands in
+// e2e/shots/gate/ and stops dirtying the tree it just verified.
 
 async function download(
   page: import('@playwright/test').Page,
@@ -128,7 +128,7 @@ async function counts(page: import('@playwright/test').Page) {
 
 test('composer generates three documents', async ({ page }, testInfo) => {
   const mode = testInfo.project.name;
-  const out = documentsFor(mode);
+  const out = documentsDir(mode);
   const shot = (name: string) =>
     page.screenshot({ path: path.join('e2e', 'shots', mode, `10-${name}.png`), animations: 'disabled' });
 

@@ -14,6 +14,7 @@
 import { test, expect } from '@playwright/test';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { REFERRAL_SECTION_IDS } from '../lib/report-sections';
+import { walkthroughDir, walkthroughOut } from './artefacts';
 
 test('the project page starts a referral brief for that project', async ({ page }) => {
   const out: Record<string, unknown> = {};
@@ -97,6 +98,6 @@ test('the project page starts a referral brief for that project', async ({ page 
   expect(count, 'a referral brief covering more than one project is not a referral brief')
     .toContain('1 projects');
 
-  mkdirSync('e2e/shots/walkthrough', { recursive: true });
-  writeFileSync('e2e/shots/walkthrough/referral-audit.json', JSON.stringify(out, null, 2));
+  mkdirSync(walkthroughDir(), { recursive: true });
+  writeFileSync(walkthroughOut('referral-audit.json'), JSON.stringify(out, null, 2));
 });

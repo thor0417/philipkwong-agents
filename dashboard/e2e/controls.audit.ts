@@ -10,6 +10,7 @@
 
 import { test, expect } from '@playwright/test';
 import { writeFileSync, mkdirSync } from 'node:fs';
+import { walkthroughDir, walkthroughOut } from './artefacts';
 
 test('controls do what they say', async ({ page }) => {
   test.setTimeout(600_000);
@@ -185,8 +186,8 @@ test('controls do what they say', async ({ page }) => {
   // It used to be written last, so a failing run produced no file at all - and
   // the run where the numbers matter most is the failing one. Measuring and
   // judging are separate jobs and the file belongs to the first of them.
-  mkdirSync('e2e/shots/walkthrough', { recursive: true });
-  writeFileSync('e2e/shots/walkthrough/controls-audit.json', JSON.stringify(out, null, 2));
+  mkdirSync(walkthroughDir(), { recursive: true });
+  writeFileSync(walkthroughOut('controls-audit.json'), JSON.stringify(out, null, 2));
 
   // ---- THE VERDICTS ARE NOW ASSERTIONS. ------------------------------------
   //

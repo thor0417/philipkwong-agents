@@ -14,6 +14,7 @@
 
 import { test, expect } from '@playwright/test';
 import { writeFileSync, mkdirSync } from 'node:fs';
+import { walkthroughDir, walkthroughOut } from './artefacts';
 
 test('players', async ({ page }) => {
   test.setTimeout(300_000);
@@ -51,9 +52,9 @@ test('players', async ({ page }) => {
   await expect(page.locator('h1')).toBeVisible({ timeout: 60_000 });
   console.log(`opened ${href} -> ${(await page.locator('h1').textContent())?.trim()}`);
 
-  mkdirSync('e2e/shots/walkthrough', { recursive: true });
+  mkdirSync(walkthroughDir(), { recursive: true });
   writeFileSync(
-    'e2e/shots/walkthrough/players-audit.json',
+    walkthroughOut('players-audit.json'),
     JSON.stringify({ stats, rows, reachable, multiMarket, multiRole, firstHref: href }, null, 2)
   );
 

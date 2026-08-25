@@ -15,6 +15,7 @@
 
 import { readFileSync } from 'node:fs';
 import { createClient } from '@supabase/supabase-js';
+import { walkthroughOut } from '../e2e/artefacts';
 
 const url = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
 const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -26,7 +27,10 @@ const db = createClient(url, key, { auth: { persistSession: false } });
 // Wrapped rather than top level: the dashboard package is CommonJS, where tsx
 // rejects top-level await outright.
 async function main(): Promise<void> {
-  const PATH = 'e2e/shots/walkthrough/inbox-drain.json';
+  // The same root the harness writes to. Unset, that is the committed path,
+  // which is what a hand-run restore wants; the gate sets E2E_SHOTS_ROOT and
+  // reads its own copy instead.
+  const PATH = walkthroughOut('inbox-drain.json');
   const drain = JSON.parse(readFileSync(PATH, 'utf8')) as {
     start: number;
     after: number;

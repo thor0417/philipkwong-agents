@@ -87,7 +87,7 @@
       "named": 12,
       "records": 97,
       "published": "5d",
-      "captured": "2d",
+      "captured": "3d",
       "why": "13 live projects, 12 naming a party, newest document 5 days old"
     },
     {
@@ -117,7 +117,7 @@
       "quiet": true,
       "records": 1,
       "published": "9367d",
-      "captured": "14d",
+      "captured": "15d",
       "thisRun": "unknown",
       "feeds": ""
     },
@@ -171,7 +171,7 @@
       "quiet": true,
       "records": 63,
       "published": "33d",
-      "captured": "14d",
+      "captured": "15d",
       "thisRun": "63",
       "feeds": "New York City"
     },
@@ -180,7 +180,7 @@
       "quiet": true,
       "records": 69,
       "published": "32d",
-      "captured": "14d",
+      "captured": "15d",
       "thisRun": "97",
       "feeds": "New York City"
     },
@@ -189,7 +189,7 @@
       "quiet": false,
       "records": 4,
       "published": "27d",
-      "captured": "25d",
+      "captured": "26d",
       "thisRun": "6",
       "feeds": "Anaheim"
     },
@@ -207,7 +207,7 @@
       "quiet": false,
       "records": 76,
       "published": "19d",
-      "captured": "14d",
+      "captured": "15d",
       "thisRun": "unknown",
       "feeds": ""
     },
@@ -243,7 +243,7 @@
       "quiet": false,
       "records": 464,
       "published": "ahead",
-      "captured": "2d",
+      "captured": "3d",
       "thisRun": "97",
       "feeds": "Broward County, Clark County, Nashville, Oakland, Phoenix, Westchester County, Yonkers"
     },

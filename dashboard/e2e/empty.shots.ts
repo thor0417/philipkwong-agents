@@ -21,6 +21,7 @@
 import { test, expect } from '@playwright/test';
 import path from 'node:path';
 import { mkdirSync, writeFileSync } from 'node:fs';
+import { walkthroughDir, walkthroughOut } from './artefacts';
 
 const VIEWPORT = { width: 1920, height: 1080 };
 
@@ -123,8 +124,8 @@ test('the register says what is true when it is empty', async ({ page }, testInf
       path: path.join('e2e', 'shots', mode, '09-register-empty.png'),
       animations: 'disabled',
     });
-    mkdirSync('e2e/shots/walkthrough', { recursive: true });
-    writeFileSync('e2e/shots/walkthrough/empty-states.json', JSON.stringify(seen, null, 2));
+    mkdirSync(walkthroughDir(), { recursive: true });
+    writeFileSync(walkthroughOut('empty-states.json'), JSON.stringify(seen, null, 2));
   }
 
   // ---- AND THE WAY OUT WORKS. -------------------------------------------

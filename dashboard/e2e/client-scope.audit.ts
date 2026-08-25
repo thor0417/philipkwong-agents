@@ -23,6 +23,7 @@ import { deadFeedForMarket } from '../../lib/dead-feeds';
 import { createClient } from '@supabase/supabase-js';
 import { writeFileSync, mkdirSync, readFileSync, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { walkthroughDir, walkthroughOut } from './artefacts';
 
 const CLIENT_NAME = 'Simtec Attractions';
 
@@ -210,9 +211,9 @@ test('a scoped client sees nothing outside their scope', async ({ page }) => {
   const venuesShown = [...new Set(inScope.map((p) => String(p.venue_type ?? '(none)')))].sort();
   console.log(`venue types present: ${venuesShown.join(', ')}`);
 
-  mkdirSync('e2e/shots/walkthrough', { recursive: true });
+  mkdirSync(walkthroughDir(), { recursive: true });
   writeFileSync(
-    'e2e/shots/walkthrough/client-scope-audit.json',
+    walkthroughOut('client-scope-audit.json'),
     JSON.stringify({ shown, unscoped, inScope: inScope.length, marketsShown, venuesShown }, null, 2)
   );
 });

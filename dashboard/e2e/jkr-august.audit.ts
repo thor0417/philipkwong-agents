@@ -11,6 +11,7 @@
 
 import { test, expect } from '@playwright/test';
 import { writeFileSync, mkdirSync } from 'node:fs';
+import { walkthroughDir, walkthroughOut } from './artefacts';
 
 test('the JKR August report reconciles with the register Arrived count', async ({ page }) => {
   const out: Record<string, unknown> = {};
@@ -71,6 +72,6 @@ test('the JKR August report reconciles with the register Arrived count', async (
   ).toBeLessThanOrEqual(registerArrived);
   console.log(`\nreconciles: report active ${active} <= register arrived ${registerArrived}`);
 
-  mkdirSync('e2e/shots/walkthrough', { recursive: true });
-  writeFileSync('e2e/shots/walkthrough/jkr-august-audit.json', JSON.stringify(out, null, 2));
+  mkdirSync(walkthroughDir(), { recursive: true });
+  writeFileSync(walkthroughOut('jkr-august-audit.json'), JSON.stringify(out, null, 2));
 });

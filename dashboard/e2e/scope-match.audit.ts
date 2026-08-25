@@ -23,6 +23,7 @@ import { test, expect } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
 import { readFileSync, existsSync, writeFileSync, mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { walkthroughDir, walkthroughOut } from './artefacts';
 
 const CLIENT_NAME = 'Simtec Attractions';
 
@@ -114,6 +115,6 @@ test('a stored scope matches the database however it is spelled', async ({ page 
     results['one market, as spelled']
   );
 
-  mkdirSync('e2e/shots/walkthrough', { recursive: true });
-  writeFileSync('e2e/shots/walkthrough/scope-match-audit.json', JSON.stringify(results, null, 2));
+  mkdirSync(walkthroughDir(), { recursive: true });
+  writeFileSync(walkthroughOut('scope-match-audit.json'), JSON.stringify(results, null, 2));
 });

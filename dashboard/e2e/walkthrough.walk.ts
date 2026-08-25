@@ -6,8 +6,9 @@
 
 import { test, expect } from '@playwright/test';
 import path from 'node:path';
+import { walkthroughOut } from './artefacts';
 
-const OUT = (name: string) => path.join('e2e', 'shots', 'walkthrough', `${name}.png`);
+const OUT = (name: string) => walkthroughOut(`${name}.png`);
 
 async function settle(page: import('@playwright/test').Page) {
   await page.evaluate(() => document.fonts.ready);

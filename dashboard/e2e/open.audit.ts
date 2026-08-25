@@ -18,6 +18,7 @@
 
 import { test, expect } from '@playwright/test';
 import { mkdirSync, writeFileSync } from 'node:fs';
+import { walkthroughDir, walkthroughOut } from './artefacts';
 
 const VIEWPORT = { width: 1920, height: 1080 };
 const REST = '/rest/v1/';
@@ -109,8 +110,8 @@ test('opening the register', async ({ browser }) => {
 
   await context.close();
 
-  mkdirSync('e2e/shots/walkthrough', { recursive: true });
-  writeFileSync('e2e/shots/walkthrough/open-audit.json', JSON.stringify(results, null, 2));
+  mkdirSync(walkthroughDir(), { recursive: true });
+  writeFileSync(walkthroughOut('open-audit.json'), JSON.stringify(results, null, 2));
 
   // ---- JUDGE. -------------------------------------------------------------
   //

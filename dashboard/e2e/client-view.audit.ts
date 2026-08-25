@@ -11,6 +11,7 @@ import { test, expect } from '@playwright/test';
 import { writeFileSync, mkdirSync, existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { createClient } from '@supabase/supabase-js';
+import { walkthroughDir, walkthroughOut } from './artefacts';
 
 function readEnvFile(path: string): Record<string, string> {
   if (!existsSync(path)) return {};
@@ -104,6 +105,6 @@ test('every client view states why each project is in it', async ({ page }) => {
     }
   }
 
-  mkdirSync('e2e/shots/walkthrough', { recursive: true });
-  writeFileSync('e2e/shots/walkthrough/client-view-audit.json', JSON.stringify(report, null, 2));
+  mkdirSync(walkthroughDir(), { recursive: true });
+  writeFileSync(walkthroughOut('client-view-audit.json'), JSON.stringify(report, null, 2));
 });

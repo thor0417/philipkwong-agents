@@ -15,6 +15,7 @@ import { writeFileSync, mkdirSync } from 'node:fs';
 // ONE COPY, READ ACROSS THE PACKAGE SPLIT. corpus-scope imports nothing, so it
 // is on the sanctioned dashboard -> agents list; see the CLAUDE.md split note.
 import { CORPUS_COUNTRIES } from '../../lib/corpus-scope';
+import { walkthroughDir, walkthroughOut } from './artefacts';
 
 test('coverage and health', async ({ page }) => {
   test.setTimeout(300_000);
@@ -132,9 +133,9 @@ test('coverage and health', async ({ page }) => {
   console.log(`\ncomposer offers ${offered.length} countries, ${nonUs.length} of them not the US`);
   console.log(`  e.g. ${nonUs.slice(0, 8).join(', ')}`);
 
-  mkdirSync('e2e/shots/walkthrough', { recursive: true });
+  mkdirSync(walkthroughDir(), { recursive: true });
   writeFileSync(
-    'e2e/shots/walkthrough/coverage-audit.json',
+    walkthroughOut('coverage-audit.json'),
     JSON.stringify(
       { markets, sources, quiet: quiet.map((q) => q.source), railMarkets, composerCountries: offered },
       null,

@@ -17,6 +17,7 @@
 
 import { test, expect } from '@playwright/test';
 import { writeFileSync, mkdirSync } from 'node:fs';
+import { walkthroughDir, walkthroughOut } from './artefacts';
 
 async function totalFor(page: import('@playwright/test').Page, url: string): Promise<number> {
   await page.goto(url, { waitUntil: 'domcontentloaded' });
@@ -108,9 +109,9 @@ test('period selection sums', async ({ page }) => {
   console.log(`January 2019 (nothing existed): ${empty}`);
   expect(empty, 'an empty period returned rows, so the period filter was dropped').toBe(0);
 
-  mkdirSync('e2e/shots/walkthrough', { recursive: true });
+  mkdirSync(walkthroughDir(), { recursive: true });
   writeFileSync(
-    'e2e/shots/walkthrough/period-audit.json',
+    walkthroughOut('period-audit.json'),
     JSON.stringify({ ...out, arrivedJuly, movedJuly, allTime, emptyPeriod: empty }, null, 2)
   );
 });

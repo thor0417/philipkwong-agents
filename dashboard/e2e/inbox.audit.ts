@@ -24,6 +24,7 @@
 import { test, expect } from '@playwright/test';
 import { writeFileSync, mkdirSync, readFileSync } from 'node:fs';
 import { createClient } from '@supabase/supabase-js';
+import { walkthroughDir, walkthroughOut } from './artefacts';
 
 const TRIAGE = 20;
 
@@ -71,9 +72,9 @@ test('the inbox drains', async ({ page }) => {
   const session = await page.getByTestId('inbox-triaged').textContent();
   console.log(`session counter: ${session?.trim()}`);
 
-  mkdirSync('e2e/shots/walkthrough', { recursive: true });
+  mkdirSync(walkthroughDir(), { recursive: true });
   writeFileSync(
-    'e2e/shots/walkthrough/inbox-drain.json',
+    walkthroughOut('inbox-drain.json'),
     JSON.stringify({ start, after, triaged: TRIAGE, dismissed }, null, 2)
   );
 

@@ -6,9 +6,9 @@
     "prov": "100 record / 22 press / 11 assessment"
   },
   "fullFiles": {
-    "pdf": 75340,
+    "pdf": 75345,
     "csv": 26219,
-    "xlsx": 14914
+    "xlsx": 14911
   },
   "detail15": {
     "p": "211 projects",
@@ -23,8 +23,8 @@
     "prov": "426 record / 33 press / 15 assessment"
   },
   "detailFiles": {
-    "at15": 152590,
-    "at30": 217137
+    "at15": 152603,
+    "at30": 220933
   },
   "deliveryStatus": "Generated CSV. Delivery recorded.",
   "narrowed": {

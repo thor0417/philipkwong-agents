@@ -39,6 +39,7 @@ import { createClient } from '@supabase/supabase-js';
 import { readFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { CORPUS_COUNTRIES } from '../../lib/corpus-scope';
+import { walkthroughOut } from './artefacts';
 
 function readEnvFile(path: string): Record<string, string> {
   if (!existsSync(path)) return {};
@@ -67,7 +68,7 @@ const admin = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_RO
   auth: { persistSession: false },
 });
 
-const ARTIFACT = 'e2e/shots/walkthrough/corpus-scope-audit.json';
+const ARTIFACT = walkthroughOut('corpus-scope-audit.json');
 
 async function totalFor(page: import('@playwright/test').Page, url: string): Promise<number> {
   await page.goto(url, { waitUntil: 'domcontentloaded' });

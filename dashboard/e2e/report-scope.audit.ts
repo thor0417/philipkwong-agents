@@ -21,6 +21,7 @@ import { streamLabel } from '../lib/streams';
 import { createClient } from '@supabase/supabase-js';
 import { readFileSync, existsSync, writeFileSync, mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { walkthroughDir, walkthroughOut } from './artefacts';
 
 const CLIENT_NAME = 'Simtec Attractions';
 const PERIOD = 'm:2026-07';
@@ -350,6 +351,6 @@ test('the three axes the composer used to drop', async ({ page }) => {
     'no axis reduced the report at all, so the composer is not applying its chips'
   ).toBeGreaterThan(0);
 
-  mkdirSync('e2e/shots/walkthrough', { recursive: true });
-  writeFileSync('e2e/shots/walkthrough/report-scope-audit.json', JSON.stringify(out, null, 2));
+  mkdirSync(walkthroughDir(), { recursive: true });
+  writeFileSync(walkthroughOut('report-scope-audit.json'), JSON.stringify(out, null, 2));
 });

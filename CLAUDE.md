@@ -168,6 +168,14 @@ was answering a question this section answers.
   last asserts equality against both. Everything else in the suite still runs
   in parallel. A failure in one SKIPS the rest of the chain, which reports as
   skipped rather than as passed.
+- `e2e/artefacts.ts` owns WHERE a committed artefact goes. Two directories under
+  `e2e/shots` are tracked and a full run rewrites 35 of the 40 files in them, so
+  the pre-push gate used to leave the tree dirty the moment a push succeeded.
+  `E2E_SHOTS_ROOT` defaults to `e2e/shots`, which is what an interactive run
+  wants; the hook sets `e2e/shots/gate`, which the existing
+  `dashboard/e2e/shots/*` ignore rule already covers, so there is no third
+  negation to get wrong. Every write to `walkthrough/` and `documents/` goes
+  through it, and so does `scripts/inbox-restore.ts`, which reads one back.
 - `scripts/exclusion-audit.ts` checks that every withheld thing is stated.
 
 **Running it**

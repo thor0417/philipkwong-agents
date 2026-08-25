@@ -109,7 +109,20 @@ run "audit:exclusions" sh -c 'cd dashboard && npm run --silent audit:exclusions'
 # that skips a suite in silence is the same defect as a document that withholds
 # a project in silence.
 if curl -s -o /dev/null -m 3 http://localhost:3000/login; then
-  run "dashboard playwright" sh -c 'cd dashboard && npx playwright test'
+  # E2E_SHOTS_ROOT SO THE GATE STOPS DIRTYING THE TREE IT JUST VERIFIED.
+  #
+  # Two directories under dashboard/e2e/shots are committed and a full run
+  # rewrites 35 of the 40 files in them. Run by a person that is the point; run
+  # here it means every successful push leaves a modified working copy, and the
+  # next session opens on churn that looks like unfinished work. Nineteen files
+  # on the run that prompted this, all of it PDF byte sizes and one count that
+  # moved because the corpus advanced between the two runs.
+  #
+  # e2e/shots/gate/ rather than a sibling directory: .gitignore already carries
+  # `dashboard/e2e/shots/*` with two negations under it, so a new child of
+  # shots/ is ignored by the rule that is already there. No new entry, and no
+  # third negation to get wrong.
+  run "dashboard playwright" sh -c 'cd dashboard && E2E_SHOTS_ROOT=e2e/shots/gate npx playwright test'
 else
   echo ""
   echo "  ####################################################################"
