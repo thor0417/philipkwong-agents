@@ -77,6 +77,18 @@ interface Result {
 const INLINE: Record<string, () => string | null> = {
   // Returns null on pass, or the reason it failed.
 
+  'one-foreign-record-carries-a-whole-project-into-another-market': () => {
+    // PENDING. Reports what the code does today and does not fail the gate.
+    //
+    // A market scope matches a project on ANY of its records, so a single record
+    // whose market is not the project's puts the WHOLE project into that other
+    // market's document, geography subheading and all. What would close it is a
+    // weight or a threshold on that match; this looks for one.
+    const src = readFileSync('dashboard/lib/report-build.ts', 'utf8');
+    if (/foreign record|records in that market|marketMatchThreshold/i.test(src)) return null;
+    return 'a market scope still matches on any single record, so one mis-clustered record carries an entire project into the document of another market';
+  },
+
   'a-recommendation-read-as-the-decision': () => {
     // PENDING. Reports what the entry does today and does not fail the gate.
     //
