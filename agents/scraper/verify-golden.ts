@@ -26,7 +26,7 @@
 // and a guard that fails on unrelated edits is a guard that gets deleted.
 
 import { readFileSync, readdirSync } from 'node:fs';
-import { bestTargetForClustering } from './targets';
+import { bestTargetForClustering, strongBypassesGate } from './targets';
 import { bestDate, clusterRecords, type ClusterRecord } from './cluster';
 import { deriveProjectName } from './project-naming';
 import { classifyVenueType, governmentGate, provenStage } from '../../lib/taxonomy';
@@ -78,15 +78,35 @@ const INLINE: Record<string, () => string | null> = {
   // Returns null on pass, or the reason it failed.
 
   'one-foreign-record-carries-a-whole-project-into-another-market': () => {
-    // PENDING. Reports what the code does today and does not fail the gate.
-    //
-    // A market scope matches a project on ANY of its records, so a single record
-    // whose market is not the project's puts the WHOLE project into that other
-    // market's document, geography subheading and all. What would close it is a
-    // weight or a threshold on that match; this looks for one.
-    const src = readFileSync('dashboard/lib/report-build.ts', 'utf8');
-    if (/foreign record|records in that market|marketMatchThreshold/i.test(src)) return null;
-    return 'a market scope still matches on any single record, so one mis-clustered record carries an entire project into the document of another market';
+    // THE REAL TEXTS, not a synthetic pair. The first is the record that caused
+    // it, verbatim from the corpus; the second is the press item the same term
+    // uniquely earns and which districtWide must keep CAPTURING.
+    const nashville =
+      'Government record (Legistar Matter): A resolution accepting the terms of a ' +
+      'cooperative purchasing master agreement with Hustler Turf Equipment, Inc. for ' +
+      'grounds maintenance and landscaping equipment for both the Metropolitan Parks ' +
+      'Department and the General Services Department. Jurisdiction: Nashville, TN';
+    const press = 'Metropolitan Park casino project unveils 3 hotel towers';
+    const filing = 'Willets Point Phase 2 special permit, Queens Development Group, Metropolitan Park';
+
+    // CLAIMS NEVER. A municipal parks department is not a stadium project.
+    const claimed = bestTargetForClustering(nashville, { title: nashville.slice(0, 90) });
+    if (claimed) {
+      return `a Nashville parks purchasing resolution is claimed by "${claimed.name}"`;
+    }
+    // ADMITS ALWAYS, which is the half that makes districtWide different from
+    // deleting the term. Removing it from `bypass` passes the check above and
+    // silently drops the one record the term earns - that happened while this
+    // case was being written.
+    if (!strongBypassesGate(press)) {
+      return 'the press item the term uniquely earns is no longer admitted: the term was removed from bypass rather than moved to districtWide';
+    }
+    // AND THE PROJECT ITSELF STILL CLUSTERS, on its own name.
+    const right = bestTargetForClustering(filing, { title: filing.slice(0, 90) });
+    if (right?.name !== 'Metropolitan Park / Willets Point') {
+      return `a real Willets Point filing now clusters to ${right?.name ?? 'nothing'}`;
+    }
+    return null;
   },
 
   'a-recommendation-read-as-the-decision': () => {

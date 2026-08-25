@@ -155,6 +155,12 @@ export const TARGETS: TargetDef[] = [
     name: 'Metropolitan Park / Willets Point',
     bypass: [
       'willets point',
+      // STAYS IN bypass AND IS LISTED IN districtWide BELOW, which is what the
+      // pair means: bypassHits reads `bypass` only, so a term removed from it
+      // stops ADMITTING as well as stops claiming, and the press item this term
+      // uniquely earns would have been lost rather than kept unclaimed. Same
+      // shape as 'hudson yards' and 'honda center', both of which sit in both
+      // lists.
       'metropolitan park',
       'queens development group',
       'city football stadium',
@@ -162,6 +168,30 @@ export const TARGETS: TargetDef[] = [
       'sterling equities',
     ],
     searchOnly: ['citi field', 'flushing meadows'],
+    // 'metropolitan park' IS THE PROJECT'S OWN NAME AND IT IS ALSO TWO ORDINARY
+    // MUNICIPAL WORDS. It substring-matched "Metropolitan Parks Department" and
+    // claimed a Nashville Metro Council resolution about buying grounds
+    // maintenance equipment from Hustler Turf Equipment, which put this entire
+    // New York project into every Nashville market report under its own
+    // "New York City" geography subheading, with its co-applicants and 38
+    // mentions of New York. A client paying for Nashville received a New York
+    // project.
+    //
+    // MEASURED before moving it, over 1,604 undismissed records:
+    //
+    //   'metropolitan park'   3 records   2 New York, 1 Nashville (the defect)
+    //   'willets point'      11 records  10 New York, 1 unmarketed
+    //
+    // The term uniquely earns ONE record 'willets point' does not already catch
+    // - the press item "Metropolitan Park casino project unveils 3 hotel
+    // towers" - and it caused one false merge. One for one.
+    //
+    // districtWide rather than deletion, because that item is worth CAPTURING
+    // and is not worth CLAIMING on this term alone: admits always, claims
+    // never. Third use of the mechanism and the same shape each time -
+    // 'hudson yards' merged 15 separate buildings into one project, and
+    // 'honda center' pulled the LA28 Games Agreement into OCVibe.
+    districtWide: ['metropolitan park'],
   },
   {
     // Not found in any of the three sources as of 2026-08-09. Resorts World
