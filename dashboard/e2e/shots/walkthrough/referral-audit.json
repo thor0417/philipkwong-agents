@@ -1,10 +1,10 @@
 {
   "project": {
-    "id": "c45174d6-aab6-439e-8e4a-cc0304a6c0d3",
-    "name": "OCVibe"
+    "id": "2bc81605-e639-4a95-8353-026bd7808b23",
+    "name": "Heart Hotel / Kulik River"
   },
-  "url": "http://localhost:3000/reports?project=c45174d6-aab6-439e-8e4a-cc0304a6c0d3&mode=referral",
-  "composerSelection": "OCVibe (Anaheim)",
+  "url": "http://localhost:3000/reports?project=2bc81605-e639-4a95-8353-026bd7808b23&mode=referral",
+  "composerSelection": "Heart Hotel / Kulik River (Clark County)",
   "sections": [
     "referral-cover",
     "referral-project",

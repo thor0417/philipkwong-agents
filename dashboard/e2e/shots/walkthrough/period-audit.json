@@ -1,6 +1,6 @@
 {
   "arrived": {
-    "month": 117,
+    "month": 103,
     "weeks": [
       {
         "token": "c:2026-07-01..2026-07-05",
@@ -16,17 +16,17 @@
       },
       {
         "token": "c:2026-07-20..2026-07-26",
-        "count": 96
+        "count": 84
       },
       {
         "token": "c:2026-07-27..2026-07-31",
-        "count": 59
+        "count": 51
       }
     ],
-    "summed": 155
+    "summed": 135
   },
   "moved": {
-    "month": 115,
+    "month": 117,
     "weeks": [
       {
         "token": "c:2026-07-01..2026-07-05",
@@ -34,7 +34,7 @@
       },
       {
         "token": "c:2026-07-06..2026-07-12",
-        "count": 10
+        "count": 14
       },
       {
         "token": "c:2026-07-13..2026-07-19",
@@ -46,13 +46,13 @@
       },
       {
         "token": "c:2026-07-27..2026-07-31",
-        "count": 24
+        "count": 23
       }
     ],
-    "summed": 133
+    "summed": 136
   },
-  "arrivedJuly": 117,
-  "movedJuly": 115,
-  "allTime": 235,
+  "arrivedJuly": 103,
+  "movedJuly": 117,
+  "allTime": 416,
   "emptyPeriod": 0
 }

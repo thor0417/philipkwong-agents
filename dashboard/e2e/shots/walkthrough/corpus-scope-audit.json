@@ -1,0 +1,34 @@
+{
+  "about": "The register default is corpus scope, not an equality on one country. An unresolved country is not a foreign one; see lib/corpus-scope.",
+  "corpusCountries": [
+    "United States"
+  ],
+  "database": {
+    "registerPopulation": 416,
+    "predicate": "projects WHERE module = 'gli' AND status <> 'dismissed'",
+    "inCoveredCountry": 411,
+    "countryUnresolved": 5,
+    "countryResolvedForeign": 0,
+    "unresolvedNames": [
+      "UMusic Hotel & Private Residences Austin to Feature White Rocks Amphitheater",
+      "1020 West Imperial Highway",
+      "Sacramento Poised for Long-Term Lodging Growth",
+      "Resort Feasibility Study Case Study: Greenfield Hospitality",
+      "Significant Changes and Transformative Projects Coming"
+    ]
+  },
+  "screen": {
+    "default": {
+      "count": 416,
+      "predicate": "country IS NULL OR country IN (corpus)"
+    },
+    "explicitCountry": {
+      "count": 411,
+      "predicate": "country = 'United States'"
+    },
+    "cleared": {
+      "count": 416,
+      "predicate": "no country filter"
+    }
+  }
+}

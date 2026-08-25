@@ -2,27 +2,27 @@
   "rows": [
     {
       "axis": "venue",
-      "value": "Hotel",
-      "before": 235,
-      "expected": 31,
-      "afterClick": 31,
+      "value": "Casino/Gaming",
+      "before": 416,
+      "expected": 39,
+      "afterClick": 39,
       "requests": 13
     },
     {
       "axis": "category",
       "value": "Hospitality/Tourism",
-      "before": 235,
-      "expected": 82,
-      "afterClick": 82,
+      "before": 416,
+      "expected": 102,
+      "afterClick": 102,
       "requests": 13
     },
     {
       "axis": "market",
       "value": "Anaheim",
-      "before": 27,
+      "before": 33,
       "expected": 19,
       "afterClick": 19,
-      "requests": 15
+      "requests": 16
     }
   ]
 }

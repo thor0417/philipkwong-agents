@@ -32,15 +32,38 @@ import { REFERRAL_SECTION_IDS } from '../lib/report-sections';
 import path from 'node:path';
 import { mkdirSync, writeFileSync, statSync } from 'node:fs';
 
-const OUT = path.join('e2e', 'shots', 'documents');
+// ---- LIGHT AND DARK BOTH GENERATE, AND THEY MUST NOT GENERATE ONTO ONE PATH -
+//
+// This test runs in both capture projects and every ASSERTION in it is worth
+// running twice: assertNoInventedAssessments and the per-document counts are
+// about what the document says, not about what colour the screenshots are.
+//
+// The WRITE is not. Run one after another the dark pass simply overwrote the
+// light one, which is waste rather than harm. Run at more than one worker the
+// two projects call saveAs on the SAME PATH at the same time, in the directory
+// whose own retry loop below exists because OneDrive takes a handle on a file
+// it is syncing. A torn PDF that still gets committed is the worst outcome
+// available here, and it would look like a product defect.
+//
+// So the assertions stay in both projects and only the destination separates.
+// documents/ is the committed set and stays light's, because a PDF has no
+// colour scheme; documents-dark/ is a scratch copy nobody reads and is
+// gitignored.
+const documentsFor = (mode: string) =>
+  path.join('e2e', 'shots', mode === 'light' ? 'documents' : 'documents-dark');
 
-async function download(page: import('@playwright/test').Page, testId: string, filename: string) {
+async function download(
+  page: import('@playwright/test').Page,
+  out: string,
+  testId: string,
+  filename: string
+) {
   await assertNoInventedAssessments(page);
   const wait = page.waitForEvent('download', { timeout: 120_000 });
   await page.getByTestId(testId).click();
   const dl = await wait;
-  mkdirSync(OUT, { recursive: true });
-  const dest = path.join(OUT, filename);
+  mkdirSync(out, { recursive: true });
+  const dest = path.join(out, filename);
   // ---- ONEDRIVE HOLDS THE FILE IT IS SYNCING --------------------------------
   //
   // saveAs copies onto a path inside the repo, and this repo lives in OneDrive,
@@ -105,6 +128,7 @@ async function counts(page: import('@playwright/test').Page) {
 
 test('composer generates three documents', async ({ page }, testInfo) => {
   const mode = testInfo.project.name;
+  const out = documentsFor(mode);
   const shot = (name: string) =>
     page.screenshot({ path: path.join('e2e', 'shots', mode, `10-${name}.png`), animations: 'disabled' });
 
@@ -128,9 +152,9 @@ test('composer generates three documents', async ({ page }, testInfo) => {
   summary.full = full;
   await shot('composer-full');
 
-  const fullPdf = await download(page, 'gen-pdf', 'full-report.pdf');
-  const fullCsv = await download(page, 'gen-csv', 'full-report.csv');
-  const fullXlsx = await download(page, 'gen-xlsx', 'full-report.xlsx');
+  const fullPdf = await download(page, out, 'gen-pdf', 'full-report.pdf');
+  const fullCsv = await download(page, out, 'gen-csv', 'full-report.csv');
+  const fullXlsx = await download(page, out, 'gen-xlsx', 'full-report.xlsx');
   console.log(`  pdf ${fullPdf.size} b, csv ${fullCsv.size} b, xlsx ${fullXlsx.size} b`);
   summary.fullFiles = { pdf: fullPdf.size, csv: fullCsv.size, xlsx: fullXlsx.size };
 
@@ -159,8 +183,8 @@ test('composer generates three documents', async ({ page }, testInfo) => {
   console.log(`INTERNAL 15: ${at15.p} | ${at15.r} | ${at15.pg} | ${at15.prov}`);
   summary.detail15 = at15;
   await shot('composer-detail-15');
-  const pdf15 = await download(page, 'gen-pdf', 'register-detail-15.pdf');
-  const csv15 = await download(page, 'gen-csv', 'register-detail-15.csv');
+  const pdf15 = await download(page, out, 'gen-pdf', 'register-detail-15.pdf');
+  const csv15 = await download(page, out, 'gen-csv', 'register-detail-15.csv');
   console.log(`  pdf ${pdf15.size} b, csv ${csv15.size} b`);
 
   await page.getByTestId('report-detail-cap').fill('30');
@@ -171,8 +195,8 @@ test('composer generates three documents', async ({ page }, testInfo) => {
   console.log(`INTERNAL 30: ${at30.p} | ${at30.r} | ${at30.pg} | ${at30.prov}`);
   summary.detail30 = at30;
   await shot('composer-detail-30');
-  const pdf30 = await download(page, 'gen-pdf', 'register-detail-30.pdf');
-  const csv30 = await download(page, 'gen-csv', 'register-detail-30.csv');
+  const pdf30 = await download(page, out, 'gen-pdf', 'register-detail-30.pdf');
+  const csv30 = await download(page, out, 'gen-csv', 'register-detail-30.csv');
   console.log(`  pdf ${pdf30.size} b, csv ${csv30.size} b`);
   summary.detailFiles = { at15: pdf15.size, at30: pdf30.size };
 
@@ -218,7 +242,7 @@ test('composer generates three documents', async ({ page }, testInfo) => {
   expect(nNarrow, 'the narrowed report is empty').toBeGreaterThan(0);
 
   await shot('composer-county');
-  const countyPdf = await download(page, 'gen-pdf', 'county-report.pdf');
+  const countyPdf = await download(page, out, 'gen-pdf', 'county-report.pdf');
   console.log(`  pdf ${countyPdf.size} b`);
   summary.countyFiles = { pdf: countyPdf.size };
 
@@ -366,10 +390,10 @@ test('composer generates three documents', async ({ page }, testInfo) => {
   console.log(`REFERRAL: ${referral.p} | ${referral.r} | ${referral.pg} | ${referral.prov}`);
   summary.referral = referral;
   await shot('composer-referral');
-  const refPdf = await download(page, 'gen-pdf', 'referral-brief.pdf');
+  const refPdf = await download(page, out, 'gen-pdf', 'referral-brief.pdf');
   console.log(`  pdf ${refPdf.size} b`);
   summary.referralFiles = { pdf: refPdf.size };
 
-  mkdirSync(OUT, { recursive: true });
-  writeFileSync(path.join(OUT, 'summary.json'), JSON.stringify(summary, null, 2));
+  mkdirSync(out, { recursive: true });
+  writeFileSync(path.join(out, 'summary.json'), JSON.stringify(summary, null, 2));
 });

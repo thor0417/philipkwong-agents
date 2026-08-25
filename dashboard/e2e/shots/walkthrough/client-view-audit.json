@@ -1,32 +1,32 @@
 [
   {
     "client": "JKR & Associates",
-    "proposed": 235,
+    "proposed": 416,
     "withReason": 0,
     "withoutReason": 50,
     "unconstrained": true,
-    "bar": "CLIENT SCOPE The stored scope constrains no axis, so this client is proposed everything. 127 proposed, 116 confirmed, 0 excluded. A document would cover 111 of the 116 confirmed. 5 of the confirmed will not print: 5 carry a name taken from an agenda line, which you can fix by opening the project and renaming it. CLEAR",
+    "bar": "CLIENT SCOPE The stored scope constrains no axis, so this client is proposed everything. 309 proposed, 115 confirmed, 0 excluded. A document would cover 111 of the 115 confirmed. 4 of the confirmed will not print: 4 carry a name taken from an agenda line, which you can fix by opening the project and renaming it. CLEAR",
     "sample": [
       "confirmedscope constrains no axis: everything is in scope",
-      "scope constrains no axis: everything is in scope",
-      "scope constrains no axis: everything is in scope",
       "confirmedscope constrains no axis: everything is in scope",
-      "scope constrains no axis: everything is in scope"
+      "confirmedscope constrains no axis: everything is in scope",
+      "scope constrains no axis: everything is in scope",
+      "confirmedscope constrains no axis: everything is in scope"
     ]
   },
   {
     "client": "Simtec Attractions",
-    "proposed": 45,
-    "withReason": 45,
+    "proposed": 71,
+    "withReason": 50,
     "withoutReason": 0,
     "unconstrained": false,
-    "bar": "CLIENT SCOPE 31 proposed, 5 confirmed, 10 excluded. A document would cover 5 of the 5 confirmed. CLEAR",
+    "bar": "CLIENT SCOPE 74 proposed, 5 confirmed, 10 excluded. A document would cover 5 of the 5 confirmed. CLEAR",
     "sample": [
-      "confirmedcountry United States, stage approved, market Anaheim, venue type Theme Park / Entertainment District / Mixed-Use Development",
-      "confirmedcountry United States, stage filed, market Las Vegas / Clark County, venue type Integrated Resort / Casino/Gaming",
+      "confirmedcountry United States, stage permitted, market Las Vegas / Clark County, venue type Casino/Gaming / Integrated Resort / Theme Park / Mixed-Use Development",
+      "confirmedcountry United States, stage approved, market Anaheim, venue type Mixed-Use Development / Entertainment District / Theme Park",
+      "country United States, stage approved, market Clark County, venue type Integrated Resort",
       "confirmedcountry United States, stage approved, market Anaheim, venue type Theme Park",
-      "confirmedcountry United States, stage under construction, market Central Florida Tourism Oversight District, venue type Theme Park",
-      "country United States, stage approved, market Clark County, venue type Integrated Resort"
+      "country United States, stage filed, market Clark County, venue type Casino/Gaming"
     ]
   }
 ]

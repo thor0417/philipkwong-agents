@@ -1,44 +1,14 @@
 {
   "markets": [
     {
-      "market": "Miami-Dade County",
-      "state": "dead",
-      "projects": 3,
-      "named": 2,
-      "records": 6,
-      "published": "2985d",
-      "captured": "21d",
-      "why": "the source has published nothing for over a year; declared in lib/dead-feeds"
-    },
-    {
-      "market": "San Antonio",
-      "state": "dead",
-      "projects": 3,
-      "named": 2,
-      "records": 15,
-      "published": "35d",
-      "captured": "10d",
-      "why": "the source has published nothing for over a year; declared in lib/dead-feeds"
-    },
-    {
       "market": "Las Vegas",
       "state": "degraded",
       "projects": 33,
       "named": 31,
       "records": 70,
-      "published": "1d",
-      "captured": "1d",
+      "published": "6d",
+      "captured": "6d",
       "why": "the adapter is failing in a known way; declared in the known-degraded register"
-    },
-    {
-      "market": "South Florida",
-      "state": "stale",
-      "projects": 2,
-      "named": 2,
-      "records": 2,
-      "published": "15935d",
-      "captured": "27d",
-      "why": "the newest document we hold is 15935 days old, past the 90-day line"
     },
     {
       "market": "Central Florida Tourism Oversight District",
@@ -46,29 +16,39 @@
       "projects": 1,
       "named": 1,
       "records": 14,
-      "published": "174d",
-      "captured": "1d",
-      "why": "the newest document we hold is 174 days old, past the 90-day line"
+      "published": "179d",
+      "captured": "6d",
+      "why": "the newest document we hold is 179 days old, past the 90-day line"
+    },
+    {
+      "market": "Yonkers",
+      "state": "stale",
+      "projects": 1,
+      "named": 0,
+      "records": 1,
+      "published": "343d",
+      "captured": "4d",
+      "why": "the newest document we hold is 343 days old, past the 90-day line"
     },
     {
       "market": "Nashville",
       "state": "thin",
-      "projects": 9,
-      "named": 1,
-      "records": 21,
-      "published": "3d",
-      "captured": "1d",
-      "why": "1 of 9 projects name a party, so a report scoped here comes out mostly empty"
+      "projects": 21,
+      "named": 6,
+      "records": 38,
+      "published": "ahead",
+      "captured": "4d",
+      "why": "6 of 21 projects name a party, so a report scoped here comes out mostly empty"
     },
     {
-      "market": "Yonkers",
-      "state": "thin",
-      "projects": 0,
-      "named": 0,
-      "records": 0,
-      "published": "--",
-      "captured": "--",
-      "why": "an adapter is pointed here and it has produced nothing at all"
+      "market": "Clark County",
+      "state": "live",
+      "projects": 111,
+      "named": 111,
+      "records": 301,
+      "published": "0d",
+      "captured": "4d",
+      "why": "111 live projects, 111 naming a party, newest document 0 days old"
     },
     {
       "market": "New York City",
@@ -76,49 +56,49 @@
       "projects": 98,
       "named": 94,
       "records": 187,
-      "published": "1d",
-      "captured": "1d",
-      "why": "98 live projects, 94 naming a party, newest document 1 days old"
+      "published": "6d",
+      "captured": "6d",
+      "why": "98 live projects, 94 naming a party, newest document 6 days old"
     },
     {
-      "market": "Clark County",
+      "market": "Phoenix",
       "state": "live",
-      "projects": 36,
-      "named": 36,
-      "records": 99,
-      "published": "2d",
-      "captured": "1d",
-      "why": "36 live projects, 36 naming a party, newest document 2 days old"
+      "projects": 20,
+      "named": 20,
+      "records": 42,
+      "published": "ahead",
+      "captured": "4d",
+      "why": "20 live projects, 20 naming a party, newest document -1 days old"
     },
     {
       "market": "Anaheim",
       "state": "live",
       "projects": 19,
       "named": 17,
-      "records": 73,
-      "published": "10d",
-      "captured": "1d",
-      "why": "19 live projects, 17 naming a party, newest document 10 days old"
+      "records": 78,
+      "published": "14d",
+      "captured": "4d",
+      "why": "19 live projects, 17 naming a party, newest document 14 days old"
     },
     {
-      "market": "Phoenix",
+      "market": "Broward County",
       "state": "live",
-      "projects": 9,
-      "named": 9,
-      "records": 17,
-      "published": "ahead",
-      "captured": "1d",
-      "why": "9 live projects, 9 naming a party, newest document -5 days old"
+      "projects": 13,
+      "named": 12,
+      "records": 97,
+      "published": "5d",
+      "captured": "2d",
+      "why": "13 live projects, 12 naming a party, newest document 5 days old"
     },
     {
       "market": "Oakland",
       "state": "live",
-      "projects": 4,
-      "named": 4,
-      "records": 8,
-      "published": "31d",
-      "captured": "10d",
-      "why": "4 live projects, 4 naming a party, newest document 31 days old"
+      "projects": 10,
+      "named": 10,
+      "records": 14,
+      "published": "35d",
+      "captured": "4d",
+      "why": "10 live projects, 10 naming a party, newest document 35 days old"
     },
     {
       "market": "Westchester County",
@@ -126,9 +106,9 @@
       "projects": 1,
       "named": 1,
       "records": 2,
-      "published": "18d",
-      "captured": "12d",
-      "why": "1 live projects, 1 naming a party, newest document 18 days old"
+      "published": "22d",
+      "captured": "17d",
+      "why": "1 live projects, 1 naming a party, newest document 22 days old"
     }
   ],
   "sources": [
@@ -136,8 +116,8 @@
       "source": "iadb",
       "quiet": true,
       "records": 1,
-      "published": "9363d",
-      "captured": "10d",
+      "published": "9367d",
+      "captured": "14d",
       "thisRun": "unknown",
       "feeds": ""
     },
@@ -145,17 +125,17 @@
       "source": "sfwmd",
       "quiet": true,
       "records": 6,
-      "published": "930d",
-      "captured": "27d",
-      "thisRun": "2",
-      "feeds": "South Florida"
+      "published": "935d",
+      "captured": "32d",
+      "thisRun": "21",
+      "feeds": ""
     },
     {
       "source": "govdoc",
       "quiet": true,
       "records": 1,
-      "published": "231d",
-      "captured": "28d",
+      "published": "236d",
+      "captured": "33d",
       "thisRun": "8",
       "feeds": "Central Florida Tourism Oversight District"
     },
@@ -163,8 +143,8 @@
       "source": "cftod-pdf",
       "quiet": true,
       "records": 13,
-      "published": "174d",
-      "captured": "1d",
+      "published": "179d",
+      "captured": "6d",
       "thisRun": "29",
       "feeds": "Central Florida Tourism Oversight District"
     },
@@ -172,8 +152,8 @@
       "source": "adb",
       "quiet": true,
       "records": 1,
-      "published": "120d",
-      "captured": "28d",
+      "published": "125d",
+      "captured": "33d",
       "thisRun": "unknown",
       "feeds": ""
     },
@@ -181,26 +161,26 @@
       "source": "nyc-zap",
       "quiet": true,
       "records": 43,
-      "published": "86d",
-      "captured": "1d",
+      "published": "90d",
+      "captured": "6d",
       "thisRun": "48",
       "feeds": "New York City"
     },
     {
       "source": "nyc-ceqr",
-      "quiet": false,
+      "quiet": true,
       "records": 63,
-      "published": "28d",
-      "captured": "10d",
+      "published": "33d",
+      "captured": "14d",
       "thisRun": "63",
       "feeds": "New York City"
     },
     {
       "source": "nyc-city-record",
-      "quiet": false,
+      "quiet": true,
       "records": 69,
-      "published": "27d",
-      "captured": "10d",
+      "published": "32d",
+      "captured": "14d",
       "thisRun": "97",
       "feeds": "New York City"
     },
@@ -208,17 +188,17 @@
       "source": "ceqanet",
       "quiet": false,
       "records": 4,
-      "published": "22d",
-      "captured": "21d",
-      "thisRun": "3",
+      "published": "27d",
+      "captured": "25d",
+      "thisRun": "6",
       "feeds": "Anaheim"
     },
     {
       "source": "uktenders",
       "quiet": false,
       "records": 1,
-      "published": "20d",
-      "captured": "28d",
+      "published": "25d",
+      "captured": "33d",
       "thisRun": "unknown",
       "feeds": ""
     },
@@ -226,53 +206,53 @@
       "source": "worldbank",
       "quiet": false,
       "records": 76,
-      "published": "15d",
-      "captured": "10d",
+      "published": "19d",
+      "captured": "14d",
       "thisRun": "unknown",
       "feeds": ""
     },
     {
       "source": "agenda-portal",
       "quiet": false,
-      "records": 112,
-      "published": "10d",
-      "captured": "1d",
+      "records": 117,
+      "published": "14d",
+      "captured": "4d",
       "thisRun": "17",
       "feeds": "Anaheim, Las Vegas"
-    },
-    {
-      "source": "clark-tab",
-      "quiet": false,
-      "records": 36,
-      "published": "9d",
-      "captured": "1d",
-      "thisRun": "36",
-      "feeds": "Clark County"
     },
     {
       "source": "gli_serper",
       "quiet": false,
       "records": 194,
-      "published": "1d",
-      "captured": "1d",
+      "published": "6d",
+      "captured": "6d",
       "thisRun": "unknown",
-      "feeds": "Anaheim, Clark County, Las Vegas, Nashville, New York City, Phoenix, San Antonio"
+      "feeds": "Anaheim, Clark County, Las Vegas, Nashville, New York City, Phoenix"
+    },
+    {
+      "source": "clark-tab",
+      "quiet": false,
+      "records": 41,
+      "published": "0d",
+      "captured": "4d",
+      "thisRun": "37",
+      "feeds": "Clark County"
     },
     {
       "source": "legistar",
       "quiet": false,
-      "records": 121,
+      "records": 464,
       "published": "ahead",
-      "captured": "1d",
-      "thisRun": "50",
-      "feeds": "Clark County, Miami-Dade County, Nashville, Oakland, Phoenix, San Antonio, Westchester County"
+      "captured": "2d",
+      "thisRun": "97",
+      "feeds": "Broward County, Clark County, Nashville, Oakland, Phoenix, Westchester County, Yonkers"
     },
     {
       "source": "canadabuys",
       "quiet": false,
       "records": 2,
       "published": "ahead",
-      "captured": "28d",
+      "captured": "33d",
       "thisRun": "unknown",
       "feeds": ""
     }
@@ -283,27 +263,21 @@
     "govdoc",
     "cftod-pdf",
     "adb",
-    "nyc-zap"
+    "nyc-zap",
+    "nyc-ceqr",
+    "nyc-city-record"
   ],
   "railMarkets": [
-    {
-      "market": "Miami-Dade County",
-      "state": "dead"
-    },
-    {
-      "market": "San Antonio",
-      "state": "dead"
-    },
     {
       "market": "Las Vegas",
       "state": "degraded"
     },
     {
-      "market": "South Florida",
+      "market": "Central Florida Tourism Oversight District",
       "state": "stale"
     },
     {
-      "market": "Central Florida Tourism Oversight District",
+      "market": "Yonkers",
       "state": "stale"
     },
     {
@@ -311,15 +285,15 @@
       "state": "thin"
     },
     {
-      "market": "Yonkers",
-      "state": "thin"
+      "market": "Clark County",
+      "state": "live"
     },
     {
       "market": "New York City",
       "state": "live"
     },
     {
-      "market": "Clark County",
+      "market": "Phoenix",
       "state": "live"
     },
     {
@@ -327,7 +301,7 @@
       "state": "live"
     },
     {
-      "market": "Phoenix",
+      "market": "Broward County",
       "state": "live"
     },
     {

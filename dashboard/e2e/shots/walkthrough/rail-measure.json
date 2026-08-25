@@ -40,7 +40,7 @@
   "rowsPerViewport": 16,
   "rail": {
     "visible": 928,
-    "content": 1005,
+    "content": 957,
     "sections": [
       {
         "name": "nav (Today...)",
@@ -64,7 +64,7 @@
       },
       {
         "name": "Covered markets",
-        "height": 357
+        "height": 309
       }
     ]
   }

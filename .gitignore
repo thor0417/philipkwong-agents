@@ -82,3 +82,11 @@ test-results/
 # is versioned; its output is not, or every run adds a file nobody reads.
 # npm run corpus:snapshot
 snapshots/
+
+# THE DARK PROJECT'S COPY OF THE GENERATED DOCUMENTS. report.shots.ts runs in
+# both capture projects and every assertion in it is worth running twice, so
+# both generate; only light writes the committed set in e2e/shots/documents/,
+# because a PDF has no colour scheme. Dark writes here instead so the two
+# projects never call saveAs on one path, which at more than one worker is a
+# torn document rather than a wasted one. Nobody reads it.
+dashboard/e2e/shots/documents-dark/

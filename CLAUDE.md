@@ -157,6 +157,17 @@ was answering a question this section answers.
   the first row, rows per viewport.
 - `screens.shots.ts` enforces the accent budget per screen. Exceeding it fails.
 - `report.shots.ts` generates real documents into `e2e/shots/documents/`.
+  It runs in BOTH capture projects and only light writes that directory; dark
+  writes the same set to the gitignored `documents-dark/`. The assertions run
+  twice on purpose, the write does not, and one path written by two projects
+  at once is a torn PDF rather than a wasted one.
+- FOUR AUDITS SHARE ONE CLIENT'S STORED STATE and are chained through
+  Playwright `dependencies` so they can never overlap: `membership.audit` ->
+  `client-scope.audit` -> `scope-match.audit` -> `report-scope.audit`. The
+  first three write `client_projects` or `client_scopes` for Simtec and the
+  last asserts equality against both. Everything else in the suite still runs
+  in parallel. A failure in one SKIPS the rest of the chain, which reports as
+  skipped rather than as passed.
 - `scripts/exclusion-audit.ts` checks that every withheld thing is stated.
 
 **Running it**
