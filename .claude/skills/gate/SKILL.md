@@ -120,6 +120,11 @@ list before diagnosing anything:
   write on the path, not a `waitForTimeout` in the test: a test that sleeps
   around a race stops testing the race.
 
+  AND IT PASSED TWICE IN INDEPENDENT FULL RUNS ON 2026-08-25, at 6.8s and 5.8s
+  against the same build, where the failure mode is a 60s timeout. The entry
+  stands. Two green runs prove the race is not deterministic, not that it is
+  gone, and a race that stops reproducing is still a race.
+
 ## Before the commit itself
 
 `tsc --noEmit` clean and `npm run build` passing, gated separately. One commit

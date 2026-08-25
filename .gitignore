@@ -90,3 +90,16 @@ snapshots/
 # projects never call saveAs on one path, which at more than one worker is a
 # torn document rather than a wasted one. Nobody reads it.
 dashboard/e2e/shots/documents-dark/
+
+# GENERATED CLIENT DOCUMENTS. deliverables/<date>/ is what was sent, not how it
+# is built. The builder is lib/report-build.ts and the assertions are in
+# e2e/report.shots.ts; a PDF checked in beside them is an output that goes stale
+# the moment the corpus moves, and the committed set the suite regenerates
+# already lives in dashboard/e2e/shots/documents/.
+deliverables/
+
+# A SERPER SCAN OF A DIFFERENT VERTICAL. Auto repair in Chattanooga and Fort
+# Wayne, kept as raw HTML and JSON. Not hospitality, not entertainment, and not
+# source: it answers a question about whether the scan shape works, and the
+# answer belongs in a note rather than in the tree.
+opportunity-scan/
