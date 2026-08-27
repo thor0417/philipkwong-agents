@@ -56,8 +56,26 @@ while read -r local_ref local_sha remote_ref remote_sha; do
   [ -z "$local_sha" ] && continue
   [ "$local_sha" = "$Z" ] && continue
   if [ "$remote_sha" = "$Z" ]; then
+    remote_name="${1:-origin}"
     branch="${remote_ref#refs/heads/}"
-    base=$(git merge-base "$local_sha" "${1:-origin}/$branch" 2>/dev/null)
+    base=$(git merge-base "$local_sha" "$remote_name/$branch" 2>/dev/null)
+    # AND A BRAND NEW BRANCH HAS NO SAME-NAMED UPSTREAM TO BE A BASE, so the
+    # merge-base above finds nothing and the ls-tree fallback below used to list
+    # the ENTIRE TREE. Every new branch then demanded the full Playwright suite
+    # whatever it actually touched: a two-file docs branch was refused as
+    # "changes 237 file(s) under dashboard/", which is every dashboard file in
+    # the repo rather than any file in the push. The gate was not wrong to be
+    # loud, it was wrong about the fact - the same shape as reporting on
+    # something other than the thing you meant to test.
+    #
+    # What answers "what is new on this branch" is the default branch it forked
+    # from. origin/HEAD when the remote publishes one, origin/main when it does
+    # not, and only then the whole-tree fallback.
+    if [ -z "$base" ]; then
+      default_ref=$(git symbolic-ref --quiet --short "refs/remotes/$remote_name/HEAD" 2>/dev/null)
+      [ -z "$default_ref" ] && default_ref="$remote_name/main"
+      base=$(git merge-base "$local_sha" "$default_ref" 2>/dev/null)
+    fi
   else
     base="$remote_sha"
   fi
