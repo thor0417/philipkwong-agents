@@ -243,3 +243,55 @@ The decision this unblocks is therefore NOT "which proxy do we buy". It is
 4. San Antonio's PrimeGov feed is live while the Legistar feed it was retired on
    is dead. Whatever `verify:staleness` probes, it did not notice that a retired
    market has a second and healthier feed.
+
+---
+
+## 8. THE ANSWER. MEASURED ON THE RUNNER, 2026-08-27.
+
+`.github/workflows/egress-probe.yml`, run 33055499319, `ubuntu-latest`,
+completed success. Runner egress: `68.220.61.195`, San Jose, California,
+**AS8075 Microsoft Corporation**. Azure, which is the combination section 5
+named as the honest gap.
+
+Every port that dropped our packets from Bangkok answers:
+
+    lasvegas.primegov.com:443     OPEN        local.anaheim.net:80/443     OPEN
+    sanantonio.primegov.com:443   OPEN        records.anaheim.net:80/443   OPEN
+    sinat.semarnat.gob.mx:80/443  OPEN
+
+And every body is real, read rather than inferred from a status code:
+
+| Probe | Status | Bytes | What came back |
+|---|---|---|---|
+| Las Vegas PrimeGov | 200 | 187,325 | real meeting JSON |
+| San Antonio PrimeGov | 200 | 644,733 | real meeting JSON |
+| `local.anaheim.net` City Council agenda | 200 | 232,143 | the real agenda |
+| `records.anaheim.net` | 302 | 181 | redirect to `CookieCheck.aspx` |
+| SEMARNAT Gaceta index | 200 | 3,602 | `GACETA ECOLOGICA` index |
+| CONTROL, Anaheim Granicus | 200 | 6,951,774 | agrees with Bangkok |
+
+**ITEM 4 IS CLOSED, AND IT COST NOTHING.** The recommendation in section 6 holds
+exactly: no proxy, no VPS, no residential egress, no session work. Capture moves
+to the hosted US runner that item 5 needs anyway, and all four sources come with
+it.
+
+`records.anaheim.net` is the one nuance and it is not an egress one. A 302 to
+`CookieCheck.aspx` is a session handshake, so that host needs a cookie jar on
+the fetch. That is an implementation detail worth naming so it is not later
+rediscovered as a block.
+
+### What the runner does NOT unlock, which is worth as much as what it does
+
+The two permit portals in the market scorecard, `permits.anaheim.net` and
+`citizenaccess.clarkcountynv.gov`, still do not answer. Both time out waiting for
+network idle from a clean egress, because both are CLIENT-SIDE JAVASCRIPT
+APPLICATIONS with no plain server route. `permits.anaheim.net` resolves to
+74.118.32.62, inside the same `/24` as the two Anaheim hosts that now answer, so
+its IP is demonstrably reachable and the block is the application's shape rather
+than the network.
+
+**So layer 8, building permits, is blocked by architecture and not by egress, in
+both markets tested.** The egress decision does not touch it, and no amount of
+proxy money would have. That is the fourth category the brief asked about, "a
+client-side app with no server route", and it is the only one of the four that
+turned out to be real.
