@@ -1,0 +1,101 @@
+# Egress probe. Brief S item 4.
+#
+# Answers one question and nothing else: does a GitHub-hosted US runner reach
+# the four hosts that refuse this developer machine's Bangkok residential IP?
+#
+# Measured 2026-08-27 from AS17552 True Online, Bangkok:
+#   lasvegas.primegov.com    Cloudflare WAF block, HTTP 403, 4548 bytes
+#   sanantonio.primegov.com  the identical rule, same Cloudflare IPs
+#   local.anaheim.net        packets dropped, both ports, no RST
+#   sinat.semarnat.gob.mx    TCP accepted then silent, then RST after 59s
+# and all three of the reachable ones answer HTTP 200 from Google Cloud
+# us-west1. The open question is whether Azure, which is what a GitHub hosted
+# runner egresses from, has the same clean reputation.
+#
+# READ THE BODY, NOT THE STATUS CODE. A 200 carrying a Cloudflare interstitial
+# is a block. Every probe below prints bytes and a body head so the log answers
+# the question rather than implying it.
+#
+# This workflow captures nothing and writes nothing. It is safe to dispatch and
+# safe to delete once the answer is recorded in BRIEF-S-ITEM-4-EGRESS.md.
+name: Egress probe
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Where is this runner
+        run: |
+          echo "=== runner egress ==="
+          curl -s --max-time 20 https://ipinfo.io/json || echo "ipinfo unreachable"
+          echo
+
+      - name: TCP reachability
+        run: |
+          echo "=== TCP connect, 8s timeout each ==="
+          for hp in \
+            "lasvegas.primegov.com 443" \
+            "sanantonio.primegov.com 443" \
+            "local.anaheim.net 80" \
+            "local.anaheim.net 443" \
+            "records.anaheim.net 80" \
+            "records.anaheim.net 443" \
+            "sinat.semarnat.gob.mx 80" \
+            "sinat.semarnat.gob.mx 443"; do
+            set -- $hp
+            if timeout 8 bash -c "cat < /dev/null > /dev/tcp/$1/$2" 2>/dev/null; then
+              echo "  OPEN     $1:$2"
+            else
+              echo "  NO/DROP  $1:$2"
+            fi
+          done
+          echo
+
+      - name: HTTP probe, body not status
+        run: |
+          UA='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+          probe () {
+            name="$1"; url="$2"
+            out=$(mktemp)
+            code=$(curl -s -A "$UA" --max-time 45 -o "$out" -w '%{http_code}' "$url" 2>/dev/null || echo "000")
+            bytes=$(wc -c < "$out" | tr -d ' ')
+            echo "=============================================================="
+            echo "$name"
+            echo "  url    $url"
+            echo "  status $code"
+            echo "  bytes  $bytes"
+            if grep -qi 'Attention Required\|Just a moment\|cf-error-details\|Sorry, you have been blocked' "$out" 2>/dev/null; then
+              echo "  VERDICT CLOUDFLARE BLOCK PAGE (a 200 here would still be a block)"
+            elif [ "$code" = "000" ]; then
+              echo "  VERDICT NO RESPONSE (dropped, refused or timed out)"
+            elif [ "$bytes" -lt 500 ]; then
+              echo "  VERDICT SUSPICIOUSLY SMALL, read the head below before believing it"
+            else
+              echo "  VERDICT looks like real content, read the head below"
+            fi
+            echo "  --- first 300 chars ---"
+            head -c 300 "$out" | tr '\n' ' '
+            echo
+            rm -f "$out"
+          }
+
+          probe "LAS VEGAS PrimeGov, meeting list JSON 2026" \
+            "https://lasvegas.primegov.com/api/v2/PublicPortal/ListArchivedMeetings?year=2026"
+          probe "SAN ANTONIO PrimeGov, meeting list JSON 2026" \
+            "https://sanantonio.primegov.com/api/v2/PublicPortal/ListArchivedMeetings?year=2026"
+          probe "ANAHEIM local.anaheim.net, a real stranded City Council agenda" \
+            "http://local.anaheim.net/docs_agend/questys_pub/50953/Agenda.html"
+          probe "ANAHEIM records.anaheim.net, the other stranded host" \
+            "https://records.anaheim.net/CityClerk/DocView.aspx"
+          probe "SEMARNAT Gaceta Ecologica index" \
+            "http://sinat.semarnat.gob.mx/Gaceta/aniosgaceta"
+          probe "CONTROL, Anaheim Granicus listing, reachable from Bangkok too" \
+            "https://anaheim.granicus.com/ViewPublisher.php?view_id=2"
+          echo "=============================================================="
+          echo "Record the four verdicts in BRIEF-S-ITEM-4-EGRESS.md section 6."
