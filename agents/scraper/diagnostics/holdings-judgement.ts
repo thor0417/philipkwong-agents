@@ -34,7 +34,7 @@ import { supabaseAdmin } from '../../../lib/supabase-admin';
 import { inCorpusScope } from '../../../lib/corpus-scope';
 import { buildEntry } from '../../../dashboard/lib/report-entry';
 import type { Project, TimelineRecord } from '../../../dashboard/lib/projects';
-import { LIVE_PIPELINE_STORAGE_KEY, isHospitalityModule } from '../pipelines';
+import { LIVE_PIPELINE_STORAGE_KEY } from '../pipelines';
 
 const arg = (k: string) => (process.argv.find((a) => a.startsWith(`--${k}=`)) ?? '').split('=')[1] ?? '';
 const POPULATION = (arg('population') || 'live') as 'live' | 'all' | 'dormant';
@@ -200,7 +200,7 @@ async function main(): Promise<void> {
     byProject.get(l.project_id)!.push(l);
   }
 
-  const REGISTER = (p: any) => isHospitalityModule(p.module) && p.status !== 'dismissed' && inCorpusScope(p.country);
+  const REGISTER = (p: any) => p.module === LIVE_PIPELINE_STORAGE_KEY && p.status !== 'dismissed' && inCorpusScope(p.country);
   const DORMANT = (p: any) => ['dormant', 'archived'].includes(String(p.stage));
   const PREDICATE: Record<string, { text: string; f: (p: any) => boolean }> = {
     live: { text: `module='${LIVE_PIPELINE_STORAGE_KEY}' AND status<>'dismissed' AND country IN corpus scope AND stage NOT IN ('dormant','archived')`, f: (p) => REGISTER(p) && !DORMANT(p) },

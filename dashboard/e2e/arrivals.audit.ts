@@ -26,7 +26,7 @@ import { createClient } from '@supabase/supabase-js';
 import { readFileSync, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { NEW_WINDOW_DAYS, newWindowSince } from '../lib/arrival-window';
-import { hospitalityModuleValues } from '../../lib/pipeline-id';
+import { LIVE_PIPELINE_STORAGE_KEY } from '../../lib/pipeline-id';
 
 function readEnvFile(path: string): Record<string, string> {
   if (!existsSync(path)) return {};
@@ -76,7 +76,7 @@ test('New is a window on when a project arrived, not a state nobody sets', async
   const { data: rows, error } = await admin
     .from('projects')
     .select('id,name,market,project_key,created_at,first_seen,significance')
-    .in('module', hospitalityModuleValues())
+    .eq('module', LIVE_PIPELINE_STORAGE_KEY)
     .neq('status', 'dismissed')
     .limit(5000);
   if (error) throw new Error(`arrivals audit read failed: ${error.message}`);

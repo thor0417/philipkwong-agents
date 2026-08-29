@@ -10,7 +10,7 @@
 // twin and the text shown is not the text tested. This says which.
 
 import { supabaseAdmin } from '../../../lib/supabase-admin';
-import { isHospitalityModule } from '../pipelines';
+import { LIVE_PIPELINE_STORAGE_KEY } from '../pipelines';
 import { inCorpusScope } from '../../../lib/corpus-scope';
 
 const SPANISH_MARKERS = new RegExp(
@@ -49,7 +49,7 @@ async function main(): Promise<void> {
   );
   const live = new Map(
     projects
-      .filter((p) => isHospitalityModule(p.module) && p.status !== 'dismissed' && inCorpusScope(p.country) && p.stage !== 'dormant')
+      .filter((p) => p.module === LIVE_PIPELINE_STORAGE_KEY && p.status !== 'dismissed' && inCorpusScope(p.country) && p.stage !== 'dormant')
       .map((p) => [p.id, p.name])
   );
 

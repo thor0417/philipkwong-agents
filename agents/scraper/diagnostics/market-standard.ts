@@ -22,7 +22,7 @@
 // states the cap beside the number, and where the figure decides something the
 // cap comes off instead.
 import { supabaseAdmin } from '../../../lib/supabase-admin';
-import { isHospitalityModule, moduleQueryPredicate, HOSPITALITY_ID } from '../pipelines';
+import { HOSPITALITY_ID, LIVE_PIPELINE_STORAGE_KEY } from '../pipelines';
 import { inCorpusScope } from '../../../lib/corpus-scope';
 import { buildEntry } from '../../../dashboard/lib/report-entry';
 import type { Project, TimelineRecord } from '../../../dashboard/lib/projects';
@@ -101,7 +101,7 @@ const yn = (v: boolean) => (v ? 'yes' : '-');
 async function main(): Promise<void> {
   const projects = await pageAll<Project>('projects', PROJECT_COLUMNS);
   const live = projects
-    .filter((p) => isHospitalityModule(p.module))
+    .filter((p) => p.module === LIVE_PIPELINE_STORAGE_KEY)
     .filter((p) => p.status !== 'dismissed')
     .filter((p) => inCorpusScope(p.country))
     .filter((p) => p.stage !== 'dormant' && p.stage !== 'archived');
@@ -117,7 +117,7 @@ async function main(): Promise<void> {
   console.log('===== BRIEF T ITEM 1. THE STANDARD, READ OFF WHAT CLARK COUNTY DOES =====');
   console.log('projects read ' + projects.length + ' (paged to exhaustion, no cap)');
   console.log('live population ' + live.length +
-    ': ' + moduleQueryPredicate(HOSPITALITY_ID) + ', status<>dismissed, country in corpus scope, stage not in (dormant, archived)');
+    ': ' + `module = '${LIVE_PIPELINE_STORAGE_KEY}'` + ', status<>dismissed, country in corpus scope, stage not in (dormant, archived)');
   console.log('leads read ' + leads.length +
     ' (paged to exhaustion, no cap); entries built at cap 500, the referral brief cap');
   console.log('');

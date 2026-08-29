@@ -45,15 +45,8 @@ import { supabaseAdmin } from '../../lib/supabase-admin';
 // the one a client sees.
 import {
   HOSPITALITY_ID,
-  LEGACY_HOSPITALITY_KEY,
-  TOLERATE_LEGACY_HOSPITALITY_KEY,
   LIVE_PIPELINE_STORAGE_KEY,
   storageKeyFor,
-  hospitalityModuleValues,
-  isHospitalityModule,
-  moduleQueryValues,
-  moduleQueryPredicate,
-  notHospitalityFilter,
 } from '../../lib/pipeline-id';
 
 export interface Pipeline {
@@ -74,15 +67,8 @@ export interface Pipeline {
 // the ~41 files that import it from this module keep working.
 export {
   HOSPITALITY_ID,
-  LEGACY_HOSPITALITY_KEY,
-  TOLERATE_LEGACY_HOSPITALITY_KEY,
   LIVE_PIPELINE_STORAGE_KEY,
   storageKeyFor,
-  hospitalityModuleValues,
-  isHospitalityModule,
-  moduleQueryValues,
-  moduleQueryPredicate,
-  notHospitalityFilter,
 };
 
 // Historic module values -> pipeline id. Every distinct value in the corpus is

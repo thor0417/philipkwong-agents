@@ -7,7 +7,7 @@
 // Requires the 008 migration (development_category column) applied first.
 // Run: node --env-file=.env.local --import tsx agents/scraper/migrations/backfill-development-category.ts
 
-import { hospitalityModuleValues } from '../pipelines';
+import { LIVE_PIPELINE_STORAGE_KEY } from '../pipelines';
 import { supabaseAdmin } from '../../../lib/supabase-admin';
 import { developmentCategory } from '../development-category';
 
@@ -26,7 +26,7 @@ async function main(): Promise<void> {
     const { data, error } = await supabaseAdmin
       .from('leads')
       .select('id, title, raw_content, venue_type, development_category')
-      .in('module', hospitalityModuleValues())
+      .eq('module', LIVE_PIPELINE_STORAGE_KEY)
       .range(from, from + 999);
     if (error) {
       console.error(`Backfill: query failed: ${error.message}`);

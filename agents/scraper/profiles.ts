@@ -21,7 +21,7 @@
 // hits before paying for a Haiku call. Genuine leads in these areas almost
 // always carry two or more of the terms.
 
-import { LIVE_PIPELINE_STORAGE_KEY, isHospitalityModule } from './pipelines';
+import { LIVE_PIPELINE_STORAGE_KEY } from './pipelines';
 
 export interface IndustryProfile {
   // Stored on each lead as `industry`.
@@ -582,7 +582,7 @@ export const PROFILES: IndustryProfile[] = [
 // The GLI profile's search terms, for the Google CSE source. Empty if the GLI
 // profile is inactive or missing.
 export function gliQueries(): string[] {
-  return PROFILES.find((p) => isHospitalityModule(p.module) && p.active)?.queries ?? [];
+  return PROFILES.find((p) => p.module === LIVE_PIPELINE_STORAGE_KEY && p.active)?.queries ?? [];
 }
 
 // Consulting CPV codes for code-aware tender sources (TED EU) when running

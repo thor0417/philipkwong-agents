@@ -12,7 +12,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from './supabase';
-import { LIVE_PIPELINE_STORAGE_KEY, hospitalityModuleValues } from './pipelines';
+import { LIVE_PIPELINE_STORAGE_KEY } from './pipelines';
 import {
   whatMoved,
   whatCameIn,
@@ -175,7 +175,7 @@ export function useSourceHealth() {
       const { data, error } = await supabase
         .from('leads')
         .select('source,first_seen')
-        .in('module', hospitalityModuleValues())
+        .eq('module', LIVE_PIPELINE_STORAGE_KEY)
         .order('first_seen', { ascending: false })
         .limit(SCAN_CAP);
       if (error) throw new Error(`source health failed: ${error.message}`);

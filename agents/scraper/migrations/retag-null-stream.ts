@@ -16,7 +16,7 @@
 //   node --env-file=.env.local --import tsx agents/scraper/migrations/retag-null-stream.ts
 // DRY_RUN=1 reports without writing.
 
-import { hospitalityModuleValues } from '../pipelines';
+import { LIVE_PIPELINE_STORAGE_KEY } from '../pipelines';
 import { supabaseAdmin } from '../../../lib/supabase-admin';
 
 interface Row {
@@ -56,7 +56,7 @@ async function main(): Promise<void> {
   const { data: legacy, error: e2 } = await supabaseAdmin
     .from('leads')
     .select('id,url,title,source,published_date,deadline')
-    .in('module', hospitalityModuleValues())
+    .eq('module', LIVE_PIPELINE_STORAGE_KEY)
     .is('stream', null);
   if (e2) {
     console.error('Fetch legacy failed:', e2.message);

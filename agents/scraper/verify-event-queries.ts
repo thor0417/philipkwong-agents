@@ -14,7 +14,7 @@
 // bounded, indexed queries rather than table scans that will fall over at 25
 // markets.
 
-import { hospitalityModuleValues } from './pipelines';
+import { LIVE_PIPELINE_STORAGE_KEY } from './pipelines';
 import { pathToFileURL } from 'node:url';
 import { supabaseAdmin } from '../../lib/supabase-admin';
 import {
@@ -77,7 +77,7 @@ async function main(): Promise<void> {
   const { data: big } = await supabaseAdmin
     .from('projects')
     .select('id,name,record_count')
-    .in('module', hospitalityModuleValues())
+    .eq('module', LIVE_PIPELINE_STORAGE_KEY)
     .order('record_count', { ascending: false })
     .limit(1);
   const target = (big ?? [])[0] as { id: string; name: string } | undefined;

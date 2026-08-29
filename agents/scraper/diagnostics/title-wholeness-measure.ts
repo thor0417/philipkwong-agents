@@ -20,7 +20,7 @@
 // the list is closed, it is written out, and no English headline ends on one.
 
 import { supabaseAdmin } from '../../../lib/supabase-admin';
-import { isHospitalityModule } from '../pipelines';
+import { LIVE_PIPELINE_STORAGE_KEY } from '../pipelines';
 import { inCorpusScope } from '../../../lib/corpus-scope';
 
 const TRAILING_ELLIPSIS = /(\s|…)(\.\.\.|…)\s*$/;
@@ -62,7 +62,7 @@ async function main(): Promise<void> {
     projects
       .filter(
         (p) =>
-          isHospitalityModule(p.module) &&
+          p.module === LIVE_PIPELINE_STORAGE_KEY &&
           p.status !== 'dismissed' &&
           inCorpusScope(p.country) &&
           p.stage !== 'dormant'

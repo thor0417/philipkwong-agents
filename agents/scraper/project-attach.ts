@@ -26,7 +26,7 @@
 
 import { supabaseAdmin } from '../../lib/supabase-admin';
 import { runBackfill } from './migrations/backfill-projects';
-import { hospitalityModuleValues } from './pipelines';
+import { LIVE_PIPELINE_STORAGE_KEY } from './pipelines';
 
 export interface AttachReport {
   // Records this run wrote that were considered.
@@ -156,7 +156,7 @@ async function countUnattached(): Promise<number> {
   const { count } = await supabaseAdmin
     .from('leads')
     .select('id', { count: 'exact', head: true })
-    .in('module', hospitalityModuleValues())
+    .eq('module', LIVE_PIPELINE_STORAGE_KEY)
     .neq('status', 'dismissed')
     .is('project_id', null);
   return count ?? 0;

@@ -25,7 +25,7 @@
 
 import { supabaseAdmin } from '../../../lib/supabase-admin';
 import { CORPUS_COUNTRIES, corpusScopeSentence, inCorpusScope } from '../../../lib/corpus-scope';
-import { hospitalityModuleValues } from '../pipelines';
+import { LIVE_PIPELINE_STORAGE_KEY } from '../pipelines';
 
 const WRITE = process.argv.includes('--write');
 const REASON = 'outside the countries this system covers';
@@ -78,7 +78,7 @@ async function main(): Promise<void> {
     const { data, error } = await supabaseAdmin
       .from('leads')
       .select('id,project_id,title,url,country,location')
-      .in('module', hospitalityModuleValues())
+      .eq('module', LIVE_PIPELINE_STORAGE_KEY)
       .eq('stream', 'intelligence')
       .neq('status', 'dismissed')
       .range(from, from + PAGE - 1);

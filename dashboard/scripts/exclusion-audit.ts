@@ -27,7 +27,7 @@ import {
 } from '../lib/report-sections';
 import { fetchIncludedProjectIds } from '../lib/client-projects';
 import { renderDocumentText } from '../lib/report-text';
-import { HOSPITALITY_ID, hospitalityModuleValues } from '../lib/pipelines';
+import { HOSPITALITY_ID, LIVE_PIPELINE_STORAGE_KEY } from '../lib/pipelines';
 import { isProvisionalName } from '../lib/taxonomy';
 import { DEAD_FEEDS, deadFeedForMarket } from '../../lib/dead-feeds';
 import { applyProjectFilters, PROJECT_COLUMNS, type Project } from '../lib/projects';
@@ -38,7 +38,7 @@ import {
   projectsMatchingRecordFacets,
   resolveScope,
 } from '../lib/clients';
-import { LIVE_PIPELINE_STORAGE_KEY } from '../lib/pipelines';
+
 import { OPERATOR } from '../../lib/operator';
 
 const DETAIL = Number(process.env.AUDIT_DETAIL ?? 60);
@@ -558,7 +558,7 @@ async function main(): Promise<void> {
     const { data, error } = await supabase
       .from('project_events')
       .select('id')
-      .in('module', hospitalityModuleValues())
+      .eq('module', LIVE_PIPELINE_STORAGE_KEY)
       .in('project_id', wideIds.slice(i, i + 40));
     if (error) throw new Error(`event check failed: ${error.message}`);
     for (const r of (data ?? []) as { id: string }[]) expected.add(r.id);

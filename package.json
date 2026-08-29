@@ -80,7 +80,8 @@
     "venues:names": "node --env-file=.env.local --import tsx agents/scraper/migrations/clear-name-venues.ts",
     "diag:brand-deliveries": "node --env-file=.env.local --import tsx agents/scraper/diagnostics/brand-delivery-census.ts",
     "diag:pipeline-values": "node --env-file=.env.local --import tsx agents/scraper/diagnostics/pipeline-value-census.ts",
-    "diag:scorecard-rows": "node --env-file=.env.local --import tsx agents/scraper/diagnostics/scorecard-rows.ts"
+    "diag:scorecard-rows": "node --env-file=.env.local --import tsx agents/scraper/diagnostics/scorecard-rows.ts",
+    "diag:readback": "node --env-file=.env.local --import tsx agents/scraper/diagnostics/migration-readback.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.20.0",

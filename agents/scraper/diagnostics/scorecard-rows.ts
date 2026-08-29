@@ -12,7 +12,7 @@
 // rule 13.
 
 import { supabaseAdmin } from '../../../lib/supabase-admin';
-import { hospitalityModuleValues } from '../pipelines';
+import { LIVE_PIPELINE_STORAGE_KEY } from '../pipelines';
 import { isCoveredMarket } from '../../../lib/coverage';
 import { deadFeedForMarket } from '../../../lib/dead-feeds';
 
@@ -28,7 +28,7 @@ async function pageAll(): Promise<Row[]> {
     const { data, error } = await supabaseAdmin
       .from('leads')
       .select('market,status,module')
-      .in('module', hospitalityModuleValues())
+      .eq('module', LIVE_PIPELINE_STORAGE_KEY)
       .range(from, from + 999);
     if (error) throw new Error(`leads: ${error.message}`);
     const rows = (data ?? []) as Row[];

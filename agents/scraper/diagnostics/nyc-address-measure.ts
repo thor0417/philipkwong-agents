@@ -22,7 +22,7 @@
 // whether the notice body states a premises we could take instead.
 
 import { supabaseAdmin } from '../../../lib/supabase-admin';
-import { isHospitalityModule } from '../pipelines';
+import { LIVE_PIPELINE_STORAGE_KEY } from '../pipelines';
 import { inCorpusScope } from '../../../lib/corpus-scope';
 
 interface Lead {
@@ -73,7 +73,7 @@ async function main(): Promise<void> {
   );
   const live = new Map(
     projects
-      .filter((p) => isHospitalityModule(p.module) && p.status !== 'dismissed' && inCorpusScope(p.country) && p.stage !== 'dormant')
+      .filter((p) => p.module === LIVE_PIPELINE_STORAGE_KEY && p.status !== 'dismissed' && inCorpusScope(p.country) && p.stage !== 'dormant')
       .map((p) => [p.id, p])
   );
 

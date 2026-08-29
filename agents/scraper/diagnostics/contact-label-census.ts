@@ -18,7 +18,7 @@
 // recognise at all.
 
 import { supabaseAdmin } from '../../../lib/supabase-admin';
-import { isHospitalityModule } from '../pipelines';
+import { LIVE_PIPELINE_STORAGE_KEY } from '../pipelines';
 import { inCorpusScope } from '../../../lib/corpus-scope';
 
 const arg = (k: string) => (process.argv.find((a) => a.startsWith(`--${k}=`)) ?? '').split('=')[1] ?? '';
@@ -72,7 +72,7 @@ async function main(): Promise<void> {
   );
   const live = new Set(
     projects
-      .filter((p) => isHospitalityModule(p.module) && p.status !== 'dismissed' && inCorpusScope(p.country) && p.stage !== 'dormant')
+      .filter((p) => p.module === LIVE_PIPELINE_STORAGE_KEY && p.status !== 'dismissed' && inCorpusScope(p.country) && p.stage !== 'dormant')
       .map((p) => p.id)
   );
   const marketOf = new Map(projects.map((p) => [p.id, p.market]));

@@ -15,7 +15,7 @@ import {
   type ClientScope,
 } from './clients';
 import { applyProjectFilters, PROJECT_COLUMNS, type Project, type TimelineRecord } from './projects';
-import { LIVE_PIPELINE_STORAGE_KEY, hospitalityModuleValues } from './pipelines';
+import { LIVE_PIPELINE_STORAGE_KEY } from './pipelines';
 import type { ResolvedPeriod } from './period';
 import { DEFAULT_SECTION_IDS, sectionById, type SectionContext } from './report-sections';
 import { estimatePages, type Entry, type ReportDocument } from './report-model';
@@ -631,7 +631,7 @@ export async function buildReport(req: BuildRequest): Promise<BuiltReport> {
           'project:projects!project_events_project_id_fkey(id,name,market,stage,watch),' +
           'lead:leads!project_events_lead_id_fkey(id,title,url,source)'
       )
-      .in('module', hospitalityModuleValues())
+      .eq('module', LIVE_PIPELINE_STORAGE_KEY)
       .in('project_id', ids.slice(i, i + ID_CHUNK))
       .order('occurred_at', { ascending: false })
       .limit(EVENT_CAP);

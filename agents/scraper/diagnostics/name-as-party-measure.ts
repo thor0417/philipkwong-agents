@@ -27,7 +27,7 @@
 // all.
 
 import { supabaseAdmin } from '../../../lib/supabase-admin';
-import { isHospitalityModule } from '../pipelines';
+import { LIVE_PIPELINE_STORAGE_KEY } from '../pipelines';
 import { inCorpusScope } from '../../../lib/corpus-scope';
 import { buildParties } from '../../../dashboard/lib/people';
 import type { Project, TimelineRecord } from '../../../dashboard/lib/projects';
@@ -98,7 +98,7 @@ interface Hit {
 async function main(): Promise<void> {
   const projects = await pageAll<Project>('projects', PROJECT_COLUMNS);
   const live = projects
-    .filter((p) => isHospitalityModule(p.module))
+    .filter((p) => p.module === LIVE_PIPELINE_STORAGE_KEY)
     .filter((p) => p.status !== 'dismissed')
     .filter((p) => inCorpusScope(p.country))
     .filter((p) => p.stage !== 'dormant');

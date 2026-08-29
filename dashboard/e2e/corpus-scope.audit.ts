@@ -40,7 +40,7 @@ import { readFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { CORPUS_COUNTRIES } from '../../lib/corpus-scope';
 import { walkthroughOut } from './artefacts';
-import { LIVE_PIPELINE_STORAGE_KEY, hospitalityModuleValues } from '../../lib/pipeline-id';
+import { LIVE_PIPELINE_STORAGE_KEY } from '../../lib/pipeline-id';
 
 function readEnvFile(path: string): Record<string, string> {
   if (!existsSync(path)) return {};
@@ -95,7 +95,7 @@ test('the register default admits a project whose country did not resolve', asyn
   const { data: rows, error } = await admin
     .from('projects')
     .select('id,name,country')
-    .in('module', hospitalityModuleValues())
+    .eq('module', LIVE_PIPELINE_STORAGE_KEY)
     .neq('status', 'dismissed')
     .limit(5000);
   if (error) throw new Error(`corpus scope audit read failed: ${error.message}`);

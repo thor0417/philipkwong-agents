@@ -21,15 +21,8 @@
 import { supabase } from './supabase';
 import {
   HOSPITALITY_ID,
-  LEGACY_HOSPITALITY_KEY,
-  TOLERATE_LEGACY_HOSPITALITY_KEY,
   LIVE_PIPELINE_STORAGE_KEY,
   storageKeyFor,
-  hospitalityModuleValues,
-  isHospitalityModule,
-  moduleQueryValues,
-  moduleQueryPredicate,
-  notHospitalityFilter,
 } from '../../lib/pipeline-id';
 
 export interface Pipeline {
@@ -47,15 +40,8 @@ export interface Pipeline {
 // come from the root module; nothing here declares one.
 export {
   HOSPITALITY_ID,
-  LEGACY_HOSPITALITY_KEY,
-  TOLERATE_LEGACY_HOSPITALITY_KEY,
   LIVE_PIPELINE_STORAGE_KEY,
   storageKeyFor,
-  hospitalityModuleValues,
-  isHospitalityModule,
-  moduleQueryValues,
-  moduleQueryPredicate,
-  notHospitalityFilter,
 };
 
 // The registry, for anything that needs to LIST pipelines (a switcher, a

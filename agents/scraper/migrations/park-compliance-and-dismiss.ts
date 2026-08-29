@@ -45,7 +45,7 @@
 
 import { pathToFileURL } from 'node:url';
 import { supabaseAdmin } from '../../../lib/supabase-admin';
-import { hospitalityModuleValues } from '../pipelines';
+import { LIVE_PIPELINE_STORAGE_KEY } from '../pipelines';
 
 const APPLY = process.env.APPLY === '1';
 
@@ -76,7 +76,7 @@ async function projectsNamed(names: string[]): Promise<{ id: string; name: strin
   const { data, error } = await supabaseAdmin
     .from('projects')
     .select('id,name')
-    .in('module', hospitalityModuleValues())
+    .eq('module', LIVE_PIPELINE_STORAGE_KEY)
     .neq('status', 'dismissed')
     .in('name', names);
   if (error) throw new Error(`project read failed: ${error.message}`);

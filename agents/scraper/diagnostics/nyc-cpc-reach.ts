@@ -28,7 +28,7 @@
 // status code.
 
 import { supabaseAdmin } from '../../../lib/supabase-admin';
-import { isHospitalityModule } from '../pipelines';
+import { LIVE_PIPELINE_STORAGE_KEY } from '../pipelines';
 import { inCorpusScope } from '../../../lib/corpus-scope';
 
 const PROBE = process.argv.includes('--probe');
@@ -129,7 +129,7 @@ async function main(): Promise<void> {
   );
   const live = new Map(
     projects
-      .filter((p) => isHospitalityModule(p.module) && p.status !== 'dismissed' && inCorpusScope(p.country))
+      .filter((p) => p.module === LIVE_PIPELINE_STORAGE_KEY && p.status !== 'dismissed' && inCorpusScope(p.country))
       .map((p) => [p.id, p])
   );
   const ny = [...live.values()].filter((p) => /new york/i.test(String(p.market ?? '')));

@@ -21,7 +21,7 @@
 // project can score high and read as three lines.
 
 import { supabaseAdmin } from '../../../lib/supabase-admin';
-import { isHospitalityModule } from '../pipelines';
+import { LIVE_PIPELINE_STORAGE_KEY } from '../pipelines';
 import { inCorpusScope } from '../../../lib/corpus-scope';
 import { buildEntry } from '../../../dashboard/lib/report-entry';
 import type { Project, TimelineRecord } from '../../../dashboard/lib/projects';
@@ -148,7 +148,7 @@ function depthOf(r: Omit<Row, 'depth'>): number {
 async function main(): Promise<void> {
   const projects = await pageAll<Project>('projects', PROJECT_COLUMNS);
   const live = projects
-    .filter((p) => isHospitalityModule(p.module))
+    .filter((p) => p.module === LIVE_PIPELINE_STORAGE_KEY)
     .filter((p) => p.status !== 'dismissed')
     .filter((p) => inCorpusScope(p.country))
     .filter((p) => p.stage !== 'dormant');

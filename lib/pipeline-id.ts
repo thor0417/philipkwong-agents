@@ -30,25 +30,18 @@
 export const HOSPITALITY_ID = 'hospitality';
 
 /**
- * What hospitality rows carry in `module` today, before the data migration.
- * Named rather than typed, so the tolerance window and the flip are one edit
- * each and not a grep.
- */
-export const LEGACY_HOSPITALITY_KEY = 'gli';
-
-/**
- * The `module` value WRITTEN for the live pipeline.
+ * The `module` value written and read for the live pipeline.
  *
- * FLIPPED 2026-08-29, step 4 of the rename. It was LEGACY_HOSPITALITY_KEY. From
- * here on every writer emits the pipeline's own id and nothing writes 'gli'
- * again.
+ * IT IS THE PIPELINE'S OWN ID NOW. It was the literal 'gli' for as long as the
+ * corpus was, and the whole five-step rename existed to make those two the same
+ * string. Migration 048 moved the 4,256 rows on 2026-08-29 and 049 followed for
+ * leads.industry; nothing writes or reads 'gli' anywhere any more.
  *
- * SAFE IN EITHER ORDER RELATIVE TO THE DATA MIGRATION, and that is the entire
- * purpose of the tolerance window below: every reader accepts both values, so a
- * corpus that is half renamed reads correctly from either package with either
- * half deployed. That is what makes this step independent of migration 048
- * rather than blocked behind it. Step 5 - deleting the tolerance - is NOT
- * independent, and must not land until 048 has run.
+ * The value is kept as its own constant rather than collapsed into
+ * HOSPITALITY_ID, because "the pipeline's identity" and "the value its rows
+ * carry" stay two different questions even when the answers agree. That they
+ * disagreed is what cost this rename; that they can disagree again is why the
+ * distinction is still named.
  */
 export const LIVE_PIPELINE_STORAGE_KEY: string = HOSPITALITY_ID;
 
@@ -66,73 +59,27 @@ export function storageKeyFor(pipelineId: string): string {
   return pipelineId === HOSPITALITY_ID ? LIVE_PIPELINE_STORAGE_KEY : pipelineId;
 }
 
-// ---- THE TOLERANCE WINDOW -------------------------------------------------
+// ---- THE TOLERANCE WINDOW IS CLOSED --------------------------------------
 //
-// STEP 2 OF THE RENAME, AND THE REASON THE ORDER IS THE SAFETY ARGUMENT. Only
-// the dashboard deploys to Vercel. Rename the data first and the register is
-// empty until the next deploy lands - and an empty register does not look like
-// a broken deploy, it looks like a quiet week.
+// STEP 5, 2026-08-29. Between step 2 and here, every reader accepted BOTH 'gli'
+// and 'hospitality' through hospitalityModuleValues(), isHospitalityModule(),
+// moduleQueryValues() and notHospitalityFilter(), so the data could move at any
+// moment without breaking either package. Migration 048 moved it: 4,256 rows
+// across leads, projects and project_events, read back at zero remaining and
+// 4,261 carrying the new value, the extra five written after the flip by writers
+// that now emit it. 049 followed for leads.industry.
 //
-// So for one release every READER accepts both values and every WRITER writes
-// exactly one. After this the data may move at any moment without breaking
-// either package, in either order, with either half deployed. Then the constant
-// flips (step 4) and this block is deleted (step 5).
+// The four functions and LEGACY_HOSPITALITY_KEY are DELETED rather than left
+// returning one value, and every call site is a plain equality again. A helper
+// that still says "values", plural, is an invitation to add a second one.
 //
-// TOLERANCE IS FOR READS ONLY. A writer that could emit either value is how a
-// corpus ends up half-renamed with nothing to say which half is which.
+// WHAT THE WINDOW ACTUALLY CAUGHT, and it is the reason to write this down.
+// Step 2's sweep replaced the literal call sites and MISSED five read paths that
+// take the key as a PARAMETER and compare it strictly further down:
+// use-period.ts:88, companies.ts:304 and :326, coverage-query.ts:162 and :169,
+// project-event-queries.ts:94 and :206, and query.ts:113. So "every reader
+// accepts both values" was not true, and with the constant flipped and the data
+// not yet moved, three Playwright tests went red on an empty register and an
+// empty players screen. The gate found what the grep did not. Those paths are
+// correct again now for the same reason everything else is: there is one value.
 
-/**
- * True for the length of the rename. Deleting this constant and the three
- * functions below IS step 5; nothing else has to change, because no caller
- * names either value.
- */
-export const TOLERATE_LEGACY_HOSPITALITY_KEY = true;
-
-/**
- * Every `module` value that means the live pipeline right now. One entry once
- * the tolerance is removed.
- */
-export function hospitalityModuleValues(): string[] {
-  return TOLERATE_LEGACY_HOSPITALITY_KEY
-    ? [LEGACY_HOSPITALITY_KEY, HOSPITALITY_ID]
-    : [LIVE_PIPELINE_STORAGE_KEY];
-}
-
-/** Does this stored `module` value belong to the live pipeline? */
-export function isHospitalityModule(module: string | null | undefined): boolean {
-  return !!module && hospitalityModuleValues().includes(module);
-}
-
-/**
- * The values to query for, given the module a caller asked for. Hospitality
- * expands to both; every other pipeline is itself, since only hospitality was
- * ever stored under a name that is not its id.
- *
- * Use with `.in('module', ...)`. An `.eq` here is the defect: it picks one of
- * the two and silently misses every row carrying the other.
- */
-export function moduleQueryValues(module: string | null | undefined): string[] {
-  if (!module) return hospitalityModuleValues();
-  return isHospitalityModule(module) ? hospitalityModuleValues() : [module];
-}
-
-/** What a diagnostic should PRINT as the predicate it actually ran. */
-export function moduleQueryPredicate(module?: string | null): string {
-  const vs = moduleQueryValues(module);
-  return vs.length === 1
-    ? `module = '${vs[0]}'`
-    : `module IN (${vs.map((v) => `'${v}'`).join(', ')})`;
-}
-
-/**
- * The PostgREST value list for excluding the live pipeline:
- * `.not('module', 'in', notHospitalityFilter())`.
- *
- * The inverse needs the tolerance as much as the positive does. A `.neq` on one
- * value leaves the other admitted, so during the window the legacy-pipeline
- * screen would start showing hospitality rows the moment the data moved - which
- * is not an empty register, it is a WRONG one, and nothing would report it.
- */
-export function notHospitalityFilter(): string {
-  return `(${hospitalityModuleValues().join(',')})`;
-}

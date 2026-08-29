@@ -1,27 +1,36 @@
-// HOW MANY ROWS THE VALUE RENAME TOUCHES, PER TABLE, UNCAPPED.
-//
-// PIPELINE-IDENTITY-REPORT.md put it at 4,256 rows across leads, projects and
-// project_events. This counts them again on the day the migration is printed,
-// because a migration scoped on a stale count is a migration that reads back
-// wrong. It also reads client_scopes.pipeline_id, which is the live mismatch:
-// the scopes say 'hospitality' and the corpus says 'gli', in two tables that are
-// joined to build a client document.
+// WHAT THE CORPUS SAYS THE PIPELINE IS CALLED. UNCAPPED.
 //
 //     npm run diag:pipeline-values
+//
+// WHY IT STILL EXISTS AFTER THE RENAME. It was written to count what migration
+// 048 would touch: 4,256 rows across leads, projects and project_events, and the
+// live mismatch behind them - client_scopes.pipeline_id reading 'hospitality'
+// while the corpus read 'gli', in two tables that are joined to build a client
+// document. 048 and 049 have run and that count is now zero.
+//
+// It is kept because the question it asks is permanent and the answer is not:
+// "does every table agree on what this pipeline is called, and would a client
+// scope find its corpus". A rename is not a thing that happens once - the moment
+// a second vertical is real, quarantined 024 comes back and this is the census
+// that costs it.
+//
+// NO CAP. Exact server-side counts, distincts paged. PostgREST's silent
+// 1,000-row default would make every distinct list below a fact about the first
+// thousand rows. Standing rule 13.
 
 import { supabaseAdmin } from '../../../lib/supabase-admin';
-import {
-  HOSPITALITY_ID,
-  LEGACY_HOSPITALITY_KEY,
-  LIVE_PIPELINE_STORAGE_KEY,
-  hospitalityModuleValues,
-  moduleQueryPredicate,
-  TOLERATE_LEGACY_HOSPITALITY_KEY,
-} from '../../../lib/pipeline-id';
+import { HOSPITALITY_ID, LIVE_PIPELINE_STORAGE_KEY } from '../../../lib/pipeline-id';
 
-async function countWhere(table: string, col: string, value: string | null): Promise<number> {
-  const q = supabaseAdmin.from(table).select('*', { count: 'exact', head: true });
-  const { count, error } = await (value === null ? q.is(col, null) : q.eq(col, value));
+// The value the corpus used to carry. Named here rather than imported, because
+// lib/pipeline-id.ts no longer knows about it and should not: the rename is
+// done, and this is the one place that still needs to ask about the old value.
+const RETIRED_KEY = 'gli';
+
+async function countWhere(table: string, col: string, value: string): Promise<number> {
+  const { count, error } = await supabaseAdmin
+    .from(table)
+    .select('*', { count: 'exact', head: true })
+    .eq(col, value);
   if (error) throw new Error(`${table}.${col}: ${error.message}`);
   return count ?? 0;
 }
@@ -32,8 +41,6 @@ async function total(table: string): Promise<number> {
   return count ?? 0;
 }
 
-// Distinct values, paged rather than sampled: a distinct list from the first
-// 1,000 rows is a fact about 1,000 rows.
 async function distinct(table: string, col: string): Promise<Map<string, number>> {
   const out = new Map<string, number>();
   const size = 1000;
@@ -52,30 +59,42 @@ async function distinct(table: string, col: string): Promise<Map<string, number>
 
 const MODULE_TABLES = ['leads', 'projects', 'project_events'] as const;
 
-async function main() {
-  console.log('\nTHE VALUE RENAME, COUNTED. No cap: exact counts server-side, distincts paged.\n');
-  let sum = 0;
+async function main(): Promise<void> {
+  let ok = true;
+
+  console.log('\nWHAT EACH TABLE CALLS THE LIVE PIPELINE');
+  console.log(`  code writes and reads module = '${LIVE_PIPELINE_STORAGE_KEY}'\n`);
   for (const t of MODULE_TABLES) {
-    const legacy = await countWhere(t, 'module', LEGACY_HOSPITALITY_KEY);
-    const already = await countWhere(t, 'module', HOSPITALITY_ID);
+    const live = await countWhere(t, 'module', LIVE_PIPELINE_STORAGE_KEY);
+    const retired = await countWhere(t, 'module', RETIRED_KEY);
     const all = await total(t);
-    sum += legacy;
+    if (retired !== 0 || live === 0) ok = false;
     console.log(
-      `  ${t.padEnd(15)} module='${LEGACY_HOSPITALITY_KEY}' ${String(legacy).padStart(6)}   module='${HOSPITALITY_ID}' ${String(already).padStart(6)}   table ${String(all).padStart(6)}`
+      `  ${t.padEnd(15)} '${LIVE_PIPELINE_STORAGE_KEY}' ${String(live).padStart(6)}   ` +
+        `retired '${RETIRED_KEY}' ${String(retired).padStart(4)}   table ${String(all).padStart(6)}` +
+        (retired === 0 ? '   ok' : '   <- STILL PRESENT')
     );
   }
-  console.log(`\n  ROWS THE UPDATE TOUCHES: ${sum}\n`);
 
+  console.log('');
   for (const t of MODULE_TABLES) {
     const d = await distinct(t, 'module');
     const parts = [...d.entries()].sort((a, b) => b[1] - a[1]).map(([k, n]) => `${k} ${n}`);
-    console.log(`  ${t}.module distinct: ${parts.join('   ')}`);
+    console.log(`  ${t}.module: ${parts.join('   ')}`);
   }
 
-  const scopes = await distinct('client_scopes', 'pipeline_id');
+  // leads.industry is the fourth column, and it had its own writer disagreement:
+  // three lanes derived it from the shared key and the orchestrator wrote a
+  // profile-name literal. They agreed only while the literal and the key were
+  // the same string. Counted here beside module, because that is the comparison
+  // that would have shown it.
+  const ind = await distinct('leads', 'industry');
   console.log(
-    `\n  client_scopes.pipeline_id distinct: ${[...scopes.entries()].map(([k, n]) => `${k} ${n}`).join('   ')}`
+    `\n  leads.industry: ${[...ind.entries()].sort((a, b) => b[1] - a[1]).map(([k, n]) => `${k} ${n}`).join('   ')}`
   );
+  const indRetired = ind.get(RETIRED_KEY) ?? 0;
+  if (indRetired !== 0) ok = false;
+  console.log(`  industry still carrying '${RETIRED_KEY}': ${indRetired}${indRetired === 0 ? '   ok' : '   <- STILL PRESENT'}`);
 
   const { data: pipes } = await supabaseAdmin.from('pipelines').select('id,name,active').order('sort_order');
   console.log('\n  pipelines registry:');
@@ -83,66 +102,30 @@ async function main() {
     console.log(`    ${p.id.padEnd(14)} ${p.active ? 'active ' : 'retired'} ${p.name}`);
   }
 
-  // THE MISMATCH, STATED AS A JOIN RATHER THAN AS TWO COLUMNS. This is the
-  // hazard the golden case guards: a scope resolved against one identity over a
-  // corpus stored under another returns zero and reads as a quiet week.
-  const scopeIds = [...scopes.keys()].filter((k) => k !== '(null)');
-  console.log('\n  WOULD A SCOPE FIND ITS CORPUS TODAY?');
-  for (const id of scopeIds) {
+  // ---- THE JOIN THIS WAS ALWAYS ABOUT --------------------------------------
+  //
+  // A scope resolves to a pipeline id and the corpus is stored under a module
+  // value. When those were two names this returned zero over a register of 424,
+  // and zero does not look like a bug, it looks like a quiet week.
+  const scopes = await distinct('client_scopes', 'pipeline_id');
+  console.log(
+    `\n  client_scopes.pipeline_id: ${[...scopes.entries()].map(([k, n]) => `${k} ${n}`).join('   ')}`
+  );
+  console.log('\n  DOES A SCOPE FIND ITS CORPUS?');
+  for (const id of [...scopes.keys()].filter((k) => k !== '(null)')) {
     const hits = await countWhere('projects', 'module', id);
+    if (hits === 0) ok = false;
     console.log(
-      `    scope pipeline_id='${id}' -> projects.module='${id}' matches ${hits}` +
+      `    scope pipeline_id='${id}'  ->  projects WHERE module = '${id}'  matches ${hits}` +
         (hits === 0 ? '   <- ZERO, and the corpus is not empty' : '')
     );
   }
 
-  // ---- AND WHETHER THE TOLERANCE ACTUALLY CLOSES THE GAP -------------------
-  //
-  // The point of step 2. The counts above say where the data IS; this says what
-  // a reader SEES, which is the only question a client document asks. It must
-  // hold whether or not migration 048 has run, and in either order relative to
-  // the constant flip - that is what makes the two steps independent.
-  console.log('\n  THE TOLERANCE, READ BACK AGAINST THE LIVE CORPUS');
-  console.log(`    writers emit module = '${LIVE_PIPELINE_STORAGE_KEY}'`);
-  console.log(`    readers accept       ${TOLERATE_LEGACY_HOSPITALITY_KEY ? hospitalityModuleValues().map((v) => `'${v}'`).join(' and ') : `'${LIVE_PIPELINE_STORAGE_KEY}' only`}`);
-  console.log(`    predicate            ${moduleQueryPredicate(HOSPITALITY_ID)}`);
-  let allSeen = true;
-  for (const t of MODULE_TABLES) {
-    const { count, error } = await supabaseAdmin
-      .from(t)
-      .select('*', { count: 'exact', head: true })
-      .in('module', hospitalityModuleValues());
-    if (error) throw new Error(`${t}: ${error.message}`);
-    const legacy = await countWhere(t, 'module', LEGACY_HOSPITALITY_KEY);
-    const renamed = await countWhere(t, 'module', HOSPITALITY_ID);
-    const ok = (count ?? 0) === legacy + renamed && (count ?? 0) > 0;
-    if (!ok) allSeen = false;
-    console.log(
-      `    ${t.padEnd(15)} a tolerant read sees ${String(count ?? 0).padStart(6)}` +
-        `   (${legacy} legacy + ${renamed} renamed)   ${ok ? 'OK' : 'MISMATCH'}`
-    );
-  }
-
-  // THE LIVE MISMATCH, ANSWERED. A scope resolves to a pipeline id; the corpus
-  // is stored under a module value. Before this work those were two names and
-  // the join returned zero over a register of 424 projects.
-  console.log('\n  AND THE SCOPE-TO-CORPUS JOIN, THE HAZARD THIS WAS ABOUT');
-  for (const id of scopeIds) {
-    const strict = await countWhere('projects', 'module', id);
-    const { count: tolerant } = await supabaseAdmin
-      .from('projects')
-      .select('*', { count: 'exact', head: true })
-      .in('module', hospitalityModuleValues());
-    console.log(
-      `    scope pipeline_id='${id}'   strict .eq -> ${strict}` +
-        `   tolerant .in -> ${tolerant ?? 0}` +
-        (strict === 0 && (tolerant ?? 0) > 0
-          ? '   <- the strict read is the empty register that reads as a quiet week'
-          : '')
-    );
-  }
-  console.log(`\n  ${allSeen ? 'PASS' : 'FAIL'}: every hospitality row is reachable through the tolerant predicate.`);
-  console.log('');
+  console.log(
+    `\n  ${ok ? 'PASS' : 'FAIL'}: every table names the pipeline '${HOSPITALITY_ID}', ` +
+      `nothing carries the retired value, and a scope finds its corpus.\n`
+  );
+  if (!ok) process.exitCode = 1;
 }
 
 main().catch((e) => {

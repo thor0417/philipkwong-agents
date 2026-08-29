@@ -36,7 +36,7 @@
 // brief's cap of 500 rather than the market report's eight. Standing rule 13:
 // where a capped figure decides a pass or a fail, the cap comes off.
 import { supabaseAdmin } from '../../lib/supabase-admin';
-import { isHospitalityModule, moduleQueryPredicate, HOSPITALITY_ID } from './pipelines';
+import { HOSPITALITY_ID, LIVE_PIPELINE_STORAGE_KEY } from './pipelines';
 import { inCorpusScope } from '../../lib/corpus-scope';
 import {
   DECISION_FACT_KINDS,
@@ -92,7 +92,7 @@ async function main(): Promise<void> {
 
   const projects = await pageAll<Project>('projects', PROJECT_COLUMNS);
   const live = projects
-    .filter((p) => isHospitalityModule(p.module))
+    .filter((p) => p.module === LIVE_PIPELINE_STORAGE_KEY)
     .filter((p) => p.status !== 'dismissed')
     .filter((p) => inCorpusScope(p.country))
     .filter((p) => p.stage !== 'dormant' && p.stage !== 'archived');
@@ -112,7 +112,7 @@ async function main(): Promise<void> {
   // THE PREDICATE PRINTED IS THE PREDICATE RUN. It said module=gli while the
   // query had become tolerant of both names, which is the same label-read-as-
   // the-thing-it-names shape the rename exists to close.
-  console.log('live population ' + live.length + ': ' + moduleQueryPredicate(HOSPITALITY_ID) + ', status<>dismissed, in corpus scope, stage not dormant or archived');
+  console.log('live population ' + live.length + ': ' + `module = '${LIVE_PIPELINE_STORAGE_KEY}'` + ', status<>dismissed, in corpus scope, stage not dormant or archived');
   console.log('');
 
   const rows = new Map<string, MarketRow>();
