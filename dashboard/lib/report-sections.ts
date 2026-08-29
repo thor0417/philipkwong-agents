@@ -43,6 +43,11 @@ import { deadFeedForMarket, frozenMarketSentence, monthYear, type DeadFeed } fro
 import { hostOf, isSelfPublished } from '../../agents/scraper/junk-domains';
 import { reachSentence, type PartyHistory } from './people';
 import {
+  captureGapNote,
+  neverRecordedNote,
+  type MarketCapture,
+} from '../../lib/source-health';
+import {
   SCHEME_FACT_KINDS,
   DECISION_FACT_KINDS,
   shortfall,
@@ -114,6 +119,15 @@ export interface SectionContext {
   // San Antonio until September 2021" are different facts and only the second
   // one is true. See lib/dead-feeds.
   frozenExcluded: { project: Project; feed: DeadFeed }[];
+  // WHAT THE LAST RUN CAPTURED, per market in scope. frozenExcluded above is a
+  // DECLARATION - a publisher we have declared stopped - and this is a
+  // MEASUREMENT of what our own machine did. A market can be live in one and
+  // silent in the other, and they are different sentences to a client.
+  captureGaps: MarketCapture[];
+  // ISO timestamp of the newest run on record, market-attributed or not. Null
+  // when there is no run history at all, which is what an unapplied migration
+  // 044 looks like and must never print as a failure.
+  newestRunAt: string | null;
   detailCap: number;
   // THE ENTRIES, BUILT ONCE, IN SIGNIFICANCE ORDER, WITH THEIR MARKET AS group.
   //
@@ -1030,6 +1044,21 @@ const coverage: SectionDef = {
         );
       }
     }
+    // ---- WHAT OUR LAST RUN ACTUALLY CAPTURED ------------------------------
+    //
+    // Two sentences and neither is the standard note below, which is the
+    // distinction Brief S item 2 asked for. THIS says our capture failed on the
+    // last run, which is this week and ours to fix. The standard note says we
+    // have never read this market deeply, which is structural. A reader meeting
+    // both otherwise merges them into one vague doubt.
+    //
+    // It states and does not refuse: a refusal turns a source outage into a
+    // product outage and the client gets nothing instead of something honest.
+    const capture = captureGapNote(ctx.captureGaps, ctx.newestRunAt);
+    if (capture) notes.push(capture);
+    const never = neverRecordedNote(ctx.captureGaps, ctx.newestRunAt !== null);
+    if (never) notes.push(never);
+
     // ---- WHAT THE COVERAGE REACHES IN EACH MARKET, AND WHAT IT DOES NOT ----
     //
     // Two different claims and two different sentences. The first is about US
