@@ -15,7 +15,7 @@ import {
   type ClientScope,
 } from './clients';
 import { applyProjectFilters, PROJECT_COLUMNS, type Project, type TimelineRecord } from './projects';
-import { LIVE_PIPELINE_STORAGE_KEY } from './pipelines';
+import { LIVE_PIPELINE_STORAGE_KEY, hospitalityModuleValues } from './pipelines';
 import type { ResolvedPeriod } from './period';
 import { DEFAULT_SECTION_IDS, sectionById, type SectionContext } from './report-sections';
 import { estimatePages, type Entry, type ReportDocument } from './report-model';
@@ -24,9 +24,11 @@ import { fetchIncludedProjectIds } from './client-projects';
 // ONE COPY, READ ACROSS THE PACKAGE SPLIT. See the header of lib/dead-feeds for
 // why this is not mirrored into dashboard/lib the way taxonomy.ts is.
 import { deadFeedForMarket, type DeadFeed } from '../../lib/dead-feeds';
+import { OPERATOR } from '../../lib/operator';
 import { buildEntry } from './report-entry';
 import { streamLabel } from './streams';
 import { normaliseParty, type PartyHistory } from './people';
+import { captureByMarket, newestRun, type HealthRow, type MarketCapture } from '../../lib/source-health';
 
 const RECORD_COLUMNS =
   'id,title,url,source,source_type,published_date,deadline,first_seen,date_source,' +
@@ -629,7 +631,7 @@ export async function buildReport(req: BuildRequest): Promise<BuiltReport> {
           'project:projects!project_events_project_id_fkey(id,name,market,stage,watch),' +
           'lead:leads!project_events_lead_id_fkey(id,title,url,source)'
       )
-      .eq('module', LIVE_PIPELINE_STORAGE_KEY)
+      .in('module', hospitalityModuleValues())
       .in('project_id', ids.slice(i, i + ID_CHUNK))
       .order('occurred_at', { ascending: false })
       .limit(EVENT_CAP);
@@ -783,6 +785,33 @@ export async function buildReport(req: BuildRequest): Promise<BuiltReport> {
     entries.push({ ...built.entry, group: placeOf(p) || null });
   }
 
+  // ---- WHAT THE LAST RUN CAPTURED, FOR THE MARKETS THIS DOCUMENT COVERS -----
+  //
+  // The document path has always read lib/dead-feeds, a hand-maintained
+  // DECLARATION of publishers that have stopped. It has never read what the
+  // machine actually did. So a market whose capture broke this week read
+  // exactly like a market with a quiet week.
+  //
+  // FAILS OPEN, AND THAT IS DELIBERATE. If source_health cannot be read - the
+  // table is absent, migration 044 is unapplied, the request errors - the
+  // document is built and says nothing about capture, rather than refusing or
+  // guessing. A stated gap is the product; a refusal is an outage. See
+  // lib/source-health for the three states and why they are three sentences.
+  let healthRows: HealthRow[] = [];
+  try {
+    const { data: hr } = await supabase
+      .from('source_health')
+      .select('market,run_at,kept')
+      .order('run_at', { ascending: false })
+      .limit(2000);
+    healthRows = (hr ?? []) as HealthRow[];
+  } catch {
+    healthRows = [];
+  }
+  const marketsInScope = [...new Set(projects.map((p) => p.market ?? '').filter(Boolean))];
+  const captureGaps: MarketCapture[] = captureByMarket(healthRows, marketsInScope);
+  const newestRunAt: string | null = newestRun(healthRows);
+
   const ctx: SectionContext = {
     // THE CAPS, ON THE CONTEXT, SO A SECTION CAN SAY THEY BOUND.
     //
@@ -817,6 +846,8 @@ export async function buildReport(req: BuildRequest): Promise<BuiltReport> {
     clientName: req.clientName,
     provisionalExcluded,
     frozenExcluded,
+    captureGaps,
+    newestRunAt,
     detailCap,
     entries,
     heldRecords,
@@ -848,6 +879,44 @@ export async function buildReport(req: BuildRequest): Promise<BuiltReport> {
     return dates[0] === dates[dates.length - 1]
       ? `Every record held, filed ${dates[0]}`
       : `Every record held, ${dates[0]} to ${dates[dates.length - 1]}`;
+  }
+
+  // ---- THE PUBLISHER IS NOT THE RECIPIENT --------------------------------
+  //
+  // A CLIENT IS A RECIPIENT AND NEVER A PUBLISHER. Nothing asserted that, and
+  // twenty-two delivered documents carry a client's name as their brand: the
+  // composer resolved `brandOverride || client.brand_name || 'Philip Kwong'`,
+  // so the operator's own name won only when the first two were empty, and
+  // JKR's market report was published by JKR, to JKR.
+  //
+  // The mechanism is fixed upstream - there is one value now and no chain to
+  // get the order of - but the SHAPE is what this guards, and the shape had
+  // THREE separate routes into it, found by sweeping for it before fixing the
+  // first: the composer's precedence chain, generate.ts's --brand flag, and
+  // client-reports.ts reading the same column. A fourth would be caught here,
+  // at the one place every document is assembled, rather than at each of them.
+  //
+  // IT THROWS RATHER THAN WARNS. A document that misattributes its own
+  // authorship must not be generated, previewed, downloaded or recorded as
+  // delivered, because every one of those is a way for it to reach someone.
+  //
+  // A self-addressed internal read is not a misattribution and is not caught:
+  // brandName equal to OPERATOR always passes, whoever it is addressed to.
+  if (req.brandName.trim() !== OPERATOR) {
+    const recipients = [req.clientName, req.addressee]
+      .filter((n): n is string => !!n && n.trim().length > 0)
+      .map((n) => n.trim().toLowerCase());
+    const derived = recipients.includes(req.brandName.trim().toLowerCase());
+    throw new Error(
+      derived
+        ? `A document's publisher must never be derived from its recipient. brandName is ` +
+          `"${req.brandName}", which is who this document is FOR (client ` +
+          `"${req.clientName ?? '-'}", addressee "${req.addressee}"). The publisher is the ` +
+          `operator, from lib/operator.ts, and it is not per-client and not overridable.`
+        : `A document's publisher is the operator and nothing else. brandName is ` +
+          `"${req.brandName}" and the only permitted value is "${OPERATOR}", from ` +
+          `lib/operator.ts. It is not a setting.`
+    );
   }
 
   const doc: ReportDocument = {

@@ -6,7 +6,7 @@
 // exactly as the leads table behaves at 20,000 records: bounded reads, exact
 // counts with no rows transferred, and facets computed by the database.
 
-import { LIVE_PIPELINE_STORAGE_KEY } from './pipelines';
+import { LIVE_PIPELINE_STORAGE_KEY, hospitalityModuleValues, moduleQueryValues } from './pipelines';
 import { supabase } from './supabase';
 import { CORPUS_COUNTRIES } from '../../lib/corpus-scope';
 
@@ -244,7 +244,7 @@ export function applyProjectFilters<T>(builder: T, q: ProjectQuery): T {
     b = fn as typeof b;
   };
 
-  set(b.eq('module', q.module ?? LIVE_PIPELINE_STORAGE_KEY));
+  set(b.in('module', moduleQueryValues(q.module)));
   if (q.stage) set(b.eq('stage', q.stage));
   if (q.status) set(b.eq('status', q.status));
   if (q.excludeStatus) set(b.not('status', 'eq', q.excludeStatus));
@@ -422,8 +422,21 @@ export async function projectFacetCounts(
   // The fourth bypass, and the one that was answering with a 400 instead: a
   // field migration 017's function does not whitelist. See RPC_FACET_FIELDS.
   const unsupportedField = !RPC_FACET_FIELDS.includes(field);
-  const { data, error } = periodScoped || unsupportedField || (scoped.loose ?? []).length > 0 || (scoped.nullFields ?? []).length > 0
-    ? { data: null, error: { message: 'period-scoped, loosely-scoped or unsupported-field facets bypass the RPC' } }
+  // THE FIFTH, AND IT IS TEMPORARY BY CONSTRUCTION. Migration 017's function
+  // takes p_module as a single text value and compares it with `=`. While the
+  // rename's tolerance window is open a module may be stored under either of
+  // two names, and a `=` picks one of them: the chips would count the rows
+  // carrying the value the RPC was handed while the list beside them showed
+  // both. That is the same "a control that lies" defect as the period bypass
+  // above, arriving through the rename instead.
+  //
+  // Widening the function to take text[] is DDL and therefore Philip's to run;
+  // bypassing it for the length of the window is code, costs one extra column
+  // read, and disappears on its own when the tolerance is removed at step 5,
+  // because hospitalityModuleValues() then returns a single value again.
+  const straddlesRename = moduleQueryValues(scoped.module ?? LIVE_PIPELINE_STORAGE_KEY).length > 1;
+  const { data, error } = periodScoped || unsupportedField || straddlesRename || (scoped.loose ?? []).length > 0 || (scoped.nullFields ?? []).length > 0
+    ? { data: null, error: { message: 'period-scoped, loosely-scoped, unsupported-field or rename-straddling facets bypass the RPC' } }
     : await supabase.rpc('project_facet_counts', {
         p_field: field,
         p_module: scoped.module ?? LIVE_PIPELINE_STORAGE_KEY,
@@ -675,11 +688,12 @@ export async function fetchInboxPage(q: InboxQuery): Promise<{
   const build = <T>(sel: T): T => {
     let b = sel as unknown as {
       eq: (c: string, v: unknown) => unknown;
+      in: (c: string, v: unknown[]) => unknown;
       is: (c: string, v: unknown) => unknown;
       neq: (c: string, v: unknown) => unknown;
       or: (f: string) => unknown;
     };
-    b = b.eq('module', LIVE_PIPELINE_STORAGE_KEY) as typeof b;
+    b = b.in('module', hospitalityModuleValues()) as typeof b;
     b = b.is('project_id', null) as typeof b;
     b = b.neq('status', 'dismissed') as typeof b;
     if (q.search && q.search.trim()) {
@@ -752,7 +766,7 @@ export async function searchRecords(term: string, limit = 12): Promise<RecordHit
   const { data, error } = await supabase
     .from('leads')
     .select('id,title,url,source,source_type,stream,published_date,market,project_id')
-    .eq('module', LIVE_PIPELINE_STORAGE_KEY)
+    .in('module', hospitalityModuleValues())
     // Dismissed rows are excluded for the same reason Trash is a separate view:
     // this is a way to find a document, not an archive dig. Nothing is deleted,
     // and a dismissed record is still reachable through its project.
@@ -771,7 +785,7 @@ export async function searchProjects(term: string, limit = 12): Promise<Project[
   const { data, error } = await supabase
     .from('projects')
     .select(PROJECT_COLUMNS)
-    .eq('module', LIVE_PIPELINE_STORAGE_KEY)
+    .in('module', hospitalityModuleValues())
     .or(`name.ilike."%${safe}%",primary_applicant.ilike."%${safe}%"`)
     .order('record_count', { ascending: false })
     .limit(limit);

@@ -45,6 +45,7 @@
 
 import { pathToFileURL } from 'node:url';
 import { supabaseAdmin } from '../../../lib/supabase-admin';
+import { hospitalityModuleValues } from '../pipelines';
 
 const APPLY = process.env.APPLY === '1';
 
@@ -75,7 +76,7 @@ async function projectsNamed(names: string[]): Promise<{ id: string; name: strin
   const { data, error } = await supabaseAdmin
     .from('projects')
     .select('id,name')
-    .eq('module', 'gli')
+    .in('module', hospitalityModuleValues())
     .neq('status', 'dismissed')
     .in('name', names);
   if (error) throw new Error(`project read failed: ${error.message}`);

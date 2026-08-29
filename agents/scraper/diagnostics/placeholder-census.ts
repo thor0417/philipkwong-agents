@@ -25,7 +25,7 @@
 // and this file exists because a string was read as the thing it names.
 
 import { supabaseAdmin } from '../../../lib/supabase-admin';
-import { LIVE_PIPELINE_STORAGE_KEY } from '../pipelines';
+import { isHospitalityModule } from '../pipelines';
 
 // Matched against the WHOLE trimmed value, case-insensitively.
 const WHOLE_VALUE = new Set(
@@ -84,7 +84,7 @@ async function main(): Promise<void> {
   );
   const liveIds = new Set(
     projects
-      .filter((p) => p.module === LIVE_PIPELINE_STORAGE_KEY && p.status !== 'dismissed' && p.stage !== 'dormant')
+      .filter((p) => isHospitalityModule(p.module as string | null) && p.status !== 'dismissed' && p.stage !== 'dormant')
       .map((p) => String(p.id))
   );
   const leads = await pageAll<Record<string, unknown>>(

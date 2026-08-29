@@ -37,6 +37,24 @@
 // violation.
 
 import { supabaseAdmin } from '../../lib/supabase-admin';
+// THE IDENTITY ITSELF LIVES AT THE ROOT, IMPORT-FREE, so the dashboard reads the
+// same copy across the package split. It used to be declared here AND again as a
+// bare literal in dashboard/lib/pipelines.ts, which meant the two packages could
+// disagree about the name of the thing a client's register is scoped to - and
+// only the dashboard deploys to Vercel, so the disagreeing half would have been
+// the one a client sees.
+import {
+  HOSPITALITY_ID,
+  LEGACY_HOSPITALITY_KEY,
+  TOLERATE_LEGACY_HOSPITALITY_KEY,
+  LIVE_PIPELINE_STORAGE_KEY,
+  storageKeyFor,
+  hospitalityModuleValues,
+  isHospitalityModule,
+  moduleQueryValues,
+  moduleQueryPredicate,
+  notHospitalityFilter,
+} from '../../lib/pipeline-id';
 
 export interface Pipeline {
   id: string;
@@ -52,8 +70,20 @@ export interface Pipeline {
   storageKey: string;
 }
 
-// The live pipeline. Named once, here.
-export const HOSPITALITY_ID = 'hospitality';
+// The live pipeline. Named once, at lib/pipeline-id.ts, and re-exported here so
+// the ~41 files that import it from this module keep working.
+export {
+  HOSPITALITY_ID,
+  LEGACY_HOSPITALITY_KEY,
+  TOLERATE_LEGACY_HOSPITALITY_KEY,
+  LIVE_PIPELINE_STORAGE_KEY,
+  storageKeyFor,
+  hospitalityModuleValues,
+  isHospitalityModule,
+  moduleQueryValues,
+  moduleQueryPredicate,
+  notHospitalityFilter,
+};
 
 // Historic module values -> pipeline id. Every distinct value in the corpus is
 // listed, because a mapping with a hole in it is how a migration discovers a
@@ -84,11 +114,6 @@ export function pipelineIdForModule(module: string | null | undefined): string {
   return MODULE_TO_PIPELINE[module] ?? NULL_MODULE_PIPELINE;
 }
 
-// The reverse, for scoping a query today: which `module` value identifies this
-// pipeline's rows. Only hospitality differs from its id.
-export function storageKeyFor(pipelineId: string): string {
-  return pipelineId === HOSPITALITY_ID ? 'gli' : pipelineId;
-}
 
 // ---- Loading ----------------------------------------------------------------
 
@@ -103,12 +128,15 @@ const FALLBACK: Pipeline = {
   id: HOSPITALITY_ID,
   name: 'Hospitality and Entertainment',
   short_name: 'Hospitality',
-  brand_name: 'JKR & Associates',
+  // NOT A CLIENT'S NAME. This field held 'JKR & Associates' - a client, on the
+  // pipeline that serves several - and that value reached the delivery line of
+  // every records export. Blanked by migration 046; nothing reads it.
+  brand_name: null,
   brand_logo: null,
   active: true,
   retired_reason: null,
   sort_order: 1,
-  storageKey: 'gli',
+  storageKey: LIVE_PIPELINE_STORAGE_KEY,
 };
 
 export async function loadPipelines(force = false): Promise<Map<string, Pipeline>> {
@@ -144,12 +172,12 @@ export async function activePipelines(): Promise<Pipeline[]> {
   return [...all.values()].filter((p) => p.active).sort((a, b) => a.sort_order - b.sort_order);
 }
 
-// THE SYNCHRONOUS ANSWER. Most call sites are deep inside a synchronous write
-// path and cannot await a registry read, so the live pipeline's storage key is
-// available without I/O. It is a constant because there is exactly one active
-// pipeline; the moment there are two, every caller of this has to be given a
-// pipeline explicitly, and that is the isolation test's first casualty.
-export const LIVE_PIPELINE_STORAGE_KEY = storageKeyFor(HOSPITALITY_ID);
+// THE SYNCHRONOUS ANSWER, re-exported above. Most call sites are deep inside a
+// synchronous write path and cannot await a registry read, so the live
+// pipeline's storage key is available without I/O. It is a constant because
+// there is exactly one active pipeline; the moment there are two, every caller
+// of this has to be given a pipeline explicitly, and that is the isolation
+// test's first casualty.
 
 // ---- Run scoping by pipeline ------------------------------------------------
 //

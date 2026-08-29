@@ -50,6 +50,7 @@ import { pathToFileURL } from 'node:url';
 import { supabaseAdmin } from '../../../lib/supabase-admin';
 import { decide } from '../gate-decide';
 import { loadKnownEntities } from '../known-entities';
+import { hospitalityModuleValues } from '../pipelines';
 
 const APPLY = process.env.APPLY === '1';
 
@@ -98,7 +99,7 @@ async function main(): Promise<void> {
     const { data, error } = await supabaseAdmin
       .from('leads')
       .select('id,title,url,source,status,notes,manual_overrides,market,location,raw_content,project_id')
-      .eq('module', 'gli')
+      .in('module', hospitalityModuleValues())
       .neq('status', 'dismissed')
       .range(from, from + 499);
     if (error) throw new Error(`read failed: ${error.message}`);
@@ -109,7 +110,7 @@ async function main(): Promise<void> {
   const { data: projects, error: pErr } = await supabaseAdmin
     .from('projects')
     .select('id,name,market,significance,record_count,status')
-    .eq('module', 'gli')
+    .in('module', hospitalityModuleValues())
     .neq('status', 'dismissed');
   if (pErr) throw new Error(`projects read failed: ${pErr.message}`);
 

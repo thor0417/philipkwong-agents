@@ -30,7 +30,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { supabaseAdmin } from '../../lib/supabase-admin';
-import { LIVE_PIPELINE_STORAGE_KEY } from './pipelines';
+import { LIVE_PIPELINE_STORAGE_KEY, isHospitalityModule } from './pipelines';
 import { inCorpusScope, corpusScopeSentence } from '../../lib/corpus-scope';
 import { attributionTerms, factsForEntry, type PressFact } from './press-facts';
 
@@ -254,7 +254,7 @@ async function main(): Promise<void> {
   // quoted figures each counted and where two of them were wrong. Live means:
   // in the pipeline the register is for, not tombstoned, not dormant, and inside
   // the countries this system covers.
-  const inPipeline = projects.filter((p) => p.module === LIVE_PIPELINE_STORAGE_KEY);
+  const inPipeline = projects.filter((p) => isHospitalityModule(p.module));
   const notDismissed = inPipeline.filter((p) => p.status !== 'dismissed');
   const inScope = notDismissed.filter((p) => inCorpusScope(p.country));
   const liveProjects = inScope.filter((p) => p.stage !== 'dormant');
@@ -301,7 +301,7 @@ async function main(): Promise<void> {
       stage: p.stage,
       status: p.status,
       excludedBy:
-        p.module !== LIVE_PIPELINE_STORAGE_KEY
+        !isHospitalityModule(p.module)
           ? `module <> '${LIVE_PIPELINE_STORAGE_KEY}'`
           : p.status === 'dismissed'
             ? "status = 'dismissed' (tombstoned, and the old predicate named 'archived' and 'deleted', which this table never holds)"
@@ -329,7 +329,7 @@ async function main(): Promise<void> {
       name: 'inPipeline',
       predicate: `projects WHERE module = '${LIVE_PIPELINE_STORAGE_KEY}'`,
       from: rungs[rungs.length - 1].kept,
-      keep: (p) => p.module === LIVE_PIPELINE_STORAGE_KEY,
+      keep: (p) => isHospitalityModule(p.module),
       delta: (n) => `${n} row(s) belong to another pipeline and are not part of this register.`,
     })
   );
@@ -509,12 +509,12 @@ async function main(): Promise<void> {
       // candidate. Counting the two together is the same mistake that made 657
       // look like the orphan count when the answer was 149.
       liveUnattachedInScope: measured(
-        liveLeads.filter((l) => !l.project_id && l.module === LIVE_PIPELINE_STORAGE_KEY).length,
+        liveLeads.filter((l) => !l.project_id && isHospitalityModule(l.module)).length,
         `live AND project_id IS NULL AND module = '${LIVE_PIPELINE_STORAGE_KEY}'  ` +
           '(the clusterer considered these; every one carries an unclustered: reason)'
       ),
       liveUnattachedOtherModule: measured(
-        liveLeads.filter((l) => !l.project_id && l.module !== LIVE_PIPELINE_STORAGE_KEY).length,
+        liveLeads.filter((l) => !l.project_id && !isHospitalityModule(l.module)).length,
         `live AND project_id IS NULL AND module <> '${LIVE_PIPELINE_STORAGE_KEY}'  ` +
           '(outside the clusterer entirely: never considered, so correctly no reason)'
       ),
@@ -533,7 +533,7 @@ async function main(): Promise<void> {
     // Scoped to what the clusterer actually judged, for the same reason the two
     // counts above are split.
     unclustered: tally(
-      liveLeads.filter((l) => !l.project_id && l.module === LIVE_PIPELINE_STORAGE_KEY),
+      liveLeads.filter((l) => !l.project_id && isHospitalityModule(l.module)),
       (l) => l.cluster_reason ?? '(no reason recorded)'
     ),
     // The runbook's before/after axes. Live only: a retired source's tally is

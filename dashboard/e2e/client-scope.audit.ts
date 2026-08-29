@@ -24,6 +24,7 @@ import { createClient } from '@supabase/supabase-js';
 import { writeFileSync, mkdirSync, readFileSync, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { walkthroughDir, walkthroughOut } from './artefacts';
+import { hospitalityModuleValues } from '../../lib/pipeline-id';
 
 const CLIENT_NAME = 'Simtec Attractions';
 
@@ -117,7 +118,7 @@ test('a scoped client sees nothing outside their scope', async ({ page }) => {
   const { data: projects } = await admin
     .from('projects')
     .select('id,name,market,region_state,country,stage,venue_type,development_category,record_count,name_source')
-    .eq('module', 'gli')
+    .in('module', hospitalityModuleValues())
     .neq('status', 'dismissed')
     .limit(3000);
 

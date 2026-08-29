@@ -4,16 +4,33 @@
 // its own Next.js project and cannot import the root module - the same
 // constraint that makes dashboard/lib/taxonomy.ts a mirror.
 //
-// WHY THE ID AND THE STORED VALUE DIFFER. The pipeline's id is 'hospitality';
-// the value in leads.module and projects.module is 'gli', because that is what
-// ~1,400 existing rows carry. Rewriting them is a DATA migration (024) that is
-// deliberately separate from the schema and the code, so both strings are
-// correct at once and neither is a magic literal scattered through components.
+// THE IDENTITY IS NO LONGER DECLARED HERE. It used to be:
 //
-// Every dashboard query now scopes by LIVE_PIPELINE_STORAGE_KEY and MEANS the
-// hospitality pipeline. When 024 lands, this file changes and nothing else does.
+//     export const LIVE_PIPELINE_STORAGE_KEY = 'gli';   // a literal
+//
+// while the agent side derived the same value through storageKeyFor(). Two
+// packages, two declarations, no shared line of code - and only this one deploys
+// to Vercel. So the halves could disagree about the name of the thing every
+// register query is scoped to, and a query scoped to a key no row carries
+// returns nothing, which looks exactly like a quiet week rather than like a bug.
+//
+// Both packages now read lib/pipeline-id.ts at the repo root. It is import-free,
+// which is what makes the crossing safe: a file that imports nothing cannot
+// reach for a root node_modules that Vercel never creates.
 
 import { supabase } from './supabase';
+import {
+  HOSPITALITY_ID,
+  LEGACY_HOSPITALITY_KEY,
+  TOLERATE_LEGACY_HOSPITALITY_KEY,
+  LIVE_PIPELINE_STORAGE_KEY,
+  storageKeyFor,
+  hospitalityModuleValues,
+  isHospitalityModule,
+  moduleQueryValues,
+  moduleQueryPredicate,
+  notHospitalityFilter,
+} from '../../lib/pipeline-id';
 
 export interface Pipeline {
   id: string;
@@ -26,14 +43,20 @@ export interface Pipeline {
   sort_order: number;
 }
 
-export const HOSPITALITY_ID = 'hospitality';
-
-// The `module` value that identifies the live pipeline's rows today.
-export const LIVE_PIPELINE_STORAGE_KEY = 'gli';
-
-export function storageKeyFor(pipelineId: string): string {
-  return pipelineId === HOSPITALITY_ID ? LIVE_PIPELINE_STORAGE_KEY : pipelineId;
-}
+// Re-exported so every existing dashboard import keeps its path. The values
+// come from the root module; nothing here declares one.
+export {
+  HOSPITALITY_ID,
+  LEGACY_HOSPITALITY_KEY,
+  TOLERATE_LEGACY_HOSPITALITY_KEY,
+  LIVE_PIPELINE_STORAGE_KEY,
+  storageKeyFor,
+  hospitalityModuleValues,
+  isHospitalityModule,
+  moduleQueryValues,
+  moduleQueryPredicate,
+  notHospitalityFilter,
+};
 
 // The registry, for anything that needs to LIST pipelines (a switcher, a
 // delivery header that needs the brand name). Reads are cheap and cached by the

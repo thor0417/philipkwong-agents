@@ -27,7 +27,7 @@ import {
 } from '../lib/report-sections';
 import { fetchIncludedProjectIds } from '../lib/client-projects';
 import { renderDocumentText } from '../lib/report-text';
-import { HOSPITALITY_ID } from '../lib/pipelines';
+import { HOSPITALITY_ID, hospitalityModuleValues } from '../lib/pipelines';
 import { isProvisionalName } from '../lib/taxonomy';
 import { DEAD_FEEDS, deadFeedForMarket } from '../../lib/dead-feeds';
 import { applyProjectFilters, PROJECT_COLUMNS, type Project } from '../lib/projects';
@@ -39,6 +39,7 @@ import {
   resolveScope,
 } from '../lib/clients';
 import { LIVE_PIPELINE_STORAGE_KEY } from '../lib/pipelines';
+import { OPERATOR } from '../../lib/operator';
 
 const DETAIL = Number(process.env.AUDIT_DETAIL ?? 60);
 
@@ -161,7 +162,7 @@ async function main(): Promise<void> {
       commentary: {},
       detailCap: DETAIL,
       title: 'audit',
-      brandName: 'JKR & Associates',
+      brandName: OPERATOR,
       addressee: 'audit',
       clientName: c.clientName ?? null,
       clientId: c.clientId ?? null,
@@ -389,7 +390,7 @@ async function main(): Promise<void> {
     sectionIds: DEFAULT_SECTION_IDS,
     commentary: {},
     detailCap: 5,
-    title: 'audit', brandName: 'JKR & Associates', addressee: 'audit', clientName: null,
+    title: 'audit', brandName: OPERATOR, addressee: 'audit', clientName: null,
     watchlistOnly: false, includeDormant: false, includeContext: false,
     geographyLabel: 'all covered markets',
   });
@@ -535,7 +536,7 @@ async function main(): Promise<void> {
     sectionIds: DEFAULT_SECTION_IDS,
     commentary: {},
     detailCap: 1,
-    title: 'audit', brandName: 'JKR & Associates', addressee: 'audit', clientName: null,
+    title: 'audit', brandName: OPERATOR, addressee: 'audit', clientName: null,
     watchlistOnly: false,
     includeDormant: true,
     includeProvisionalNames: true,
@@ -557,7 +558,7 @@ async function main(): Promise<void> {
     const { data, error } = await supabase
       .from('project_events')
       .select('id')
-      .eq('module', LIVE_PIPELINE_STORAGE_KEY)
+      .in('module', hospitalityModuleValues())
       .in('project_id', wideIds.slice(i, i + 40));
     if (error) throw new Error(`event check failed: ${error.message}`);
     for (const r of (data ?? []) as { id: string }[]) expected.add(r.id);

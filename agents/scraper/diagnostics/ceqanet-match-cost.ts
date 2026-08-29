@@ -22,6 +22,7 @@
 // nothing to join to.
 
 import { supabaseAdmin } from '../../../lib/supabase-admin';
+import { hospitalityModuleValues } from '../pipelines';
 
 const UA = 'philipkwong-agents/1.0 (+development intelligence)';
 const CSV = 'https://ceqanet.lci.ca.gov/Search?LeadAgency=Anaheim%2C%20City%20of&OutputFormat=CSV';
@@ -75,7 +76,7 @@ async function main(): Promise<void> {
   const { data: P } = await supabaseAdmin
     .from('projects')
     .select('id,name,market,stage,module,status')
-    .eq('market', 'Anaheim').eq('module', 'gli').neq('status', 'dismissed');
+    .eq('market', 'Anaheim').in('module', hospitalityModuleValues()).neq('status', 'dismissed');
   const projects = (P ?? []) as any[];
   const { data: L } = await supabaseAdmin
     .from('leads')

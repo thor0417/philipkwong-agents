@@ -15,7 +15,7 @@
 import { pathToFileURL } from 'node:url';
 import { supabaseAdmin } from '../../../lib/supabase-admin';
 import { selectAllPaged } from '../page-select';
-import { LIVE_PIPELINE_STORAGE_KEY } from '../pipelines';
+import { hospitalityModuleValues } from '../pipelines';
 import {
   extractParties,
   consolidate,
@@ -57,7 +57,7 @@ export async function backfillCompanies(): Promise<void> {
   const { rows: leads, complete } = await selectAllPaged<LeadRow>(
     'leads',
     'id,title,raw_content,applicant,representative,presented_by,project_id,published_date,deadline,first_seen',
-    (q: unknown) => (q as { eq: (a: string, b: string) => unknown }).eq('module', LIVE_PIPELINE_STORAGE_KEY),
+    (q: unknown) => (q as { in: (a: string, b: string[]) => unknown }).in('module', hospitalityModuleValues()),
     'leads'
   );
   if (!complete) {

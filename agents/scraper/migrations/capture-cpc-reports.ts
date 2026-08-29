@@ -36,7 +36,7 @@ import { pathToFileURL } from 'node:url';
 import { supabaseAdmin } from '../../../lib/supabase-admin';
 import { readCpcReport } from '../readers/cpc-report';
 import { verifyFilingFacts, type FilingFact } from '../readers/core';
-import { LIVE_PIPELINE_STORAGE_KEY } from '../pipelines';
+import { isHospitalityModule } from '../pipelines';
 import { inCorpusScope } from '../../../lib/corpus-scope';
 
 const WRITE = process.argv.includes('--write');
@@ -128,7 +128,7 @@ async function main(write = WRITE): Promise<void> {
   );
   const live = new Map(
     projects
-      .filter((p) => p.module === LIVE_PIPELINE_STORAGE_KEY && p.status !== 'dismissed' && inCorpusScope(p.country))
+      .filter((p) => isHospitalityModule(p.module) && p.status !== 'dismissed' && inCorpusScope(p.country))
       .map((p) => [p.id, p])
   );
   const nyIds = new Set([...live.values()].filter((p) => /new york/i.test(String(p.market ?? ''))).map((p) => p.id));

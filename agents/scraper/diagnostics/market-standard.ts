@@ -22,7 +22,7 @@
 // states the cap beside the number, and where the figure decides something the
 // cap comes off instead.
 import { supabaseAdmin } from '../../../lib/supabase-admin';
-import { LIVE_PIPELINE_STORAGE_KEY } from '../pipelines';
+import { isHospitalityModule } from '../pipelines';
 import { inCorpusScope } from '../../../lib/corpus-scope';
 import { buildEntry } from '../../../dashboard/lib/report-entry';
 import type { Project, TimelineRecord } from '../../../dashboard/lib/projects';
@@ -101,7 +101,7 @@ const yn = (v: boolean) => (v ? 'yes' : '-');
 async function main(): Promise<void> {
   const projects = await pageAll<Project>('projects', PROJECT_COLUMNS);
   const live = projects
-    .filter((p) => p.module === LIVE_PIPELINE_STORAGE_KEY)
+    .filter((p) => isHospitalityModule(p.module))
     .filter((p) => p.status !== 'dismissed')
     .filter((p) => inCorpusScope(p.country))
     .filter((p) => p.stage !== 'dormant' && p.stage !== 'archived');

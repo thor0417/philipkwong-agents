@@ -64,6 +64,20 @@ const SANCTIONED = new Set([
   // to tell a client we do not read something the publisher never printed.
   // Verified import-free by inspection on 2026-08-25.
   'lib/market-standard.ts',
+  // WHOSE PRODUCT THIS IS. One string, read by the composer that puts it on a
+  // cover and by the diagnostic that audits what already went out. A second
+  // copy is how the printed brand and the audited brand come to disagree.
+  // Verified import-free by inspection on 2026-08-29.
+  'lib/operator.ts',
+  // WHAT THE LIVE PIPELINE IS CALLED. The dashboard used to declare its own
+  // hardcoded 'gli' while the agent side derived it, so the two packages could
+  // disagree about the name of the thing a client's register is scoped to - and
+  // only one of them deploys. Verified import-free by inspection on 2026-08-29.
+  'lib/pipeline-id.ts',
+  // WHAT THE LAST RUN CAPTURED, PER MARKET. Read by the government lane that
+  // writes it and by the coverage note that prints it. Verified import-free by
+  // inspection on 2026-08-25.
+  'lib/source-health.ts',
 ]);
 
 // Build output and dependencies are not source.

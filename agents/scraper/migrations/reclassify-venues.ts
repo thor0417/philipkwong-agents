@@ -30,6 +30,7 @@ import {
   classifyVenueType,
   venueDependsOnBorrowedContext,
 } from '../../../lib/taxonomy';
+import { hospitalityModuleValues } from '../pipelines';
 
 const APPLY = process.env.APPLY === '1';
 
@@ -92,7 +93,7 @@ async function main(): Promise<void> {
   const leads = await page<LeadRow>(
     'leads',
     'id,title,raw_content,venue_type,development_category,project_id',
-    (q) => q.eq('module', 'gli')
+    (q) => q.in('module', hospitalityModuleValues())
   );
   console.log(`gli leads: ${leads.length}`);
 
@@ -159,7 +160,7 @@ async function main(): Promise<void> {
   const projects = await page<{ id: string; venue_type: string | null; development_category: string | null }>(
     'projects',
     'id,venue_type,development_category',
-    (q) => q.eq('module', 'gli')
+    (q) => q.in('module', hospitalityModuleValues())
   );
   const byProject = new Map<string, (string | null)[]>();
   for (const l of leads) {

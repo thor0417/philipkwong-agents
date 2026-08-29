@@ -77,7 +77,8 @@
     "diag:venue-name-reach": "node --env-file=.env.local --import tsx agents/scraper/diagnostics/venue-name-reach.ts",
     "diag:venue-neutraliser-cost": "node --env-file=.env.local --import tsx agents/scraper/diagnostics/venue-neutraliser-cost.ts",
     "diag:membership-fk": "node --env-file=.env.local --import tsx agents/scraper/diagnostics/membership-fk-probe.ts",
-    "venues:names": "node --env-file=.env.local --import tsx agents/scraper/migrations/clear-name-venues.ts"
+    "venues:names": "node --env-file=.env.local --import tsx agents/scraper/migrations/clear-name-venues.ts",
+    "diag:pipeline-values": "node --env-file=.env.local --import tsx agents/scraper/diagnostics/pipeline-value-census.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.20.0",

@@ -13,7 +13,7 @@
 // whether recovering it means a fetch per record.
 
 import { supabaseAdmin } from '../../../lib/supabase-admin';
-import { LIVE_PIPELINE_STORAGE_KEY } from '../pipelines';
+import { isHospitalityModule } from '../pipelines';
 import { inCorpusScope } from '../../../lib/corpus-scope';
 
 const CUT = /(\s|…)(\.\.\.|…)\s*$/;
@@ -51,7 +51,7 @@ async function main(): Promise<void> {
     projects
       .filter(
         (p) =>
-          p.module === LIVE_PIPELINE_STORAGE_KEY &&
+          isHospitalityModule(p.module) &&
           p.status !== 'dismissed' &&
           inCorpusScope(p.country) &&
           p.stage !== 'dormant'

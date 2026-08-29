@@ -20,6 +20,7 @@
 
 import { supabaseAdmin } from '../../../lib/supabase-admin';
 import { venuePhrase } from '../project-naming';
+import { hospitalityModuleValues } from '../pipelines';
 
 const APPLY = process.env.APPLY === '1';
 
@@ -33,7 +34,7 @@ async function main(): Promise<void> {
   const { data, error } = await supabaseAdmin
     .from('projects')
     .select('id,name,venue_type,status')
-    .eq('module', 'gli')
+    .in('module', hospitalityModuleValues())
     .limit(3000);
   if (error) throw new Error(error.message);
 

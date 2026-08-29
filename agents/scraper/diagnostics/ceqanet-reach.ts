@@ -24,6 +24,7 @@
 import { supabaseAdmin } from '../../../lib/supabase-admin';
 import { inCorpusScope } from '../../../lib/corpus-scope';
 import { ceqanetSchOf } from '../sources/ceqanet';
+import { isHospitalityModule } from '../pipelines';
 
 const FETCH = process.argv.includes('--fetch');
 const UA = 'philipkwong-agents/1.0 (+development intelligence)';
@@ -55,7 +56,7 @@ async function main(): Promise<void> {
   const projects = await pageAll<Row>('projects', 'id,name,market,region_state,country,module,status,stage');
   const leads = await pageAll<Lead>('leads', 'id,project_id,source,url,title,raw_content,status,lifecycle,filing_facts');
 
-  const live = projects.filter((p) => p.module === 'gli' && p.status !== 'dismissed' && inCorpusScope(p.country));
+  const live = projects.filter((p) => isHospitalityModule(p.module) && p.status !== 'dismissed' && inCorpusScope(p.country));
   // CALIFORNIA, PLUS ANY PROJECT HOLDING A CEQANET RECORD WHATEVER ITS STATE.
   // CEQAnet is a California-only source, so a project holding one of its records
   // IS in California whether or not geography resolved. Measured: '1020 West

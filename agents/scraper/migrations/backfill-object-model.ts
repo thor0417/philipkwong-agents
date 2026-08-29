@@ -7,7 +7,7 @@
 // DRY_RUN=1 reports the distribution without writing.
 //   node --env-file=.env.local --import tsx agents/scraper/migrations/backfill-object-model.ts
 
-import { LIVE_PIPELINE_STORAGE_KEY } from '../pipelines';
+import { hospitalityModuleValues } from '../pipelines';
 import { supabaseAdmin } from '../../../lib/supabase-admin';
 import { classifyLead } from '../lead-date';
 import type { NormalizedLead } from '../sources/types';
@@ -28,7 +28,7 @@ async function main(): Promise<void> {
   const { data, error } = await supabaseAdmin
     .from('leads')
     .select('id, stream, title, raw_content, deadline, published_date')
-    .eq('module', LIVE_PIPELINE_STORAGE_KEY);
+    .in('module', hospitalityModuleValues());
   if (error) {
     console.error('Fetch failed:', error.message);
     process.exit(1);

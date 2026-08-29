@@ -22,6 +22,7 @@ import { createClient } from '@supabase/supabase-js';
 import { readFileSync, existsSync, writeFileSync, mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { walkthroughDir, walkthroughOut } from './artefacts';
+import { hospitalityModuleValues } from '../../lib/pipeline-id';
 
 const CLIENT_NAME = 'Simtec Attractions';
 const PERIOD = 'm:2026-07';
@@ -77,7 +78,7 @@ test('the three axes the composer used to drop', async ({ page }) => {
   const { data: rows } = await admin
     .from('projects')
     .select('id,market,stage,development_category,venue_type,record_count,name_source')
-    .eq('module', 'gli')
+    .in('module', hospitalityModuleValues())
     .neq('status', 'dismissed')
     .limit(3000);
   const fold = (v: unknown) => String(v ?? '').trim().replace(/\s+/g, ' ').toLowerCase();

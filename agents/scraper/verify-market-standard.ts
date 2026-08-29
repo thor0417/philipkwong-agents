@@ -36,7 +36,7 @@
 // brief's cap of 500 rather than the market report's eight. Standing rule 13:
 // where a capped figure decides a pass or a fail, the cap comes off.
 import { supabaseAdmin } from '../../lib/supabase-admin';
-import { LIVE_PIPELINE_STORAGE_KEY } from './pipelines';
+import { isHospitalityModule } from './pipelines';
 import { inCorpusScope } from '../../lib/corpus-scope';
 import {
   DECISION_FACT_KINDS,
@@ -92,7 +92,7 @@ async function main(): Promise<void> {
 
   const projects = await pageAll<Project>('projects', PROJECT_COLUMNS);
   const live = projects
-    .filter((p) => p.module === LIVE_PIPELINE_STORAGE_KEY)
+    .filter((p) => isHospitalityModule(p.module))
     .filter((p) => p.status !== 'dismissed')
     .filter((p) => inCorpusScope(p.country))
     .filter((p) => p.stage !== 'dormant' && p.stage !== 'archived');

@@ -16,6 +16,7 @@
 import { supabaseAdmin } from '../../../lib/supabase-admin';
 import { readCpcReport, isCpcReport } from '../readers/cpc-report';
 import { inCorpusScope } from '../../../lib/corpus-scope';
+import { isHospitalityModule } from '../pipelines';
 
 const UA = 'philipkwong-agents/1.0 (+development intelligence)';
 const CPC = (n: string) => `https://www.nyc.gov/assets/planning/download/pdf/about/cpc/${n}.pdf`;
@@ -35,7 +36,7 @@ async function page(t: string, c: string) {
 
 const projects = await page('projects', 'id,name,market,country,module,status,stage,primary_applicant,primary_representative');
 const leads = await page('leads', 'id,project_id,source,status,lifecycle,title,raw_content,applicant,representative,filing_facts');
-const live = projects.filter((p) => p.module === 'gli' && p.status !== 'dismissed' && inCorpusScope(p.country));
+const live = projects.filter((p) => isHospitalityModule(p.module) && p.status !== 'dismissed' && inCorpusScope(p.country));
 const ny = live.filter((p) => /new york/i.test(String(p.market ?? '')));
 const byProj = new Map<string, any[]>();
 for (const l of leads) {
