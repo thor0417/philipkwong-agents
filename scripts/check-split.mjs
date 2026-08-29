@@ -37,7 +37,8 @@
 // '../../' and flagged 28 innocent lines: '../../clients/page.module.css' never
 // leaves the dashboard, and deeper files legitimately write '../../../../'. The
 // only correct test is whether the RESOLVED path is inside dashboard/.
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { readdirSync, readFileSync, existsSync } from 'node:fs';
+import { execSync } from 'node:child_process';
 import path from 'node:path';
 
 const ROOT = process.cwd();
@@ -138,3 +139,82 @@ if (offences.length) {
 }
 
 console.log('  split check ok: no dashboard file reaches out of the dashboard');
+
+// ---------------------------------------------------------------------------
+// AND: NO TRACKED FILE IMPORTS AN UNTRACKED ONE.
+//
+// THE DEFECT THIS EXISTS FOR, 2026-08-29. lib/source-health.ts was written,
+// imported by dashboard/lib/report-build.ts, report-sections.ts and
+// verify-golden.ts, sanctioned in the list above - and never git added. Every
+// local check passed, because every local check reads the WORKING TREE and the
+// file is sitting in it:
+//
+//   tsc --noEmit          ok      reads the working tree
+//   next build            ok      reads the working tree
+//   the whole Playwright suite    ok, 74 tests, against a server built from it
+//   npm run verify:deploy ok      it COPIES dashboard/ out of the working tree,
+//                                 so the file it needs travels with the copy
+//
+// Vercel does a git clone. The file was not in the clone:
+//
+//   ./lib/report-build.ts
+//   Module not found: Can't resolve '../../lib/source-health'
+//   Error: Command "npm run build" exited with 1
+//
+// So the production deploy failed on a commit that had passed a green gate four
+// times, and the register stayed empty for the length of it.
+//
+// verify:deploy is the thorough half of the split guard and it CANNOT catch
+// this: it proves the dashboard builds from its own package.json, and it does
+// that by copying the working tree. Only git can answer "would a fresh clone
+// have this file", so only a check that asks git can see the gap.
+const trackedList = execSync('git ls-files', { encoding: 'utf8', maxBuffer: 1 << 28 })
+  .split('\n')
+  .filter(Boolean);
+const tracked = new Set(trackedList);
+
+const untracked = [];
+for (const file of trackedList) {
+  if (!/\.(ts|tsx|mts|cts)$/.test(file)) continue;
+  if (file.startsWith('node_modules')) continue;
+  let src;
+  try {
+    src = readFileSync(path.join(ROOT, file), 'utf8');
+  } catch {
+    continue;
+  }
+  for (const m of src.matchAll(/from\s+['"](\.[^'"]+)['"]/g)) {
+    const spec = m[1];
+    const abs = path.resolve(path.dirname(path.join(ROOT, file)), spec);
+    const rel = path.relative(ROOT, abs).split(path.sep).join('/');
+    const candidates = [`${rel}.ts`, `${rel}.tsx`, `${rel}.d.ts`, `${rel}/index.ts`, `${rel}/index.tsx`, rel];
+    if (candidates.some((c) => tracked.has(c))) continue;
+    const onDisk = candidates.find((c) => existsSync(path.join(ROOT, c)));
+    untracked.push({ file, spec, resolved: onDisk ?? rel, exists: !!onDisk });
+  }
+}
+
+if (untracked.length) {
+  console.log('');
+  console.log('  ####################################################################');
+  console.log('  #  A COMMITTED FILE IMPORTS A FILE THAT IS NOT COMMITTED.          #');
+  console.log('  #                                                                  #');
+  console.log('  #  It builds here because the file is in your working tree. It     #');
+  console.log('  #  will not build from a fresh clone, which is what Vercel does,    #');
+  console.log('  #  so this is green locally and a red deploy. It has happened once  #');
+  console.log('  #  and it took production down while every gate stayed green.       #');
+  console.log('  #                                                                  #');
+  console.log('  #  git add the file, or remove the import.                          #');
+  console.log('  ####################################################################');
+  console.log('');
+  for (const u of [...new Map(untracked.map((u) => [`${u.file}|${u.spec}`, u])).values()]) {
+    console.log(`    ${u.file}`);
+    console.log(`        imports ${u.spec}  ->  ${u.resolved}`);
+    console.log(`        ${u.exists ? 'EXISTS ON DISK, NOT IN GIT' : 'MISSING ENTIRELY'}`);
+  }
+  console.log('');
+  process.exit(1);
+}
+
+console.log('  split check ok: every import a committed file makes is also committed');
+
