@@ -1,0 +1,60 @@
+# Is any configured jurisdiction reading a dead feed?
+#
+# THIS IS WHERE verify:staleness LIVES NOW, and the move is the point of the
+# file. It used to sit at the end of `npm run verify`, which the pre-push hook
+# runs, so it could refuse a push. It reaches seven external feeds, and from the
+# developer machine it returned HTTP 0 for a different market on almost every
+# run - five distinct markets across seven consecutive runs on 2026-08-29,
+# against feeds that answered 200 on the adjacent run. One of those refusals
+# cost a twenty-minute cycle with production down.
+#
+# A NETWORK VERDICT RECORDED FROM A DEVELOPER'S CONNECTION IS A FACT ABOUT THE
+# DEVELOPER. That is the standing rule the scorecard grid already applies to a
+# BLOCKED cell, and it applies here for the same reason: the check's own output
+# says "This is not proof the feed is dead; it is the absence of proof that it is
+# alive. Re-run before acting on it." Something that says re-run before acting on
+# it cannot be the thing that blocks a release.
+#
+# The check itself is UNCHANGED. Same code, same thresholds, same failure
+# condition. Only the place it runs from, and whether it can refuse a push.
+#
+# WHAT IT NEEDS. Nothing. verify-staleness probes public jurisdiction feeds and
+# reads lib/dead-feeds.ts, which is a checked-in declaration. It touches no
+# database and needs no secret, which is why it can run here at all.
+#
+# WHEN IT FAILS, someone has to look: either a claimed market's feed has stopped
+# publishing, and every document about that market is describing the past, or a
+# market declared dead has come back and we are withholding coverage for no
+# reason. Both are real and both are in docs/COVERAGE-MAP.md.
+name: Staleness
+
+on:
+  workflow_dispatch: {}
+  schedule:
+    # Mondays 06:00 UTC, ahead of the weekly cadence, so a dead feed is known
+    # before a document quoting it is generated rather than after.
+    - cron: '0 6 * * 1'
+
+permissions:
+  contents: read
+
+jobs:
+  staleness:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Runner egress
+        run: |
+          echo "=== runner egress: an UNREADABLE below is only meaningful from here ==="
+          curl -s --max-time 20 https://ipinfo.io/json || echo "ipinfo unreachable"
+
+      - name: Install
+        run: npm ci --no-audit --no-fund || npm install --no-audit --no-fund
+
+      - name: Are we reading a dead feed?
+        run: npm run verify:hosted

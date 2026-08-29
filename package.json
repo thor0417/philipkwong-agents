@@ -54,7 +54,7 @@
     "verify:coverage-table": "node --env-file=.env.local --import tsx agents/scraper/verify-coverage-table.ts",
     "verify:market-standard": "node --env-file=.env.local --import tsx agents/scraper/verify-market-standard.ts",
     "verify:pipelines": "node --env-file=.env.local --import tsx agents/scraper/verify-pipelines.ts",
-    "verify": "npm run typecheck && npm run verify:golden && npm run verify:geography && npm run verify:naming && npm run verify:curation && npm run verify:object-model && npm run verify:client-watch-terms && npm run verify:companies && npm run verify:event-queries && npm run verify:pipelines && npm run verify:coverage-table && npm run verify:market-standard && npm run verify:alarms && npm run verify:staleness",
+    "verify": "npm run typecheck && npm run verify:golden && npm run verify:geography && npm run verify:naming && npm run verify:curation && npm run verify:object-model && npm run verify:client-watch-terms && npm run verify:companies && npm run verify:event-queries && npm run verify:pipelines && npm run verify:coverage-table && npm run verify:market-standard && npm run verify:alarms",
     "verify:golden": "node --import tsx agents/scraper/verify-golden.ts",
     "verify:fast": "npm run typecheck && npm run verify:golden && npm run verify:geography && npm run verify:naming && npm run verify:object-model",
     "hooks:install": "git config core.hooksPath .githooks",
@@ -81,7 +81,8 @@
     "diag:brand-deliveries": "node --env-file=.env.local --import tsx agents/scraper/diagnostics/brand-delivery-census.ts",
     "diag:pipeline-values": "node --env-file=.env.local --import tsx agents/scraper/diagnostics/pipeline-value-census.ts",
     "diag:scorecard-rows": "node --env-file=.env.local --import tsx agents/scraper/diagnostics/scorecard-rows.ts",
-    "diag:readback": "node --env-file=.env.local --import tsx agents/scraper/diagnostics/migration-readback.ts"
+    "diag:readback": "node --env-file=.env.local --import tsx agents/scraper/diagnostics/migration-readback.ts",
+    "verify:hosted": "npm run verify:staleness"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.20.0",

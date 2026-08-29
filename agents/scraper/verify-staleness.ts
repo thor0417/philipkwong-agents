@@ -2,6 +2,43 @@
 //
 //   npm run verify:staleness
 //
+// ---- IT RUNS ON THE HOSTED RUNNER, NOT IN THE PRE-PUSH HOOK ---------------
+//
+// REMOVED FROM `npm run verify` ON 2026-08-29, and the reason is the same one
+// the scorecard probe exists for: A NETWORK VERDICT RECORDED FROM A DEVELOPER'S
+// CONNECTION IS A FACT ABOUT THE DEVELOPER.
+//
+// This check reaches seven external feeds. From the machine it was written on it
+// returned HTTP 0 - no answer at all - for a DIFFERENT market on almost every
+// run, against feeds that answered 200 on the adjacent run. Measured across six
+// consecutive runs on 2026-08-29:
+//
+//   run 1   Phoenix and Oakland unreadable
+//   run 2   Nashville unreadable, Phoenix and Oakland live
+//   run 3   clean
+//   run 4   clean
+//   run 5   Clark County unreadable          <- refused a push
+//   run 6   clean
+//   run 7   clean
+//
+// Five different markets, one probe, seven runs. The check's own wording is
+// already right about what that means: "This is not proof the feed is dead; it
+// is the absence of proof that it is alive. Re-run before acting on it." A check
+// that says re-run before acting on it must not be the thing that blocks a
+// release, and this one was: it sat at the end of `npm run verify`, which the
+// pre-push hook runs, so a blink of the developer's wifi refused a push. It did
+// exactly that once with production down, and cost a twenty-minute cycle.
+//
+// It is NOT weakened and it is NOT deleted. It runs unchanged, on a schedule and
+// on demand, from `.github/workflows/staleness.yml`, where the egress is clean
+// and a dead-feed verdict is admissible - the same rule the scorecard grid
+// applies to a BLOCKED cell. `npm run verify:hosted` is what that workflow calls.
+//
+// The trade is stated rather than hidden: a feed that dies between scheduled
+// runs is now noticed on the schedule instead of at the next push. Against that,
+// a verdict from here was never trustworthy enough to act on, so what is lost is
+// the appearance of a check rather than a check.
+//
 // THE GAP THIS CLOSES. The zero-write alarm answers "did this source produce
 // anything?" and a frozen feed produces: it hands back the same snapshot,
 // correctly, every run. Telling "still moving" from "stopped in 2018" needs run

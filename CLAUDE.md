@@ -35,6 +35,14 @@ has no left-hand column.
 ```
 npm run verify                    root gate: typecheck plus every scraper suite
 npm run verify:staleness          is any configured jurisdiction reading a dead feed
+                                  NOT in the pre-push hook. It probes seven external
+                                  feeds and from this machine returned HTTP 0 for a
+                                  DIFFERENT market on five of seven runs, refusing a
+                                  push once with production down. It runs on the
+                                  hosted runner via .github/workflows/staleness.yml,
+                                  where a dead-feed verdict is admissible - the same
+                                  rule the scorecard applies to a BLOCKED cell.
+                                  npm run verify:hosted is what that workflow calls.
 npm run gate:measure              precision and recall over the labelled corpus
 npm run verify:market-standard    is every market at the standard it is declared at
 cd dashboard && npm run verify    build plus the full Playwright suite
@@ -43,6 +51,25 @@ cd dashboard && npm run audit:exclusions   does every document state what it wit
 
 `audit:exclusions` is a DASHBOARD script, not a root one. Run from root it fails
 with "Missing script", which reads like the audit passing.
+
+### HEALTH_NO_WRITE=1 SILENCES THE HEALTH WRITE AND LEAVES THE RUN LOOKING NORMAL
+
+It exists for one reason and it is a good one: `verify:alarms` drives fake
+counts through the judge, and without the flag those fake rows joined the
+history that judges the real adapters - the harness reported "usually 3.7" on
+its second run, a baseline it had written itself. A test that changes the thing
+it measures is not a test.
+
+BUT IT IS ONE ENVIRONMENT VARIABLE AWAY FROM REOPENING THE BLIND SPOT the whole
+of this week's work was closing. With it set, a run captures, clusters, writes
+records and prints a clean report, and `source_health` gains nothing - so
+`verify:staleness` has no history to judge, the per-market capture rows that a
+client document now reads are never written, and every market silently returns
+to "no capture on record". The run looks normal because it IS normal; the only
+thing missing is the evidence that it happened.
+
+Set it in a harness. Never in a real run, and never in a hosted one, where
+nobody is watching the report that would otherwise look wrong.
 
 ```
 npm run hooks:install       ONCE PER CLONE. core.hooksPath is local config and
