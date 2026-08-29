@@ -82,7 +82,8 @@
     "diag:pipeline-values": "node --env-file=.env.local --import tsx agents/scraper/diagnostics/pipeline-value-census.ts",
     "diag:scorecard-rows": "node --env-file=.env.local --import tsx agents/scraper/diagnostics/scorecard-rows.ts",
     "diag:readback": "node --env-file=.env.local --import tsx agents/scraper/diagnostics/migration-readback.ts",
-    "verify:hosted": "npm run verify:staleness"
+    "verify:hosted": "npm run verify:staleness",
+    "diag:attachment-cost": "node --import tsx agents/scraper/diagnostics/attachment-filter-cost.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.20.0",

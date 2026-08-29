@@ -20,7 +20,7 @@ import { keywordMatches } from '../prefilter';
 import type { SourceType } from '../../../lib/taxonomy';
 import { bypassModeFor, gateDecide } from '../gate-decide';
 import { FULL_SCOPE, scopeIncludesMarket, type RunScope } from '../run-scope';
-import { matterContacts, contactProvenance, resetAttachmentStats } from './legistar-attachments';
+import { matterDocuments, contactProvenance, resetAttachmentStats } from './legistar-attachments';
 import { LegistarMatterSchema, LegistarEventSchema, parseRecords } from './schemas';
 
 // Canonical government document type (lib/taxonomy SOURCE_TYPES) for a Legistar
@@ -558,19 +558,20 @@ async function scrapeJurisdiction(
   // ATTACHMENT DEPTH. Every gated matter's own documents are read for the
   // owner / applicant / representative block (sources/legistar-attachments).
   // Bounded concurrency: these are multi-megabyte PDFs on the county's server.
-  const contacts = new Array<Awaited<ReturnType<typeof matterContacts>>>(gated.length).fill(null);
+  const docs = new Array<Awaited<ReturnType<typeof matterDocuments>>>(gated.length).fill(null);
   let nextDoc = 0;
   async function docWorker(): Promise<void> {
     while (nextDoc < gated.length) {
       const i = nextDoc++;
-      contacts[i] = await matterContacts(j.client, gated[i].m.MatterId as number, j.jurisdictionLabel);
+      docs[i] = await matterDocuments(j.client, gated[i].m.MatterId as number, j.jurisdictionLabel);
     }
   }
   await Promise.all(Array.from({ length: Math.min(ATTACHMENT_CONCURRENCY, gated.length) }, docWorker));
 
   for (let i = 0; i < gated.length; i++) {
     const { m, title, url } = gated[i];
-    const c = contacts[i];
+    const d = docs[i];
+    const c = d?.contacts ?? null;
     byUrl.set(url, {
       title,
       url,
@@ -589,9 +590,15 @@ async function scrapeJurisdiction(
       presented_by: c?.presented_by ?? null,
       applicant: c?.applicant ?? null,
       representative: c?.representative ?? null,
-      // The staff report actually read is this record's primary document.
-      primary_document_url: c?.documentUrl ?? null,
-      has_primary_document: !!c,
+      // THE DOCUMENT WE FETCHED, NOT THE ONE THAT NAMED A PARTY. These were
+      // `c?.documentUrl` and `!!c`, the CONTACT result, so a staff report that
+      // was listed, fetched and parsed recorded has_primary_document = false
+      // whenever it named no owner, applicant or representative in the label
+      // format contact-labels recognises. One write site, SEVEN jurisdictions -
+      // Clark, Nashville, Phoenix, Oakland, Yonkers, Westchester, Broward - and
+      // every document count for all of them was an understatement.
+      primary_document_url: d?.documentUrl ?? null,
+      has_primary_document: !!d?.documentUrl,
     });
   }
 
