@@ -19,8 +19,10 @@ import {
   LIVE_PIPELINE_STORAGE_KEY,
   TOLERATE_LEGACY_HOSPITALITY_KEY,
   hospitalityModuleValues,
+  isHospitalityModule,
 } from './pipelines';
 import { supabaseAdmin } from '../../lib/supabase-admin';
+import { PROFILES } from './profiles';
 
 const TABLES = ['leads', 'projects', 'project_events'] as const;
 
@@ -70,6 +72,41 @@ async function main(): Promise<void> {
       (unmapped === 0 ? '  (the foreign key in 024 will hold)' : '  <- 024 WOULD FAIL')
   );
   console.log(`Null modules map to: ${NULL_MODULE_PIPELINE}`);
+
+  // ---- ONE IDENTITY, ONE WRITER. THE industry COLUMN. ---------------------
+  //
+  // leads.industry has TWO writers for the live pipeline and they agreed only by
+  // coincidence. gli.ts, government.ts and opportunity.ts each write
+  // `industry: <lane>_MODULE`, derived from the shared key. The orchestrator
+  // writes `industry: profile.name`, and profiles.ts named the hospitality
+  // profile with the literal 'gli'. Both produced 'gli', so nothing showed -
+  // until the constant flipped and the two would have started disagreeing down a
+  // column nobody was watching.
+  //
+  // Exactly the shape of the dashboard hardcoding 'gli' while the agent side
+  // derived it, one column over. So it gets a check rather than a fix and a
+  // hope: for the live pipeline, industry and module are the same value, and a
+  // profile that writes a different one fails the gate.
+  const liveProfiles = PROFILES.filter((p) => isHospitalityModule(p.module));
+  console.log(`\nINDUSTRY AND MODULE ARE ONE IDENTITY for the live pipeline.`);
+  if (liveProfiles.length === 0) {
+    console.log('  no profile writes to the live pipeline, so nothing to check.');
+  }
+  for (const p of liveProfiles) {
+    const ok = p.name === p.module;
+    console.log(
+      `  profile module='${p.module}' writes industry='${p.name}'  ${ok ? 'ok' : 'MISMATCH'}`
+    );
+    if (!ok) {
+      console.log(
+        `  FAIL: the orchestrator writes leads.industry from profile.name, and every lane\n` +
+          `  writer derives it from the shared key. This profile would write '${p.name}' while\n` +
+          `  gli.ts, government.ts and opportunity.ts write '${p.module}', splitting one\n` +
+          `  identity across two values in a column nothing reconciles. Derive the name.`
+      );
+      process.exitCode = 1;
+    }
+  }
 
   // ---- IS THE RENAME'S TOLERANCE STILL LOAD-BEARING? ----------------------
   //

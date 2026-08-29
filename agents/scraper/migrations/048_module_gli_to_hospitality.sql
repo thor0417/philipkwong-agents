@@ -124,28 +124,19 @@ commit;
 -- update public.project_events set module = 'gli' where module = 'hospitality';
 -- commit;
 
--- ---- AND ONE THING THE RENAME REPORT DID NOT COUNT ------------------------
+-- ---- THE FOURTH COLUMN IS 049, AND IT RUNS AFTER THIS FILE ----------------
 --
--- REPORTED, NOT INCLUDED ABOVE, because it is a different column and a
--- different decision. `leads.industry` also carries 'gli', on 1,904 rows -
--- measured 2026-08-29, paged and uncapped:
+-- `leads.industry` also carries 'gli', on 1,904 rows. That is a real defect and
+-- not a footnote: four writers set the column, three derive it from the shared
+-- key and one typed the literal, and flipping the constant at step 4 armed the
+-- disagreement. The writer is fixed and gated in the same commit as this file.
 --
---   gli 1904, fuel_tenders 281, feasibility 119, general_consulting 29,
---   healthcare_pharma 26, null 23, financial_services 16, technology_ai 8,
---   signals 2, ethanol_gulf 1, food_beverage_hospitality 1
+-- It is a SEPARATE MIGRATION because its statements match on `module`, so it can
+-- only run once this one has moved the module values. Run 048, read it back,
+-- then run 049.
 --
--- It is 1,904 and not 1,902 because it has TWO writers that disagree: gli.ts
--- writes `industry: GLI_MODULE`, derived from the shared key, while the
--- orchestrator writes `industry: profile.name` and profiles.ts names the lane
--- profile 'gli' as a literal. So two rows carry industry 'gli' with some other
--- module.
+--   049_industry_gli_to_hospitality.sql
 --
--- `industry` is a display and grouping column - it is what the run report tallies
--- as writtenPerIndustry - and nothing scopes a client document by it. Renaming
--- it is therefore cosmetic rather than load-bearing, and it is NOT in the
--- statements above because widening a migration past what was asked for is how a
--- migration acquires a defect nobody measured. If you want it, it is one more
--- statement and the profile literal in profiles.ts has to move to the shared key
--- in the same commit, or the next run writes 'gli' straight back:
---
---   update public.leads set industry = 'hospitality' where industry = 'gli';  -- 1904
+-- It also handles the two rows that make 1,904 rather than 1,902: they were
+-- parked into the compliance module by an earlier migration that never touched
+-- their industry, and they must not be swept into 'hospitality'.

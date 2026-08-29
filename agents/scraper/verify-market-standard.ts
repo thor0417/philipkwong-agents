@@ -36,7 +36,7 @@
 // brief's cap of 500 rather than the market report's eight. Standing rule 13:
 // where a capped figure decides a pass or a fail, the cap comes off.
 import { supabaseAdmin } from '../../lib/supabase-admin';
-import { isHospitalityModule } from './pipelines';
+import { isHospitalityModule, moduleQueryPredicate, HOSPITALITY_ID } from './pipelines';
 import { inCorpusScope } from '../../lib/corpus-scope';
 import {
   DECISION_FACT_KINDS,
@@ -109,7 +109,10 @@ async function main(): Promise<void> {
     'read ' + projects.length + ' projects and ' + leads.length +
     ' records, both paged to exhaustion, no cap. Entries built at cap 500.'
   );
-  console.log('live population ' + live.length + ': module=gli, status<>dismissed, in corpus scope, stage not dormant or archived');
+  // THE PREDICATE PRINTED IS THE PREDICATE RUN. It said module=gli while the
+  // query had become tolerant of both names, which is the same label-read-as-
+  // the-thing-it-names shape the rename exists to close.
+  console.log('live population ' + live.length + ': ' + moduleQueryPredicate(HOSPITALITY_ID) + ', status<>dismissed, in corpus scope, stage not dormant or archived');
   console.log('');
 
   const rows = new Map<string, MarketRow>();

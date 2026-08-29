@@ -501,7 +501,27 @@ export const PROFILES: IndustryProfile[] = [
     // Isolated from the fuel and consulting lanes. keywords/minScore/
     // minKeywordMatches are unused by the GLI lane (it has its own LLM gate) but
     // are set to sensible values for the shared interface.
-    name: 'gli',
+    //
+    // ---- THE NAME IS DERIVED, AND IT USED TO BE A LITERAL --------------------
+    //
+    // `name` is what the orchestrator writes into leads.industry
+    // (orchestrator.ts:584 and :763). For the live pipeline, industry and module
+    // are the SAME value by design: gli.ts, government.ts and opportunity.ts all
+    // write `industry: <lane>_MODULE`, derived from the shared key. This one
+    // field was the literal 'gli'.
+    //
+    // It never showed, because the literal and the derived value were the same
+    // string. Flipping LIVE_PIPELINE_STORAGE_KEY to 'hospitality' at step 4 of
+    // the rename ARMED it: from that moment the three lane writers would emit
+    // industry 'hospitality' and this one would go on emitting 'gli', and the
+    // corpus would split down a column nobody was watching. Measured before the
+    // fix and after the flip: 1,904 rows carry industry 'gli', 0 carry
+    // 'hospitality', so nothing has run in the window and no row is contaminated.
+    //
+    // It is the same shape as dashboard/lib/pipelines.ts hardcoding 'gli' while
+    // the agent side derived it, one column over: two writers for one identity,
+    // agreeing only by coincidence.
+    name: LIVE_PIPELINE_STORAGE_KEY,
     keywords: [
       'theme park',
       'waterpark',
