@@ -1,36 +1,56 @@
 # Scorecard probe. Part 2A, the mechanical layers, NINE MARKETS.
 #
-# TWO RULES CARRIED FROM THE PILOT, AND THIS FILE EXISTS BECAUSE OF THE FIRST.
+# ---- THE THREE RULES, AND ALL THREE HAVE BEEN BROKEN ONCE -------------------
 #
 #   1. A cell is only ever recorded BLOCKED from the hosted runner. Never from a
 #      developer machine. The pilot recorded four BLOCKED cells from a Bangkok
-#      residential IP and two of them were wrong: Anaheim layers 1 and 3 have
-#      been published all along and a home connection was the only thing that
-#      could not see them. A BLOCKED written from the wrong place is a fact
-#      about the developer.
-#
-#      The local network is still doing it. verify:staleness was run four times
-#      from that machine on 2026-08-29: run 1 called Phoenix and Oakland
-#      unreadable, run 2 called Nashville unreadable and Phoenix and Oakland
-#      live, runs 3 and 4 were clean. Three different markets across four runs
-#      of the same probe against the same feeds. That is the noise this file
-#      exists to keep out of the scorecard.
+#      residential IP and two were wrong: Anaheim layers 1 and 3 had been
+#      published all along. The same machine has since called five different
+#      markets unreadable across six runs of verify:staleness, every time HTTP 0
+#      against feeds that answer 200 on the adjacent run.
 #
 #   2. NETWORK-BLOCKED AND APP-SHAPE-BLOCKED ARE DIFFERENT ANSWERS. A host that
-#      refuses our packets is an egress problem and it is now solved. A host that
-#      answers 200 with a JavaScript shell and no server route is an application
-#      problem, it is not solved, and no proxy would ever have touched it. The
-#      probe below reports which one it found, because the remedies share no
-#      steps at all.
+#      refuses our packets is an egress problem. A host that answers 200 with a
+#      JavaScript shell and no server route is an application problem, and no
+#      proxy would ever have touched it.
 #
-# A THIRD RULE, ADDED HERE. A layer with no standard endpoint prints
-# NEEDS-NAVIGATION and never a guess. Inventing a plausible URL for a licence
-# register and recording NONE when it 404s is fabrication with a status code
-# attached, and standing rule 1 covers it. Every URL below is either already in
-# this repository's adapters or is a named statewide register.
+#   3. EVERY URL IS SOURCED OR THE CELL IS NEEDS-NAVIGATION. A URL that is not
+#      already in an adapter, or in the pilot's own recorded evidence, or a named
+#      statewide register, is not evidence. A NONE on an invented URL is
+#      fabrication with a status code attached.
 #
-# Output is greppable on purpose. One line per cell:
-#     CELL|<market>|<layer>|<verdict>|<evidence>
+# ---- WHAT THE FIRST RUN GOT WRONG, 2026-08-29 ------------------------------
+#
+# It ran from a clean US egress and produced four classes of bad cell. All four
+# are fixed here and named so the fix is checkable:
+#
+#   THE MATTERS QUERY WAS BROKEN AND ANSWERED ANYWAY. `$orderby=MatterId desc`
+#   carried an unencoded space. Measured: unencoded -> HTTP 000, 0 bytes;
+#   encoded -> HTTP 200, 99,818 bytes, 60 matters, 46 case-numbered titles. All
+#   five Legistar markets returned the identical NEEDS-NAVIGATION on layers 3, 4
+#   and 7 - fifteen cells that were facts about a broken URL. Five jurisdictions
+#   behaving identically is the signature of a broken probe.
+#
+#   THE BODY PATTERN MATCHED A PERSON. `(plan|zon)` matched Ka-PLAN and recorded
+#   "Oakland L2 FIELD, Legistar body: Rebecca Kaplan" - a councilmember's name as
+#   a planning body. A body name must now carry a whole-word planning term AND a
+#   body noun, so a surname cannot satisfy it.
+#
+#   FIVE URLS WERE INVENTED AND THEIR 404s RECORDED AS FINDINGS. Anaheim L2 NONE
+#   and L4 NONE, NYC L9 NONE, and BLOCKED on two L8 hosts that do not exist. The
+#   Anaheim Granicus probe used view_id=10; the adapter uses view_id=2. Every URL
+#   below is now annotated with where it comes from, and a layer with no
+#   sourceable URL prints NEEDS-NAVIGATION saying so.
+#
+#   A 39-BYTE PAGE WAS CALLED DOC. The classifier only rejected thin pages when
+#   scripts were present, so a near-empty page with no scripts fell through to
+#   DOC. A page carrying almost no text is not a document whatever else is true
+#   of it.
+#
+# Output is written to a file and printed once, between markers, so that reading
+# the run log cannot pick up the script's own echo lines as results. The first
+# read of this workflow did exactly that and produced 17 cells for a market
+# called "$market".
 #
 # Captures nothing, writes nothing, safe to dispatch and safe to delete.
 name: Scorecard probe
@@ -49,63 +69,70 @@ jobs:
         run: |
           echo "=== runner egress (a BLOCKED below is only valid from here) ==="
           curl -s --max-time 20 https://ipinfo.io/json || echo "ipinfo unreachable"
+          : > /tmp/cells.txt
 
-      # ---- THE SHARED CLASSIFIER ----------------------------------------
-      #
-      # Rule 2 lives here rather than in each probe, so no market can quietly
-      # get a different definition of blocked from its neighbour. It separates
-      # the three outcomes that all LOOK like failure:
-      #
-      #   no TCP                    -> BLOCKED, NETWORK
-      #   TCP but no completion     -> BLOCKED, APP-SHAPE
-      #   TCP + 200 + a JS shell    -> BLOCKED, APP-SHAPE (a proxy cannot help)
-      #   TCP + 200 + real text     -> DOC
-      #   TCP + 404/410            -> NONE (checked, not published here)
-      #
-      # DOC and FIELD are not the same answer and this cannot tell them apart:
-      # it reads bytes, and whether those bytes are a queryable field is a
-      # question about the API's shape. Probes that know they are hitting a
-      # queryable endpoint print FIELD themselves.
-      - name: Write the classifier
+      - name: Write the shared helpers
         run: |
-          cat > /tmp/classify.sh <<'SH'
+          cat > /tmp/lib.sh <<'SH'
           UA='Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36'
-          # classify <market> <layer> <url> [note]
+
+          cell () { printf 'CELL|%s|%s|%s|%s\n' "$1" "$2" "$3" "$4" >> /tmp/cells.txt; }
+
+          # A LAYER WITH NO SOURCEABLE URL. Rule 3: this is the only honest answer
+          # when nothing in an adapter, the pilot, or a named statewide register
+          # points at the thing. It is not NONE - NONE means checked and not
+          # published, and nothing has been checked.
+          nav () { cell "$1" "$2" NEEDS-NAVIGATION "$3"; }
+
+          # classify <market> <layer> <url> <provenance>
+          #
+          # Separates the outcomes that all LOOK like failure, and refuses to call
+          # a near-empty page a document:
+          #   no TCP                       -> BLOCKED, NETWORK
+          #   TCP, no completion           -> BLOCKED, APP-SHAPE
+          #   200 + challenge interstitial -> BLOCKED, NETWORK
+          #   404/410                      -> NONE, checked and not published here
+          #   200 + thin + scripts         -> BLOCKED, APP-SHAPE
+          #   200 + thin + no scripts      -> NEEDS-NAVIGATION, answered but empty
+          #   200 + real text              -> DOC
           classify () {
-            market="$1"; layer="$2"; url="$3"; note="${4:-}"
+            market="$1"; layer="$2"; url="$3"; prov="${4:-}"
             host=$(printf '%s' "$url" | sed -E 's#https?://##; s#/.*##')
             if timeout 8 bash -c "cat < /dev/null > /dev/tcp/$host/443" 2>/dev/null; then tcp=OPEN; else tcp=DROPPED; fi
-            code=$(curl -sL -o /tmp/c.html -w '%{http_code}' --max-time 60 -A "$UA" "$url")
-            bytes=$(wc -c < /tmp/c.html | tr -d ' ')
-            script=$(grep -oic '<script' /tmp/c.html 2>/dev/null || echo 0)
-            text=$(sed 's/<[^>]*>//g' /tmp/c.html 2>/dev/null | tr -s ' \n' ' ' | wc -c | tr -d ' ')
+            code=$(curl -sL -o /tmp/c.out -w '%{http_code}' --max-time 60 -A "$UA" "$url")
+            bytes=$(wc -c < /tmp/c.out | tr -d ' ')
+            script=$(grep -oic '<script' /tmp/c.out 2>/dev/null || echo 0)
+            text=$(sed 's/<[^>]*>//g' /tmp/c.out 2>/dev/null | tr -s ' \n' ' ' | wc -c | tr -d ' ')
             echo "  probe $market L$layer $host tcp=$tcp http=$code bytes=$bytes scripts=$script text=$text"
             if [ "$tcp" = "DROPPED" ]; then
-              echo "CELL|$market|$layer|BLOCKED|NETWORK: no TCP to $host:443 from the runner. $note"
+              cell "$market" "$layer" BLOCKED "NETWORK: no TCP to $host:443 from the runner. $prov"
             elif [ "$code" = "000" ]; then
-              echo "CELL|$market|$layer|BLOCKED|APP-SHAPE: $host accepts TCP but the request never completes; client-side app, no server route. $note"
-            elif grep -qi 'Attention Required\|Just a moment\|have been blocked\|cf-browser-verification' /tmp/c.html 2>/dev/null; then
-              echo "CELL|$market|$layer|BLOCKED|NETWORK: $host served an interactive challenge page ($code, ${bytes}b). $note"
+              cell "$market" "$layer" BLOCKED "APP-SHAPE: $host accepts TCP but the request never completes; client-side app, no server route. $prov"
+            elif grep -qi 'Attention Required\|Just a moment\|have been blocked\|cf-browser-verification' /tmp/c.out 2>/dev/null; then
+              cell "$market" "$layer" BLOCKED "NETWORK: $host served an interactive challenge page ($code, ${bytes}b). $prov"
             elif [ "$code" = "404" ] || [ "$code" = "410" ]; then
-              echo "CELL|$market|$layer|NONE|$host answered $code: checked, not published at this address. $note"
-            elif [ "$text" -lt 1200 ] && [ "$script" -gt 0 ]; then
-              echo "CELL|$market|$layer|BLOCKED|APP-SHAPE: $host returns $code with ${text}b of visible text behind $script scripts; client-side app, no server route. $note"
+              cell "$market" "$layer" NONE "$host answered $code at an address this repo already uses: checked, not published here. $prov"
+            elif [ "$code" = "200" ] && [ "$text" -lt 1200 ] && [ "$script" -gt 0 ]; then
+              cell "$market" "$layer" BLOCKED "APP-SHAPE: $host returns 200 with only ${text}b of visible text behind $script scripts; client-side app, no server route. $prov"
+            elif [ "$code" = "200" ] && [ "$text" -lt 1200 ]; then
+              cell "$market" "$layer" NEEDS-NAVIGATION "$host answers 200 but carries only ${text}b of visible text and no scripts; that is not a document, read the navigation. $prov"
             elif [ "$code" = "200" ]; then
-              echo "CELL|$market|$layer|DOC|$host answers 200 with ${text}b of readable text. $note"
+              cell "$market" "$layer" DOC "$host answers 200 with ${text}b of readable text. $prov"
             else
-              echo "CELL|$market|$layer|NEEDS-NAVIGATION|$host answered $code with ${text}b; not a clean yes or no, read the navigation. $note"
+              cell "$market" "$layer" NEEDS-NAVIGATION "$host answered $code with ${text}b; not a clean yes or no. $prov"
             fi
           }
           SH
-          echo "classifier written"
+          echo "helpers written"
 
-      - name: Legistar markets, layers 1 2 4 6 7
+      - name: Legistar markets, layers 1 2 3 4 6 7
         run: |
           set +e
-          UA='philipkwong-agents/1.0 (+scorecard-probe)'
-          # client:market  -- the five Legistar markets in the scored nine.
-          # Westchester and Yonkers are DEFERRED rows and are deliberately not
-          # probed: see the deferral block in MARKET-CHECKLIST.md.
+          . /tmp/lib.sh
+          JUA='philipkwong-agents/1.0 (+scorecard-probe)'
+          # webapi.legistar.com is sources/legistar.ts. The five Legistar markets
+          # in the scored nine; Westchester and Yonkers are DEFERRED rows and are
+          # deliberately not probed.
           for pair in \
             "clark:Clark County" \
             "broward:Broward County" \
@@ -116,143 +143,151 @@ jobs:
             echo "--------------------------------------------------------"
             echo "LEGISTAR $client  ($market)"
 
-            bodies=$(curl -s --max-time 40 -A "$UA" -H 'Accept: application/json' \
+            bodies=$(curl -s --max-time 40 -A "$JUA" -H 'Accept: application/json' \
               "https://webapi.legistar.com/v1/$client/Bodies?\$top=250")
             nbodies=$(printf '%s' "$bodies" | grep -o '"BodyId"' | wc -l | tr -d ' ')
             echo "  bodies returned: $nbodies"
-            printf '%s' "$bodies" | grep -oE '"BodyName":"[^"]*"' | sed 's/"BodyName":"//;s/"$//' | sed 's/^/      /'
 
-            # L1 council: any governing body at all plus a working Events feed
-            events=$(curl -s --max-time 40 -A "$UA" -H 'Accept: application/json' \
+            events=$(curl -s --max-time 40 -A "$JUA" -H 'Accept: application/json' \
               "https://webapi.legistar.com/v1/$client/Events?\$top=3")
             nev=$(printf '%s' "$events" | grep -o '"EventId"' | wc -l | tr -d ' ')
             if [ "$nev" -gt 0 ]; then
-              echo "CELL|$market|1|FIELD|Legistar Events returns $nev events, queryable JSON"
+              cell "$market" 1 FIELD "Legistar Events returns $nev events as queryable JSON (sources/legistar.ts)"
             else
-              echo "CELL|$market|1|BLOCKED|NETWORK: Legistar Events returned no EventId from the runner"
+              cell "$market" 1 BLOCKED "NETWORK: Legistar Events returned no EventId from the runner"
             fi
 
-            # L2 planning body: a body whose NAME says planning or zoning
-            plan=$(printf '%s' "$bodies" | grep -oiE '"BodyName":"[^"]*(plan|zon)[^"]*"' | head -4 | sed 's/"BodyName":"//;s/"$//')
+            # L2 THE BODY MUST BE A BODY. A whole-word planning term AND a body
+            # noun, so "Rebecca Kaplan" cannot satisfy it - which it did on the
+            # first run, through a bare (plan|zon) substring.
+            names=$(printf '%s' "$bodies" | grep -oE '"BodyName":"[^"]*"' | sed 's/"BodyName":"//;s/"$//')
+            plan=$(printf '%s\n' "$names" \
+              | grep -iE '(^|[^a-z])(planning|zoning|land[ -]use)([^a-z]|$)' \
+              | grep -iE '(commission|committee|subcommittee|board|council|authority|panel|hearing)' \
+              | head -1)
             if [ -n "$plan" ]; then
-              echo "CELL|$market|2|FIELD|Legistar body: $(printf '%s' "$plan" | head -1)"
+              cell "$market" 2 FIELD "Legistar body: $plan"
             else
-              echo "CELL|$market|2|NEEDS-NAVIGATION|no planning or zoning body in Legistar; it may publish separately (Broward's Planning Council does)"
+              nav "$market" 2 "no body in Legistar carries a whole-word planning or zoning term together with a body noun; it may publish separately, as Broward's Planning Council does"
             fi
 
-            # L6 notices: a body whose NAME says notice
-            note=$(printf '%s' "$bodies" | grep -oiE '"BodyName":"[^"]*notice[^"]*"' | head -2 | sed 's/"BodyName":"//;s/"$//')
+            note=$(printf '%s\n' "$names" | grep -iE 'notice' | head -1)
             if [ -n "$note" ]; then
-              echo "CELL|$market|6|FIELD|Legistar body: $(printf '%s' "$note" | head -1)"
+              cell "$market" 6 FIELD "Legistar body: $note"
             else
-              echo "CELL|$market|6|NEEDS-NAVIGATION|no notices body in Legistar"
+              nav "$market" 6 "no notices body in Legistar"
             fi
 
-            # L3 staff report: do the newest matters carry ATTACHMENTS at all.
-            # A staff report is an attachment on a matter everywhere it exists,
-            # so "does this publisher attach anything" is the mechanical half of
-            # the question. Whether the attachment carries CONDITIONS is a
-            # different question and market-standard.ts already answers it.
-            mid=$(curl -s --max-time 40 -A "$UA" -H 'Accept: application/json' \
-              "https://webapi.legistar.com/v1/$client/Matters?\$orderby=MatterId desc&\$top=1" \
-              | grep -oE '"MatterId":[0-9]+' | head -1 | cut -d: -f2)
-            if [ -n "$mid" ]; then
-              att=$(curl -s --max-time 40 -A "$UA" -H 'Accept: application/json' \
-                "https://webapi.legistar.com/v1/$client/Matters/$mid/Attachments")
-              natt=$(printf '%s' "$att" | grep -o '"MatterAttachmentId"' | wc -l | tr -d ' ')
-              names=$(printf '%s' "$att" | grep -oE '"MatterAttachmentName":"[^"]*"' | head -3 | sed 's/"MatterAttachmentName":"//;s/"$//' | tr '\n' ';')
-              if [ "$natt" -gt 0 ]; then
-                echo "CELL|$market|3|DOC|matter $mid carries $natt attachments, e.g. $names"
-              else
-                echo "CELL|$market|3|NEEDS-NAVIGATION|newest matter $mid carries no attachment; sample more, or the staff report is on a separate portal"
-              fi
-            else
-              echo "CELL|$market|3|NEEDS-NAVIGATION|no MatterId returned to sample attachments from"
+            # THE ENCODED MATTERS QUERY. The space in "MatterId desc" must be
+            # %20; unencoded it returns HTTP 000 and every layer below it reads
+            # as absent.
+            matters=$(curl -s --max-time 60 -A "$JUA" -H 'Accept: application/json' \
+              "https://webapi.legistar.com/v1/$client/Matters?\$orderby=MatterId%20desc&\$top=60")
+            nmat=$(printf '%s' "$matters" | grep -o '"MatterId"' | wc -l | tr -d ' ')
+            echo "  matters returned: $nmat"
+
+            if [ "$nmat" -eq 0 ]; then
+              nav "$market" 3 "the Matters query returned nothing from the runner; layers 3, 4 and 7 are unanswered rather than absent"
+              nav "$market" 4 "the Matters query returned nothing from the runner"
+              nav "$market" 7 "the Matters query returned nothing from the runner"
+              continue
             fi
 
-            # L4 case register + L7 instruments, from a matter sample.
-            # THE PILOT GOT L4 WRONG BY READING THE WRONG FIELD. Clark's
-            # MatterFile holds sequential agenda numbers (26-2120) and the case
-            # number lives in MatterTitle. So both are checked, and which one
-            # carries it decides FIELD against DOC: a field can be filtered
-            # server-side, a title has to be fetched and parsed.
-            matters=$(curl -s --max-time 60 -A "$UA" -H 'Accept: application/json' \
-              "https://webapi.legistar.com/v1/$client/Matters?\$orderby=MatterId desc&\$top=60")
+            # L3 staff report: does the publisher attach anything to a matter at
+            # all. Whether the attachment carries CONDITIONS is a different
+            # question and market-standard.ts already answers it.
+            mid=$(printf '%s' "$matters" | grep -oE '"MatterId":[0-9]+' | head -1 | cut -d: -f2)
+            att=$(curl -s --max-time 40 -A "$JUA" -H 'Accept: application/json' \
+              "https://webapi.legistar.com/v1/$client/Matters/$mid/Attachments")
+            natt=$(printf '%s' "$att" | grep -o '"MatterAttachmentId"' | wc -l | tr -d ' ')
+            anames=$(printf '%s' "$att" | grep -oE '"MatterAttachmentName":"[^"]*"' | head -2 | sed 's/"MatterAttachmentName":"//;s/"$//' | tr '\n' ';')
+            if [ "$natt" -gt 0 ]; then
+              cell "$market" 3 DOC "matter $mid carries $natt attachments, e.g. $anames"
+            else
+              nav "$market" 3 "the newest matter ($mid) carries no attachment; sample more, or the staff report is on a separate portal"
+            fi
+
+            # L4 and L7. WHICH FIELD carries the case number decides FIELD against
+            # DOC: a field can be filtered server-side, a title has to be fetched
+            # and parsed. The pilot got this wrong by reading MatterFile alone.
             files=$(printf '%s' "$matters" | grep -oE '"MatterFile":"[^"]*"' | sed 's/"MatterFile":"//;s/"$//')
             titles=$(printf '%s' "$matters" | grep -oE '"MatterTitle":"[^"]{0,80}' | sed 's/"MatterTitle":"//')
             CASE='^[A-Z]{2,4}-?[0-9]{2}-?[0-9]{3,}'
-            ncase_f=$(printf '%s\n' "$files" | grep -cE "$CASE")
-            ncase_t=$(printf '%s\n' "$titles" | grep -cE "$CASE")
+            nf=$(printf '%s\n' "$files" | grep -cE "$CASE")
+            nt=$(printf '%s\n' "$titles" | grep -cE "$CASE")
+            echo "  case-numbered: MatterFile $nf/$nmat, MatterTitle $nt/$nmat"
+            if [ "$nf" -gt 0 ]; then
+              cell "$market" 4 FIELD "$nf of $nmat carry a case-numbered MatterFile, e.g. $(printf '%s\n' "$files" | grep -E "$CASE" | head -1)"
+            elif [ "$nt" -gt 0 ]; then
+              cell "$market" 4 DOC "$nt of $nmat carry the case number in MatterTitle and not in a queryable field, e.g. $(printf '%s\n' "$titles" | grep -E "$CASE" | head -1 | cut -c1-52)"
+            else
+              nav "$market" 4 "no case number in MatterFile or MatterTitle across $nmat matters; the register may be a separate portal"
+            fi
+
             types=$(printf '%s' "$matters" | grep -oE '"MatterTypeName":"[^"]*"' | sed 's/"MatterTypeName":"//;s/"$//' | sort -u)
             ninstr=$(printf '%s\n' "$types" | grep -ciE 'ordinance|resolution|agreement|contract')
-            echo "  matter types: $(printf '%s' "$types" | tr '\n' ';' | cut -c1-160)"
-            echo "  case-numbered: MatterFile $ncase_f/60, MatterTitle $ncase_t/60"
-            if [ "$ncase_f" -gt 0 ]; then
-              echo "CELL|$market|4|FIELD|$ncase_f of 60 carry a case-numbered MatterFile, e.g. $(printf '%s\n' "$files" | grep -E "$CASE" | head -1)"
-            elif [ "$ncase_t" -gt 0 ]; then
-              echo "CELL|$market|4|DOC|$ncase_t of 60 carry the case number in MatterTitle and not in a field, e.g. $(printf '%s\n' "$titles" | grep -E "$CASE" | head -1 | cut -c1-60)"
-            else
-              echo "CELL|$market|4|NEEDS-NAVIGATION|no case number in MatterFile or MatterTitle in the newest 60; the register may be a separate portal"
-            fi
+            nti=$(printf '%s\n' "$titles" | grep -ciE 'ordinance|resolution|agreement')
             if [ "$ninstr" -gt 0 ]; then
-              echo "CELL|$market|7|FIELD|$ninstr instrument matter types on Legistar: $(printf '%s\n' "$types" | grep -iE 'ordinance|resolution|agreement|contract' | tr '\n' ';')"
+              cell "$market" 7 FIELD "$ninstr instrument matter types: $(printf '%s\n' "$types" | grep -iE 'ordinance|resolution|agreement|contract' | tr '\n' ';' | cut -c1-90)"
+            elif [ "$nti" -gt 0 ]; then
+              cell "$market" 7 DOC "no instrument matter TYPE, but $nti of $nmat titles name an ordinance, resolution or agreement; it is in text, not in a field"
             else
-              nti=$(printf '%s\n' "$titles" | grep -ciE 'ordinance|resolution|agreement')
-              if [ "$nti" -gt 0 ]; then
-                echo "CELL|$market|7|DOC|no instrument matter TYPE, but $nti of 60 titles name an ordinance, resolution or agreement; it is in text, not in a field"
-              else
-                echo "CELL|$market|7|NEEDS-NAVIGATION|no instrument in the matter types or the titles of the newest 60"
-              fi
+              nav "$market" 7 "no instrument in the matter types or titles of $nmat matters"
             fi
           done
 
-      - name: Las Vegas PrimeGov, layers 1 2 3
+      - name: Las Vegas, layers 1 2 3 4
         run: |
           set +e
-          . /tmp/classify.sh
-          UA='Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36'
+          . /tmp/lib.sh
+          # sources/lasvegas.ts
           out=$(curl -s --max-time 60 -A "$UA" \
             "https://lasvegas.primegov.com/api/v2/PublicPortal/ListArchivedMeetings?year=2026")
           bytes=$(printf '%s' "$out" | wc -c | tr -d ' ')
           echo "  PrimeGov bytes: $bytes"
           if printf '%s' "$out" | grep -q 'Attention Required\|have been blocked\|Just a moment'; then
-            echo "CELL|Las Vegas|1|BLOCKED|NETWORK: Cloudflare WAF block page even from the runner"
-            echo "CELL|Las Vegas|2|BLOCKED|NETWORK: same host, same block"
-            echo "CELL|Las Vegas|3|BLOCKED|NETWORK: same host, same block"
+            cell "Las Vegas" 1 BLOCKED "NETWORK: Cloudflare WAF block page even from the runner"
+            cell "Las Vegas" 2 BLOCKED "NETWORK: same host, same block"
+            cell "Las Vegas" 3 BLOCKED "NETWORK: same host, same block"
           else
             titles=$(printf '%s' "$out" | grep -oE '"title":"[^"]*"' | sed 's/"title":"//;s/"$//' | sort -u)
             ncouncil=$(printf '%s\n' "$titles" | grep -ciE 'city council')
             nplan=$(printf '%s\n' "$titles" | grep -ciE 'planning commission')
             ndoc=$(printf '%s' "$out" | grep -o '"templateName"' | wc -l | tr -d ' ')
-            echo "  distinct meeting titles: $(printf '%s\n' "$titles" | wc -l | tr -d ' ')"
-            echo "CELL|Las Vegas|1|FIELD|PrimeGov JSON ${bytes}b, $ncouncil City Council meeting titles"
-            echo "CELL|Las Vegas|2|FIELD|PrimeGov JSON, $nplan Planning Commission meeting titles"
-            if [ "$ndoc" -gt 0 ]; then
-              echo "CELL|Las Vegas|3|DOC|PrimeGov lists $ndoc meeting document templates alongside the meetings"
+            cell "Las Vegas" 1 FIELD "PrimeGov JSON ${bytes}b, $ncouncil City Council meeting titles (sources/lasvegas.ts)"
+            if [ "$nplan" -gt 0 ]; then
+              cell "Las Vegas" 2 FIELD "PrimeGov JSON, $nplan Planning Commission meeting titles"
             else
-              echo "CELL|Las Vegas|3|NEEDS-NAVIGATION|PrimeGov answers but names no meeting documents in this response"
+              nav "Las Vegas" 2 "PrimeGov answers but names no Planning Commission meeting in 2026"
+            fi
+            if [ "$ndoc" -gt 0 ]; then
+              cell "Las Vegas" 3 DOC "PrimeGov lists $ndoc meeting document templates alongside the meetings"
+            else
+              nav "Las Vegas" 3 "PrimeGov answers but names no meeting document"
             fi
           fi
-          # L4 the city's own agenda index, already in govdocs.ts
+          # sources/govdocs.ts
           classify "Las Vegas" 4 "https://www.lasvegasnevada.gov/Government/Agendas-Minutes" "govdocs.ts already reads this index"
 
-      - name: Anaheim, layers 1 2 3 4
+      - name: Anaheim, layers 1 2 3
         run: |
           set +e
-          . /tmp/classify.sh
-          # THE TWO CELLS THE PILOT GOT WRONG. Both hosts drop packets from a
-          # residential connection and answer from here, which is the whole
-          # reason this file exists. Both URLs are already in the adapters.
-          classify "Anaheim" 1 "https://local.anaheim.net/docs_agend/" "govdocs.ts; the pilot first recorded BLOCKED from a Bangkok IP"
-          classify "Anaheim" 2 "https://anaheim.granicus.com/ViewPublisher.php?view_id=10" "agenda-portal.ts, Planning Commission"
-          classify "Anaheim" 3 "https://local.anaheim.net/docs_agend/" "same host as L1; reachability only. The Anaheim reader returns 9 fact kinds and ZERO conditions by measurement, so this layer is READABLE and still yields no conditions - two different questions and only the first is probed here"
-          classify "Anaheim" 4 "https://www.anaheim.net/580/Planning-Building" "the city's own planning navigation"
+          . /tmp/lib.sh
+          # THE view_id COMES FROM THE ADAPTER. agenda-portal.ts:345 is
+          # ViewPublisher.php?view_id=2. The first run guessed view_id=10, got a
+          # 404, and recorded NONE - a fact about a URL nobody uses.
+          classify "Anaheim" 2 "https://anaheim.granicus.com/ViewPublisher.php?view_id=2" "agenda-portal.ts:345, the Planning Commission publisher"
+          # govdocs.ts:118. The adapter's own comment records that this host times
+          # out from the developer machine and answers from elsewhere, which is
+          # the whole reason this workflow exists.
+          classify "Anaheim" 1 "https://local.anaheim.net/docs_agend/" "govdocs.ts:118; pilot recorded 232,143b for a specific agenda, this is the index"
+          classify "Anaheim" 3 "https://local.anaheim.net/docs_agend/" "same host as L1; this probes REACHABILITY only. The Anaheim reader returns 9 fact kinds and ZERO conditions by measurement, so the layer can be readable and still yield nothing"
 
       - name: CFTOD, layers 1 3 10
         run: |
           set +e
-          . /tmp/classify.sh
-          # Every one of these is a URL govdocs.ts already fetches.
+          . /tmp/lib.sh
+          # Every URL here is one govdocs.ts already fetches.
           classify "Central Florida Tourism Oversight District" 1 \
             "https://www.oversightdistrict.org/wp-content/uploads/2026/03/3-27-2026-BOS-Agenda-Packet-FINAL.pdf" \
             "govdocs.ts; Board of Supervisors agenda packet"
@@ -261,44 +296,47 @@ jobs:
             "govdocs.ts; the packet carries the staff material"
           classify "Central Florida Tourism Oversight District" 10 \
             "https://www.oversightdistrict.org/wp-content/uploads/2026/01/2045-CFTOD-Comprehensive-Plan.pdf" \
-            "govdocs.ts; CFTOD IS a special district, so layer 10 is its primary layer rather than a supplement"
+            "govdocs.ts; CFTOD IS a special district, so layer 10 is its primary layer"
 
       - name: New York City, layers 1 4 5 6
         run: |
           set +e
-          . /tmp/classify.sh
-          soda () {
-            code=$(curl -s -o /tmp/s.json -w '%{http_code}' --max-time 45 \
-              "https://data.cityofnewyork.us/resource/$1.json?\$limit=2")
-            n=$(grep -o '{' /tmp/s.json | wc -l | tr -d ' ')
-            echo "$code $n"
-          }
-          r1=$(soda gezn-7mgk); echo "  CEQR projects dataset  -> $r1"
-          r2=$(soda 8fj8-3sgg); echo "  CEQR milestones        -> $r2"
-          case "$r1" in 200*) echo "CELL|New York City|5|FIELD|Socrata dataset gezn-7mgk answers, CEQR projects queryable";; *) echo "CELL|New York City|5|BLOCKED|NETWORK: Socrata gezn-7mgk returned $r1";; esac
+          . /tmp/lib.sh
+          # sources/nyc-ceqr.ts
+          code=$(curl -s -o /tmp/s.json -w '%{http_code}' --max-time 45 \
+            "https://data.cityofnewyork.us/resource/gezn-7mgk.json?\$limit=2")
+          echo "  CEQR projects dataset -> $code"
+          if [ "$code" = "200" ]; then
+            cell "New York City" 5 FIELD "Socrata dataset gezn-7mgk answers 200; CEQR projects queryable (sources/nyc-ceqr.ts)"
+          else
+            cell "New York City" 5 BLOCKED "NETWORK: Socrata gezn-7mgk returned $code from the runner"
+          fi
+          # sources/nyc-zap.ts
           zap=$(curl -s -o /dev/null -w '%{http_code}' --max-time 40 "https://zap.planning.nyc.gov/projects/")
-          echo "  ZAP projects           -> HTTP $zap"
-          cr=$(curl -s -o /tmp/cr.html -w '%{http_code}' --max-time 40 "https://a856-cityrecord.nyc.gov/")
-          crb=$(wc -c < /tmp/cr.html | tr -d ' ')
-          echo "  City Record            -> HTTP $cr ${crb}b"
-          case "$cr" in 200) echo "CELL|New York City|6|DOC|a856-cityrecord.nyc.gov answers 200 with ${crb}b";; *) echo "CELL|New York City|6|BLOCKED|NETWORK: City Record returned $cr";; esac
-          case "$zap" in 200) echo "CELL|New York City|4|FIELD|ZAP project register answers 200";; *) echo "CELL|New York City|4|NEEDS-NAVIGATION|ZAP returned $zap, check the Socrata equivalent";; esac
-          # L1 NYC COUNCIL. Recorded in this repo as Legistar 403: we can say
-          # what was FILED and reviewed in New York and never what was APPROVED.
-          # Probed rather than asserted, because a 403 that has lifted is
-          # coverage we would otherwise go on withholding for no reason.
+          echo "  ZAP -> $zap"
+          if [ "$zap" = "200" ]; then
+            cell "New York City" 4 FIELD "ZAP project register answers 200 (sources/nyc-zap.ts)"
+          else
+            nav "New York City" 4 "ZAP returned $zap; check the Socrata equivalent"
+          fi
+          # sources/nyc-city-record.ts
+          classify "New York City" 6 "https://a856-cityrecord.nyc.gov/" "sources/nyc-city-record.ts"
+          # THE RECORDED 403 IS PROBED, NOT ASSERTED. A 403 that has lifted is
+          # coverage we would go on withholding for no reason.
           nyc=$(curl -s -o /dev/null -w '%{http_code}' --max-time 40 \
             -H 'Accept: application/json' "https://webapi.legistar.com/v1/nyc/Bodies?\$top=5")
-          echo "  NYC Council Legistar   -> HTTP $nyc"
+          echo "  NYC Council Legistar -> $nyc"
           case "$nyc" in
-            200) echo "CELL|New York City|1|FIELD|webapi.legistar.com/v1/nyc answers 200 - THE 403 HAS LIFTED, and every NYC coverage claim in this repo needs revisiting";;
-            403) echo "CELL|New York City|1|BLOCKED|NETWORK: webapi.legistar.com/v1/nyc returns 403 from the runner, so this is the feed and not our egress. Unchanged since it was first recorded";;
-            *)   echo "CELL|New York City|1|NEEDS-NAVIGATION|NYC Legistar returned $nyc, neither the recorded 403 nor a working feed";;
+            200) cell "New York City" 1 FIELD "webapi.legistar.com/v1/nyc answers 200 - THE 403 HAS LIFTED, and every NYC coverage claim in this repo needs revisiting";;
+            403) cell "New York City" 1 BLOCKED "NETWORK: webapi.legistar.com/v1/nyc returns 403 from the runner, so this is the feed refusing and not our egress. Unchanged since first recorded";;
+            *)   nav "New York City" 1 "NYC Legistar returned $nyc, neither the recorded 403 nor a working feed";;
           esac
 
-      - name: California environmental, layer 5, via CEQAnet
+      - name: California environmental, layer 5
         run: |
           set +e
+          . /tmp/lib.sh
+          # sources/ceqanet.ts
           for agency in "Anaheim, City of" "Oakland, City of"; do
             enc=$(printf '%s' "$agency" | sed 's/ /%20/g; s/,/%2C/g')
             code=$(curl -s -o /tmp/ceqa.csv -w '%{http_code}' --max-time 90 \
@@ -308,79 +346,106 @@ jobs:
             market=$(printf '%s' "$agency" | sed 's/, City of//')
             echo "  CEQAnet $agency -> HTTP $code ${bytes}b ${rows} lines"
             if [ "$code" = "200" ] && [ "$bytes" -gt 2000 ]; then
-              echo "CELL|$market|5|FIELD|CEQAnet lead-agency CSV, ${bytes}b, ${rows} rows"
+              cell "$market" 5 FIELD "CEQAnet lead-agency CSV, ${bytes}b, ${rows} rows (sources/ceqanet.ts)"
             else
-              echo "CELL|$market|5|NONE|CEQAnet returns no meaningful rows for this lead agency (HTTP $code, ${bytes}b)"
+              cell "$market" 5 NONE "CEQAnet, which this repo already reads, returns no meaningful rows for this lead agency (HTTP $code, ${bytes}b)"
             fi
           done
 
-      - name: Florida environmental, layer 5, via SFWMD
+      - name: Florida environmental, layer 5
         run: |
           set +e
-          # sfwmd.ts already reads this ArcGIS service. It covers Broward and the
-          # CFTOD footprint, which is why one probe answers two rows.
+          . /tmp/lib.sh
+          # sources/sfwmd.ts
           code=$(curl -s -o /tmp/sf.json -w '%{http_code}' --max-time 60 \
             "https://services1.arcgis.com/sDAPyc2rGRn7vf9B/arcgis/rest/services?f=json")
           bytes=$(wc -c < /tmp/sf.json | tr -d ' ')
           echo "  SFWMD ArcGIS -> HTTP $code ${bytes}b"
           if [ "$code" = "200" ] && [ "$bytes" -gt 200 ]; then
-            echo "CELL|Broward County|5|FIELD|SFWMD ArcGIS REST answers 200 with ${bytes}b; environmental resource permitting is queryable"
-            echo "CELL|Central Florida Tourism Oversight District|5|FIELD|same SFWMD service; the district sits inside the water management district"
+            cell "Broward County" 5 FIELD "SFWMD ArcGIS REST answers 200 with ${bytes}b; environmental resource permitting is queryable (sources/sfwmd.ts)"
+            cell "Central Florida Tourism Oversight District" 5 FIELD "the same SFWMD service; the district sits inside the water management district"
           else
-            echo "CELL|Broward County|5|NEEDS-NAVIGATION|SFWMD ArcGIS returned $code ${bytes}b"
-            echo "CELL|Central Florida Tourism Oversight District|5|NEEDS-NAVIGATION|SFWMD ArcGIS returned $code ${bytes}b"
+            nav "Broward County" 5 "SFWMD ArcGIS returned $code with ${bytes}b"
+            nav "Central Florida Tourism Oversight District" 5 "SFWMD ArcGIS returned $code with ${bytes}b"
           fi
 
       - name: Layer 5 where there is no statute to publish under
         run: |
-          # NOT A PROBE, AND IT MUST NOT BE ONE. Nevada and Arizona have no
-          # CEQA-equivalent statute for local discretionary approvals, so there
-          # is no project environmental determination for the jurisdiction to
-          # publish and no URL whose absence would prove it. NONE here is a fact
-          # about the law and is recorded as such, with what the market DOES
-          # publish under "environment" named so the next reader does not go
-          # looking for it again.
-          echo "CELL|Clark County|5|NONE|Nevada has no CEQA-equivalent statute. What Clark publishes under environment is AIR QUALITY permitting - stationary source and dust control - which is a pollution permit, not a project determination"
-          echo "CELL|Las Vegas|5|NONE|Nevada, as above"
-          echo "CELL|Phoenix|5|NONE|Arizona has no CEQA-equivalent statute for local discretionary approvals"
-          echo "CELL|Nashville|5|NONE|Tennessee has no CEQA-equivalent statute for local discretionary approvals"
+          . /tmp/lib.sh
+          # NOT A PROBE, AND IT MUST NOT BE ONE. Nevada, Arizona and Tennessee
+          # have no CEQA-equivalent statute for local discretionary approvals, so
+          # there is no project environmental determination to publish and no URL
+          # whose absence would prove it. NONE here is a fact about the law.
+          cell "Clark County" 5 NONE "Nevada has no CEQA-equivalent statute. What Clark publishes under environment is AIR QUALITY permitting - stationary source and dust control - which is a pollution permit, not a project determination"
+          cell "Las Vegas" 5 NONE "Nevada, as above"
+          cell "Phoenix" 5 NONE "Arizona has no CEQA-equivalent statute for local discretionary approvals"
+          cell "Nashville" 5 NONE "Tennessee has no CEQA-equivalent statute for local discretionary approvals"
 
-      - name: Layer 8 portals, and WHICH KIND of blocked they are
+      - name: Layer 8, and WHICH KIND of blocked
         run: |
           set +e
-          . /tmp/classify.sh
-          # Layer 8 is the one the pilot proved is blocked by APPLICATION SHAPE
-          # rather than by network in both markets tested. Every one of these is
-          # the jurisdiction's own named permit portal.
-          classify "Anaheim"      8 "https://permits.anaheim.net/"                              "Anaheim's own permit portal"
-          classify "Clark County" 8 "https://citizenaccess.clarkcountynv.gov/CitizenAccess/"    "Accela CitizenAccess"
-          classify "Las Vegas"    8 "https://selfservice.lasvegasnevada.gov/"                   "Las Vegas self-service permitting"
-          classify "Phoenix"      8 "https://phoenix-trt.aspgov.com/"                           "Phoenix TRT permit portal"
-          classify "Nashville"    8 "https://epermits.nashville.gov/"                           "Metro Nashville ePermits"
-          classify "Oakland"      8 "https://aca-prod.accela.com/OAKLAND/"                      "Accela ACA, Oakland"
-          classify "Broward County" 8 "https://www.broward.org/Building/"                       "Broward building division"
-          classify "New York City"  8 "https://a810-dobnow.nyc.gov/publish/Index.html"          "DOB NOW public portal"
+          . /tmp/lib.sh
+          # ONLY THE TWO HOSTS THE PILOT ACTUALLY PROBED. The first run invented
+          # permit-portal hostnames for Las Vegas, Phoenix, Nashville, Oakland,
+          # Broward and New York and recorded BLOCKED and DOC against them.
+          classify "Anaheim"      8 "https://permits.anaheim.net/"                           "the pilot probed this host and recorded APP-SHAPE blocked"
+          classify "Clark County" 8 "https://citizenaccess.clarkcountynv.gov/CitizenAccess/"  "Accela CitizenAccess; the pilot probed this host"
+          for m in "Las Vegas" "Phoenix" "Nashville" "Oakland" "Broward County" "New York City" "Central Florida Tourism Oversight District"; do
+            nav "$m" 8 "no permit portal for this market is named in any adapter or in the pilot, and this repo holds one building-permit reference in total; the jurisdiction's own navigation has to be read"
+          done
 
       - name: Layer 9 licences
         run: |
           set +e
-          . /tmp/classify.sh
-          # STATEWIDE REGISTERS, which is what a licence layer usually is. One
-          # probe answers every market in that state, and saying so is the point:
-          # a per-market yes/no would have hidden that California's ABC lookup
-          # already covers both California markets.
-          classify "Anaheim"      9 "https://www.abc.ca.gov/licensing/license-lookup/" "California ABC, statewide; covers Oakland too"
-          classify "Oakland"      9 "https://www.abc.ca.gov/licensing/license-lookup/" "California ABC, statewide; the same register as Anaheim"
-          classify "Broward County" 9 "https://www.broward.org/RecordsTaxesTreasury/Pages/LocalBusinessTax.aspx" "Broward Local Business Tax register"
-          classify "New York City"  9 "https://data.ny.gov/resource/97t9-6tgt.json?\$limit=2" "NY State Liquor Authority, on Socrata"
+          . /tmp/lib.sh
+          # California ABC is a NAMED STATEWIDE REGISTER and the pilot probed it.
+          # broward.org/RecordsTaxesTreasury is the pilot's Broward 9 evidence.
+          classify "Anaheim"        9 "https://www.abc.ca.gov/licensing/license-lookup/" "California ABC, statewide; the pilot probed it. Covers Oakland too"
+          classify "Oakland"        9 "https://www.abc.ca.gov/licensing/license-lookup/" "the same statewide register as Anaheim"
+          classify "Broward County" 9 "https://www.broward.org/RecordsTaxesTreasury/Pages/LocalBusinessTax.aspx" "the pilot's Broward 9 evidence, Local Business Tax register"
+          for m in "Clark County" "Las Vegas" "Phoenix" "Nashville" "New York City" "Central Florida Tourism Oversight District"; do
+            nav "$m" 9 "no licence register for this market is named in any adapter or in the pilot; 'business licen' appears zero times across agents/ and lib/"
+          done
 
       - name: Layer 10 special district and authority
         run: |
           set +e
-          . /tmp/classify.sh
-          classify "Clark County" 10 "https://www.clarkcountynv.gov/government/departments/administrative_services/town___liaison_services/paradise-tab" "clark-tab.ts already reads the Town Advisory Boards"
-          classify "Broward County" 10 "https://www.broward.org/PlanningCouncil/" "the Planning Council, which is NOT in Broward's Legistar - the pilot's strongest argument for the layer axis"
+          . /tmp/lib.sh
+          classify "Clark County"   10 "https://www.clarkcountynv.gov/government/departments/administrative_services/town___liaison_services/paradise-tab" "clark-tab.ts reads the Town Advisory Boards"
+          classify "Broward County" 10 "https://www.broward.org/PlanningCouncil/" "the pilot's Broward 2 evidence: the Planning Council is NOT in Broward's Legistar"
+          for m in "Anaheim" "Las Vegas" "Phoenix" "Nashville" "New York City" "Oakland"; do
+            nav "$m" 10 "no special district or authority for this market is named in any adapter or in the pilot"
+          done
 
-      - name: Collected cells
+      - name: Layers with no probe at all
+        run: |
+          . /tmp/lib.sh
+          # NOTHING IS SILENTLY ABSENT. Every (market, layer) the steps above do
+          # not reach gets a row saying why, so a blank in the grid can only ever
+          # mean nobody asked - and after this run, nobody has to wonder which.
+          for m in "Anaheim" "Las Vegas" "Central Florida Tourism Oversight District"; do
+            nav "$m" 6 "no legal-notice publication for this market is named in any adapter or in the pilot"
+          done
+          nav "Anaheim" 4 "no land-use case register for Anaheim is named in any adapter; the first run guessed a city URL, got 404 and recorded NONE"
+          nav "Anaheim" 7 "no ordinance or agreement source for Anaheim is named in any adapter"
+          nav "Las Vegas" 6 "as above"
+          nav "Las Vegas" 7 "no ordinance or agreement source for Las Vegas is named in any adapter"
+          nav "Las Vegas" 9 "no licence register named in any adapter or in the pilot"
+          nav "Las Vegas" 10 "no special district named in any adapter or in the pilot"
+          nav "Central Florida Tourism Oversight District" 2 "CFTOD has a Board of Supervisors and no separate planning body named anywhere in this repo"
+          nav "Central Florida Tourism Oversight District" 4 "no land-use case register named in any adapter"
+          nav "Central Florida Tourism Oversight District" 6 "no legal-notice publication named in any adapter"
+          nav "Central Florida Tourism Oversight District" 7 "no ordinance or agreement source named in any adapter"
+          nav "New York City" 2 "the City Planning Commission calendar is not read by any adapter; ZAP is the project register and is layer 4"
+          nav "New York City" 3 "no CPC staff-report source is named in any adapter"
+          nav "New York City" 7 "no local-law or agreement source is named in any adapter"
+          nav "New York City" 10 "no authority document source is named in any adapter"
+          nav "Anaheim" 10 "no special district named in any adapter or in the pilot"
+
+      - name: THE CELLS
         if: always()
-        run: echo "Grep the log above for lines beginning CELL| and paste them into MARKET-CHECKLIST.md."
+        run: |
+          echo "===== BEGIN CELLS ====="
+          sort -t'|' -k2,2 -k3,3n /tmp/cells.txt | sort -u -t'|' -k2,2 -k3,3n
+          echo "===== END CELLS ====="
+          echo "total: $(wc -l < /tmp/cells.txt) emitted, $(sort -u -t'|' -k2,2 -k3,3n /tmp/cells.txt | wc -l) unique (market, layer)"
