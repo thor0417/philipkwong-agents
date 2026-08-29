@@ -53,8 +53,11 @@ export interface Pipeline {
   id: string;
   name: string;
   short_name: string;
-  brand_name: string | null;
-  brand_logo: string | null;
+  // NO brand_name, NO brand_logo. Both columns are DROPPED by migration 046.
+  // They held a CLIENT's name and a CLIENT's logo on the row for the pipeline
+  // that serves several of them, and dashboard/lib/brand.ts built every records
+  // export's delivery line out of the first one. The publisher is the operator,
+  // from lib/operator.ts, and it is not a per-pipeline setting.
   active: boolean;
   retired_reason: string | null;
   sort_order: number;
@@ -114,11 +117,6 @@ const FALLBACK: Pipeline = {
   id: HOSPITALITY_ID,
   name: 'Hospitality and Entertainment',
   short_name: 'Hospitality',
-  // NOT A CLIENT'S NAME. This field held 'JKR & Associates' - a client, on the
-  // pipeline that serves several - and that value reached the delivery line of
-  // every records export. Blanked by migration 046; nothing reads it.
-  brand_name: null,
-  brand_logo: null,
   active: true,
   retired_reason: null,
   sort_order: 1,
@@ -129,7 +127,7 @@ export async function loadPipelines(force = false): Promise<Map<string, Pipeline
   if (cache && !force) return cache;
   const { data, error } = await supabaseAdmin
     .from('pipelines')
-    .select('id,name,short_name,brand_name,brand_logo,active,retired_reason,sort_order')
+    .select('id,name,short_name,active,retired_reason,sort_order')
     .order('sort_order');
   if (error) {
     console.warn(`Pipelines: registry unreadable (${error.message.slice(0, 70)}); using the live pipeline only.`);

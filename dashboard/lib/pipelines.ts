@@ -29,8 +29,11 @@ export interface Pipeline {
   id: string;
   name: string;
   short_name: string;
-  brand_name: string | null;
-  brand_logo: string | null;
+  // NO brand_name, NO brand_logo. Both columns are DROPPED by migration 046.
+  // They held a CLIENT's name and a CLIENT's logo on the row for the pipeline
+  // that serves several of them, and dashboard/lib/brand.ts built every records
+  // export's delivery line out of the first one. The publisher is the operator,
+  // from lib/operator.ts, and it is not a per-pipeline setting.
   active: boolean;
   retired_reason: string | null;
   sort_order: number;
@@ -52,7 +55,7 @@ export {
 export async function fetchPipelines(): Promise<Pipeline[]> {
   const { data, error } = await supabase
     .from('pipelines')
-    .select('id,name,short_name,brand_name,brand_logo,active,retired_reason,sort_order')
+    .select('id,name,short_name,active,retired_reason,sort_order')
     .order('sort_order');
   if (error) {
     console.error(`pipelines unreadable: ${error.message}`);

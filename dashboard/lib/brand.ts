@@ -40,10 +40,9 @@ export const PIPELINE_SEED: Pipeline = {
   id: 'hospitality',
   name: 'Hospitality and Entertainment',
   short_name: 'Hospitality',
-  // A CLIENT'S NAME NEVER SAT WELL HERE AND NOW SITS NOWHERE. Both columns are
-  // read by nothing and are dropped by migration 046.
-  brand_name: null,
-  brand_logo: null,
+  // NO brand_name AND NO brand_logo. Both are gone from the Pipeline type and
+  // dropped from the table by migration 046: they held a CLIENT's name and a
+  // CLIENT's logo on the row for the pipeline that serves several of them.
   active: true,
   retired_reason: null,
   sort_order: 1,
