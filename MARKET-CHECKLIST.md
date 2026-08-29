@@ -27,6 +27,17 @@ invented, and every one carries the evidence it was derived from.
 
 A blank is not one of them. A blank means nobody has asked.
 
+**THIS GRID MEASURES REACHABILITY, NOT COVERAGE, AND A `DOC` CELL IS NOT A
+CLAIM THAT THE MARKET IS AT STANDARD ON THAT LAYER.** It answers "does the
+publisher publish this, and can we fetch it". Whether what we fetched carries
+parties, conditions, decisions and stated facts is the PROJECT-level question,
+and `lib/market-standard.ts` and `verify:market-standard` are what answer it.
+The two are routinely different: Anaheim's layer 3 is reachable and its reader
+returns nine fact kinds and ZERO conditions, and a market can be `DOC` or
+`FIELD` on all ten layers and still fail the standard on every criterion.
+Reading a `DOC` cell as coverage is the same mistake as reading a label as the
+thing it names, which is the defect this repository keeps finding.
+
 ---
 
 ## THE TEN LAYERS, AND WHERE EACH CAME FROM
