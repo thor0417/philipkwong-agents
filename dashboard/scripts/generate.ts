@@ -58,6 +58,7 @@ import { assertBasis, assertProvenance, provenanceTally } from '../lib/report-mo
 import { renderDocumentText } from '../lib/report-text';
 import { HOSPITALITY_ID } from '../lib/pipelines';
 import { categoriesForPipeline } from '../lib/taxonomy';
+import { OPERATOR } from '../../lib/operator';
 
 const args = process.argv.slice(2);
 const target = args.find((a) => !a.startsWith('--')) ?? 'all';
@@ -70,20 +71,14 @@ const REFERRAL = args.includes('--referral');
 // membership gate actually ran either way, so an internal read of one matter is
 // still possible and cannot be mistaken for a client's document.
 const CLIENT = flag('client');
-// THE NAME ON THE DOCUMENT. --brand overrides; otherwise the client's stored
-// brand; otherwise the default below.
-const BRAND = flag('brand');
-
-// THE DEFAULT BRAND, AND IT IS THE COMPOSER'S.
+// THERE IS NO --brand FLAG AND NO DEFAULT TO PICK.
 //
-// This script defaulted to 'JKR & Associates' in both places it names a brand,
-// while the composer's placeholder is 'Philip Kwong'. So the same scope, built
-// through the button and through this script, came out under two different
-// firms - and a Simtec document generated here was branded JKR, which is a
-// client's document carrying another client's name. Aligned to the screen,
-// which is the product surface. A client with a stored brand_name is unaffected:
-// JKR's row holds 'JKR & Associates' and still wins.
-const DEFAULT_BRAND = 'Philip Kwong';
+// This script used to resolve `BRAND ?? client.brand_name ?? DEFAULT_BRAND` -
+// the composer's defect with a command-line override bolted on top, so it could
+// misattribute a document in two ways instead of one. Both are gone. The
+// publisher is OPERATOR, imported, and a read-back tool that could brand a
+// document differently from the composer is worse than no read-back tool,
+// because it is trusted. --to still names the RECIPIENT, which is a real input.
 
 // THE INCLUSION TOGGLES, DEFAULTED TO THE COMPOSER'S. --no-context and
 // --dormant and --watchlist move them, so an internal read can still ask a
@@ -196,7 +191,7 @@ async function clientTarget(value: string): Promise<Resolved> {
     // --to still wins for a client target: a client's document may be sent to a
     // named person at that client rather than to the account.
     addressee: TO ?? client.addressee ?? client.name,
-    brandName: BRAND ?? client.brand_name ?? DEFAULT_BRAND,
+    brandName: OPERATOR,
     projectId: null,
   };
 }
@@ -215,8 +210,8 @@ async function resolveTarget(): Promise<Resolved> {
     clientId: null,
     label: 'the whole register',
     clientName: null,
-    addressee: TO ?? 'Philip Kwong',
-    brandName: BRAND ?? DEFAULT_BRAND,
+    addressee: TO ?? OPERATOR,
+    brandName: OPERATOR,
     projectId: null,
   };
   if (target === 'all') return base;

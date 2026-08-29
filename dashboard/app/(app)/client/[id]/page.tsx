@@ -189,12 +189,18 @@ export default function ClientDetailPage() {
         <section className={detail.card}>
           <h2 className={styles.sectionTitle}>Delivery details</h2>
           <p className={styles.sectionLede}>
-            What appears on their documents, and when the next one is due.
+            Who their documents are made out to, and when the next one is due.
+            The name that PUBLISHES a document is the operator&apos;s and is not
+            editable here: a client is a recipient, never a publisher.
           </p>
           <div className={styles.grid}>
             {(
               [
-                ['brand_name', 'Brand name on documents'],
+                // THE BRAND CONTROL IS GONE, not disabled. It was labelled
+                // "Brand name on documents" and it did exactly that: JKR's
+                // stored brand reached the cover of JKR's own report, twenty-two
+                // times. An input that can misattribute authorship is removed
+                // rather than guarded.
                 ['addressee', 'Addressee'],
               ] as const
             ).map(([field, label]) => (

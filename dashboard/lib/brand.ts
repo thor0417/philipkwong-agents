@@ -10,6 +10,19 @@
 // the `pipelines` registry table, which is the authority, and a second pipeline
 // therefore needs no component change at all.
 //
+// ---- AND THEN IT ENCODED THE SAME ERROR ONE LEVEL UP ------------------------
+//
+// The header above diagnosed the problem exactly - "JKR & Associates is a
+// client" - and the file then read `pipeline.brand_name`, a CLIENT name sitting
+// in a PIPELINE's brand field, and printed it on every delivery line as
+// "Philip Kwong / JKR & Associates". The returned field was even called
+// `clientName`. The model was right and the value in it was a client's.
+//
+// THE PUBLISHER IS NOW ONE VALUE AND IT IS NOT A SETTING. `OPERATOR` moved to
+// an import-free root module both packages read, and is re-exported here so the
+// dashboard's existing callers do not each grow a cross-split relative import.
+// `pipeline.brand_name` is read by nothing.
+//
 // THE SEED. The registry is a network read, and the shell has to paint a
 // wordmark on the first frame. PIPELINE_SEED is a mirror of the live row used
 // only until the real one arrives; it is the same trick, and the same trade-off,
@@ -17,16 +30,19 @@
 // the only symptom is a correct label arriving a frame late.
 
 import type { Pipeline } from './pipelines';
+// ONE COPY, at the repo root, read by both packages. Import-free, so it may
+// cross the split - the same rule as lib/dead-feeds.
+import { OPERATOR } from '../../lib/operator';
 
-// The operator. Not a pipeline label: this is whose product it is, and it does
-// not change when the pipeline does. Here so it is stated once.
-export const OPERATOR = 'Philip Kwong';
+export { OPERATOR };
 
 export const PIPELINE_SEED: Pipeline = {
   id: 'hospitality',
   name: 'Hospitality and Entertainment',
   short_name: 'Hospitality',
-  brand_name: 'JKR & Associates',
+  // A CLIENT'S NAME NEVER SAT WELL HERE AND NOW SITS NOWHERE. Both columns are
+  // read by nothing and are dropped by migration 046.
+  brand_name: null,
   brand_logo: null,
   active: true,
   retired_reason: null,
@@ -38,8 +54,14 @@ export interface Brand {
   pipelineName: string;
   /** The pipeline, short. Wordmarks, nav, anywhere width is scarce. */
   pipelineShort: string;
-  /** The client this pipeline is worked for, if any. */
-  clientName: string | null;
+  /**
+   * WAS: the client this pipeline is worked for. Now always null and kept only
+   * so the shape does not shift under existing callers. A pipeline is not
+   * worked FOR a client - clients are scoped onto it, several at a time - and
+   * treating one of them as the pipeline's owner is what put a recipient's name
+   * on the publisher's line.
+   */
+  clientName: null;
   /** Operator and pipeline, for the shell wordmark. */
   wordmark: string;
   /** Operator and client, for anything that leaves the building. */
@@ -49,15 +71,17 @@ export interface Brand {
 }
 
 export function brandFor(pipeline: Pipeline): Brand {
-  const client = pipeline.brand_name;
   return {
     pipelineName: pipeline.name,
     pipelineShort: pipeline.short_name,
-    clientName: client,
+    clientName: null,
     wordmark: `${OPERATOR} / ${pipeline.short_name}`,
-    // Falls back to the operator alone rather than printing a dangling slash
-    // when a pipeline has no client.
-    deliveryLine: client ? `${OPERATOR} / ${client}` : OPERATOR,
+    // THE DELIVERY LINE IS THE OPERATOR, FULL STOP. It used to append
+    // `pipeline.brand_name`, so the records export's cover, its page footer and
+    // the workbook's own file metadata all read "Philip Kwong / JKR &
+    // Associates" whoever the export was for. A document that names a client as
+    // its publisher is wrong even when that client is the one reading it.
+    deliveryLine: OPERATOR,
     reportTitle: `${pipeline.name} Development Intelligence`,
   };
 }

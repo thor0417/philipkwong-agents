@@ -53,7 +53,6 @@ function IntakeForm({ onDone, onCancel }: { onDone: () => void; onCancel: () => 
   const [name, setName] = useState('');
   const [organisation, setOrganisation] = useState('');
   const [status, setStatus] = useState<string>('active');
-  const [brand, setBrand] = useState('');
   const [addressee, setAddressee] = useState('');
   const [cadence, setCadence] = useState<string>('monthly');
   const [nextDelivery, setNextDelivery] = useState('');
@@ -77,7 +76,6 @@ function IntakeForm({ onDone, onCancel }: { onDone: () => void; onCancel: () => 
           name: name.trim(),
           organisation: organisation.trim() || null,
           status,
-          brand_name: brand.trim() || null,
           addressee: addressee.trim() || null,
           cadence,
           next_delivery: nextDelivery || null,
@@ -108,9 +106,11 @@ function IntakeForm({ onDone, onCancel }: { onDone: () => void; onCancel: () => 
       <section className={styles.section}>
         <h2 className={styles.sectionTitle}>Who they are</h2>
         <p className={styles.sectionLede}>
-          Brand and addressee are what appear on their documents. They live here
-          rather than in the generator so one client&apos;s report can never go
-          out with another client&apos;s name on it.
+          The addressee is who their documents are made out to. The name that
+          PUBLISHES a document is not recorded here and is not per-client: it is
+          the operator&apos;s, always. A client is a recipient and never a
+          publisher, and a brand field on a client row is how that got reversed
+          for twenty-two delivered documents.
         </p>
         <div className={styles.grid}>
           <label className={styles.field}>
@@ -120,10 +120,6 @@ function IntakeForm({ onDone, onCancel }: { onDone: () => void; onCancel: () => 
           <label className={styles.field}>
             <span className={styles.label}>Organisation</span>
             <input className={styles.input} value={organisation} onChange={(e) => setOrganisation(e.target.value)} />
-          </label>
-          <label className={styles.field}>
-            <span className={styles.label}>Brand name on documents</span>
-            <input className={styles.input} value={brand} onChange={(e) => setBrand(e.target.value)} />
           </label>
           <label className={styles.field}>
             <span className={styles.label}>Addressee</span>

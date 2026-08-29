@@ -24,7 +24,9 @@ export interface Client {
   name: string;
   organisation: string | null;
   status: string | null;
-  brand_name: string | null;
+  // NO brand_name. The column is dropped by migration 046: a client is a
+  // recipient and never a publisher, and a field of that name on a client row
+  // is a loaded gun for the next reader. The publisher is lib/operator.ts.
   addressee: string | null;
   cadence: string | null;
   next_delivery: string | null;
@@ -62,7 +64,7 @@ export const CADENCES = ['weekly', 'fortnightly', 'monthly', 'quarterly', 'on re
 export const CLIENT_STATUSES = ['active', 'paused', 'prospect', 'closed'] as const;
 
 const CLIENT_COLUMNS =
-  'id,name,organisation,status,brand_name,addressee,cadence,next_delivery,notes,created_at';
+  'id,name,organisation,status,addressee,cadence,next_delivery,notes,created_at';
 const CONTACT_COLUMNS = 'id,client_id,name,email,role,primary_contact,created_at';
 const SCOPE_COLUMNS =
   'id,client_id,pipeline_id,countries,regions,markets,streams,development_categories,' +

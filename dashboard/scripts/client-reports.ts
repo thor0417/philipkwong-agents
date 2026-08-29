@@ -29,6 +29,7 @@ import { geographyLabel } from '../lib/report-build';
 import { resolvePeriod } from '../lib/period';
 import { DEFAULT_SECTION_IDS } from '../lib/report-sections';
 import { assertProvenance, type Line } from '../lib/report-model';
+import { OPERATOR } from '../../lib/operator';
 
 const PERIOD = process.env.REPORT_PERIOD ?? 'all';
 
@@ -94,7 +95,10 @@ async function main(): Promise<void> {
       // shape than the composer produces.
       detailCap: DETAIL_CAP_DEFAULT,
       title: `${c.name} - register report`,
-      brandName: c.brand_name ?? 'Philip Kwong',
+      // THE SAME SHAPE AS THE COMPOSER'S, AND IT WAS HERE TOO. Reading the
+      // receiving client's own brand_name means this harness audited a document
+      // branded by its recipient and reported it as correct.
+      brandName: OPERATOR,
       addressee: c.addressee ?? '',
       clientName: c.name,
       // WHICH CLIENT, so the membership gate runs. The same defect the exclusion

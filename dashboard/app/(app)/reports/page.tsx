@@ -25,6 +25,10 @@ import { useClients, useScopes } from '@/lib/use-clients';
 import { STREAMS } from '@/components/ScopeFields';
 import { DEVELOPMENT_CATEGORIES, VENUE_TYPES } from '@/lib/taxonomy';
 import { HOSPITALITY_ID, storageKeyFor } from '@/lib/pipelines';
+// THE OPERATOR, READ ACROSS THE PACKAGE SPLIT. Import-free at the repo root so
+// there is one copy, the same rule as lib/dead-feeds: a brand mirrored in two
+// places can go stale on the half that prints it.
+import { OPERATOR } from '../../../../lib/operator';
 import { useProjectFacet } from '@/lib/use-projects';
 import type { FacetCount } from '@/lib/projects';
 import { authedFetch } from '@/lib/authed-fetch';
@@ -98,7 +102,6 @@ export default function ReportsPage() {
   const { period, setToken: setPeriod } = usePeriodState('last-month');
   const periodNow = useMemo(() => new Date(), []);
 
-  const [brandOverride, setBrandOverride] = useState('');
   const [addresseeOverride, setAddresseeOverride] = useState('');
   // GEOGRAPHY IS THREE MULTI-SELECT AXES, NOT ONE DROPDOWN. It used to be a
   // single market string, so a report could be narrowed to exactly one market
@@ -258,7 +261,6 @@ export default function ReportsPage() {
   // report only." Both sentences were false for a typed override. This is the
   // code catching up with the label rather than the label being corrected.
   useEffect(() => {
-    setBrandOverride('');
     setAddresseeOverride('');
     setCountryOverride([]);
     setRegionOverride([]);
@@ -268,7 +270,17 @@ export default function ReportsPage() {
     setStreamOverride([]);
   }, [clientId]);
 
-  const brandName = brandOverride || client?.brand_name || 'Philip Kwong';
+  // THE PUBLISHER IS NOT DERIVED FROM THE RECIPIENT. This line used to read
+  // `brandOverride || client?.brand_name || 'Philip Kwong'`, so the operator's
+  // own name won only when the first two were empty - and a client with a brand
+  // recorded therefore published the document it received. Twenty-two delivered
+  // documents went out branded by the firm they were sent to.
+  //
+  // There is no precedence chain now because there is nothing to prefer over
+  // it: one value, from one import-free module both packages read.
+  const brandName = OPERATOR;
+  // The addressee keeps its chain, because "who is this for" IS a per-client
+  // fact and an override of it cannot misattribute authorship.
   const addressee = addresseeOverride || client?.addressee || client?.name || 'Internal';
 
   // EVERY AXIS THE SCOPE CONSTRAINS IS IN THE KEY. Keying on markets and stages
@@ -646,15 +658,13 @@ export default function ReportsPage() {
           </span>
         </label>
 
-        <label className={styles.field}>
-          <span className={styles.label}>Brand on the document</span>
-          <input
-            className={styles.input}
-            value={brandOverride}
-            placeholder={client?.brand_name ?? 'Philip Kwong'}
-            onChange={(e) => setBrandOverride(e.target.value)}
-          />
-        </label>
+        {/* THERE IS NO BRAND CONTROL, AND ITS ABSENCE IS THE FIX. A field that
+            can put any string on a cover is not a feature with a bug in it, it
+            is a way to misattribute a document, and the pilot for that failure
+            is in the deliveries table twenty-two times. Deleting the input
+            removes the bug class, the clearing logic and the assertion that
+            would have had to guard it. The addressee stays: naming who a
+            document is for is a legitimate act. */}
         <label className={styles.field}>
           <span className={styles.label}>Addressee</span>
           <input
