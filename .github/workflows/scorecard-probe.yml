@@ -168,7 +168,10 @@ jobs:
             if [ -n "$plan" ]; then
               cell "$market" 2 FIELD "Legistar body: $plan"
             else
-              nav "$market" 2 "no body in Legistar carries a whole-word planning or zoning term together with a body noun; it may publish separately, as Broward's Planning Council does"
+              # Broward's layer 2 is answered separately below, from the Planning
+              # Council URL the pilot probed. sort -u keeps the first, so this nav
+              # must not be emitted for it.
+              [ "$market" = "Broward County" ] || nav "$market" 2 "no body in Legistar carries a whole-word planning or zoning term together with a body noun; it may publish separately, as Broward's Planning Council does"
             fi
 
             note=$(printf '%s\n' "$names" | grep -iE 'notice' | head -1)
@@ -412,7 +415,13 @@ jobs:
           set +e
           . /tmp/lib.sh
           classify "Clark County"   10 "https://www.clarkcountynv.gov/government/departments/administrative_services/town___liaison_services/paradise-tab" "clark-tab.ts reads the Town Advisory Boards"
-          classify "Broward County" 10 "https://www.broward.org/PlanningCouncil/" "the pilot's Broward 2 evidence: the Planning Council is NOT in Broward's Legistar"
+          # LAYER 2, NOT LAYER 10. The Planning Council is the planning BODY, which
+          # is what the pilot recorded and what makes it the strongest argument for
+          # the layer axis: it publishes, and it is invisible to a Legistar-shaped
+          # question. The 2026-08-29 run asked it under layer 10 and the label had
+          # to be corrected by hand in MARKET-CHECKLIST.md.
+          classify "Broward County" 2 "https://www.broward.org/PlanningCouncil/" "the pilot's Broward 2 evidence: the Planning Council is NOT in Broward's Legistar"
+          nav "Broward County" 10 "no special district or authority for Broward is named in any adapter; the Planning Council is a planning BODY and belongs to layer 2"
           for m in "Anaheim" "Las Vegas" "Phoenix" "Nashville" "New York City" "Oakland"; do
             nav "$m" 10 "no special district or authority for this market is named in any adapter or in the pilot"
           done
