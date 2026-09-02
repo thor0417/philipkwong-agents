@@ -28,14 +28,17 @@
 // cost with no answer at the end of it. Every table below states which
 // population it covers.
 
-import { mkdirSync, writeFileSync, readFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import { supabaseAdmin } from '../../../lib/supabase-admin';
 import { fetchPdfPages } from '../sources/pdf-agenda';
 import { verifyFilingFacts, type FilingFact } from '../readers/core';
 import { readFilingFacts } from '../readers/clark-agenda-sheet';
 import { readOrdinanceTitleFacts } from '../readers/clark-ordinance-title';
-import { readOaklandFacts, isCodeAmendment } from '../readers/oakland-ordinance';
+// THE FIELD SET WITHOUT ITS RECOGNISER. readOaklandFacts gates on CITY OF
+// OAKLAND, so calling it here would return [] for every non-Oakland document and
+// the probe would report 'no existing field set fits' having never run one.
+import { readProseOrdinanceFields, isCodeAmendment } from '../readers/oakland-ordinance';
 
 const OUT_DIR = 'snapshots';
 const CONCURRENCY = Number(process.env.YIELD_CONCURRENCY ?? '4');
@@ -66,6 +69,26 @@ interface Proj {
   status: string | null;
   market: string | null;
   region_state: string | null;
+}
+
+// BRIEF Q's CACHED JUDGEMENT, so "projects moved off zero" can be read as
+// "projects worth moving". A count of projects is not a count of subjects:
+// Broward holds 84 live projects and ZERO of them are hospitality developments,
+// so a reader that moves forty Broward projects off zero has moved forty things
+// this register should not be holding. Read from the fixture rather than
+// re-judged, because the labels cost money and are cached for exactly this.
+const LABELS = 'agents/scraper/fixtures/holdings-labels.jsonl';
+function loadBuckets(): Map<string, string> {
+  const out = new Map<string, string>();
+  if (!existsSync(LABELS)) return out;
+  // Split on either line ending: the fixture is written on Windows and read on
+  // whatever the runner is.
+  for (const line of readFileSync(LABELS, 'utf8').split(/\r?\n/)) {
+    if (!line.trim()) continue;
+    const j = JSON.parse(line) as { id: string; bucket: string };
+    out.set(j.id, j.bucket);
+  }
+  return out;
 }
 
 async function pageAll<T>(table: string, columns: string): Promise<T[]> {
@@ -122,6 +145,7 @@ const median = (ns: number[]): number => {
 
 async function main(): Promise<void> {
   const label = arg('label') ?? 'yield';
+  const buckets = loadBuckets();
 
   const projects = await pageAll<Proj>('projects', 'id,name,status,market,region_state');
   const live = projects.filter((p) => p.status !== 'archived' && p.status !== 'deleted');
@@ -189,7 +213,7 @@ async function main(): Promise<void> {
         // EVERY fact goes through the same guard the write path applies, so the
         // number here is the number that could be stored, not the number the
         // regexes matched.
-        r.byReader['oakland-fields'] = verifyFilingFacts(readOaklandFacts(text), text);
+        r.byReader['oakland-fields'] = verifyFilingFacts(readProseOrdinanceFields(text), text);
         r.byReader['clark-agenda-sheet'] = verifyFilingFacts(readFilingFacts(text), text);
       }
       // The title reader needs no document at all, which is the whole point of
@@ -220,6 +244,7 @@ async function main(): Promise<void> {
   };
 
   const charsBy = new Map<string, number[]>();
+  const movers: { jurisdiction: string; project: string; bucket: string; facts: string[] }[] = [];
   const projWithDocs = new Map<string, Set<string>>();
   const projOffZeroNow = new Map<string, Set<string>>();
   const projWouldMove = new Map<string, Set<string>>();
@@ -255,7 +280,18 @@ async function main(): Promise<void> {
       };
       add(projWithDocs);
       if (alreadyOffZero.has(proj.id)) add(projOffZeroNow);
-      else if (o || c || t) add(projWouldMove);
+      else if (o || c || t) {
+        add(projWouldMove);
+        if (!movers.some((m) => m.project === proj.name)) {
+          movers.push({
+            jurisdiction: r.jurisdiction,
+            project: proj.name,
+            bucket: buckets.get(proj.id) ?? 'UNLABELLED',
+            facts: [...r.byReader['oakland-fields'], ...r.byReader['clark-agenda-sheet'], ...r.byReader['title-only']]
+              .map((f) => `${f.kind}=${f.display}`),
+          });
+        }
+      }
     }
   }
   for (const [j, cs] of charsBy) touch(j).medianChars = median(cs);
@@ -288,6 +324,23 @@ async function main(): Promise<void> {
   out.push('clkDoc    = documents the CLARK AGENDA SHEET field set reached');
   out.push('titDoc    = records whose TITLE alone yielded a fact, no document needed');
   out.push('wouldMove = live projects not already carrying a stored fact that would gain one');
+
+  out.push('');
+  out.push('===== WHICH PROJECTS WOULD MOVE, AND WHETHER THEY ARE THE SUBJECT =====');
+  out.push('');
+  out.push('Bucket is the cached Brief Q judgement. A project moved off zero in a');
+  out.push('bucket this register should not hold is cost, not gain.');
+  const byBucket = new Map<string, number>();
+  for (const m of movers) byBucket.set(m.bucket, (byBucket.get(m.bucket) ?? 0) + 1);
+  out.push('');
+  for (const [b, n] of [...byBucket.entries()].sort((a, b2) => b2[1] - a[1])) {
+    out.push(`  ${b.padEnd(26)}${String(n).padStart(4)}`);
+  }
+  out.push('');
+  for (const m of movers.sort((a, b2) => a.bucket.localeCompare(b2.bucket))) {
+    out.push(`  [${m.bucket}] ${m.jurisdiction} :: ${m.project.slice(0, 60)}`);
+    for (const f of m.facts.slice(0, 4)) out.push(`        ${f.slice(0, 100)}`);
+  }
 
   out.push('');
   out.push('===== WHICH FACT KINDS, PER JURISDICTION =====');
@@ -334,6 +387,7 @@ async function main(): Promise<void> {
         legistarRecordsHoldingADocument: held.length,
         fetched: targets.length,
         jurisdictions: sorted,
+        movers,
       },
       null,
       2

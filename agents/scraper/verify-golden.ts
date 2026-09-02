@@ -81,6 +81,28 @@ interface Result {
 const INLINE: Record<string, () => string | null> = {
   // Returns null on pass, or the reason it failed.
 
+  'a-scanned-page-counted-as-a-document-we-hold': () => {
+    // PENDING. Reports what the tree does today and does not fail the gate.
+    // A document count that feeds a build decision has to be able to say how
+    // many of those documents have any text in them. Nothing stores that.
+    const here = readdirSync('lib').filter((f) => f.endsWith('.ts'));
+    const split = here.some((f) => /extractedChars|isScannedDocument|readableDocument/.test(readFileSync('lib/' + f, 'utf8')));
+    if (split) return null;
+    return 'nothing records whether a held document has a text layer; 13 of 37 non-Clark Legistar documents measured outside Broward and Phoenix are image-only scans with 0 extractable characters, 9 of them Oakland, and every documents-held count includes them';
+  },
+
+  'the-only-document-we-hold-is-the-one-the-reader-must-refuse': () => {
+    // PENDING. The two halves are in different files and each is correct.
+    const portal = readFileSync('agents/scraper/sources/agenda-portal.ts', 'utf8');
+    const reader = readFileSync('agents/scraper/readers/anaheim-agenda.ts', 'utf8');
+    const portalFallsBack = /spanish/i.test(portal);
+    const readerRefuses = /isSpanishAgenda/.test(reader);
+    if (!portalFallsBack || !readerRefuses) return null;
+    // Closed when either side records which language was stored.
+    if (/documentLanguage|isSpanishDocument|language:/.test(portal)) return null;
+    return 'agenda-portal stores the Spanish agenda when nothing else resolves and anaheim-agenda refuses a Spanish agenda, and nothing records which language a stored document is, so a record that can never yield a fact counts as a document we hold';
+  },
+
   'a-listing-page-and-a-file-behind-the-same-viewer': () => {
     // Pure: no database, no network. Every url below was FETCHED once, on
     // 2026-09-02, and the answer recorded in lib/document-shape beside the

@@ -137,10 +137,31 @@ const FIELDS: Field[] = [
   },
 ];
 
-export function readOaklandFacts(rawText: string): FilingFact[] {
+/**
+ * THE FIELD SET WITHOUT THE JURISDICTION RECOGNISER.
+ *
+ * WHY IT IS SEPARATE, and it is a measurement need before it is a build one.
+ * `isOaklandDocument` tests for CITY OF OAKLAND, so it can never fire outside
+ * Oakland - but the FIELDS below are generic prose-ordinance patterns:
+ * appropriation language, a purchase price, a development agreement, a zoning
+ * district code, an effective date. BROWARD-DOCUMENTS-DIAGNOSIS.md names the
+ * cheapest hypothesis on the table as "point isOaklandDocument at a Broward
+ * ordinance and measure", and with the recogniser inside the reader that
+ * measurement returns zero for every jurisdiction and the zero means nothing.
+ *
+ * This entry point exists so a probe can ask "does this field set fit a
+ * jurisdiction it was not written for" and get an answer. It is NOT a reader:
+ * nothing may store its output without a recogniser deciding the document is
+ * the shape these patterns assume, because a pattern that matches anything
+ * matches the wrong thing somewhere.
+ *
+ * The code-amendment refusal stays, and stays here rather than in the caller.
+ * Every number in a planning code amendment is a threshold in a rule rather
+ * than a fact about a building, and that is true in any jurisdiction that
+ * writes one.
+ */
+export function readProseOrdinanceFields(rawText: string): FilingFact[] {
   const text = norm(rawText);
-  if (!isOaklandDocument(text)) return [];
-  // See isCodeAmendment. Every number in a code amendment is a rule, not a site.
   if (isCodeAmendment(text)) return [];
   const out: FilingFact[] = [];
   for (const f of FIELDS) {
@@ -161,4 +182,14 @@ export function readOaklandFacts(rawText: string): FilingFact[] {
     });
   }
   return out;
+}
+
+/**
+ * THE OAKLAND READER. The field set above, behind the recogniser that says the
+ * document is an Oakland ordinance or agenda report. The gate is what makes
+ * storing the output legitimate; see readProseOrdinanceFields.
+ */
+export function readOaklandFacts(rawText: string): FilingFact[] {
+  if (!isOaklandDocument(norm(rawText))) return [];
+  return readProseOrdinanceFields(rawText);
 }
