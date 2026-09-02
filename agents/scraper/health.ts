@@ -41,6 +41,15 @@ export interface SourceRun {
   fetched: number;
   // What survived to be written.
   kept: number;
+  // THE MARKET THESE KEPT RECORDS BELONG TO, where the unit is market
+  // attributed. Null everywhere else, and null is not zero: it means this row
+  // cannot speak for any market, which is what every row written before
+  // migration 044 is.
+  //
+  // A fetch is not market attributed - the adapter does not know what it pulled
+  // until the records are parsed - so this is only ever set on units built from
+  // the parsed rows. See government.ts.
+  market?: string | null;
 }
 
 // Collected during a run, drained when the run reports.
@@ -48,6 +57,14 @@ const runs: SourceRun[] = [];
 
 export function recordSourceRun(run: SourceRun): void {
   runs.push(run);
+}
+
+// Read what has been recorded so far WITHOUT draining it. The government lane
+// needs this to tell a market that produced nothing from a market that was never
+// in the run: the first is a silence worth printing in a client document, the
+// second is a scoped run and printing it would be a lie.
+export function peekSourceRuns(): readonly SourceRun[] {
+  return runs;
 }
 
 export function takeSourceRuns(): SourceRun[] {
@@ -148,7 +165,13 @@ export async function persistSourceRuns(rs: SourceRun[]): Promise<boolean> {
   if (rs.length === 0) return true;
   if (NO_HEALTH_WRITE) return true;
   const { error } = await supabaseAdmin.from('source_health').insert(
-    rs.map((r) => ({ unit: r.unit, lane: r.lane, fetched: r.fetched, kept: r.kept }))
+    rs.map((r) => ({
+      unit: r.unit,
+      lane: r.lane,
+      fetched: r.fetched,
+      kept: r.kept,
+      market: r.market ?? null,
+    }))
   );
   if (error) {
     console.warn(`Health: could not record run counts (${error.message.slice(0, 80)}).`);

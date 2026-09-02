@@ -22,6 +22,10 @@ import { bypassModeFor, gateDecide } from '../gate-decide';
 import { FULL_SCOPE, scopeIncludesMarket, type RunScope } from '../run-scope';
 import { matterDocuments, contactProvenance, resetAttachmentStats } from './legistar-attachments';
 import { LegistarMatterSchema, LegistarEventSchema, parseRecords } from './schemas';
+// The four public-url shapes and the parser that inverts them. Split out so the
+// golden suite can assert them: this file reaches supabase through gate-decide,
+// and verify:golden runs with no env and no network.
+import { matterGateway, eventGateway, legislationSearchUrl, calendarUrl } from './legistar-urls';
 
 // Canonical government document type (lib/taxonomy SOURCE_TYPES) for a Legistar
 // record, from its matter/body type + title. Ordered most-specific first;
@@ -190,22 +194,6 @@ interface LegistarEvent {
 // and fall back to the jurisdiction's public search (matters) or calendar (events)
 // page for a record that is not published to the public portal, so we never store
 // a URL that errors. Matters use M=l; Events use M=e.
-function matterGateway(client: string, id: number): string {
-  return `https://${client}.legistar.com/gateway.aspx?M=l&ID=${id}`;
-}
-function eventGateway(client: string, id: number): string {
-  return `https://${client}.legistar.com/gateway.aspx?M=e&ID=${id}`;
-}
-// Honest per-record fallbacks: a real public page for the jurisdiction, made
-// unique per record with a fragment (ignored by the server, so the page still
-// loads) so distinct records never collapse on the url dedup / upsert key.
-function legislationSearchUrl(client: string, id: number): string {
-  return `https://${client}.legistar.com/Legislation.aspx#matter-${id}`;
-}
-function calendarUrl(client: string, id: number): string {
-  return `https://${client}.legistar.com/Calendar.aspx#event-${id}`;
-}
-
 // True when the gateway 302-redirects to the expected public detail page (a valid,
 // published record). An unavailable/unpublished record returns HTTP 200 with a
 // "currently unavailable" / "Invalid parameters!" body and no redirect. Any error

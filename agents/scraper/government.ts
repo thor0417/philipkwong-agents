@@ -40,7 +40,7 @@ import { recheckCpcReports } from './migrations/capture-cpc-reports';
 import { resetParseReports, printParseReports, allParseReports } from './sources/schemas';
 import { RunTimer } from './logger';
 import { alarmError } from './alarm';
-import { recordSourceRun, reportRunHealth, resetSourceRuns } from './health';
+import { recordSourceRun, peekSourceRuns, reportRunHealth, resetSourceRuns } from './health';
 import { scrapeGovDocs, govDocMarkets } from './sources/govdocs';
 import {
   parseRunScope,
@@ -372,6 +372,7 @@ export async function runGovernmentLane(leads: NormalizedLead[]): Promise<Govern
   for (const l of leads) fetchedBySource.set(l.source, (fetchedBySource.get(l.source) ?? 0) + 1);
   const keptBySource = new Map<string, number>();
 
+  const keptByMarket = new Map<string, number>();
   const pending: Record<string, unknown>[] = [];
   // url -> where the row came from, so the write report's inserted URLs can be
   // attributed. Built here rather than looked up later because `lead` is in
@@ -414,6 +415,14 @@ export async function runGovernmentLane(leads: NormalizedLead[]): Promise<Govern
       });
     }
     keptBySource.set(lead.source, (keptBySource.get(lead.source) ?? 0) + 1);
+    // PER MARKET, from the row the document will later filter on. The source
+    // level above cannot answer this: Anaheim and Las Vegas both write source
+    // 'agenda-portal', and Clark, Nashville, Oakland, Broward, Phoenix, Yonkers
+    // and Westchester all write 'legistar'. See migration 044.
+    {
+      const mkt = (row as { market?: string | null }).market ?? null;
+      if (mkt) keptByMarket.set(mkt, (keptByMarket.get(mkt) ?? 0) + 1);
+    }
     if (noWrite) continue;
     // Every write goes through the tombstone / override guard.
     pending.push(row);
@@ -427,6 +436,21 @@ export async function runGovernmentLane(leads: NormalizedLead[]): Promise<Govern
   // the filter now rejects everything).
   for (const [unit, fetched] of fetchedBySource) {
     recordSourceRun({ lane: 'government', unit: `source:${unit}`, fetched, kept: keptBySource.get(unit) ?? 0 });
+  }
+  // MARKET LEVEL, so a client document can say what the last run held for the
+  // place it covers. fetched equals kept here on purpose and the column is not
+  // a fetch count: a fetch is not attributable to a market until its records
+  // are parsed, and pretending otherwise would put a number in a client
+  // document that means nothing.
+  //
+  // ONLY MARKETS THAT PRODUCED A ROW ARE RECORDED, for the same reason only
+  // adapters that ran are recorded below: a scoped run legitimately touches
+  // some markets and not others, and writing a zero for an untouched market is
+  // a lie that reads as a dead feed. A market that HAS history and is missing
+  // from the newest run is the real signal, and the reader in
+  // dashboard/lib/report-build derives it that way.
+  for (const [mkt, kept] of keptByMarket) {
+    recordSourceRun({ lane: 'government', unit: `market:${mkt}`, fetched: kept, kept, market: mkt });
   }
   if (rejectedPreCutoff > 0) {
     console.log(`Government: rejected ${rejectedPreCutoff} records (dead pre-2026 opportunities only).`);
@@ -666,7 +690,7 @@ async function main(): Promise<void> {
   // would drop the five jurisdictions that were asked for along with the one
   // that was not.
   const scope = parseRunScope();
-  console.log(`\nSCOPE: ${describeScope(scope)}`);
+  console.log(`\nSCOPE: ${describeScope(scope, ['government'])}`);
   // THE PIPELINE AXIS. Validated against the registry, so a typo'd id is a hard
   // error rather than a silent full run, and a lane that does not serve the
   // requested pipeline says so and stops.
@@ -768,6 +792,40 @@ async function main(): Promise<void> {
   }
 
   const report = await runGovernmentLane(results.flat());
+
+  // ---- A MARKET THAT PRODUCED NOTHING IS NOT A MARKET THAT WAS NOT RUN ------
+  //
+  // runGovernmentLane records one market: unit per market that produced a row.
+  // On its own that cannot tell a broken capture from an absent one: Broward
+  // returning zero and Broward not being in a scoped run both look like no row.
+  //
+  // THE PIPELINE ALREADY DECLARES THE ANSWER. Every entry in ADAPTERS carries
+  // its own `markets`, so the adapters that RAN name the markets they were
+  // supposed to cover. A declared market with no row is a real silence and gets
+  // kept: 0; a market nobody declared this run is simply absent, and stays
+  // absent.
+  //
+  // THE LABELS ARE JURISDICTION LABELS AND THE ROWS CARRY SHORT MARKETS -
+  // 'Broward County, FL' against 'Broward County' - so they are resolved by
+  // taking the text before the first comma. THAT IS DETERMINISTIC AND IT IS NOT
+  // A PREFIX MATCH, which matters: a prefix rule over market names is how
+  // Broward County comes to inherit Fort Lauderdale, a place inside it that is
+  // not it. Verified 2026-08-25 against every declared label in
+  // legistarMarkets() and govDocMarkets(): all twelve resolve to exactly the
+  // market string the rows carry.
+  const declared = new Set<string>();
+  for (const a of selected) {
+    for (const label of a.markets) declared.add(label.split(',')[0].trim());
+  }
+  const recorded = new Set(
+    peekSourceRuns()
+      .filter((r) => r.unit.startsWith('market:'))
+      .map((r) => r.unit.slice('market:'.length))
+  );
+  for (const m of declared) {
+    if (recorded.has(m)) continue;
+    recordSourceRun({ lane: 'government', unit: `market:${m}`, fetched: 0, kept: 0, market: m });
+  }
   printGovernmentReport(report, lastLegistarStats());
   printParseReports('Boundary schemas');
 

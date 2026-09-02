@@ -974,7 +974,7 @@ async function main(): Promise<void> {
   // and --market is not, and saying so is better than silently ignoring a
   // market filter and returning a full run's worth of records.
   const scope = parseRunScope();
-  console.log(`SCOPE: ${describeScope(scope)}`);
+  console.log(`SCOPE: ${describeScope(scope, ['intelligence'])}`);
   // Validated against the registry: a typo'd pipeline is a hard error, never a
   // silent full run.
   await assertKnownPipeline(scope);

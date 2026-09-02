@@ -357,7 +357,7 @@ export async function orchestrate(): Promise<ScrapeReport> {
   // died, so the run says which it is in as many words rather than leaving it to
   // be inferred from a count.
   const scope = parseRunScope();
-  console.log(`\nSCOPE: ${describeScope(scope)}`);
+  console.log(`\nSCOPE: ${describeScope(scope, ['intelligence', 'opportunity'])}`);
   // THE PIPELINE AXIS, validated against the registry before any source is
   // touched. A typo'd id is a hard error rather than a silent full run: a scope
   // filter that fails open is worse than no filter, because the operator
@@ -1429,7 +1429,7 @@ function printReport(r: ScrapeReport): void {
   // Restated at the END as well as the start. The top of a long run scrolls off;
   // the number a reader acts on is at the bottom, and that is where a partial
   // run is most likely to be mistaken for a full one.
-  console.log(`SCOPE: ${describeScope(parseRunScope())}`);
+  console.log(`SCOPE: ${describeScope(parseRunScope(), ['intelligence', 'opportunity'])}`);
   console.log('Fetched per source:');
   console.log(table(r.fetchedPerSource));
   console.log(`Total fetched: ${r.totalFetched}  ->  deduped: ${r.deduped}`);

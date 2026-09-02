@@ -401,7 +401,7 @@ function printOpportunityReport(r: OpportunityReport): void {
 async function main(): Promise<void> {
   console.log('GLI Tier 1 opportunity lane starting (scrape:opportunity)...');
   const scope = parseRunScope();
-  console.log(`SCOPE: ${describeScope(scope)}`);
+  console.log(`SCOPE: ${describeScope(scope, ['opportunity'])}`);
   // Validated against the registry: a typo'd pipeline is a hard error, never a
   // silent full run.
   await assertKnownPipeline(scope);

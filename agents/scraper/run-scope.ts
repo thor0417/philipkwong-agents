@@ -137,12 +137,49 @@ export function isFullRun(scope: RunScope): boolean {
   return !scope.pipeline && !scope.markets && !scope.sources;
 }
 
+// ---- WHAT THE COMMAND COVERS, WHICH IS NOT WHAT THE SCOPE ALLOWS ------------
+//
+// EVERY LANE THIS SYSTEM HAS. The banner names the ones a command does not run,
+// BY NAME, and that is the whole reason this list exists.
+//
+// THE DEFECT IT CLOSES. describeScope used to describe the SCOPE OBJECT, and
+// every caller printed it as though it described the RUN. `npm run scrape:all`
+// runs the orchestrator, which contains no reference to the government lane -
+// not an import, not a call - and printed
+//
+//     SCOPE: FULL RUN (all pipelines, all markets, all sources)
+//
+// over a pass that touched no government adapter at all. With a person at the
+// keyboard that is an annoyance, because they know which command they typed. On
+// a schedule the banner is the ONLY witness, and it lies. Every full-run claim
+// in this repository before 2026-08-19 covered Serper plus whatever was run by
+// hand, which is the cost of this already paid once.
+//
+// Standing rule 3 applied to the run report: nothing is silently absent.
+export const ALL_LANES = ['government', 'intelligence', 'opportunity'] as const;
+export type Lane = (typeof ALL_LANES)[number];
+
 // A phrase for the run report. Never empty: a run with no narrowing says so, so
 // the report always makes a positive statement about what it covered rather than
 // staying silent and letting a partial run read as a full one.
-export function describeScope(scope: RunScope): string {
-  if (isFullRun(scope)) return 'FULL RUN (all pipelines, all markets, all sources)';
+//
+// `lanes` is what the CALLING COMMAND actually runs. It is required rather than
+// optional on purpose: an optional parameter defaulting to "everything" would
+// let a new lane, or a new entry point, reintroduce the exact lie above by
+// forgetting an argument.
+export function describeScope(scope: RunScope, lanes: readonly Lane[]): string {
+  const ran = [...new Set(lanes)];
+  const missing = ALL_LANES.filter((l) => !ran.includes(l));
+  const lanePhrase =
+    missing.length === 0
+      ? 'all lanes'
+      : `${ran.join(' + ')} only, NOT ${missing.join(', ')}`;
+
+  if (isFullRun(scope)) {
+    return `FULL RUN of ${lanePhrase} (all markets, all sources within ${ran.length === 1 ? 'it' : 'them'})`;
+  }
   const parts: string[] = [];
+  parts.push(`lanes=${lanePhrase}`);
   parts.push(`pipeline=${scope.pipeline ?? 'all'}`);
   parts.push(`markets=${scope.markets ? scope.markets.join(', ') : 'all'}`);
   parts.push(`sources=${scope.sources ? scope.sources.join(', ') : 'all'}`);

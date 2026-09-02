@@ -27,6 +27,10 @@
 
 import { readFileSync, readdirSync } from 'node:fs';
 import { bestTargetForClustering, strongBypassesGate } from './targets';
+import { matterRefFromUrl } from './sources/legistar-urls';
+import { documentShape, isFetchedFile } from '../../lib/document-shape';
+import { captureByMarket, captureGapNote, neverRecordedNote, newestRun } from '../../lib/source-health';
+import { describeScope, FULL_SCOPE, ALL_LANES } from './run-scope';
 import { bestDate, clusterRecords, type ClusterRecord } from './cluster';
 import { deriveProjectName } from './project-naming';
 import { classifyVenueType, governmentGate, provenStage } from '../../lib/taxonomy';
@@ -76,6 +80,146 @@ interface Result {
 
 const INLINE: Record<string, () => string | null> = {
   // Returns null on pass, or the reason it failed.
+
+  'a-listing-page-and-a-file-behind-the-same-viewer': () => {
+    // Pure: no database, no network. Every url below was FETCHED once, on
+    // 2026-09-02, and the answer recorded in lib/document-shape beside the
+    // pattern it justifies. This case asserts the classification, not the fetch.
+    const file = [
+      // Granicus serves both from one hostname, on different routes.
+      'https://anaheim.granicus.com/DocumentViewer.php?file=anaheim_c1a553ce.pdf&view=1',
+      // CivicPlus: a pdf behind a numeric id and a title, no extension anywhere.
+      'https://www.anaheim.net/DocumentCenter/View/66931/Planning-Commission-Action-Agenda---10202025',
+      'https://www.anaheim.net/AgendaCenter/ViewFile/Minutes/_06152026-1751',
+      // NYC City Record. A real file, and a .docx rather than a pdf.
+      'https://a856-cityrecord.nyc.gov/Search/GetFile?SectionID=1&RequestID=20240524001&DocumentID=37610',
+      // Legistar's attachment host, which is where every Legistar document lives.
+      'https://clark.legistar1.com/clark/attachments/2ff327da-2496-4424-bc9c-5f258d9bc3d8.pdf',
+    ];
+    for (const u of file) {
+      if (documentShape(u) !== 'file') return `a fetched file was not classified as one: ${u}`;
+      if (!isFetchedFile(u)) return `isFetchedFile refused a fetched file: ${u}`;
+    }
+    const listing = [
+      // The SAME HOST as the first file above, and it answers text/html.
+      'https://anaheim.granicus.com/AgendaViewer.php?view_id=2&clip_id=1000',
+      'https://lasvegas.primegov.com/Portal/Meeting?meetingTemplateId=12345',
+      // The Legistar record page: the index that links to the staff report.
+      'https://broward.legistar.com/gateway.aspx?M=l&ID=17530',
+    ];
+    for (const u of listing) {
+      if (documentShape(u) !== 'listing') return `a page that lists documents was not classified as one: ${u}`;
+      if (isFetchedFile(u)) return `isFetchedFile accepted a listing page: ${u}`;
+    }
+    // THE THIRD ANSWER, WHICH IS THE POINT. A shape nobody has probed is
+    // unknown, never quietly a file. Two answers would make every new portal
+    // read as a document the day it appeared.
+    if (documentShape('https://some-new-portal.example.gov/viewer?id=7') !== 'unknown') {
+      return 'an unprobed portal shape was classified rather than left unknown';
+    }
+    if (documentShape(null) !== 'unknown') return 'a null url was classified';
+    if (documentShape('not a url') !== 'unknown') return 'a non-url was classified';
+    // ORDER: the listing test runs first, so a page whose path spells a
+    // filename stays a page.
+    if (documentShape('https://lasvegas.primegov.com/Portal/Meeting?f=agenda.pdf') !== 'listing') {
+      return 'a listing page carrying a filename in its query read as a file';
+    }
+    return null;
+  },
+
+  'an-event-url-read-as-a-matter-id': () => {
+    // Pure: no database, no network.
+    //
+    // Legistar writes FOUR url shapes and two of them are matters. The gateway
+    // pair differ by ONE LETTER - M=l against M=e - and the ids share a
+    // namespace, so an event id handed to the Matters API returns a real
+    // matter's attachments rather than an error. Nothing downstream could tell
+    // that document was attached to the wrong record.
+    const matter = matterRefFromUrl('https://broward.legistar.com/gateway.aspx?M=l&ID=17530');
+    if (matter?.client !== 'broward' || matter.matterId !== 17530) {
+      return 'the matter gateway url does not resolve to its client and matter id';
+    }
+    const fragment = matterRefFromUrl('https://nashville.legistar.com/Legislation.aspx#matter-19579');
+    if (fragment?.client !== 'nashville' || fragment.matterId !== 19579) {
+      return 'the legislation-search fallback url does not resolve to its matter id';
+    }
+    // THE HALF THAT MATTERS. Both event shapes must be refused.
+    if (matterRefFromUrl('https://clark.legistar.com/gateway.aspx?M=e&ID=17530')) {
+      return 'an event gateway url resolved to a matter id';
+    }
+    if (matterRefFromUrl('https://clark.legistar.com/Calendar.aspx#event-4021')) {
+      return 'a calendar url resolved to a matter id';
+    }
+    // And nothing that is not Legistar at all.
+    if (matterRefFromUrl('https://a.legistar.com.example.com/gateway.aspx?M=l&ID=1')) {
+      return 'a host that merely contains legistar.com resolved to a matter id';
+    }
+    if (matterRefFromUrl(null)) return 'a null url resolved to a matter id';
+    return null;
+  },
+
+  'a-run-banner-names-the-lanes-it-did-not-run': () => {
+    // Pure: no database, no network.
+    const all = describeScope(FULL_SCOPE, ['intelligence', 'opportunity']);
+    if (!/NOT government/.test(all)) {
+      return 'the scrape:all banner does not say it skipped the government lane';
+    }
+    if (/^FULL RUN \(all pipelines/.test(all)) {
+      return 'the banner still claims a full run over a lane subset';
+    }
+    const gov = describeScope(FULL_SCOPE, ['government']);
+    if (!/NOT intelligence/.test(gov) || !/NOT .*opportunity/.test(gov)) {
+      return 'the scrape:government banner does not name the lanes it skipped';
+    }
+    // A command that really does run everything must NOT carry a NOT clause,
+    // or the sentence stops meaning anything.
+    const every = describeScope(FULL_SCOPE, [...ALL_LANES]);
+    if (/NOT /.test(every)) return 'a genuine full run is reported as skipping something';
+    if (!/all lanes/.test(every)) return 'a genuine full run does not say it covered all lanes';
+    // And a narrowed run still has to carry the lane clause, because a partial
+    // run over a lane subset is the case where both halves matter.
+    const scoped = describeScope({ pipeline: null, markets: ['Clark County'], sources: null }, ['government']);
+    if (!/lanes=/.test(scoped)) return 'a partial run does not state which lanes it covered';
+    return null;
+  },
+
+  'a-missing-capture-and-a-shallow-market-are-two-sentences': () => {
+    // Pure: no database, no network, so it runs inside verify:fast.
+    const rows = [
+      // A row with no market. It fixes WHEN the newest run was and must never
+      // be read as evidence about any market.
+      { market: null, run_at: '2026-08-22T07:00:00Z', kept: 40 },
+      { market: 'Clark County', run_at: '2026-08-22T07:00:00Z', kept: 31 },
+      { market: 'Nashville', run_at: '2026-08-19T07:00:00Z', kept: 6 },
+    ];
+    const caps = captureByMarket(rows, ['Clark County', 'Nashville', 'Phoenix']);
+    const state = (m: string) => caps.find((c) => c.market === m)?.state;
+
+    if (state('Clark County') !== 'captured') return 'a market captured on the newest run does not read as captured';
+    if (state('Nashville') !== 'silent') return 'a market with history and nothing on the newest run does not read as silent';
+    if (state('Phoenix') !== 'never-recorded') return 'a market with no history at all does not read as never-recorded';
+
+    const gap = captureGapNote(caps, newestRun(rows));
+    if (!gap.includes('Nashville')) return 'the capture sentence does not name the silent market';
+    if (gap.includes('Phoenix')) return 'the capture sentence names a never-recorded market as a capture failure';
+    if (!/not a statement that nothing was filed/.test(gap)) {
+      return 'the capture sentence does not separate our failure from the absence of a filing';
+    }
+
+    // AND THE HALF THAT MATTERS MOST: with no run history at all - which is
+    // exactly what an unapplied migration 044 looks like - the document says
+    // NOTHING rather than reporting every market as a failure.
+    const none = captureByMarket([], ['Nashville']);
+    if (captureGapNote(none, newestRun([])) !== '') return 'a document with no run history reports a capture failure';
+    if (neverRecordedNote(none, false) !== '') return 'a document with no run history reports markets as never recorded';
+
+    // The two sentences must stay two. A capture failure is this week and ours;
+    // being below standard is structural and the publisher's.
+    if (/standard|conditions of approval/i.test(gap)) {
+      return 'the capture sentence has absorbed the market-standard sentence';
+    }
+    return null;
+  },
 
   'one-foreign-record-carries-a-whole-project-into-another-market': () => {
     // THE REAL TEXTS, not a synthetic pair. The first is the record that caused
@@ -128,13 +272,22 @@ const INLINE: Record<string, () => string | null> = {
     // entry cites it in place of the record page for exactly that reason - and
     // for three markets it holds a page that LISTS documents. Closing it needs a
     // predicate that can tell one from the other; this looks for one.
+    // THE PREDICATE HALF IS CLOSED. lib/document-shape.ts tells a fetched file
+    // from a page that lists files, in three states, and is asserted by
+    // a-listing-page-and-a-file-behind-the-same-viewer. So this no longer looks
+    // for a predicate; it looks at the half that still reaches a client.
     const here = readdirSync('lib').filter((f) => f.endsWith('.ts'));
-    const anySplit = here.some((f) => {
-      const t = readFileSync('lib/' + f, 'utf8');
-      return /isDocumentUrl|isListingPage|documentVsListing/.test(t);
-    });
-    if (anySplit) return null;
-    return 'nothing anywhere distinguishes a fetched file from a page that lists files; 299 of 579 records holding a primary_document_url point at a portal or viewer page and none of those is a file';
+    const predicate = here.some((f) =>
+      /export function documentShape|export function isFetchedFile/.test(readFileSync('lib/' + f, 'utf8'))
+    );
+    if (!predicate) return 'nothing anywhere distinguishes a fetched file from a page that lists files';
+    // The remaining half: the entry cites primary_document_url AS the document
+    // and never asks whether it is one. Measured 2026-09-02, the flag and the
+    // file-ness agree on all 720 rows that carry a url - but by coincidence of
+    // how each adapter writes them, not because anything checks.
+    const entry = readFileSync('dashboard/lib/report-entry.ts', 'utf8');
+    if (/isFetchedFile|documentShape/.test(entry)) return null;
+    return 'report-entry cites primary_document_url as the document and never consults has_primary_document or the shape of the value; 277 of 720 stored document urls are pages and none of them is a file';
   },
 
   'a-tracked-artefact-written-by-two-projects': () => {
