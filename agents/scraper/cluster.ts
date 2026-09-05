@@ -37,6 +37,7 @@
 // notes, or manual_overrides.
 
 import { distance } from 'fastest-levenshtein';
+import { applicantTypeIsPublicAgency } from '../../lib/applicant-type';
 import {
   bestTargetForClustering,
   targetProjectName,
@@ -79,6 +80,13 @@ export interface ClusterRecord {
   region_state?: string | null;
   location?: string | null;
   applicant?: string | null;
+  /**
+   * The type the SOURCE states for the applicant, never inferred. Only ZAP
+   * publishes one today. Read by primaryApplicantOf so a public agency never
+   * becomes a project's primary_applicant - the column no print-end gate can
+   * reach, because both of those take a record.
+   */
+  applicant_type?: string | null;
   representative?: string | null;
   presented_by?: string | null;
   source?: string | null;
@@ -255,6 +263,28 @@ const GENERIC_APPLICANT_PATTERNS: RegExp[] = [
   /\b(department of (city planning|housing preservation|parks|transportation|design|sanitation|environmental protection))\b/,
   /\b(economic development corporation|housing authority|school construction authority)\b/,
 ];
+
+// ---- WHAT MAY BECOME A PROJECT'S primary_applicant ------------------------
+//
+// THE PROJECT COLUMN IS THE PATH NO PRINT GATE CAN REACH. dashboard/lib/people
+// gates the applicant and the presenter, and both of those take a RECORD.
+// primary_applicant is a column on the PROJECT, derived here as the mode of the
+// member records' applicants, so an applicant the print end would refuse became
+// a project-level party that nothing downstream re-examined.
+//
+// MEASURED 2026-09-05: two live projects carried
+// primary_applicant = 'DCP - Department of City Planning (NYC)' - Arena Text
+// Amendment and Long Island City Neighborhood Rezoning - Mapping - from two
+// nyc-zap records whose stated applicant_type is 'DCP'.
+//
+// IT READS NO NAMES. The same import-free predicate the print end uses, on the
+// type the source states. The name-shape list above stays where it is and keeps
+// doing its own job, which is a different one: it stops the clusterer WELDING
+// two city-initiated projects together on a shared sponsor. Suppressing a party
+// and refusing a merge are different questions and they are answered separately.
+function nameableApplicants(recs: ClusterRecord[]): (string | null | undefined)[] {
+  return recs.map((r) => (applicantTypeIsPublicAgency(r.applicant_type) ? null : r.applicant));
+}
 
 export function isGenericEntity(normalized: string): boolean {
   if (normalized.length < 4) return true;
@@ -1671,7 +1701,7 @@ export function clusterRecords(
     const sig = significanceOf({
       stage,
       venue_type: venueType,
-      primary_applicant: modeOf(recs.map((r) => r.applicant)),
+      primary_applicant: modeOf(nameableApplicants(recs)),
       primary_representative: modeOf(recs.map((r) => r.representative)),
       record_count: recs.length,
       last_activity: liveness.lastActivity,
@@ -1710,7 +1740,7 @@ export function clusterRecords(
       stage_press_reported: proven.pressReported,
       development_category: modeOf(recs.map((r) => r.development_category)),
       venue_type: modeOf(recs.map((r) => r.venue_type)),
-      primary_applicant: modeOf(recs.map((r) => r.applicant)),
+      primary_applicant: modeOf(nameableApplicants(recs)),
       primary_representative: modeOf(recs.map((r) => r.representative)),
       last_activity: liveness.lastActivity,
       next_milestone: liveness.nextMilestone,

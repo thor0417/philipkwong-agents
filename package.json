@@ -86,7 +86,8 @@
     "diag:attachment-cost": "node --import tsx agents/scraper/diagnostics/attachment-filter-cost.ts",
     "diag:lane-measure": "node --env-file=.env.local --import tsx agents/scraper/diagnostics/legistar-lane-measure.ts",
     "diag:doc-yield": "node --env-file=.env.local --import tsx agents/scraper/diagnostics/legistar-doc-yield.ts",
-    "repair:legistar-docs": "node --env-file=.env.local --import tsx agents/scraper/migrations/repair-legistar-documents.ts"
+    "repair:legistar-docs": "node --env-file=.env.local --import tsx agents/scraper/migrations/repair-legistar-documents.ts",
+    "repair:agency-applicant": "node --env-file=.env.local --import tsx agents/scraper/migrations/repair-public-agency-applicants.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.20.0",

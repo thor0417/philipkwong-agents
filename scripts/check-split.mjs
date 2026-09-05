@@ -52,6 +52,12 @@ const SANCTIONED = new Set([
   'lib/coverage.ts',
   'lib/degraded-sources.ts',
   'lib/corpus-scope.ts',
+  // Read by the PRINT end (dashboard/lib/people applicantIsPublicAgency) and by
+  // the CAPTURE end (agents/scraper/cluster nameableApplicants). One copy on
+  // purpose: the clusterer decides whether a public agency becomes a project's
+  // primary_applicant and people.ts decides whether one reaches a page, and a
+  // mirrored copy would drift on the half that prints.
+  'lib/applicant-type.ts',
   'agents/scraper/project-summary.ts',
   'agents/scraper/press-facts.ts',
   // The host rules. One list of "never capture" and one of "capture, never cite",

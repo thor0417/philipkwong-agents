@@ -28,6 +28,7 @@
 // thing.
 
 import type { Project, TimelineRecord } from './projects';
+import { applicantTypeIsPublicAgency } from '../../lib/applicant-type';
 import { citationLabel, isFiling } from './report-model';
 
 type ScopedRecord = TimelineRecord & { project_id?: string | null; market?: string | null };
@@ -101,21 +102,26 @@ export interface ProjectParty {
 // would be that defect with better manners. Only ZAP publishes a type today
 // (migration 037); every other source publishes none.
 //
-// NULL IS UNGATED, DELIBERATELY. Null means the source did not say, never that
-// the applicant is private. Gating on absence would silence every applicant in
-// every market outside New York.
-const PUBLIC_AGENCY_APPLICANT_TYPES = new Set(['other public agency']);
-
 /**
  * Does this record's applicant column hold a government body rather than a party?
+ *
+ * THE ANSWER LIVES IN lib/applicant-type.ts, import-free and read by the CAPTURE
+ * end too, because the clusterer decides whether a public agency becomes a
+ * project's primary_applicant and this decides whether one reaches a page. Two
+ * copies of that answer would drift and the half that drifted would be the half
+ * printing a city's own planning department as the developer.
+ *
+ * The set this used to hold - 'other public agency' alone - let NYC's Department
+ * of City Planning through on 2 live records, because ZAP states its type as
+ * 'DCP', an agency code rather than a class. See that file for the measurement
+ * and for why adding the code to a list is the wrong fix.
  *
  * Keyed ONLY on the type the source states. `applicant_type` is optional on the
  * record shape because most readers do not select it; an absent column is an
  * unstated type and therefore ungated, which is the same answer as null.
  */
 export function applicantIsPublicAgency(r: { applicant_type?: string | null }): boolean {
-  const t = (r.applicant_type ?? '').trim().toLowerCase();
-  return t !== '' && PUBLIC_AGENCY_APPLICANT_TYPES.has(t);
+  return applicantTypeIsPublicAgency(r.applicant_type);
 }
 
 /** The applicant, or null where the source states it is a public agency. */

@@ -29,6 +29,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { bestTargetForClustering, strongBypassesGate } from './targets';
 import { matterRefFromUrl } from './sources/legistar-urls';
 import { documentShape, isFetchedFile } from '../../lib/document-shape';
+import { applicantTypeIsPublicAgency, nameableApplicantOf } from '../../lib/applicant-type';
 import { captureByMarket, captureGapNote, neverRecordedNote, newestRun } from '../../lib/source-health';
 import { describeScope, FULL_SCOPE, ALL_LANES } from './run-scope';
 import { bestDate, clusterRecords, type ClusterRecord } from './cluster';
@@ -145,6 +146,77 @@ const INLINE: Record<string, () => string | null> = {
     // filename stays a page.
     if (documentShape('https://lasvegas.primegov.com/Portal/Meeting?f=agenda.pdf') !== 'listing') {
       return 'a listing page carrying a filename in its query read as a file';
+    }
+    return null;
+  },
+
+  'the-disney-district-packets-are-paged-and-never-read': () => {
+    // PENDING. Reports what the tree does today and does not fail the gate.
+    //
+    // The gap is a MISSING LANE, not a failing reader: laneOf maps a record to a
+    // reader by adapter, and 'cftod-pdf' matches none of the four. So this looks
+    // at the routing rather than at any reader's recogniser.
+    const capture = readFileSync('agents/scraper/migrations/capture-filing-facts.ts', 'utf8');
+    if (/cftod/i.test(capture)) return null;
+    return 'no lane routes a cftod-pdf record to any reader; 14 records hold 14 fetched documents and 0 facts, and hundreds of packet pages are paged every run to store them';
+  },
+
+  'a-vocabulary-of-two-classes-and-one-agency-code': () => {
+    // Pure: no database, no network. The three values ZAP actually publishes.
+    if (!applicantTypeIsPublicAgency('Other Public Agency')) return 'a stated public agency class is not gated';
+    if (!applicantTypeIsPublicAgency('DCP')) return 'the agency CODE DCP is not gated, which is the defect this case exists for';
+    if (applicantTypeIsPublicAgency('Private')) return 'a private applicant is gated';
+    // Case and whitespace are the source's problem, not the reader's.
+    if (!applicantTypeIsPublicAgency('  other public agency  ')) return 'the test is sensitive to how the source formats its own value';
+    if (applicantTypeIsPublicAgency('  PRIVATE ')) return 'a private applicant is gated on case';
+    // THE HALF THAT MATTERS MOST. A code nobody has seen yet is an agency, not a
+    // private party, because the vocabulary is inverted rather than enumerated.
+    if (!applicantTypeIsPublicAgency('HPD')) return 'an agency code the list has never seen walks through';
+    // AND ABSENCE IS NOT A CLAIM. Null means the source did not say. Gating it
+    // would silence every applicant in every market outside New York.
+    if (applicantTypeIsPublicAgency(null)) return 'an unstated type is treated as a public agency';
+    if (applicantTypeIsPublicAgency(undefined)) return 'an absent type is treated as a public agency';
+    if (applicantTypeIsPublicAgency('')) return 'an empty type is treated as a public agency';
+    // And the carrier the capture end uses to derive a project's party.
+    if (nameableApplicantOf({ applicant: 'DCP - Department of City Planning (NYC)', applicant_type: 'DCP' }) !== null) {
+      return 'a stated agency survives as a nameable applicant';
+    }
+    if (nameableApplicantOf({ applicant: 'Griffon Q LLC', applicant_type: 'Private' }) !== 'Griffon Q LLC') {
+      return 'a private applicant is dropped';
+    }
+    if (nameableApplicantOf({ applicant: 'Some Developer LLC', applicant_type: null }) !== 'Some Developer LLC') {
+      return 'an untyped applicant is dropped, which would silence every market outside New York';
+    }
+    return null;
+  },
+
+  'a-public-agency-reaches-the-page-through-the-project-column': () => {
+    // The capture end must apply the SAME predicate the print end applies, from
+    // the SAME file, and it must actually receive the column to apply it to.
+    const cluster = readFileSync('agents/scraper/cluster.ts', 'utf8');
+    if (!/applicantTypeIsPublicAgency/.test(cluster)) {
+      return 'cluster.ts derives primary_applicant without consulting the applicant type';
+    }
+    if (cluster.includes('primary_applicant: modeOf(recs.map((r) => r.applicant))')) {
+      return 'a primary_applicant derivation still takes the raw applicant column';
+    }
+    // A GATE ON A COLUMN NOBODY SELECTS IS A GATE THAT REPORTS ITSELF CLOSED.
+    // Every caller that clusters has to carry applicant_type beside applicant.
+    for (const f of [
+      'agents/scraper/migrations/backfill-projects.ts',
+      'agents/scraper/migrations/disambiguate-project-names.ts',
+    ]) {
+      if (!readFileSync(f, 'utf8').includes('applicant,applicant_type,')) {
+        return `${f} feeds the clusterer without selecting applicant_type, so the gate cannot fire`;
+      }
+    }
+    // And the print end reads the shared predicate rather than its own copy.
+    const people = readFileSync('dashboard/lib/people.ts', 'utf8');
+    if (!/applicantTypeIsPublicAgency/.test(people)) {
+      return 'the print end holds its own copy of the public-agency test';
+    }
+    if (/PUBLIC_AGENCY_APPLICANT_TYPES/.test(people)) {
+      return 'the enumerated class list is still in the print end';
     }
     return null;
   },

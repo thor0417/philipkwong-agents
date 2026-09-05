@@ -44,7 +44,12 @@ const MODULE = LIVE_PIPELINE_STORAGE_KEY;
 
 const LEAD_COLUMNS =
   'id,url,title,raw_content,source,source_type,stream,status,lifecycle,object_type,' +
-  'location,country,region_state,market,applicant,representative,presented_by,action_sought,' +
+  // applicant_type is selected BECAUSE THE CLUSTERER READS IT. A column that is
+  // gated on but never selected is a gate that silently never fires, which is
+  // worse than no gate: it reports itself as closed. cluster.ts
+  // nameableApplicants keeps a public agency out of primary_applicant, and it
+  // can only do that if the value arrives here.
+  'location,country,region_state,market,applicant,applicant_type,representative,presented_by,action_sought,' +
   'venue_type,development_category,published_date,deadline,milestone_date,first_seen,' +
   'date_source,project_id,cluster_reason';
 

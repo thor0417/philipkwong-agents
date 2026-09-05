@@ -39,7 +39,10 @@ const MODULE = LIVE_PIPELINE_STORAGE_KEY;
 
 const LEAD_COLUMNS =
   'id,url,title,raw_content,source,source_type,stream,status,lifecycle,object_type,' +
-  'location,country,region_state,market,applicant,representative,presented_by,action_sought,' +
+  // applicant_type travels with applicant EVERYWHERE THE CLUSTERER IS CALLED,
+  // so two callers cannot cluster the same rows under two different views of
+  // who the applicant is. See backfill-projects LEAD_COLUMNS.
+  'location,country,region_state,market,applicant,applicant_type,representative,presented_by,action_sought,' +
   'venue_type,development_category,published_date,deadline,milestone_date,first_seen,' +
   'date_source,project_id,cluster_reason';
 
