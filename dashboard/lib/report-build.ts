@@ -621,27 +621,71 @@ export async function buildReport(req: BuildRequest): Promise<BuiltReport> {
   // the rest. It has not bitten yet only because the register is 142 projects
   // and the chunk is 150; at 151 a client would have been shown a "What moved"
   // section missing a market, with nothing on the page to suggest it.
+  // ---- A CAP THE CLIENT SET AND THE SERVER OVERRODE, 2026-09-07 -----------
+  //
+  // THE DEFECT. This read asked for `.limit(EVENT_CAP)` - 2,000 - and decided it
+  // had been truncated by testing `rows.length >= EVENT_CAP`. PostgREST answers
+  // with its own `db-max-rows`, which on this project is 1,000. So the server
+  // returned 1,000 rows, the test compared 1,000 against 2,000, found it smaller,
+  // and concluded nothing had been lost.
+  //
+  // MEASURED, and the arithmetic is exact rather than suggestive. The widest
+  // document covers 345 projects holding 1,766 events. It read 1,753. The
+  // 195 projects past the first chunk contributed 753, so the FIRST chunk
+  // returned exactly 1,000 of the 1,013 it holds, and the thirteen it dropped
+  // are the thirteen OLDEST - `.order('occurred_at', descending)` throws away
+  // the tail. Every one is a `record_attached` from 2023 or 2024, on
+  // Metropolitan Park / Willets Point, the Prospect Park Boathouse, OCVibe,
+  // Disneyland Resort and three other named projects.
+  //
+  // A client document's "What moved" was therefore short by thirteen events with
+  // nothing on the page to say so, because the sentence that would have said so
+  // is gated on a flag that could never be set. That is standing rule 13's
+  // sharper half: where a capped figure is a pass/fail or a document rather than
+  // a display, REMOVE THE CAP instead of stating it. A cap nobody can see turns
+  // a window into a corpus answer.
+  //
+  // SO THE READ IS PAGED, the way the agent side has paged every corpus read
+  // since verify-curation was caught doing the same thing with PostgREST's
+  // silent default. EVENT_CAP survives as what it always claimed to be - a
+  // runaway guard - and it is now compared against the TOTAL, which is a number
+  // the server cannot quietly change.
+  const EVENT_PAGE = 1000;
   let events: SectionContext['events'] = [];
   let eventsCapped = false;
-  for (let i = 0; i < ids.length; i += ID_CHUNK) {
-    let eq = supabase
-      .from('project_events')
-      .select(
-        'id,event_type,occurred_at,actor,from_value,to_value,detail,' +
-          'project:projects!project_events_project_id_fkey(id,name,market,stage,watch),' +
-          'lead:leads!project_events_lead_id_fkey(id,title,url,source)'
-      )
-      .eq('module', LIVE_PIPELINE_STORAGE_KEY)
-      .in('project_id', ids.slice(i, i + ID_CHUNK))
-      .order('occurred_at', { ascending: false })
-      .limit(EVENT_CAP);
-    if (req.period.since) eq = eq.gte('occurred_at', req.period.since);
-    if (req.period.until) eq = eq.lt('occurred_at', req.period.until);
-    const { data, error } = await eq;
-    if (error) throw new Error(`report events query failed: ${error.message}`);
-    const rows = (data ?? []) as unknown as SectionContext['events'];
-    if (rows.length >= EVENT_CAP) eventsCapped = true;
-    events.push(...rows);
+  for (let i = 0; i < ids.length && !eventsCapped; i += ID_CHUNK) {
+    const chunk = ids.slice(i, i + ID_CHUNK);
+    for (let from = 0; ; from += EVENT_PAGE) {
+      let eq = supabase
+        .from('project_events')
+        .select(
+          'id,event_type,occurred_at,actor,from_value,to_value,detail,' +
+            'project:projects!project_events_project_id_fkey(id,name,market,stage,watch),' +
+            'lead:leads!project_events_lead_id_fkey(id,title,url,source)'
+        )
+        .eq('module', LIVE_PIPELINE_STORAGE_KEY)
+        .in('project_id', chunk)
+        .order('occurred_at', { ascending: false })
+        // TIE-BROKEN ON id. Paging an ordered read whose sort key repeats is how
+        // a row is served twice and another never: 1,766 events over 345
+        // projects share plenty of timestamps, and `occurred_at` alone is not a
+        // total order. This makes it one.
+        .order('id', { ascending: false })
+        .range(from, from + EVENT_PAGE - 1);
+      if (req.period.since) eq = eq.gte('occurred_at', req.period.since);
+      if (req.period.until) eq = eq.lt('occurred_at', req.period.until);
+      const { data, error } = await eq;
+      if (error) throw new Error(`report events query failed: ${error.message}`);
+      const rows = (data ?? []) as unknown as SectionContext['events'];
+      events.push(...rows);
+      // The runaway guard, against the total and not against one page.
+      if (events.length >= EVENT_CAP) {
+        eventsCapped = true;
+        events = events.slice(0, EVENT_CAP);
+        break;
+      }
+      if (rows.length < EVENT_PAGE) break;
+    }
   }
 
   // CROSS-MARKET HISTORY FOR THE PARTIES THE DOCUMENT WILL NAME.

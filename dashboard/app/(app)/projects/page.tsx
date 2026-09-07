@@ -226,10 +226,42 @@ function intersectIds(a: string[] | undefined, b: string[] | undefined): string[
 // THE CUTS ARE DATA AND WILL DRIFT. They are stated here with the date and the
 // distribution they were taken from, so a future reader can tell a deliberate
 // threshold from a stale one.
+//
+// ---- THEY DRIFTED, AND THE TEST CAUGHT IT, 2026-09-07 ---------------------
+//
+// The cleanout tombstoned 88 projects, 71 of them Broward housekeeping scoring
+// at the bottom of the register. Removing the bottom RAISES every quantile, so
+// the old cuts stopped describing what their own labels claimed:
+//
+//   cut         label              share at or above, on 345 live projects
+//   >= 50       "top tenth"        17.4%
+//   >= 40       "top quarter"      37.7%
+//   >= 16       "middle half"      87.8%
+//
+// A band called the middle half covering seven eighths of the register is a
+// legend describing a distribution that does not exist, which is the exact
+// failure the note above this one was written about.
+//
+// RE-CUT ON THE MEASURED QUANTILES, 2026-09-07, over all 345 live projects
+// (module='hospitality', status<>'dismissed'), every one of them scored, read
+// paged to exhaustion:
+//
+//   p0 0   p10 15.3   p25 24.4   p50 32.3   p75 46.8   p90 52.9   p95 57.2
+//   p99 78.8   p100 93.4
+//
+// so the tenth is 53, the quarter is 47 and the half is 24. The numbers below
+// are those quantiles rounded to the nearest whole point.
+//
+// AND THE TEST THAT FAILED IS NOT THE ONE THAT CHANGED. register-layout.shots
+// asserts that page one carries more than one band, because a rank nobody can
+// read is not a rank. Page one is 50 rows of 345; under the stale cuts 60
+// projects scored >= 50, so all fifty were 'top' and the ladder was flat. Under
+// the re-cut, 'top' is 35 projects and rows 36 to 50 band as 'high'. The
+// assertion was right and the thresholds were wrong.
 const SIGNIFICANCE_BANDS: { min: number; key: string; label: string }[] = [
-  { min: 50, key: 'top', label: 'top tenth of the register' },
-  { min: 40, key: 'high', label: 'top quarter' },
-  { min: 16, key: 'mid', label: 'middle half' },
+  { min: 53, key: 'top', label: 'top tenth of the register' },
+  { min: 47, key: 'high', label: 'top quarter' },
+  { min: 24, key: 'mid', label: 'middle half' },
   { min: 0, key: 'low', label: 'bottom quarter' },
 ];
 

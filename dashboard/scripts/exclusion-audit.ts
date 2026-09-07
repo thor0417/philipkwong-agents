@@ -590,6 +590,26 @@ async function main(): Promise<void> {
   } else {
     failures++;
     console.log(`    SILENT !  ${missing.length} events are absent and the document does not say so`);
+    // AN AUDIT THAT REPORTS A COUNT AND NOT THE ROWS CANNOT BE ACTED ON, which
+    // is the same complaint this file makes about a document. The absent events
+    // are named so the next reader diagnoses rather than re-derives: without
+    // this the only way to find out WHICH thirteen was to instrument the audit
+    // by hand, and that took a session.
+    const detail = await supabase
+      .from('project_events')
+      .select('id,event_type,occurred_at,project_id,project:projects!project_events_project_id_fkey(name,market,status)')
+      .in('id', missing.slice(0, 40));
+    for (const r of (detail.data ?? []) as unknown as {
+      id: string; event_type: string; occurred_at: string; project_id: string;
+      project: { name: string; market: string; status: string } | null;
+    }[]) {
+      console.log(
+        `      ${String(r.occurred_at).slice(0, 10)}  ${String(r.event_type).padEnd(20)} ` +
+          `${String(r.project?.status ?? '?').padEnd(10)} ${String(r.project?.market ?? '?').slice(0, 16).padEnd(17)} ` +
+          `${String(r.project?.name ?? '(no project row)').slice(0, 46)}`
+      );
+    }
+    if (missing.length > 40) console.log(`      (+${missing.length - 40} more, not listed)`);
   }
   // AND THE CHUNK BUG ITSELF: the projects past the 150th must have contributed
   // events. Under the single-chunk read this number was zero by construction.
