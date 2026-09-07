@@ -30,7 +30,13 @@ import { bestTargetForClustering, strongBypassesGate } from './targets';
 import { matterRefFromUrl } from './sources/legistar-urls';
 import { documentShape, isFetchedFile } from '../../lib/document-shape';
 import { applicantTypeIsPublicAgency, nameableApplicantOf } from '../../lib/applicant-type';
-import { captureByMarket, captureGapNote, neverRecordedNote, newestRun } from '../../lib/source-health';
+import {
+  captureByMarket,
+  captureGapNote,
+  neverRecordedNote,
+  newestRun,
+  notInRunNote,
+} from '../../lib/source-health';
 import { describeScope, FULL_SCOPE, ALL_LANES } from './run-scope';
 import { bestDate, clusterRecords, type ClusterRecord } from './cluster';
 import { deriveProjectName } from './project-naming';
@@ -42,7 +48,7 @@ import { deriveLeadDates } from './lead-date';
 import {
   extractPressFacts, verifyNoInvention, attributionTerms, factsForEntry,
 } from './press-facts';
-import { contactsFromText } from './sources/contact-labels';
+import { contactsFromText, isAgencyHost, sameBodyHost } from './sources/contact-labels';
 import { readFilingFacts, verifyFilingFacts } from './filing-facts';
 import { readNycFacts } from './readers/nyc-records';
 
@@ -277,21 +283,110 @@ const INLINE: Record<string, () => string | null> = {
     return null;
   },
 
+  'a-scoped-run-reported-as-a-capture-failure': () => {
+    // THE REAL TIMESTAMPS, from the stored table on 2026-09-07. One capture,
+    // two lanes, 62 minutes apart. The first version of captureByMarket read
+    // this as two runs and reported six markets as having failed on a run that
+    // had just kept 282 records in one of them.
+    const oneCapture = [
+      { market: null, run_at: '2026-09-02T10:04:34.156Z', kept: 383 },
+      { market: 'Clark County', run_at: '2026-09-02T10:04:34.156Z', kept: 282 },
+      { market: 'Broward County', run_at: '2026-09-02T10:04:34.156Z', kept: 23 },
+      { market: 'Anaheim', run_at: '2026-09-02T11:06:49.343Z', kept: 18 },
+    ];
+    const caps = captureByMarket(oneCapture, ['Clark County', 'Broward County', 'Anaheim']);
+    for (const m of ['Clark County', 'Broward County', 'Anaheim']) {
+      const st = caps.find((c) => c.market === m)?.state;
+      if (st !== 'captured') {
+        return `${m} kept records on the capture and reads as "${st}": a run is being read as an instant`;
+      }
+    }
+    const note = captureGapNote(caps, newestRun(oneCapture));
+    if (note !== '') return `a capture that kept records in every market printed a failure sentence: "${note.slice(0, 90)}"`;
+
+    // AND THE OTHER DIRECTION, WHICH IS THE HALF THAT MUST NOT BE LOST. A
+    // genuine failure - the run read the market and kept nothing - still speaks.
+    const failed = captureByMarket(
+      [
+        { market: null, run_at: '2026-09-02T10:04:34.156Z', kept: 383 },
+        { market: 'Clark County', run_at: '2026-09-02T10:04:34.156Z', kept: 282 },
+        { market: 'Broward County', run_at: '2026-09-02T10:04:34.156Z', kept: 0 },
+        { market: 'Broward County', run_at: '2026-08-22T07:00:00.000Z', kept: 23 },
+      ],
+      ['Clark County', 'Broward County']
+    );
+    if (failed.find((c) => c.market === 'Broward County')?.state !== 'silent') {
+      return 'a market the run read and kept nothing for no longer reads as silent: the window has swallowed a real failure';
+    }
+    if (!captureGapNote(failed, '2026-09-02T10:04:34.156Z').includes('Broward County')) {
+      return 'a real capture failure stopped being named, which is the defect this rule exists to prevent inverted';
+    }
+
+    // TWO SEPARATE CAPTURES, DAYS APART, ARE NOT ONE RUN. The window must not be
+    // so wide that last week's capture counts as this week's.
+    const twoCaptures = captureByMarket(
+      [
+        { market: null, run_at: '2026-09-02T10:00:00.000Z', kept: 10 },
+        { market: 'Clark County', run_at: '2026-09-02T10:00:00.000Z', kept: 10 },
+        { market: 'Oakland', run_at: '2026-08-19T07:00:00.000Z', kept: 4 },
+      ],
+      ['Clark County', 'Oakland']
+    );
+    if (twoCaptures.find((c) => c.market === 'Oakland')?.state === 'captured') {
+      return 'a capture two weeks old is being counted as part of the newest run';
+    }
+    return null;
+  },
+
   'a-missing-capture-and-a-shallow-market-are-two-sentences': () => {
     // Pure: no database, no network, so it runs inside verify:fast.
+    // THE FIXTURE MODELS WHAT government.ts ACTUALLY WRITES, which the first
+    // version did not, 2026-09-07. A market a run READ and which kept nothing
+    // gets a kept:0 row in that run - government.ts writes one for every market
+    // the run declared, and its own comment says why. A market with NO row in
+    // the run was not read by it. Those are different facts and the fixture used
+    // to conflate them by modelling only the second and expecting the first.
     const rows = [
       // A row with no market. It fixes WHEN the newest run was and must never
       // be read as evidence about any market.
       { market: null, run_at: '2026-08-22T07:00:00Z', kept: 40 },
       { market: 'Clark County', run_at: '2026-08-22T07:00:00Z', kept: 31 },
+      // Read on the newest run, kept nothing. This is a real capture failure.
+      { market: 'Nashville', run_at: '2026-08-22T07:00:00Z', kept: 0 },
       { market: 'Nashville', run_at: '2026-08-19T07:00:00Z', kept: 6 },
+      // History, and NOT in the newest run at all: a scoped run did not read it.
+      { market: 'Oakland', run_at: '2026-08-19T07:00:00Z', kept: 4 },
     ];
-    const caps = captureByMarket(rows, ['Clark County', 'Nashville', 'Phoenix']);
+    const caps = captureByMarket(rows, ['Clark County', 'Nashville', 'Oakland', 'Phoenix']);
     const state = (m: string) => caps.find((c) => c.market === m)?.state;
 
     if (state('Clark County') !== 'captured') return 'a market captured on the newest run does not read as captured';
-    if (state('Nashville') !== 'silent') return 'a market with history and nothing on the newest run does not read as silent';
+    if (state('Nashville') !== 'silent') return 'a market READ by the newest run that kept nothing does not read as silent';
+    if (state('Oakland') !== 'not-in-run') {
+      return 'a market the newest run did not read is reported as something other than not-in-run';
+    }
     if (state('Phoenix') !== 'never-recorded') return 'a market with no history at all does not read as never-recorded';
+
+    // ---- AND THE SENTENCES STAY THREE ------------------------------------
+    //
+    // The capture-failure sentence may never name a market the run did not read.
+    // That is the defect of 2026-09-07: seven markets named as capture failures
+    // on a run that had just kept 282 records in one of them.
+    const gapNames = captureGapNote(caps, newestRun(rows));
+    if (gapNames.includes('Oakland')) {
+      return 'the capture-failure sentence names a market the run never read, which is the 2026-09-07 defect';
+    }
+    const scoped = notInRunNote(caps, newestRun(rows));
+    if (!scoped.includes('Oakland')) return 'a market the run did not read gets no sentence at all, so it is silently absent';
+    if (/recorded nothing/.test(scoped)) {
+      return 'the scoped-run sentence says we recorded nothing, which is the capture-failure claim in other words';
+    }
+    if (!/not a failure of the feed/.test(scoped)) {
+      return 'the scoped-run sentence does not say in as many words that this is not a failure';
+    }
+    if (notInRunNote(captureByMarket([], ['Nashville']), null) !== '') {
+      return 'a document with no run history reports a scoped-run gap';
+    }
 
     const gap = captureGapNote(caps, newestRun(rows));
     if (!gap.includes('Nashville')) return 'the capture sentence does not name the silent market';
@@ -1024,6 +1119,51 @@ const INLINE: Record<string, () => string | null> = {
     }
     if (!threw) {
       return 'verifyNoInvention accepted a figure its own sentence does not contain';
+    }
+    return null;
+  },
+
+  'staff-of-the-deciding-body-is-not-a-party': () => {
+    // THE MECHANISM, GUARDED WHERE IT LIVES. contactIsDecidingBodyStaff is in
+    // dashboard/lib/people and this file may never import it - agents ->
+    // dashboard is not reachable from a build, and this runs in the pre-commit
+    // hook. What it CAN guard is the half that would regress silently: the two
+    // host tests the rule is built out of, against the exact pairs measured in
+    // the corpus on 2026-09-07.
+    //
+    // Every pair below is real. The last two are the controls, and they are the
+    // whole reason the rule is two tests rather than one.
+    const cases: { mailbox: string; publisher: string; staff: boolean; why: string }[] = [
+      { mailbox: 'anaheim.net', publisher: 'anaheim.granicus.com', staff: true,
+        why: 'a city domain that is not a .gov, read off an agenda platform' },
+      { mailbox: 'anaheim.net', publisher: 'anaheim.net', staff: true,
+        why: 'the same city, publishing directly' },
+      { mailbox: 'clarkcountynv.gov', publisher: 'clarkcountynv.gov', staff: true,
+        why: 'the plainest case, and isAgencyHost alone has it' },
+      { mailbox: 'oaklandca.gov', publisher: 'oakland.legistar.com', staff: true,
+        why: 'the labels differ; only isAgencyHost catches this one' },
+      { mailbox: 'brooklynbp.nyc.gov', publisher: 'a856-cityrecord.nyc.gov', staff: true,
+        why: 'a borough president office, labels nothing alike' },
+      { mailbox: 'opry.com', publisher: 'nashville.legistar.com', staff: false,
+        why: 'CONTROL: Joan Payson is Opry Entertainment, a party, on a city agenda' },
+      { mailbox: 'hvs.com', publisher: 'hvs.com', staff: false,
+        why: 'CONTROL: sameBodyHost matches a publisher against its own author. ' +
+             'Only the caller requiring a FILING keeps this out, and that is why ' +
+             'sameBodyHost is documented as never a government test on its own' },
+    ];
+    for (const c of cases) {
+      // The rule as people.ts composes it, minus the isFiling half, which is a
+      // fact about the record rather than about these two strings.
+      const marked = isAgencyHost(c.mailbox) || sameBodyHost(c.mailbox, c.publisher);
+      // hvs.com is expected to be marked by the host halves alone; what must
+      // never change is that isAgencyHost does not claim it.
+      if (c.mailbox === 'hvs.com') {
+        if (isAgencyHost(c.mailbox)) return 'isAgencyHost claimed a private consultancy domain';
+        continue;
+      }
+      if (marked !== c.staff) {
+        return `${c.mailbox} against ${c.publisher} came back ${marked ? 'staff' : 'a party'}: ${c.why}`;
+      }
     }
     return null;
   },

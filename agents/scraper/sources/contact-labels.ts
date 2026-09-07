@@ -102,10 +102,52 @@ export function headingOwner(text: string): string | null {
 const AGENCY_HOST = /(\.gov$|\.gov\.|\.us$|\.mil$|snhd\.org$|cleanwaterteam\.com$|lasairport\.com$|airport|county|city|district|clerk)/i;
 const BULK_MAILBOX = /^(info|no-?reply|donotreply|do-?not-?reply|clerk|agenda|agendas|notice|notices|planning|permits|zoning|records|webmaster|admin|contact|support|mail)$/i;
 
+/**
+ * Is this host a government body's own domain?
+ *
+ * SPLIT OUT SO THERE IS ONE COPY. The capture end asks it as "may this mailbox
+ * be attributed to the party" and the PRINT end asks it as "is this party staff
+ * of the body deciding the matter". Those are the same judgement about the same
+ * string, and two copies of it is how the half that decides what a client reads
+ * comes to disagree with the half that decides what is stored.
+ */
+export function isAgencyHost(host: string): boolean {
+  return AGENCY_HOST.test(host.toLowerCase());
+}
+
+/**
+ * Do a mailbox host and a publisher host name the SAME BODY?
+ *
+ * A municipal domain is not always a .gov and there is no syntax that says so:
+ * Anaheim's is anaheim.net, and isAgencyHost cannot see it. What the record does
+ * carry is where WE READ IT FROM, and an agenda platform puts the body's own
+ * name in front of its own: anaheim.granicus.com, oakland.legistar.com,
+ * nashville.legistar.com. So the leading label of the two hosts is compared.
+ *
+ * MEASURED, 2026-09-07, over every mailbox on a live project's records:
+ *   anaheim.net  vs anaheim.granicus.com   -> same body   (4 people, 8 records)
+ *   anaheim.net  vs anaheim.net            -> same body
+ *   opry.com     vs nashville.legistar.com -> NOT the same body, correctly:
+ *                                             Joan Payson is Opry's, not the city's
+ *   oaklandca.gov vs oakland.legistar.com  -> NOT matched here; isAgencyHost has it
+ *
+ * IT IS NOT A GOVERNMENT TEST ON ITS OWN and must never be used as one. An
+ * article published at hvs.com naming bconner@hvs.com matches it perfectly. The
+ * caller supplies the other half - that the record is a government filing -
+ * which is a fact about how the value arrived rather than about the string.
+ */
+export function sameBodyHost(mailboxHost: string, publisherHost: string): boolean {
+  const label = (h: string): string =>
+    h.toLowerCase().replace(/^www\./, '').split('.').filter(Boolean)[0] ?? '';
+  const a = label(mailboxHost);
+  const b = label(publisherHost);
+  return !!a && a === b;
+}
+
 export function isPartyEmail(email: string): boolean {
   const [local, host] = email.toLowerCase().split('@');
   if (!local || !host) return false;
-  if (AGENCY_HOST.test(host)) return false;
+  if (isAgencyHost(host)) return false;
   if (BULK_MAILBOX.test(local)) return false;
   return true;
 }

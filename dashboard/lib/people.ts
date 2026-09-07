@@ -29,6 +29,7 @@
 
 import type { Project, TimelineRecord } from './projects';
 import { applicantTypeIsPublicAgency } from '../../lib/applicant-type';
+import { isAgencyHost, sameBodyHost } from '../../agents/scraper/sources/contact-labels';
 import { citationLabel, isFiling } from './report-model';
 
 type ScopedRecord = TimelineRecord & { project_id?: string | null; market?: string | null };
@@ -52,6 +53,14 @@ export interface ProjectParty {
   address: string | null;
   /** Every role this party holds, in the words the columns use. */
   roles: string[];
+  /**
+   * STAFF OF THE BODY DECIDING THE MATTER. Kept on this list, marked, and never
+   * printed in a parties block - see printableParties. True only when EVERY role
+   * this party holds is the staff role: a person who is also the representative
+   * on another filing is a party, and the staff mailbox on one record does not
+   * take that away from them.
+   */
+  staff: boolean;
   provenance: 'RECORD' | 'PRESS';
   /** The record that names them, so the claim can be checked. */
   sourceUrl: string;
@@ -171,6 +180,66 @@ function nameablePresenter(r: ScopedRecord): string | null | undefined {
   return presenterIsGovernmentMover(r) ? null : r.presented_by;
 }
 
+// ---- AND THE THIRD COLUMN: THE CASE PLANNER -------------------------------
+//
+// THE RULE THAT WAS NOT THERE, AND THE LIST THAT HID IT.
+//
+// document-map carried NEVER_A_PARTY, six public officials refused by name. It
+// never fired once in this corpus - the names in it are New York CEQR signature
+// blocks that no reader ever wrote to a party column - so for weeks there was a
+// list that looked like a defence while defending nothing, and the actual
+// exposure sat one column over, untouched: Lisandro Orozco and Stacy Tran,
+// Anaheim planners, printed on OCVibe under "contact named in the filing" with
+// their city mailboxes beside them. A client document offering the deciding
+// city's own case planner as somebody to call.
+//
+// The list is deleted with this rule, not before it, so the removal never left a
+// gap. See the removal note in agents/scraper/sources/document-map.ts.
+//
+// ---- IT READS NO NAMES ------------------------------------------------------
+//
+// Two facts about how the value arrived, never the string:
+//
+//   1. THE RECORD IS A FILING. isFiling, the same predicate the presenter gate
+//      and the provenance tag use, so those three can never disagree about what
+//      a filing is. An article naming a person states nothing about who employs
+//      them - hvs.com publishes bconner@hvs.com on its own article - and that
+//      name already takes ROLE_PRESS_NAMED.
+//   2. THE MAILBOX IS THE BODY'S OWN. isAgencyHost, which is the test the
+//      CAPTURE end already applies to the same string, or sameBodyHost against
+//      the publisher we read the record from, which is what catches a municipal
+//      domain that is not a .gov. Both live in contact-labels, one copy.
+//
+// MEASURED CORPUS-WIDE BEFORE SHIPPING, 2026-09-07, over 354 live projects and
+// every record attached to one. 18 records carry a contact mailbox at all. The
+// rule marks 16 of them, 9 distinct people, in 4 of the 13 markets:
+//
+//   Anaheim         8 records, 4 people   Orozco, Tran, Nguyen, Nicholas
+//   New York City   4 records, 2 people   Newball (Brooklyn BP), Richards (Queens BP)
+//   Clark County    2 records, 2 people   Rivera-Rojas, Martinez
+//   Oakland         2 records, 1 person   Gonzalez
+//   Nashville       0 of 1                Joan Payson, opry.com, kept - she is a party
+//
+// NO OTHER MARKET LOSES A SINGLE NAME, which is the per-market cost the standing
+// rule asks for: nine of the thirteen markets carry no contact mailbox at all,
+// so the rule cannot reach them either way.
+//
+// WHAT IT CANNOT SEE, stated rather than implied. 19 agency-shaped values sit in
+// `applicant` and `contact_name` with no mailbox beside them - "CITY OF LAS
+// VEGAS", "Councilman Brian Knudsen", "Performing Arts Center Authority" - in
+// Clark County (6), New York City (6), Las Vegas (4), Broward (2) and Anaheim
+// (1). Six of those are already refused by applicant_type or by the presenter
+// gate. The rest are the residue, and a name rule is what it would take to reach
+// them, which is the thing this repo has a golden case against. They are counted
+// in agents/scraper/diagnostics/staff-party-reach.ts and left visible.
+export function contactIsDecidingBodyStaff(r: ScopedRecord): boolean {
+  if (!isFiling(r.source, r.source_type, r.stream)) return false;
+  const mailbox = tidy(r.contact_email).toLowerCase().match(/[\w.+-]+@([\w-]+(?:\.[\w-]+)+)/);
+  if (!mailbox) return false;
+  const mailHost = mailbox[1];
+  return isAgencyHost(mailHost) || sameBodyHost(mailHost, host(r.url));
+}
+
 /**
  * THE NAMES THIS GATE HELD BACK, so a document can say so.
  *
@@ -236,12 +305,26 @@ const ROLE_CONTACT = 'contact named in the filing';
 // rows down carries the sentences, with their links, and lets the sources speak
 // for themselves.
 const ROLE_PRESS_NAMED = 'named in press coverage';
+
+/**
+ * THE MARK, AND WHY IT IS A ROLE RATHER THAN A DELETION.
+ *
+ * The name is true and the filing prints it. What is false is the ROLE the
+ * corpus gave it - "contact named in the filing", which in a document about who
+ * to approach reads as the party's contact. So the role is corrected and the
+ * name is kept, in the record and on this list, tagged the way provenance is
+ * tagged. Nulling the column would delete a fact the county published in order
+ * to fix a display rule, which is the treatment the public-agency applicant and
+ * the government mover both already refuse.
+ */
+export const ROLE_STAFF = '[STAFF] staff of the deciding body';
 const ROLE_ORDER = [
   ROLE_APPLICANT,
   ROLE_REPRESENTATIVE,
   ROLE_PRESENTER,
   ROLE_CONTACT,
   ROLE_PRESS_NAMED,
+  ROLE_STAFF,
 ];
 
 // Words printed in capitals that are not acronyms of two letters. Used only to
@@ -562,7 +645,11 @@ export function buildParties(project: Project, records: ScopedRecord[]): Project
     // an article naming somebody states no such thing. See ROLE_PRESS_NAMED.
     add(
       r.contact_name,
-      isFiling(r.source, r.source_type, r.stream) ? ROLE_CONTACT : ROLE_PRESS_NAMED,
+      contactIsDecidingBodyStaff(r)
+        ? ROLE_STAFF
+        : isFiling(r.source, r.source_type, r.stream)
+          ? ROLE_CONTACT
+          : ROLE_PRESS_NAMED,
       r,
       {
         email: tidy(r.contact_email) || null,
@@ -672,6 +759,12 @@ export function buildParties(project: Project, records: ScopedRecord[]): Project
       name,
       firm,
       roles: [...a.roles].sort((x, y) => ROLE_ORDER.indexOf(x) - ROLE_ORDER.indexOf(y)),
+      // A person who ALSO holds a party role is a party. Anaheim is why the test
+      // is "every role" rather than "any role": Lisandro Orozco arrives through
+      // presented_by and through contact_name on different records, and if the
+      // presenter gate had not already removed the first he would be standing in
+      // the block under one role while being reported as withheld under another.
+      staff: a.roles.size > 0 && [...a.roles].every((role) => role === ROLE_STAFF),
       provenance: a.isFiling ? ('RECORD' as const) : ('PRESS' as const),
       sourceUrl: a.url,
       sourceLabel: a.label,
@@ -695,6 +788,50 @@ export function buildParties(project: Project, records: ScopedRecord[]): Project
 }
 
 /**
+ * THE PARTIES A DOCUMENT MAY PRINT: everyone on the list who is not staff of the
+ * body deciding the matter.
+ *
+ * ONE FILTER, CALLED AT EVERY PRINT SITE, rather than a null pushed in at the
+ * top of buildParties. The presenter gate took the other route and it costs
+ * something real: presented_by is gone by the time anything downstream sees the
+ * list, so the note that has to say what was withheld goes back to the RECORDS
+ * and re-derives it, and the first version of that note then named people who
+ * were standing two lines above it. Keeping the mark on the list means the block
+ * and the note read the same object.
+ */
+export function printableParties(parties: ProjectParty[]): ProjectParty[] {
+  return parties.filter((p) => !p.staff);
+}
+
+/** The ones it held back. Marked, named, and never silently absent. */
+export function staffParties(parties: ProjectParty[]): ProjectParty[] {
+  return parties.filter((p) => p.staff);
+}
+
+/**
+ * THE SENTENCE FOR A BLOCK THAT DID PRINT PARTIES, or null when none was held.
+ *
+ * Standing rule 3 has no exemption for a withholding we are right about. A
+ * reader who can see a planner's name and city mailbox on the county's own
+ * agenda must be able to see that we hold it and placed it deliberately, rather
+ * than conclude we never read the page.
+ */
+export function staffNote(parties: ProjectParty[]): string | null {
+  const held = staffParties(parties);
+  if (held.length === 0) return null;
+  const who = held.slice(0, 3).map((p) => p.name).join('; ');
+  const more =
+    held.length > 3 ? `, and ${held.length - 3} other${held.length - 3 === 1 ? '' : 's'}` : '';
+  return (
+    `${held.length === 1 ? 'One further name' : `${held.length} further names`} on the filings ` +
+    `${held.length === 1 ? 'is' : 'are'} staff of the body deciding the matter (${who}${more}), ` +
+    `named there as the case contact and reachable only at that body's own address. ` +
+    `${held.length === 1 ? 'It is' : 'They are'} held in the record and not listed above as a ` +
+    `party to approach.`
+  );
+}
+
+/**
  * THE HONEST NEGATIVE, AT PROJECT LEVEL.
  *
  * A project whose records name nobody says so in a sentence rather than showing
@@ -702,7 +839,19 @@ export function buildParties(project: Project, records: ScopedRecord[]): Project
  * so the sentence names the reason it can see: records exist and none of them
  * carries a party.
  */
-export function noPartiesNote(records: ScopedRecord[]): string {
+export function noPartiesNote(
+  records: ScopedRecord[],
+  /**
+   * THE PARTIES THE LIST HELD BACK, so an empty block can say which withholding
+   * emptied it. Optional because three callers predate the staff rule and an
+   * absent list is the same answer as an empty one: no staff, nothing to add.
+   */
+  parties: ProjectParty[] = []
+): string {
+  return [baseNote(records, staffParties(parties)), staffNote(parties)].filter(Boolean).join(' ');
+}
+
+function baseNote(records: ScopedRecord[], staff: ProjectParty[] = []): string {
   const n = records.length;
   if (n === 0) return 'No records are attached to this project, so no party is named.';
 
@@ -736,7 +885,17 @@ export function noPartiesNote(records: ScopedRecord[]): string {
   // sentence over a name we were holding.
   // The block is EMPTY on this branch, so nothing is on the page to filter
   // against and every mover is genuinely withheld.
-  const movers = withheldMovers(records);
+  // THE SAME PERSON, WITHHELD TWICE, IN TWO SENTENCES. Anaheim again, and it is
+  // the mirror of the case the `printed` argument was added for. Lisandro Orozco
+  // and Stacy Tran arrive through presented_by AND through contact_name; while
+  // the contact role kept them on the page the mover note correctly said nothing
+  // about them, and the moment the staff rule took the contact role away the
+  // mover note started naming them a second time, three lines above the staff
+  // note naming them a third. So the names the staff sentence is about are
+  // passed in here exactly as printed parties are: the COUNT still counts
+  // records, because that number is about our capture, and only the naming is
+  // filtered, because that part is about the page.
+  const movers = withheldMovers(records, staff);
   if (movers.count > 0) {
     const who = movers.names.slice(0, 2).join(' and ');
     return (

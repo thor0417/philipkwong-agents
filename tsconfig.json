@@ -51,6 +51,9 @@
     "agents/scraper/diagnostics/party-gate-measure.ts",
     // And again: it calls the real buildParties to count what a document prints.
     "agents/scraper/diagnostics/name-as-party-measure.ts",
+    // And again, for the staff rule. It calls the real buildParties so the reach
+    // it reports is the number of names a client document would stop printing.
+    "agents/scraper/diagnostics/staff-party-reach.ts",
     // And again. Measures contact_name, which unlike presented_by is genuinely
     // mixed on one column and one stream, so it counts rather than concludes.
     "agents/scraper/diagnostics/contact-name-measure.ts",

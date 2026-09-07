@@ -36,8 +36,12 @@ import type { Project, TimelineRecord } from './projects';
 import {
   applicantIsPublicAgency,
   buildParties,
+  contactIsDecidingBodyStaff,
   distinctRecordParties,
   noPartiesNote,
+  printableParties,
+  staffNote,
+  staffParties,
   presenterIsGovernmentMover,
   withheldMovers,
   withPartyHistory,
@@ -1015,6 +1019,14 @@ function contactOf(r: ScopedRecord): string | null {
   // which is the whole of what we know. Repeating it on the record line added
   // nothing except the word that was wrong.
   if (!isFiling(r.source, r.source_type, r.stream)) return null;
+  // AND THE SECOND PARTY PATH GETS THE SECOND GATE. See playersOf above: every
+  // rule about which names may be printed was written into buildParties and none
+  // into these clauses, so a name refused four inches up the page printed here
+  // unchanged. The staff rule was going to land the same way - the people block
+  // would drop Lisandro Orozco and the record line under it would still read
+  // "Contact: Lisandro Orozco. LOrozco@anaheim.net." - so it is imported here on
+  // the day it ships rather than found later.
+  if (contactIsDecidingBodyStaff(r)) return null;
   const name = cleanParty(r.contact_name);
   if (!name) return null;
   const ways = [tidy(r.contact_email), tidy(r.contact_phone)].filter(Boolean);
@@ -1397,9 +1409,14 @@ export function buildEntry(
   // NOT `shown`. See the note on opts.partyRecords: a project whose only
   // in-period filings are press was reported as having no party at all.
   const forParties = opts.partyRecords?.length ? opts.partyRecords : shown;
-  const people = opts.history
+  const allParties = opts.history
     ? withPartyHistory(buildParties(project, forParties), opts.history)
     : buildParties(project, forParties);
+  // STAFF OF THE DECIDING BODY ARE MARKED AND NOT PRINTED. The mark stays on
+  // allParties so the withholding sentence below reads the same objects the
+  // block does; see printableParties in lib/people for why the filter is here
+  // rather than a null pushed in at the top of buildParties.
+  const people = printableParties(allParties);
   // FROM THE PROJECT'S WHOLE RECORD SET, not from the eight the entry prints and
   // not from the period. Scale is what the thing IS; a room count does not stop
   // being true because the article that carried it fell outside the window or
@@ -1474,12 +1491,23 @@ export function buildEntry(
       scaleHeld: scale.held,
       people,
       scaleDisagreement: disagreementNote(scale.figures),
-      noPeopleNote: people.length === 0 ? noPartiesNote(forParties) : null,
+      noPeopleNote: people.length === 0 ? noPartiesNote(forParties, allParties) : null,
       // See Entry.peopleWithheldNote. Only where a party DID print: when none
       // did, noPartiesNote above already names the withholding and its count,
       // and two sentences saying it would be the duplicated-withholding blemish
-      // in a new place.
-      peopleWithheldNote: people.length > 0 ? moverNote(forParties, people) : null,
+      // in a new place. Both withholdings ride this one field for that reason.
+      // A NAME THE STAFF SENTENCE IS ABOUT IS NOT ALSO A WITHHELD MOVER. See the
+      // note in lib/people baseNote: OCVibe printed both sentences naming
+      // Lisandro Orozco and Stacy Tran, one after the other.
+      peopleWithheldNote:
+        people.length > 0
+          ? [
+              moverNote(forParties, [...people, ...staffParties(allParties)]),
+              staffNote(allParties),
+            ]
+              .filter(Boolean)
+              .join(' ') || null
+          : null,
       records: entryRecords,
     },
     held: ordered.length - shown.length,

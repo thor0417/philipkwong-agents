@@ -68,19 +68,37 @@ export interface StateMap {
 // Hillary Semel is MOEC's Director and appears on every CEQR submission in New
 // York City: reading her as a party would put one official on ninety projects.
 //
-// Enforced two ways in every reader that consumes this map. BY KEY, because only
-// an applicant label may produce a party, so no signature block, letterhead,
-// addressee line or title block is ever read. AND BY NAME, below, so that a
-// future label change cannot reach them silently. The by-name refusals are
-// COUNTED and reported, never dropped quietly.
-export const NEVER_A_PARTY = [
-  'Hillary Semel', 'Hilary Semel',        // MOEC Director, receives every CEQR submission
-  'Kevin D. Kim', 'Kevin Kim',            // SBS Commissioner
-  'Daniel Garodnick',                     // DCP Director, CPC Chair
-  'Vanessa Gibson', 'Vanessa L. Gibson',  // Bronx Borough President
-  'Joseph Russo',                         // Community Board
-  'S. Lenard',                            // Community Board
-];
+// Enforced BY KEY in every reader that consumes this map: only an applicant
+// label may produce a party, so no signature block, letterhead, addressee line
+// or title block is ever read.
+//
+// ---- THE NAME LIST THAT USED TO SIT HERE IS GONE, 2026-09-07 ---------------
+//
+// NEVER_A_PARTY held ten spellings of six New York officials - Semel, Kim,
+// Garodnick, Gibson, Russo, Lenard - as a second line of defence behind the key
+// rule. It was deleted, and the removal is written down rather than done
+// quietly, because of what the measurement found:
+//
+//   IT NEVER FIRED ONCE. Nothing imported it. `grep -rn NEVER_A_PARTY` returned
+//   its own declaration and nothing else, and no reader ever wrote one of those
+//   names to a party column, so across the whole corpus it refused nothing. The
+//   diagnostic that counts by-name refusals (diagnostics/ceqr-parties) carries
+//   its OWN copy of the list, which is how a dead constant kept looking alive.
+//
+//   AND IT LOOKED LIKE A DEFENCE WHILE DEFENDING NOTHING. For weeks this file
+//   read as though the officials problem was handled in two independent ways.
+//   The actual exposure was one column over and untouched: Anaheim's case
+//   planners, Clark County's comprehensive-planning staff and two borough
+//   presidents' offices were printing in client documents under "contact named
+//   in the filing", with the deciding body's own mailbox beside them. A list of
+//   six names could not have caught any of them, because none of the nine people
+//   involved is on it, and no list of names ever would be - the next market
+//   brings the next six planners.
+//
+// WHAT REPLACES IT is dashboard/lib/people contactIsDecidingBodyStaff, which
+// reads no names at all: a filing, and a mailbox at the deciding body's own
+// host. See that function for the corpus-wide measurement, and golden case
+// staff-of-the-deciding-body-is-not-a-party for the guard.
 
 export const DOCUMENT_MAP: StateMap[] = [
   {

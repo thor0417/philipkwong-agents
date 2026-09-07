@@ -64,6 +64,14 @@ const SANCTIONED = new Set([
   // read by the capture lane AND by the referral brief. Two copies is how the
   // two halves come to disagree about what a client may be shown.
   'agents/scraper/junk-domains.ts',
+  // THE LABELS A FILING USES TO INTRODUCE A PARTY, AND THE HOST RULES THAT SAY
+  // WHOSE MAILBOX IT IS. Read by the capture end, which asks "may this mailbox
+  // be attributed to the party", and by dashboard/lib/people, which asks "is
+  // this party staff of the body deciding the matter". One judgement, one copy:
+  // a mirrored host list is how the stored answer and the printed answer come to
+  // disagree about who is government. Its own header says it imports nothing on
+  // purpose, and that was re-verified by inspection on 2026-09-07.
+  'agents/scraper/sources/contact-labels.ts',
   // WHAT COVERED MEANS. The four criteria, the markets declared to reach them,
   // and the two sentences a document prints about a market that does not. Read
   // by verify-market-standard in agents/ AND by the coverage note in

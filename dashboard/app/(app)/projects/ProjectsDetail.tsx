@@ -328,6 +328,12 @@ export default function ProjectsDetail({
             ))}
           </dl>
         )}
+        {/* NOTHING SILENTLY ABSENT, ON THE SCREEN TOO. A name held back because
+            they are staff of the deciding body is stated here rather than
+            omitted, so the operator can see we hold it. */}
+        {!people.isPending && people.withheldNote && (
+          <p className={styles.dim} data-people-withheld>{people.withheldNote}</p>
+        )}
       </section>
 
       {/* The timeline. Every record in date order, with its source and a link. */}

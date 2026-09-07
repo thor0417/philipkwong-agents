@@ -22,6 +22,8 @@ import {
   buildParties,
   noPartiesNote,
   normaliseParty,
+  printableParties,
+  staffNote,
   withPartyHistory,
   type PartyHistory,
   type ProjectParty,
@@ -79,6 +81,13 @@ export interface ProjectPeople {
   parties: ProjectParty[];
   /** Set when the records name nobody. Rendered instead of an empty heading. */
   note: string | null;
+  /**
+   * Set when the list DID print somebody and a name was still held back. A
+   * separate field because `note` is rendered INSTEAD of the list: returning the
+   * withholding sentence through it would have made every party on an Anaheim
+   * project disappear behind a sentence about the ones that did not print.
+   */
+  withheldNote: string | null;
   isPending: boolean;
 }
 
@@ -94,14 +103,22 @@ export function useProjectPeople(projectId: string | null): ProjectPeople {
   const history = usePartyHistory(projectId);
 
   const isPending = project.isPending || timeline.isPending;
-  if (isPending || !project.data) return { parties: [], note: null, isPending: true };
+  if (isPending || !project.data)
+    return { parties: [], note: null, withheldNote: null, isPending: true };
 
   const records = timeline.data ?? [];
   const base = buildParties(project.data, records);
-  const parties = history.data ? withPartyHistory(base, history.data) : base;
+  const all = history.data ? withPartyHistory(base, history.data) : base;
+  // THE REGISTER IS GATED TOO, and deliberately. This file's own header says the
+  // point of it is that four surfaces cannot disagree about who is on a project,
+  // and a screen that lists a city planner as a contact while the document built
+  // from the same function does not is exactly that disagreement. The name is
+  // not lost: withheldNote carries it, marked.
+  const parties = printableParties(all);
   return {
     parties,
-    note: parties.length === 0 ? noPartiesNote(records) : null,
+    note: parties.length === 0 ? noPartiesNote(records, all) : null,
+    withheldNote: parties.length === 0 ? null : staffNote(all),
     isPending: false,
   };
 }

@@ -240,6 +240,11 @@ export default function ProjectPage() {
                 })}
               </ul>
             )}
+            {/* NOTHING SILENTLY ABSENT. See ProjectsDetail: a name held back
+                because they are staff of the deciding body is stated. */}
+            {!people.isPending && people.withheldNote && (
+              <p className={styles.dim} data-people-withheld>{people.withheldNote}</p>
+            )}
           </section>
 
           <section className={styles.block}>
