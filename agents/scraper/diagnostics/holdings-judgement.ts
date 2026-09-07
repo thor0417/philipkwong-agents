@@ -237,6 +237,20 @@ async function main(): Promise<void> {
     party: string | null; namedPrivateParty: boolean; representative: boolean;
     statedFacts: number; conditions: number; contacts: number; parties: number;
     records: number; depth: number; provisional: boolean; primaryDoc: boolean;
+    /**
+     * THE PROJECT BUILDS NO ENTRY AT ALL. Brief U item 2: this was 76 and
+     * unmeasured, because the first version counted them and dropped them
+     * before the tables. They are now rows like any other, so the count can be
+     * read PER MARKET and PER BUCKET, which is what decides whether the number
+     * is a quality problem or one market's capture problem.
+     *
+     * buildEntry returns null when the project has nothing an entry can be built
+     * out of - see report-entry: no usable record survives the period, the cap
+     * and the duplicate fold. Every printing measure below is zero for these by
+     * definition, so they are excluded from the depth ranking and counted on
+     * their own.
+     */
+    noEntry: boolean;
   }
   const rows: Row[] = [];
   let noEntry = 0;
@@ -245,7 +259,19 @@ async function main(): Promise<void> {
     if (!label) continue;
     const records = byProject.get(p.id) ?? [];
     const built = buildEntry(p as Project, records as TimelineRecord[] as any, { partyRecords: records as any, cap: 500 });
-    if (!built) { noEntry++; continue; }
+    if (!built) {
+      noEntry++;
+      rows.push({
+        id: p.id, name: p.name, market: String(p.market ?? '(no market)'),
+        stage: String(p.stage ?? '(none)'), bucket: label.bucket, reason: label.reason,
+        party: p.primary_applicant ?? null, namedPrivateParty: false, representative: false,
+        statedFacts: 0, conditions: 0, contacts: 0, parties: 0, records: records.length,
+        provisional: p.name_source === 'title' || !p.name_source,
+        primaryDoc: records.some((r: any) => r.primary_document_url),
+        depth: 0, noEntry: true,
+      });
+      continue;
+    }
     const e = built.entry;
     const people = e.people ?? [];
     // A NAMED PRIVATE PARTY. people.ts has already refused agency staff and the
@@ -278,6 +304,7 @@ async function main(): Promise<void> {
         filings, press: e.records.length - filings,
         schedule: !!e.schedule, summary: !!e.summary,
       }),
+      noEntry: false,
     });
   }
 
@@ -294,7 +321,11 @@ async function main(): Promise<void> {
   w('```');
   w();
   w(`Judge ${MODEL}, rubric ${RUBRIC_VERSION}, labels cached in ${LABEL_FILE}.`);
-  if (noEntry) w(`${noEntry} projects build no entry at all and are excluded from the tables below.`);
+  if (noEntry) {
+    w(`${noEntry} of them build NO ENTRY AT ALL. They are counted in every table below and`);
+    w(`broken out in their own section, because a bucket count that silently drops them`);
+    w(`describes a register that is smaller than the one on the screen.`);
+  }
   w();
   w(`## Buckets`);
   w();
@@ -328,13 +359,54 @@ async function main(): Promise<void> {
   }
 
   w();
+  w(`## Projects that build no entry at all`);
+  w();
+  w(`buildEntry returned null: nothing survives the period, the cap and the duplicate`);
+  w(`fold, so a client document has nothing to print for these under any section. Every`);
+  w(`printing measure above is zero for them by definition.`);
+  w();
+  const none = rows.filter((r) => r.noEntry);
+  if (!none.length) {
+    w('None.');
+  } else {
+    w('| market | no entry | of which vertical | dev-other | instrument | housekeeping | market total | share |');
+    w('|---|---:|---:|---:|---:|---:|---:|---:|');
+    for (const m of [...new Set(none.map((r) => r.market))].sort()) {
+      const s2 = none.filter((r) => r.market === m);
+      const tot = rows.filter((r) => r.market === m).length;
+      w(
+        `| ${m} | ${s2.length} | ${s2.filter((r) => r.bucket === 'development-vertical').length} | ` +
+          `${s2.filter((r) => r.bucket === 'development-other').length} | ` +
+          `${s2.filter((r) => r.bucket === 'instrument').length} | ` +
+          `${s2.filter((r) => r.bucket === 'housekeeping').length} | ${tot} | ` +
+          `${((100 * s2.length) / tot).toFixed(0)}% |`
+      );
+    }
+    w(
+      `| **all** | **${none.length}** | **${none.filter((r) => r.bucket === 'development-vertical').length}** | ` +
+        `**${none.filter((r) => r.bucket === 'development-other').length}** | ` +
+        `**${none.filter((r) => r.bucket === 'instrument').length}** | ` +
+        `**${none.filter((r) => r.bucket === 'housekeeping').length}** | **${rows.length}** | ` +
+        `**${((100 * none.length) / rows.length).toFixed(0)}%** |`
+    );
+    w();
+    w(`The ${none.filter((r) => r.bucket === 'development-vertical').length} hospitality developments among them, by name:`);
+    w();
+    for (const r of none.filter((x) => x.bucket === 'development-vertical').sort((a, b) => a.market.localeCompare(b.market))) {
+      w(`- ${r.name} — ${r.market}, ${r.records} record${r.records === 1 ? '' : 's'}, stage ${r.stage}`);
+    }
+  }
+
+  w();
   w(`## The hospitality developments, ranked by depth`);
   w();
   w('Depth is what a reader MEETS on the page, not significance. Weights identical to');
   w('agents/scraper/diagnostics/depth-ranking:');
   w('`stated*3 + pressFig*1 + min(conditions,60)*2 + parties*2 + contacts*8 + addresses*4 + filings*2 + press*0.5 + schedule*5 + summary*5`');
   w();
-  const vertical = rows.filter((r) => r.bucket === 'development-vertical').sort((a, b) => b.depth - a.depth);
+  const vertical = rows
+    .filter((r) => r.bucket === 'development-vertical' && !r.noEntry)
+    .sort((a, b) => b.depth - a.depth);
   w('| # | depth | project | market | stage | party | recs | facts | conds |');
   w('|---:|---:|---|---|---|---|---:|---:|---:|');
   vertical.slice(0, 30).forEach((r, i) => {
