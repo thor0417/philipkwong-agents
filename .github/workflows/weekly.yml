@@ -1,0 +1,384 @@
+# THE WEEKLY CADENCE. Brief U item 5.
+#
+# The smallest version that could run next Monday, not the complete one. A
+# cadence that runs badly and gets fixed beats a perfect one that never ships.
+#
+# ---------------------------------------------------------------------------
+# THE TWELVE STEPS, AND WHICH ONES THIS FILE IS
+# ---------------------------------------------------------------------------
+#
+# BRIEF-S-ITEM-5-CADENCE.md walks the cycle from capture to a file in an inbox
+# and names the three steps that did not exist. They are steps 6, 10 and 11:
+#
+#    1  capture the government lane                    exists
+#    2  capture the Serper and opportunity lanes       exists
+#    3  re-cluster                                     exists, inside 1 and 2
+#    4  record what each source captured               exists, source_health
+#    5  judge it                                       exists, cadence:due
+#    6  decide which clients are due                   NEW: agents/scraper/cadence.ts
+#    7  build each due client's document               NEW: e2e/weekly.deliver.ts
+#    8  render it, refuse on incomplete provenance     exists, POST /api/report
+#    9  record the delivery                            exists, /api/report writes it
+#   10  put the file where a recipient can reach it    NEW: a workflow artefact
+#   11  tell the recipient it is there                 NEW: a GitHub Issue
+#   12  raise an alarm when nobody is watching         NEW: the issue, plus a red job
+#
+# ---------------------------------------------------------------------------
+# WHY UBUNTU, AND WHY THAT IS NOT A CONVENIENCE
+# ---------------------------------------------------------------------------
+#
+# Every Windows trap in CLAUDE.md is a Windows trap: the OneDrive .next lock,
+# `EINVAL: readlink` on a virtualised build directory, the server that has to be
+# killed by PID before a build. A Linux runner meets none of them. It is also
+# where the staleness workflow already lives, and for the same reason a network
+# verdict is only admissible from there.
+#
+# ---------------------------------------------------------------------------
+# WHERE THE ALARM LANDS
+# ---------------------------------------------------------------------------
+#
+# Two channels, and the second is the one that matters.
+#
+#   THE ISSUE   opened or updated every week with the counts, the per-market
+#               capture state and a link to the documents. GitHub mails you when
+#               an issue opens on a repository you watch, so a document arrives
+#               without anyone generating it. Zero new auth: the built-in
+#               GITHUB_TOKEN, the same pattern manual-portal-check.yml uses.
+#
+#   A RED JOB   the last step fails the job when cadence/verdict.json says red,
+#               so GitHub's own failure mail fires with nothing built for it.
+#
+# THE VERDICT IS ABOUT THE CORPUS, NOT ABOUT A CRASH. A run that captures nothing
+# still exits 0, and HEALTH_NO_WRITE=1 is one environment variable away from a
+# run that looks completely normal and records nothing. An alarm attached only to
+# a crash would never fire for the failure this system actually has.
+#
+# ---------------------------------------------------------------------------
+# THE SECRETS. FOUR, AND WHAT EACH IS FOR.
+# ---------------------------------------------------------------------------
+#
+#   SUPABASE_URL                 the agent lane reads and writes the corpus
+#   SUPABASE_SERVICE_ROLE_KEY    same. Server-side only, never in a browser.
+#   NEXT_PUBLIC_SUPABASE_URL     the dashboard build and the composer
+#   NEXT_PUBLIC_SUPABASE_ANON_KEY same
+#
+# Plus two the lanes need and which are NOT part of the four: ANTHROPIC_API_KEY
+# for the intelligence lane's judge, and SERPER_API_KEY for its search. Where
+# either is absent the workflow runs the GOVERNMENT lane alone, which is the half
+# that feeds covered markets anyway, and says so in the issue rather than
+# pretending it ran everything.
+#
+# AND ONE CREDENTIAL PAIR the composer needs: E2E_EMAIL and E2E_PASSWORD, the
+# dashboard login the Playwright setup project signs in with. Without them
+# nothing can be generated, so the job stops before the capture rather than after
+# it.
+name: Weekly cadence
+
+on:
+  workflow_dispatch:
+    inputs:
+      lanes:
+        description: 'which lanes to capture'
+        required: false
+        default: 'both'
+        type: choice
+        options: [both, government, none]
+  schedule:
+    # 01:00 UTC Monday = 08:00 Asia/Bangkok. The staleness workflow runs at
+    # 06:00 UTC Monday, AFTER this, which is the wrong way round for its own
+    # stated purpose - it exists so a dead feed is known before a document
+    # quoting it is generated. Left alone here rather than moved silently:
+    # changing another workflow's schedule from this file's comment is how two
+    # jobs come to disagree about which ran first.
+    - cron: '0 1 * * 1'
+
+permissions:
+  issues: write
+  contents: read
+
+concurrency:
+  # ONE AT A TIME. Two captures writing the corpus at once is a clustering race,
+  # and a manual dispatch on a Monday morning is exactly when that would happen.
+  group: weekly-cadence
+  cancel-in-progress: false
+
+jobs:
+  cadence:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      SERPER_API_KEY: ${{ secrets.SERPER_API_KEY }}
+      E2E_EMAIL: ${{ secrets.E2E_EMAIL }}
+      E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
+      # NEVER SET HEALTH_NO_WRITE HERE. CLAUDE.md says why in as many words: with
+      # it set, a run captures, clusters, writes records and prints a clean
+      # report, and source_health gains nothing - so every market silently
+      # returns to "no capture on record" and the coverage note a client document
+      # reads has nothing behind it. It is for harnesses. This is a real run and
+      # nobody is watching the report that would otherwise look wrong.
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # THE SECRETS ARE CHECKED BEFORE ANYTHING IS CAPTURED, not after. A run
+      # that scrapes for forty minutes and then cannot log in to generate has
+      # spent the whole budget to produce nothing, and the failure would read as
+      # a composer fault rather than a missing secret.
+      - name: Are the secrets here
+        run: |
+          missing=""
+          for v in SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY NEXT_PUBLIC_SUPABASE_URL NEXT_PUBLIC_SUPABASE_ANON_KEY E2E_EMAIL E2E_PASSWORD; do
+            eval "val=\$$v"
+            [ -z "$val" ] && missing="$missing $v"
+          done
+          if [ -n "$missing" ]; then
+            echo "MISSING SECRETS:$missing"
+            echo "Nothing is captured and nothing is generated. Set them in the repository settings."
+            exit 1
+          fi
+          echo "all six present"
+          echo "ANTHROPIC_API_KEY  ${ANTHROPIC_API_KEY:+set}${ANTHROPIC_API_KEY:-ABSENT: the intelligence lane will be skipped}"
+          echo "SERPER_API_KEY     ${SERPER_API_KEY:+set}${SERPER_API_KEY:-ABSENT: the intelligence lane will be skipped}"
+
+      - name: Install
+        run: |
+          npm ci --no-audit --no-fund || npm install --no-audit --no-fund
+          cd dashboard && (npm ci --no-audit --no-fund || npm install --no-audit --no-fund)
+
+      # A .env.local, because every npm script in this repo passes
+      # --env-file=.env.local and a missing file is a hard failure in node 22.
+      # The secrets are already in the environment; this makes the scripts run
+      # unmodified, which is the point - the workflow must run the SAME commands
+      # a person runs, not near-copies of them.
+      - name: Env file
+        run: |
+          {
+            echo "SUPABASE_URL=$SUPABASE_URL"
+            echo "SUPABASE_SERVICE_ROLE_KEY=$SUPABASE_SERVICE_ROLE_KEY"
+            echo "NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL"
+            echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY"
+            echo "ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY"
+            echo "SERPER_API_KEY=$SERPER_API_KEY"
+          } > .env.local
+          cp .env.local dashboard/.env.local
+
+      # ---- 1 to 3. CAPTURE. GOVERNMENT FIRST. --------------------------------
+      #
+      # CLAUDE.md: `scrape:all` IS NOT EVERY SOURCE, IT IS SERPER. The government
+      # lane has its own main() and its own adapter table, and it runs FIRST
+      # because it feeds the clusterer the Serper half and then re-runs. A full
+      # capture is both commands and the run report's own SCOPE line cannot be
+      # trusted to say which happened.
+      #
+      # NOT PIPED. The exit code is captured on its own line and read back, per
+      # the NEVER PIPE A GATE rule: `cmd | tail` exits with tail's status.
+      - name: Capture, government lane
+        if: inputs.lanes != 'none'
+        run: |
+          set +e
+          npm run scrape:government > government.log 2>&1
+          echo "NPM_EXIT=$?" >> government.log
+          tail -60 government.log
+          grep NPM_EXIT government.log
+
+      - name: Capture, the other lanes
+        if: inputs.lanes == 'both' || inputs.lanes == ''
+        run: |
+          if [ -z "$SERPER_API_KEY" ]; then
+            echo "SERPER_API_KEY absent: the intelligence lane is skipped and the issue will say so."
+            exit 0
+          fi
+          set +e
+          npm run scrape:all > allpipes.log 2>&1
+          echo "NPM_EXIT=$?" >> allpipes.log
+          tail -60 allpipes.log
+          grep NPM_EXIT allpipes.log
+
+      # ---- 4 and 5. WHAT DID IT CAPTURE, AND IS ANY MARKET SILENT ------------
+      - name: Are we reading a dead feed
+        continue-on-error: true
+        run: npm run verify:hosted
+
+      # ---- 6. WHO IS DUE ------------------------------------------------------
+      - name: Who is due
+        id: due
+        run: |
+          set +e
+          npm run cadence:due > cadence.log 2>&1
+          echo "NPM_EXIT=$?" >> cadence.log
+          cat cadence.log
+          grep NPM_EXIT cadence.log | grep -q "NPM_EXIT=0" || exit 1
+          echo "count=$(node -e "console.log(JSON.parse(require('fs').readFileSync('cadence/due.json','utf8')).length)")" >> "$GITHUB_OUTPUT"
+
+      # ---- 7 and 8. BUILD AND RENDER ------------------------------------------
+      #
+      # A PRODUCTION BUILD AND A PRODUCTION SERVER, never `npm run dev`. Playwright
+      # reuses a server already on the port, so starting one here means the suite
+      # never invokes dev at all.
+      - name: Build and serve the dashboard
+        if: steps.due.outputs.count != '0'
+        working-directory: dashboard
+        run: |
+          npm run build
+          npm run start &
+          for i in $(seq 1 60); do
+            curl -sf -o /dev/null "http://localhost:3000/today" && break
+            sleep 2
+          done
+          curl -sf -o /dev/null "http://localhost:3000/today" || { echo "the dashboard never came up"; exit 1; }
+
+      - name: Generate each due client's document
+        if: steps.due.outputs.count != '0'
+        working-directory: dashboard
+        env:
+          CADENCE_RUN: '1'
+        run: |
+          npx playwright install --with-deps chromium
+          set +e
+          npx playwright test --project=deliver > deliver.log 2>&1
+          echo "NPM_EXIT=$?" >> deliver.log
+          cat deliver.log
+          grep NPM_EXIT deliver.log | grep -q "NPM_EXIT=0" || exit 1
+
+      # ---- 9. RECORD, AND ADVANCE ---------------------------------------------
+      #
+      # AFTER the documents exist, never before. A next_delivery advanced ahead of
+      # the generation is a week silently skipped when the generation fails.
+      - name: Advance the cadence
+        if: steps.due.outputs.count != '0'
+        run: npm run cadence:record
+
+      # ---- 10. THE FILE REACHES A RECIPIENT -----------------------------------
+      - name: Upload the documents
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: weekly-documents
+          path: |
+            cadence/documents/**
+            cadence/verdict.json
+            cadence/due.json
+            cadence/delivered.json
+          if-no-files-found: warn
+          retention-days: 90
+
+      - name: Upload the logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: weekly-logs
+          path: |
+            government.log
+            allpipes.log
+            cadence.log
+            dashboard/deliver.log
+          if-no-files-found: ignore
+          retention-days: 30
+
+      # ---- 11 and 12. TELL SOMEBODY -------------------------------------------
+      - name: Open or update the weekly issue
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const read = (p, d) => { try { return JSON.parse(fs.readFileSync(p, 'utf8')); } catch { return d; } };
+            const verdict = read('cadence/verdict.json', null);
+            const delivered = read('cadence/delivered.json', []);
+            const due = read('cadence/due.json', []);
+
+            const monday = (() => {
+              const n = new Date();
+              const d = n.getUTCDay();
+              const m = new Date(n);
+              m.setUTCDate(n.getUTCDate() + (d === 0 ? -6 : 1 - d));
+              return m.toISOString().slice(0, 10);
+            })();
+            const title = `Weekly cadence, week of ${monday}`;
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+
+            const L = [];
+            if (!verdict) {
+              // NOTHING IS SILENTLY ABSENT, INCLUDING THIS FILE. An issue that
+              // says nothing about a run that produced nothing is the failure
+              // this channel exists to prevent.
+              L.push('## The run did not get as far as a verdict');
+              L.push('');
+              L.push(`\`cadence/verdict.json\` was not written, so the capture or the due check failed before judging anything. The logs are on the run: ${runUrl}`);
+            } else {
+              L.push(verdict.red ? '## VERDICT: RED' : '## Verdict: green');
+              L.push('');
+              for (const r of verdict.redReasons ?? []) L.push(`- ${r}`);
+              if (!(verdict.redReasons ?? []).length) L.push('Nothing needs a person this week.');
+              L.push('');
+              L.push('### Documents');
+              L.push('');
+              if (delivered.length === 0) {
+                L.push(`No document was generated. ${due.length} client(s) were due.`);
+              } else {
+                L.push('| client | file | projects | records | bytes |');
+                L.push('|---|---|---:|---:|---:|');
+                for (const d of delivered) {
+                  L.push(`| ${d.name} | \`${d.file}\` | ${d.projects ?? '-'} | ${d.records ?? '-'} | ${d.bytes} |`);
+                }
+                L.push('');
+                L.push(`Download them from the **weekly-documents** artefact on ${runUrl}.`);
+              }
+              L.push('');
+              L.push('### Capture, per covered market');
+              L.push('');
+              L.push('| market | state | last capture | records kept |');
+              L.push('|---|---|---|---:|');
+              for (const m of verdict.markets ?? []) {
+                L.push(`| ${m.market} | ${m.state} | ${m.lastCapture ? m.lastCapture.slice(0, 10) : '-'} | ${m.keptThen} |`);
+              }
+              if (verdict.captureGap) {
+                L.push('');
+                L.push(`> ${verdict.captureGap}`);
+              }
+              L.push('');
+              L.push('### Not due, and why');
+              L.push('');
+              if ((verdict.notDue ?? []).length === 0) L.push('Every active client was due.');
+              for (const n of verdict.notDue ?? []) L.push(`- **${n.name}** ${n.why}`);
+            }
+            L.push('');
+            L.push(`Run: ${runUrl}`);
+            const body = L.join('\n');
+
+            const { owner, repo } = context.repo;
+            const label = 'weekly-cadence';
+            const existing = await github.paginate(github.rest.issues.listForRepo, {
+              owner, repo, state: 'open', labels: label, per_page: 100,
+            });
+            const match = existing.find((i) => i.title === title);
+            if (match) {
+              await github.rest.issues.update({ owner, repo, issue_number: match.number, body });
+              core.info(`Updated #${match.number}`);
+            } else {
+              await github.rest.issues.create({ owner, repo, title, body, labels: [label] });
+              core.info(`Created: ${title}`);
+            }
+
+      # LAST, AND DELIBERATELY AFTER THE ISSUE. A red verdict is exactly the week
+      # the issue matters most, so it is written first and the job fails second.
+      - name: Fail the job on a red verdict
+        if: always()
+        run: |
+          if [ ! -f cadence/verdict.json ]; then
+            echo "no verdict was written: the run failed before judging anything"
+            exit 1
+          fi
+          node -e "
+            const v = JSON.parse(require('fs').readFileSync('cadence/verdict.json','utf8'));
+            for (const r of v.redReasons ?? []) console.log('RED: ' + r);
+            process.exit(v.red ? 1 : 0);
+          "

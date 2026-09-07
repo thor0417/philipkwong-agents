@@ -87,7 +87,9 @@
     "diag:lane-measure": "node --env-file=.env.local --import tsx agents/scraper/diagnostics/legistar-lane-measure.ts",
     "diag:doc-yield": "node --env-file=.env.local --import tsx agents/scraper/diagnostics/legistar-doc-yield.ts",
     "repair:legistar-docs": "node --env-file=.env.local --import tsx agents/scraper/migrations/repair-legistar-documents.ts",
-    "repair:agency-applicant": "node --env-file=.env.local --import tsx agents/scraper/migrations/repair-public-agency-applicants.ts"
+    "repair:agency-applicant": "node --env-file=.env.local --import tsx agents/scraper/migrations/repair-public-agency-applicants.ts",
+    "cadence:due": "node --env-file=.env.local --import tsx agents/scraper/cadence.ts --mode=due",
+    "cadence:record": "node --env-file=.env.local --import tsx agents/scraper/cadence.ts --mode=record"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.20.0",

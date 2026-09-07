@@ -116,6 +116,17 @@ export default defineConfig({
       testIgnore: CLIENT_STATE_CHAIN.map((f) => `**/${f}`),
       use: WALKTHROUGH_USE,
     },
+    // THE WEEKLY DELIVERY. Its own project because it matches none of the three
+    // patterns above on purpose: a document generated for a real client is not a
+    // screenshot, an audit or a walkthrough. The test itself skips unless
+    // CADENCE_RUN=1, so a local `npx playwright test` reports it as SKIPPED,
+    // which is reported as skipped and never as passed.
+    {
+      name: 'deliver',
+      dependencies: ['setup'],
+      testMatch: /\.deliver\.ts/,
+      use: WALKTHROUGH_USE,
+    },
     // ONE PROJECT PER CONTENDING FILE, CHAINED. A project does not start until
     // every project it depends on has finished, so this says "these four never
     // overlap" and says nothing wider: every other audit, walk and shot still

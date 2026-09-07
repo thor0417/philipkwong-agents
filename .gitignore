@@ -118,3 +118,8 @@ opportunity-scan/
 # dashboard/scripts/reissue-misbranded.ts, regenerable from the delivery rows,
 # and client documents: they are not artefacts to version.
 /reissue/
+
+# The weekly cadence writes its due list, verdict and generated documents here.
+# They are run OUTPUT, uploaded as a workflow artefact, and are never committed:
+# a client document in the repository is a client document in every clone.
+cadence/
