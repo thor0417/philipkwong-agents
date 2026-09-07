@@ -45,6 +45,7 @@ import { reachSentence, type PartyHistory } from './people';
 import {
   captureGapNote,
   neverRecordedNote,
+  notInRunNote,
   type MarketCapture,
 } from '../../lib/source-health';
 import {
@@ -1056,6 +1057,14 @@ const coverage: SectionDef = {
     // product outage and the client gets nothing instead of something honest.
     const capture = captureGapNote(ctx.captureGaps, ctx.newestRunAt);
     if (capture) notes.push(capture);
+    // AND THE THIRD STATE, WHICH USED TO BE PRINTED AS THE FIRST. A scoped run
+    // does not read every market, and until 2026-09-07 every market it did not
+    // read was reported here as a capture failure - naming seven markets and
+    // wrong about all seven. See captureByMarket in lib/source-health for the
+    // measurement and for why this is a separate sentence rather than a softer
+    // wording of the one above.
+    const notRead = notInRunNote(ctx.captureGaps, ctx.newestRunAt);
+    if (notRead) notes.push(notRead);
     const never = neverRecordedNote(ctx.captureGaps, ctx.newestRunAt !== null);
     if (never) notes.push(never);
 

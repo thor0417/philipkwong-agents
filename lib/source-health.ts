@@ -39,7 +39,13 @@ export interface HealthRow {
   kept: number;
 }
 
-export type CaptureState = 'captured' | 'silent' | 'never-recorded';
+/**
+ * 'captured'        the newest run read this market and kept records
+ * 'silent'          the newest run READ this market and kept nothing
+ * 'not-in-run'      the newest run did not cover this market at all
+ * 'never-recorded'  no run on record has ever kept anything here
+ */
+export type CaptureState = 'captured' | 'silent' | 'not-in-run' | 'never-recorded';
 
 export interface MarketCapture {
   market: string;
@@ -60,14 +66,64 @@ export function newestRun(rows: readonly HealthRow[]): string | null {
   return newest;
 }
 
+// ---- A RUN IS NOT AN INSTANT ------------------------------------------------
+//
+// persistSourceRuns inserts one batch at the end of a lane, so every row from
+// one lane shares a run_at to the microsecond - and a capture is often more than
+// one lane. Measured on the stored table 2026-09-07: the 2026-09-02 capture
+// wrote the legistar rows at 10:04:34 and the anaheim rows at 11:06:49, 62
+// minutes apart, and the 2026-08-22 capture wrote at 13:59, 14:00 and 14:10.
+//
+// Exact equality against the single newest timestamp therefore assigned the
+// whole capture to its LAST lane, and every market the earlier lanes had read
+// fell outside it. See the defect note on captureByMarket for what that printed.
+//
+// TWELVE HOURS, and the number is taken from those measurements rather than
+// picked: the longest observed gap inside one capture is 62 minutes and the
+// shortest gap between captures in the whole table is days. Anything between two
+// hours and a day gives the same answer on every row this table holds.
+const RUN_WINDOW_MS = 12 * 60 * 60 * 1000;
+
+function sameRun(a: string, b: string): boolean {
+  const t = Date.parse(a);
+  const u = Date.parse(b);
+  if (!Number.isFinite(t) || !Number.isFinite(u)) return a === b;
+  return Math.abs(t - u) <= RUN_WINDOW_MS;
+}
+
 /**
  * Judge each market against the run history.
  *
- * THE COMPARISON IS AGAINST THE NEWEST RUN OVERALL, not against a clock. A
- * market is silent when the machine ran and this market produced nothing, which
- * is a fact about the run. Comparing to "today" would report every market as
- * failing whenever nobody had run the scraper for a week, which is a fact about
- * Philip's calendar and not about any feed.
+ * THE COMPARISON IS AGAINST THE NEWEST RUN, not against a clock. A market is
+ * silent when the machine ran, READ THIS MARKET, and kept nothing. Comparing to
+ * "today" would report every market as failing whenever nobody had run the
+ * scraper for a week, which is a fact about Philip's calendar and not about any
+ * feed.
+ *
+ * ---- THE DEFECT THIS SHAPE PRODUCED, FOUND 2026-09-07 ---------------------
+ *
+ * The first version had three states and no idea what the newest run COVERED.
+ * It marked a market silent whenever its newest capture row was not the newest
+ * row in the table, so a scoped run - `scrape:government --source=anaheim-agendas`,
+ * a real and correct thing to run - made every market it did not touch look like
+ * a capture failure. The sentence printed in a CLIENT DOCUMENT read:
+ *
+ *   "Our last capture run, on 2026-09-02, recorded nothing for these markets:
+ *    Clark County (last captured 2026-09-02, 282 records); ..."
+ *
+ * Recorded nothing, on the run where it kept 282. It named seven markets and was
+ * wrong about all seven. That is standing rule 3's own machinery producing a
+ * dishonest negative: the sentence that exists so a gap is never silent was
+ * inventing gaps.
+ *
+ * ---- THE FOURTH STATE, AND WHY THE COLUMNS ALREADY SUPPORT IT -------------
+ *
+ * government.ts already writes a `market:<name>` row with kept 0 for every
+ * market a run DECLARED and which produced nothing - its own comment says "a
+ * market that produced nothing is not a market that was not run". So the newest
+ * run's rows name its scope, and a market with no row in that run was not read
+ * by it. That is `not-in-run`: neither a success nor a failure, and it must not
+ * be reported as either.
  *
  * Rows whose market is NULL cannot speak for a market and are used ONLY to
  * establish when the newest run happened.
@@ -77,24 +133,36 @@ export function captureByMarket(
   markets: readonly string[]
 ): MarketCapture[] {
   const newest = newestRun(rows);
+  const inNewestRun = newest === null ? [] : rows.filter((r) => r.run_at && sameRun(r.run_at, newest));
+  const readByNewest = new Set(inNewestRun.map((r) => r.market).filter((m): m is string => !!m));
   const out: MarketCapture[] = [];
 
   for (const market of [...new Set(markets.filter(Boolean))].sort()) {
-    const mine = rows.filter((r) => r.market === market && r.kept > 0);
-    if (mine.length === 0) {
-      out.push({ market, state: 'never-recorded', lastCapture: null, keptThen: 0 });
+    const kept = rows.filter((r) => r.market === market && r.kept > 0);
+    let best: HealthRow | null = kept.length ? kept[0] : null;
+    for (const r of kept) if (best && r.run_at > best.run_at) best = r;
+
+    if (!readByNewest.has(market)) {
+      // The newest run did not cover this market. What can still be said is when
+      // it was last read, or that it never was.
+      out.push(
+        best
+          ? { market, state: 'not-in-run', lastCapture: best.run_at, keptThen: best.kept }
+          : { market, state: 'never-recorded', lastCapture: null, keptThen: 0 }
+      );
       continue;
     }
-    let best = mine[0];
-    for (const r of mine) if (r.run_at > best.run_at) best = r;
-    // Same run as the newest one the machine did: this market is current.
-    const current = newest !== null && best.run_at === newest;
-    out.push({
-      market,
-      state: current ? 'captured' : 'silent',
-      lastCapture: best.run_at,
-      keptThen: best.kept,
-    });
+
+    // The newest run DID cover it. Did it keep anything?
+    if (inNewestRun.some((r) => r.market === market && r.kept > 0) && best) {
+      out.push({ market, state: 'captured', lastCapture: best.run_at, keptThen: best.kept });
+      continue;
+    }
+    out.push(
+      best
+        ? { market, state: 'silent', lastCapture: best.run_at, keptThen: best.kept }
+        : { market, state: 'never-recorded', lastCapture: null, keptThen: 0 }
+    );
   }
   return out;
 }
@@ -121,6 +189,30 @@ export function captureGapNote(caps: readonly MarketCapture[], newestRunAt: stri
     `${one ? 'That market is' : 'Those markets are'} in this document on what we already held, ` +
     `and anything filed there since the date shown is not in it. This is a failure of our ` +
     `capture on that run, not a statement that nothing was filed.`
+  );
+}
+
+/**
+ * A MARKET THE NEWEST RUN DID NOT READ. Its own sentence, because it is neither
+ * a success nor a failure and reporting it as either is a false statement about
+ * our coverage in one direction or the other.
+ *
+ * A scoped run is a normal thing to do - one adapter, one market, after a fix -
+ * and it must not make every other market look broken. It must not make them
+ * look current either: the reader is entitled to the date.
+ */
+export function notInRunNote(caps: readonly MarketCapture[], newestRunAt: string | null): string {
+  const out = caps.filter((c) => c.state === 'not-in-run');
+  if (out.length === 0) return '';
+  const named = out
+    .map((c) => `${c.market} (last read ${day(c.lastCapture)}, ${c.keptThen} record${c.keptThen === 1 ? '' : 's'})`)
+    .join('; ');
+  const one = out.length === 1;
+  return (
+    `Our last capture run, on ${day(newestRunAt)}, was scoped and did not read ` +
+    `${one ? 'this market' : 'these markets'}: ${named}. ` +
+    `${one ? 'It is' : 'They are'} in this document on what we held at the date shown. ` +
+    `That is not a failure of the feed and not a statement that nothing was filed.`
   );
 }
 
