@@ -1,21 +1,21 @@
 {
-  "baseline": 416,
-  "defaultGeography": 416,
-  "clearedGeography": 416,
+  "baseline": 345,
+  "defaultGeography": 345,
+  "clearedGeography": 345,
   "results": [
     {
       "filter": "View: New",
       "url": "/projects?view=new&country=any",
       "filtersOn": "projects.status = 'new'",
-      "before": 416,
-      "after": 215,
+      "before": 345,
+      "after": 16,
       "changed": "changed"
     },
     {
       "filter": "View: Watchlist",
       "url": "/projects?view=watchlist&country=any",
       "filtersOn": "projects.watch = true AND status <> 'dismissed'",
-      "before": 416,
+      "before": 345,
       "after": 4,
       "changed": "changed"
     },
@@ -23,7 +23,7 @@
       "filter": "View: Client ready",
       "url": "/projects?view=client_ready&country=any",
       "filtersOn": "projects.status = 'client_ready'",
-      "before": 416,
+      "before": 345,
       "after": 0,
       "changed": "changed"
     },
@@ -31,31 +31,31 @@
       "filter": "View: Trash",
       "url": "/projects?view=trash&country=any",
       "filtersOn": "projects.status = 'dismissed'",
-      "before": 416,
-      "after": 8,
+      "before": 345,
+      "after": 96,
       "changed": "changed"
     },
     {
       "filter": "Stage chip: filed",
       "url": "/projects?view=all&country=any&stage=filed",
       "filtersOn": "projects.stage =",
-      "before": 416,
-      "after": 159,
+      "before": 345,
+      "after": 163,
       "changed": "changed"
     },
     {
       "filter": "Stage chip: hearing scheduled",
       "url": "/projects?view=all&country=any&stage=hearing%20scheduled",
       "filtersOn": "projects.stage =",
-      "before": 416,
-      "after": 106,
+      "before": 345,
+      "after": 38,
       "changed": "changed"
     },
     {
       "filter": "Stage chip: approved",
       "url": "/projects?view=all&country=any&stage=approved",
       "filtersOn": "projects.stage =",
-      "before": 416,
+      "before": 345,
       "after": 62,
       "changed": "changed"
     },
@@ -63,31 +63,31 @@
       "filter": "Geography default (no parameter)",
       "url": "/projects?view=all",
       "filtersOn": "projects.country IS NULL OR projects.country IN (corpus) by default",
-      "before": 416,
-      "after": 416,
+      "before": 345,
+      "after": 345,
       "changed": "NO CHANGE"
     },
     {
       "filter": "Geography L1: United States",
       "url": "/projects?view=all&country=United+States",
       "filtersOn": "projects.country =",
-      "before": 416,
-      "after": 411,
+      "before": 345,
+      "after": 340,
       "changed": "changed"
     },
     {
       "filter": "Geography L2: California",
       "url": "/projects?view=all&country=United+States&region=California",
       "filtersOn": "projects.country = AND projects.region_state =",
-      "before": 416,
-      "after": 33,
+      "before": 345,
+      "after": 28,
       "changed": "changed"
     },
     {
       "filter": "Geography L3: Anaheim",
       "url": "/projects?view=all&country=United+States&region=California&market=Anaheim",
       "filtersOn": "country = AND region_state = AND market =",
-      "before": 416,
+      "before": 345,
       "after": 19,
       "changed": "changed"
     },
@@ -95,7 +95,7 @@
       "filter": "Search: \"resort\"",
       "url": "/projects?view=all&country=any&q=resort",
       "filtersOn": "ilike over name, primary_applicant, primary_representative",
-      "before": 416,
+      "before": 345,
       "after": 19,
       "changed": "changed"
     },
@@ -103,7 +103,7 @@
       "filter": "Saved view: Anaheim",
       "url": "/projects?view=all&saved=anaheim&country=United+States&region=California&market=Anaheim",
       "filtersOn": "country + region_state + market",
-      "before": 416,
+      "before": 345,
       "after": 19,
       "changed": "changed"
     },
@@ -111,7 +111,7 @@
       "filter": "Saved view: Approved, anywhere",
       "url": "/projects?view=all&saved=approved&country=any&stage=approved",
       "filtersOn": "projects.stage = 'approved'",
-      "before": 416,
+      "before": 345,
       "after": 62,
       "changed": "changed"
     },
@@ -119,20 +119,20 @@
       "filter": "Saved view: Hearing scheduled",
       "url": "/projects?view=all&saved=hearing&country=any&stage=hearing+scheduled",
       "filtersOn": "projects.stage = 'hearing scheduled'",
-      "before": 416,
-      "after": 106,
+      "before": 345,
+      "after": 38,
       "changed": "changed"
     },
     {
       "filter": "Search: \"zzzznomatch\"",
       "url": "/projects?view=all&country=any&q=zzzznomatch",
       "filtersOn": "same three columns; proves the search is not ignored",
-      "before": 416,
+      "before": 345,
       "after": 0,
       "changed": "changed"
     }
   ],
-  "sortControl": 416,
+  "sortControl": 345,
   "hierarchy": [
     {
       "chain": "United States > California > Anaheim",
@@ -142,12 +142,12 @@
         {
           "label": "L1 United States",
           "url": "/projects?view=all&country=United+States",
-          "size": 411
+          "size": 340
         },
         {
           "label": "L2 California",
           "url": "/projects?view=all&country=United+States&region=California",
-          "size": 33
+          "size": 28
         },
         {
           "label": "L3 Anaheim",
@@ -155,8 +155,8 @@
           "size": 19
         }
       ],
-      "l1": 411,
-      "l2": 33,
+      "l1": 340,
+      "l2": 28,
       "l3": 19,
       "l2Escapees": 0,
       "l3Escapees": 0,
@@ -170,22 +170,22 @@
         {
           "label": "L1 United States",
           "url": "/projects?view=all&country=United+States",
-          "size": 411
+          "size": 340
         },
         {
           "label": "L2 Nevada",
           "url": "/projects?view=all&country=United+States&region=Nevada",
-          "size": 143
+          "size": 152
         },
         {
           "label": "L3 Clark County",
           "url": "/projects?view=all&country=United+States&region=Nevada&market=Clark%20County",
-          "size": 111
+          "size": 120
         }
       ],
-      "l1": 411,
-      "l2": 143,
-      "l3": 111,
+      "l1": 340,
+      "l2": 152,
+      "l3": 120,
       "l2Escapees": 0,
       "l3Escapees": 0,
       "verdict": "strict subset at every level"
@@ -211,6 +211,14 @@
   "venueAndCategory": [
     {
       "axis": "venue",
+      "value": "Museum",
+      "chipCount": 37,
+      "total": 39,
+      "gap": 2,
+      "escapees": 0
+    },
+    {
+      "axis": "venue",
       "value": "Casino/Gaming",
       "chipCount": 36,
       "total": 39,
@@ -219,41 +227,33 @@
     },
     {
       "axis": "venue",
-      "value": "Museum",
-      "chipCount": 35,
-      "total": 37,
-      "gap": 2,
-      "escapees": 0
-    },
-    {
-      "axis": "venue",
       "value": "Hotel",
-      "chipCount": 33,
-      "total": 34,
-      "gap": 1,
+      "chipCount": 30,
+      "total": 35,
+      "gap": 5,
       "escapees": 0
     },
     {
       "axis": "category",
       "value": "Hospitality/Tourism",
-      "chipCount": 99,
-      "total": 102,
-      "gap": 3,
+      "chipCount": 110,
+      "total": 117,
+      "gap": 7,
       "escapees": 0
     },
     {
       "axis": "category",
       "value": "Entertainment/Attractions",
-      "chipCount": 75,
-      "total": 76,
-      "gap": 1,
+      "chipCount": 73,
+      "total": 79,
+      "gap": 6,
       "escapees": 0
     },
     {
       "axis": "category",
       "value": "Mixed-Use/Real Estate",
-      "chipCount": 34,
-      "total": 38,
+      "chipCount": 35,
+      "total": 39,
       "gap": 4,
       "escapees": 0
     }
@@ -261,25 +261,25 @@
   "allChips": [
     {
       "axis": "stage",
-      "all": 416
+      "all": 345
     },
     {
       "axis": "venue",
-      "all": 416
+      "all": 345
     },
     {
       "axis": "category",
-      "all": 416
+      "all": 345
     }
   ],
   "noValueNodes": [
     {
       "axis": "venue",
-      "total": 182
+      "total": 100
     },
     {
       "axis": "category",
-      "total": 182
+      "total": 100
     }
   ],
   "railVersusClick": [
@@ -292,8 +292,8 @@
     {
       "region": "California",
       "market": "Oakland",
-      "rail": 10,
-      "click": 10
+      "rail": 8,
+      "click": 8
     },
     {
       "region": "California",
@@ -310,8 +310,8 @@
     {
       "region": "Nevada",
       "market": "Clark County",
-      "rail": 111,
-      "click": 111
+      "rail": 120,
+      "click": 120
     },
     {
       "region": "Nevada",
@@ -328,8 +328,8 @@
     {
       "region": "New York",
       "market": "New York City",
-      "rail": 97,
-      "click": 97
+      "rail": 99,
+      "click": 99
     },
     {
       "region": "New York",

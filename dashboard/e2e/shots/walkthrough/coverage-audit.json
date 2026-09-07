@@ -6,8 +6,8 @@
       "projects": 33,
       "named": 31,
       "records": 70,
-      "published": "6d",
-      "captured": "6d",
+      "published": "19d",
+      "captured": "19d",
       "why": "the adapter is failing in a known way; declared in the known-degraded register"
     },
     {
@@ -16,9 +16,9 @@
       "projects": 1,
       "named": 1,
       "records": 14,
-      "published": "179d",
-      "captured": "6d",
-      "why": "the newest document we hold is 179 days old, past the 90-day line"
+      "published": "192d",
+      "captured": "19d",
+      "why": "the newest document we hold is 192 days old, past the 90-day line"
     },
     {
       "market": "Yonkers",
@@ -26,79 +26,79 @@
       "projects": 1,
       "named": 0,
       "records": 1,
-      "published": "344d",
-      "captured": "4d",
-      "why": "the newest document we hold is 344 days old, past the 90-day line"
+      "published": "357d",
+      "captured": "17d",
+      "why": "the newest document we hold is 357 days old, past the 90-day line"
     },
     {
       "market": "Nashville",
       "state": "thin",
-      "projects": 21,
+      "projects": 22,
       "named": 6,
-      "records": 38,
+      "records": 40,
       "published": "ahead",
-      "captured": "4d",
-      "why": "6 of 21 projects name a party, so a report scoped here comes out mostly empty"
+      "captured": "5d",
+      "why": "6 of 22 projects name a party, so a report scoped here comes out mostly empty"
     },
     {
       "market": "Clark County",
       "state": "live",
-      "projects": 111,
-      "named": 111,
-      "records": 301,
-      "published": "0d",
-      "captured": "4d",
-      "why": "111 live projects, 111 naming a party, newest document 0 days old"
+      "projects": 120,
+      "named": 120,
+      "records": 347,
+      "published": "ahead",
+      "captured": "0d",
+      "why": "120 live projects, 120 naming a party, newest document -1 days old"
     },
     {
       "market": "New York City",
       "state": "live",
-      "projects": 98,
-      "named": 94,
-      "records": 187,
-      "published": "6d",
-      "captured": "6d",
-      "why": "98 live projects, 94 naming a party, newest document 6 days old"
+      "projects": 100,
+      "named": 96,
+      "records": 190,
+      "published": "13d",
+      "captured": "0d",
+      "why": "100 live projects, 96 naming a party, newest document 13 days old"
     },
     {
       "market": "Phoenix",
       "state": "live",
       "projects": 20,
       "named": 20,
-      "records": 42,
-      "published": "0d",
-      "captured": "4d",
-      "why": "20 live projects, 20 naming a party, newest document 0 days old"
+      "records": 43,
+      "published": "ahead",
+      "captured": "5d",
+      "why": "20 live projects, 20 naming a party, newest document -1 days old"
     },
     {
       "market": "Anaheim",
       "state": "live",
       "projects": 19,
       "named": 17,
-      "records": 78,
-      "published": "15d",
-      "captured": "4d",
-      "why": "19 live projects, 17 naming a party, newest document 15 days old"
+      "records": 79,
+      "published": "14d",
+      "captured": "5d",
+      "why": "19 live projects, 17 naming a party, newest document 14 days old"
     },
     {
       "market": "Broward County",
       "state": "live",
       "projects": 13,
-      "named": 12,
-      "records": 97,
-      "published": "6d",
-      "captured": "3d",
-      "why": "13 live projects, 12 naming a party, newest document 6 days old"
+      "named": 13,
+      "records": 98,
+      "published": "ahead",
+      "captured": "0d",
+      "why": "13 live projects, 13 naming a party, newest document -2 days old"
     },
     {
       "market": "Oakland",
       "state": "live",
-      "projects": 10,
-      "named": 10,
+      "projects": 8,
+      "named": 8,
       "records": 14,
-      "published": "36d",
-      "captured": "4d",
-      "why": "10 live projects, 10 naming a party, newest document 36 days old"
+      "published": "49d",
+      "captured": "17d",
+      "why": "8 live projects, 8 naming a party, newest document 49 days old"
     },
     {
       "market": "Westchester County",
@@ -106,9 +106,9 @@
       "projects": 1,
       "named": 1,
       "records": 2,
-      "published": "23d",
-      "captured": "17d",
-      "why": "1 live projects, 1 naming a party, newest document 23 days old"
+      "published": "36d",
+      "captured": "30d",
+      "why": "1 live projects, 1 naming a party, newest document 36 days old"
     }
   ],
   "sources": [
@@ -116,8 +116,8 @@
       "source": "iadb",
       "quiet": true,
       "records": 1,
-      "published": "9368d",
-      "captured": "15d",
+      "published": "9381d",
+      "captured": "28d",
       "thisRun": "unknown",
       "feeds": ""
     },
@@ -125,8 +125,8 @@
       "source": "sfwmd",
       "quiet": true,
       "records": 6,
-      "published": "935d",
-      "captured": "32d",
+      "published": "948d",
+      "captured": "45d",
       "thisRun": "21",
       "feeds": ""
     },
@@ -134,8 +134,8 @@
       "source": "govdoc",
       "quiet": true,
       "records": 1,
-      "published": "236d",
-      "captured": "33d",
+      "published": "249d",
+      "captured": "46d",
       "thisRun": "8",
       "feeds": "Central Florida Tourism Oversight District"
     },
@@ -143,8 +143,8 @@
       "source": "cftod-pdf",
       "quiet": true,
       "records": 13,
-      "published": "179d",
-      "captured": "6d",
+      "published": "192d",
+      "captured": "19d",
       "thisRun": "29",
       "feeds": "Central Florida Tourism Oversight District"
     },
@@ -152,8 +152,8 @@
       "source": "adb",
       "quiet": true,
       "records": 1,
-      "published": "125d",
-      "captured": "33d",
+      "published": "138d",
+      "captured": "46d",
       "thisRun": "unknown",
       "feeds": ""
     },
@@ -161,90 +161,90 @@
       "source": "nyc-zap",
       "quiet": true,
       "records": 43,
-      "published": "91d",
-      "captured": "6d",
+      "published": "104d",
+      "captured": "19d",
       "thisRun": "48",
-      "feeds": "New York City"
-    },
-    {
-      "source": "nyc-ceqr",
-      "quiet": true,
-      "records": 63,
-      "published": "33d",
-      "captured": "15d",
-      "thisRun": "63",
       "feeds": "New York City"
     },
     {
       "source": "nyc-city-record",
       "quiet": true,
       "records": 69,
-      "published": "32d",
-      "captured": "15d",
-      "thisRun": "97",
+      "published": "45d",
+      "captured": "28d",
+      "thisRun": "96",
       "feeds": "New York City"
     },
     {
-      "source": "ceqanet",
-      "quiet": false,
-      "records": 4,
-      "published": "27d",
-      "captured": "26d",
-      "thisRun": "6",
-      "feeds": "Anaheim"
-    },
-    {
       "source": "uktenders",
-      "quiet": false,
+      "quiet": true,
       "records": 1,
-      "published": "25d",
-      "captured": "33d",
+      "published": "38d",
+      "captured": "46d",
       "thisRun": "unknown",
       "feeds": ""
     },
     {
       "source": "worldbank",
-      "quiet": false,
+      "quiet": true,
       "records": 76,
-      "published": "20d",
-      "captured": "15d",
+      "published": "33d",
+      "captured": "28d",
       "thisRun": "unknown",
       "feeds": ""
-    },
-    {
-      "source": "agenda-portal",
-      "quiet": false,
-      "records": 117,
-      "published": "15d",
-      "captured": "4d",
-      "thisRun": "17",
-      "feeds": "Anaheim, Las Vegas"
     },
     {
       "source": "gli_serper",
       "quiet": false,
       "records": 194,
-      "published": "6d",
-      "captured": "6d",
+      "published": "19d",
+      "captured": "19d",
       "thisRun": "unknown",
       "feeds": "Anaheim, Clark County, Las Vegas, Nashville, New York City, Phoenix"
     },
     {
+      "source": "agenda-portal",
+      "quiet": false,
+      "records": 118,
+      "published": "14d",
+      "captured": "5d",
+      "thisRun": "18",
+      "feeds": "Anaheim, Las Vegas"
+    },
+    {
+      "source": "ceqanet",
+      "quiet": false,
+      "records": 5,
+      "published": "13d",
+      "captured": "0d",
+      "thisRun": "6",
+      "feeds": "Anaheim"
+    },
+    {
+      "source": "nyc-ceqr",
+      "quiet": false,
+      "records": 66,
+      "published": "13d",
+      "captured": "0d",
+      "thisRun": "66",
+      "feeds": "New York City"
+    },
+    {
       "source": "clark-tab",
       "quiet": false,
-      "records": 41,
-      "published": "0d",
-      "captured": "4d",
-      "thisRun": "37",
+      "records": 45,
+      "published": "ahead",
+      "captured": "0d",
+      "thisRun": "35",
       "feeds": "Clark County"
     },
     {
       "source": "legistar",
       "quiet": false,
-      "records": 464,
+      "records": 510,
       "published": "ahead",
-      "captured": "3d",
-      "thisRun": "97",
+      "captured": "0d",
+      "thisRun": "43",
       "feeds": "Broward County, Clark County, Nashville, Oakland, Phoenix, Westchester County, Yonkers"
     },
     {
@@ -252,7 +252,7 @@
       "quiet": false,
       "records": 2,
       "published": "ahead",
-      "captured": "33d",
+      "captured": "46d",
       "thisRun": "unknown",
       "feeds": ""
     }
@@ -264,8 +264,9 @@
     "cftod-pdf",
     "adb",
     "nyc-zap",
-    "nyc-ceqr",
-    "nyc-city-record"
+    "nyc-city-record",
+    "uktenders",
+    "worldbank"
   ],
   "railMarkets": [
     {
