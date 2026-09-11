@@ -173,6 +173,55 @@ const FIELDS: { kind: FilingFactKind; label: string; re: RegExp; numeric?: boole
     kind: 'case_planner', label: 'Project Planner',
     re: /\bProject Planner:\s*([A-Z][A-Za-z.'-]+(?:\s+[A-Z][A-Za-z.'-]+){0,2}\s+[\w.+-]+@anaheim\.net)/i,
   },
+
+  // ---- THE DECISION, WHICH ONLY THE ACTION AGENDA CARRIES -------------------
+  //
+  // Anaheim publishes a meeting TWICE on www.anaheim.net: the AGENDA before it,
+  // and the ACTION AGENDA after it, filed under Minutes. Measured 2026-09-11 by
+  // diagnostics/anaheim-action-vocab.ts over every Planning Commission document
+  // published in 2025 and 2026: 44 agendas, of which 0 carry a vote, and 33
+  // action agendas, of which 31 do. The two fields below fire only on the
+  // second, which is why the same reader can read both and why an agenda never
+  // reports a decision it has not seen.
+  //
+  // THIS IS THE ONE CRITERION BETWEEN ANAHEIM AND THE MARKET STANDARD.
+  // verify:market-standard reads 11 party, 2 facts, 0 decision, and
+  // `commission_action` and `the_vote` are both DECISION_FACT_KINDS.
+  //
+  // THE ACTION SITS IMMEDIATELY BEFORE THE MOTION LINE, in all 55 items that
+  // carry a vote. That is STRUCTURE, and structure is what this keys on, because
+  // the wording is not fixed. Measured, all real:
+  //
+  //   Approved Resolution No. PC2025-004.
+  //   Approved Resolution Nos. PC2025-007 and PC2025-008.
+  //   Recommended City Council approval and approved Resolution No. PC2025-005.
+  //   Approved Resolution No. PC2025-011 as amended, revising condition 56...
+  //   Approved continuance to a date certain of January 27, 2025.
+  //   Recommended City Council approval of DEV2024-00068.
+  //
+  // AND THE FALSE POSITIVE IT REFUSES. "approval" appears 75 times across the 33
+  // documents and almost all of them are the phrase "the conditions of approval"
+  // inside a condition, or "requests approval of a tentative tract map" in the
+  // Request line. The verb has to OPEN the clause and the clause has to END at
+  // the motion; a lower-case "approval" mid-sentence can satisfy neither.
+  {
+    kind: 'commission_action', label: 'Planning Commission action',
+    // THE LEADING WORD BOUNDARY IS NOT DECORATION. Without it the alternation
+    // matched inside "disapproved" - "CEQA does not apply to disapproved
+    // projects" - and stored "approved projects. Approved Resolution No.
+    // PC2025-003." as the commission's action. Caught in the measurement, before
+    // anything printed.
+    re: /(\b(?:Approved|Recommended|Denied|Continued|Withdrawn|Received and filed)\b[\s\S]{0,300}?)(?=\s*MOTION\s*:)/i,
+    clip: false,
+  },
+  {
+    // THE MOVERS ARE NOT STORED. "MOTION: (Walker/Perez)" names two
+    // commissioners of the DECIDING BODY, the same class as the Project Planner
+    // above, which this reader already refuses to store as a party. A vote is a
+    // fact about the matter; who moved it is a fact about the commission.
+    kind: 'the_vote', label: 'VOTE',
+    re: /\bVOTE\s*:\s*(\d{1,2}-\d{1,2}(?:-\d{1,2})?)/i,
+  },
 ];
 
 /**
