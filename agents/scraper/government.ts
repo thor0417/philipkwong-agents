@@ -50,6 +50,7 @@ import {
 } from './run-scope';
 import { scrapeCftodPdfItems } from './sources/pdf-agenda';
 import { scrapeAnaheimAgendas } from './sources/agenda-portal';
+import { scrapeAnaheimAgendaCenter } from './sources/anaheim-agendacenter';
 import { scrapeLasVegasAgendas } from './sources/lasvegas';
 import { scrapeClarkTabAgendas } from './sources/clark-tab';
 import { scrapeCeqanet } from './sources/ceqanet';
@@ -725,7 +726,14 @@ async function main(): Promise<void> {
       markets: ['Central Florida Tourism Oversight District'],
       run: () => scrapeCftodPdfItems(),
     },
+    // TWO ANAHEIM LANES, AND THE SPLIT IS THE MARKET'S OWN. Granicus carries
+    // CITY COUNCIL, whose documents redirect into local.anaheim.net and answer
+    // only to the hosted runner. www.anaheim.net/AgendaCenter carries the
+    // PLANNING COMMISSION and answers here. Measured 2026-09-11: all 51 records
+    // on a blocked url are Council items, and all 44 Planning Commission
+    // meetings of 2025-2026 open from this machine while the corpus held 11.
     { source: 'anaheim-agendas', markets: ['Anaheim, CA'], run: () => scrapeAnaheimAgendas() },
+    { source: 'anaheim-agendacenter', markets: ['Anaheim, CA'], run: () => scrapeAnaheimAgendaCenter() },
     { source: 'lasvegas-agendas', markets: ['Las Vegas, NV'], run: () => scrapeLasVegasAgendas() },
     { source: 'clark-tab', markets: ['Clark County, NV'], run: () => scrapeClarkTabAgendas() },
     {

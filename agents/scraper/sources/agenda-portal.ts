@@ -200,6 +200,19 @@ export interface MeetingRef {
   // Adapter tag written to the lead's source column. Defaults to 'agenda-portal'
   // (Anaheim / Las Vegas); a portal with its own identity sets its own.
   source?: string;
+  // THE MEETING'S IDENTITY, WHERE IT IS NOT THE DOCUMENT'S URL.
+  //
+  // leads.url is the primary key and every write path upserts on it, so an item
+  // read from a different file is a different record. Anaheim publishes each
+  // Planning Commission meeting TWICE - the agenda before it, the action agenda
+  // after it - and capturing the second under its own url would file the same
+  // hearing twice, once without a decision and once with. Setting this to a
+  // per-MEETING token keeps one identity across both, so the action agenda
+  // UPDATES the item it already captured and moves primary_document_url onto the
+  // document that carries the vote.
+  //
+  // Defaults to agendaUrl, so every existing lane is untouched.
+  identityUrl?: string;
   // True when agendaUrl is itself the fetched primary document (a PDF agenda),
   // rather than a portal page that merely displays one.
   hasPrimaryDocument?: boolean;
@@ -215,6 +228,9 @@ function targetHitLine(text: string): string {
 export function leadsFromAgendaText(meeting: MeetingRef, text: string): NormalizedLead[] {
   const items = splitNumberedAgenda(text);
   const leads: NormalizedLead[] = [];
+  // The key an item is filed under, which is the MEETING where a portal
+  // publishes one meeting as two documents. See MeetingRef.identityUrl.
+  const identity = meeting.identityUrl ?? meeting.agendaUrl;
   const base = {
     company: meeting.jurisdictionLabel,
     location: meeting.jurisdictionLabel,
@@ -250,7 +266,7 @@ export function leadsFromAgendaText(meeting: MeetingRef, text: string): Normaliz
     const decision = gateDecide({
       source: base.source,
       market: meeting.jurisdictionLabel,
-      key: `${meeting.agendaUrl}#item-${key}`,
+      key: `${identity}#item-${key}`,
       title,
       gate_text: it.subject,
       bypass_text: it.text,
@@ -261,7 +277,7 @@ export function leadsFromAgendaText(meeting: MeetingRef, text: string): Normaliz
     const lead: NormalizedLead = {
       ...base,
       title,
-      url: `${meeting.agendaUrl}#item-${key}`,
+      url: `${identity}#item-${key}`,
       raw_content: [
         `${meeting.body} agenda item ${it.num} - ${meeting.jurisdictionLabel}`,
         `Meeting date: ${meeting.dateIso ?? '(unknown)'}`,
@@ -291,7 +307,7 @@ export function leadsFromAgendaText(meeting: MeetingRef, text: string): Normaliz
     const meetingDecision = gateDecide({
       source: base.source,
       market: meeting.jurisdictionLabel,
-      key: meeting.agendaUrl,
+      key: identity,
       title: `${meeting.body} Agenda - ${meeting.dateIso ?? 'undated'} (${meeting.jurisdictionLabel})`.slice(0, 200),
       gate_text: whole,
       bypass_mode: 'all',
@@ -301,7 +317,7 @@ export function leadsFromAgendaText(meeting: MeetingRef, text: string): Normaliz
       leads.push({
         ...base,
         title: `${meeting.body} Agenda - ${meeting.dateIso ?? 'undated'} (${meeting.jurisdictionLabel})`.slice(0, 200),
-        url: meeting.agendaUrl,
+        url: identity,
         raw_content: [
           `${meeting.body} agenda - ${meeting.jurisdictionLabel}`,
           `Meeting date: ${meeting.dateIso ?? '(unknown)'}`,
