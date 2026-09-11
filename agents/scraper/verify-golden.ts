@@ -156,6 +156,27 @@ const INLINE: Record<string, () => string | null> = {
     return null;
   },
 
+  'a-meeting-date-that-is-the-machines-midnight': () => {
+    // PENDING. Reports what the tree does today and does not fail the gate.
+    //
+    // CHECKED AGAINST THE SOURCE, NOT AGAINST new Date's BEHAVIOUR HERE. The
+    // defect only shows up off UTC, so a behavioural assertion would report
+    // PASSES NOW on the hosted runner while the call sites are unchanged - the
+    // machine answering for the code, which is the defect itself one level up.
+    // These three sites are where a date reaches the corpus through a local-time
+    // parse; each was read on 2026-09-11 and each is named in the case.
+    const sites: [string, RegExp][] = [
+      ['sources/agenda-portal.ts', /new Date\(dateM\[1\]\)\.toISOString\(\)/],
+      ['sources/legistar.ts', /new Date\(v\)\.getTime\(\)/],
+      ['sources/nyc-zap.ts', /iso: new Date\(v\)\.toISOString\(\)/],
+    ];
+    const open = sites.filter(([f, re]) => re.test(readFileSync(`agents/scraper/${f}`, 'utf8')));
+    if (open.length === 0) return null;
+    return `${open.length} of 3 call sites still parse a source date in the runtime's local time (${open
+      .map(([f]) => f)
+      .join(', ')}); 821 of 1,126 dated records carry the local-midnight signature`;
+  },
+
   'the-disney-district-packets-are-paged-and-never-read': () => {
     // PENDING. Reports what the tree does today and does not fail the gate.
     //
