@@ -84,6 +84,15 @@ as reachable and is not. `AgendaViewer.php?view_id=2&clip_id=N` answers 302 with
 a 14-byte body and a Location of `local.anaheim.net`. A probe of a Granicus
 `DocumentViewer.php?file=...pdf` succeeds and says nothing about it.
 
+BUT ONLY ANAHEIM'S CITY COUNCIL IS BLOCKED, AND THE OTHER HALF OF THAT MARKET IS
+NOT. Measured 2026-09-11 over every Anaheim record: all 51 records sitting on an
+AgendaViewer url are City Council items, and www.anaheim.net/AgendaCenter does
+not list City Council at all. The PLANNING COMMISSION publishes there instead,
+category 18, and all 44 of its 2025-2026 agendas answer 200 to this machine. The
+corpus holds a document for 11 of those 44. So `kept 0` is right for Council and
+is NOT right for the Planning Commission, which is an adapter pointed at the
+wrong host rather than an egress wall. See BRIEF-U-READER-3-ANAHEIM.md.
+
 So a LOCAL run reporting `kept 0` for those three is CORRECT and is not a
 regression. The same rule the scorecard applies to a BLOCKED cell and the same
 rule that moved `verify:staleness` off the pre-push hook. The weekly workflow is
