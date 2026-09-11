@@ -73,6 +73,7 @@
 // this work came from assumed it did, having measured it as 8 rows.
 
 import type { NormalizedLead } from './types';
+import { sourceIso } from './source-date';
 import { gateDecide, admissionLabel } from '../gate-decide';
 import { bypassHits } from '../targets';
 import { NycZapRowSchema, parseRecords, type NycZapRowParsed } from './schemas';
@@ -127,8 +128,12 @@ const DATE_COLUMNS: (keyof NycZapRowParsed)[] = [
 function recordDate(r: NycZapRowParsed): { iso: string | null; column: string | null } {
   for (const col of DATE_COLUMNS) {
     const v = r[col];
-    if (typeof v === 'string' && v && !Number.isNaN(Date.parse(v))) {
-      return { iso: new Date(v).toISOString(), column: col };
+    // Socrata serves a FLOATING timestamp - "2026-07-13T00:00:00.000", no zone -
+    // so `new Date` read it locally and all 43 stored zap dates sat at 17:00:00Z,
+    // a day early. sourceIso reads it as UTC.
+    if (typeof v === 'string' && v) {
+      const iso = sourceIso(v);
+      if (iso) return { iso, column: col };
     }
   }
   return { iso: null, column: null };

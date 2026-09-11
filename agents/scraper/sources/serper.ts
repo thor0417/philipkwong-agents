@@ -33,6 +33,7 @@
 // logs and continues (never throws), returning whatever it gathered.
 
 import type { NormalizedLead } from './types';
+import { sourceIso } from './source-date';
 import { TARGETS, bypassHits } from '../targets';
 import { clientWatchTerms } from '../client-watch-terms';
 import { JUNK_DOMAINS } from '../junk-domains';
@@ -359,8 +360,10 @@ function parseSerperDate(raw?: string): string | null {
     const ms = REL_MS[rel[2].toLowerCase()];
     if (ms) return new Date(Date.now() - n * ms).toISOString();
   }
-  const d = new Date(s);
-  return Number.isNaN(d.getTime()) ? null : d.toISOString();
+  // "Dec 12, 2025" carries no zone. Read through `new Date` it became the 11th
+  // at 17:00:00Z on a UTC+7 machine; 107 stored gli_serper dates carry that.
+  // The relative branch above is epoch arithmetic and was never affected.
+  return sourceIso(s);
 }
 
 // True when a result URL is on a curated domain (or a subdomain of one). Enforced

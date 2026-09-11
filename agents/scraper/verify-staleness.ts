@@ -76,6 +76,7 @@
 // behind and undeclared, or when a declared one has recovered, so it can gate a
 // run rather than only inform one.
 
+import { sourceIso } from './sources/source-date';
 import { pathToFileURL } from 'node:url';
 import { DEFAULT_JURISDICTIONS } from './sources/legistar-jurisdictions';
 import { DEAD_FEEDS, deadFeedForClient } from '../../lib/dead-feeds';
@@ -125,9 +126,12 @@ async function json(url: string, timeoutMs = 90_000): Promise<{ status: number; 
   }
 }
 
+// UTC MUTATORS. The cutoff this produces is sent to Legistar as an OData filter
+// and is compared against stored dates; walking the runtime's calendar to build
+// it made the boundary a property of the machine running the check.
 function monthsAgo(n: number, now: Date): string {
   const d = new Date(now);
-  d.setMonth(d.getMonth() - n);
+  d.setUTCMonth(d.getUTCMonth() - n);
   return d.toISOString().slice(0, 10);
 }
 
@@ -205,7 +209,9 @@ async function main(): Promise<void> {
   for (const r of undeclared) {
     failures++;
     const behind = r.newestMatter
-      ? Math.round((now.getTime() - Date.parse(r.newestMatter)) / (30.44 * 24 * 3600 * 1000))
+      // newestMatter is Legistar's own naive datetime, so Date.parse read it in
+      // the runtime's zone and the "years behind" figure moved with the machine.
+      ? Math.round((now.getTime() - Date.parse(sourceIso(r.newestMatter) ?? r.newestMatter)) / (30.44 * 24 * 3600 * 1000))
       : null;
     console.log(
       `UNDECLARED DEAD FEED: ${r.label} - newest matter ${r.newestMatter ?? 'none'}` +

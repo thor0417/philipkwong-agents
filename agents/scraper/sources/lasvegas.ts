@@ -11,6 +11,7 @@
 // On any single-meeting failure this logs and continues.
 
 import type { NormalizedLead } from './types';
+import { sourceIso } from './source-date';
 import type { SourceType } from '../../../lib/taxonomy';
 import { fetchText, htmlToText, leadsFromAgendaText, type MeetingRef } from './agenda-portal';
 import { bypassesGate } from '../targets';
@@ -89,7 +90,13 @@ export async function scrapeLasVegasAgendas(): Promise<NormalizedLead[]> {
     if (!BODIES.test(m.title ?? '')) continue;
     const tid = agendaTemplateId(m);
     if (tid == null) continue;
-    const iso = m.dateTime ? new Date(m.dateTime).toISOString() : m.date ? new Date(m.date).toISOString() : null;
+    // PrimeGov serves a NAIVE local datetime ("2026-07-13T09:00:00"), which
+    // read through `new Date` became 02:00:00Z on a UTC+7 machine - the right
+    // day only because nine in the morning is more than seven hours after
+    // midnight. A meeting before 07:00 local landed on the day before.
+    // sourceIso reads the calendar fields as UTC, which is the day the city
+    // published; the hour is not the true instant and is not claimed to be.
+    const iso = sourceIso(m.dateTime) ?? sourceIso(m.date);
     if (!iso || Number.isNaN(Date.parse(iso))) continue;
     relevant.push({
       jurisdictionLabel: LV,

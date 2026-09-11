@@ -10,6 +10,7 @@
 
 import { createHash } from 'node:crypto';
 import type { NormalizedLead } from './types';
+import { sourceIso } from './source-date';
 import type { SourceType } from '../../../lib/taxonomy';
 import { bypassHits, bypassesGate } from '../targets';
 import { gateDecide, admissionLabel } from '../gate-decide';
@@ -372,7 +373,11 @@ export function parseAnaheimMeetings(html: string): AnaheimMeeting[] {
     if (!bodyM) continue;
     const body = bodyM[1].replace(/\s+/g, ' ').trim();
     const dateM = row.match(/>\s*([A-Za-z]{3,9} \d{1,2}, \d{4})/);
-    const dateIso = dateM ? new Date(dateM[1]).toISOString() : null;
+    // "December 15, 2025" carries no zone, so sourceIso reads it as UTC. Read
+    // through `new Date` it became 2025-12-14T17:00:00Z on a UTC+7 machine and
+    // the whole Anaheim market was a day early. Golden case
+    // `a-meeting-date-that-is-the-machines-midnight`.
+    const dateIso = dateM ? sourceIso(dateM[1]) : null;
     if (!dateIso || Number.isNaN(Date.parse(dateIso)) || Date.parse(dateIso) < ANAHEIM_SINCE) continue;
     const agendaUrl = abs(agM[1]);
     if (seen.has(agendaUrl)) continue;

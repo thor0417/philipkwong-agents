@@ -10,6 +10,7 @@
 // On any failure this logs and continues.
 
 import type { NormalizedLead } from './types';
+import { sourceIso } from './source-date';
 import { bypassHits } from '../targets';
 import { gateDecide, admissionLabel } from '../gate-decide';
 import { CeqanetRowSchema, parseRecords } from './schemas';
@@ -205,7 +206,10 @@ export async function scrapeCeqanet(): Promise<NormalizedLead[]> {
       seen.add(url);
       if (decision.bypass) ceqaStats.bypassHits++;
       const hitLine = targetHitLine(gateText);
-      const iso = r.date && !Number.isNaN(Date.parse(r.date)) ? new Date(r.date).toISOString() : null;
+      // CEQAnet publishes a date-only value, which is parsed as UTC either way.
+      // Routed through the one helper so a day ever appearing with a time on it
+      // cannot quietly start shifting.
+      const iso = sourceIso(r.date);
       leads.push({
         title: r.title.slice(0, 200),
         url,

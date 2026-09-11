@@ -1,3 +1,5 @@
+import { sourceIso } from './source-date';
+
 // Shared shape every source adapter returns.
 //
 // Adapters do NO relevance filtering of their own (except unavoidable
@@ -75,8 +77,19 @@ export interface RegistryLead {
 }
 
 // Parse a loosely-formatted date into an ISO string, or null if unusable.
+//
+// THE ONE SHARED WRITER, WHICH IS WHY THE FIX BELONGS HERE. 30 call sites across
+// 20 adapters hand this wildly different shapes - free text ("15-Jul-2026" from
+// the World Bank, "17 Jul 2026 03:05 PM" from GeBIZ), naive ISO ("2026-09-15T10:00:00"
+// from TenderNed, the same from Legistar's EventDate), and genuinely zone-bearing
+// feeds (AusTender, UK tenders, TED, SAM.gov). It used to call `new Date(value)`
+// and hand back the instant, which reads a ZONELESS value in the runtime's local
+// zone and so stored a Bangkok capture one day earlier than the same feed read on
+// the hosted runner. 1,204 stored rows carry that. See sources/source-date.ts.
+//
+// sourceIso keeps a stated zone and reads a zoneless value as UTC, so this
+// function now answers the same for every caller whatever the shape, which is
+// the property it never had.
 export function toIso(value: string | undefined | null): string | null {
-  if (!value) return null;
-  const d = new Date(value);
-  return Number.isNaN(d.getTime()) ? null : d.toISOString();
+  return sourceIso(value);
 }

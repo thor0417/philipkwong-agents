@@ -15,6 +15,7 @@
 // gated client logs and contributes zero, never killing the run.
 
 import type { NormalizedLead } from './types';
+import { sourceIso } from './source-date';
 import { toIso } from './types';
 import { keywordMatches } from '../prefilter';
 import type { SourceType } from '../../../lib/taxonomy';
@@ -230,9 +231,18 @@ export async function publicEventUrl(client: string, id: number): Promise<string
 // The freshest document date across the supplied fields, as ISO. Used so an
 // amendment or a recent agenda action counts as fresh activity even when the
 // matter was introduced long ago (the government freshness gate keys on this).
+//
+// LEGISTAR SERVES A NAIVE DATETIME: `MatterIntroDate` is "2026-07-13T00:00:00"
+// with no zone, so `new Date` read it in the runtime's local zone and 507 of 510
+// stored legistar dates sat at 17:00:00Z - one day early, in every Legistar
+// market. sourceIso reads the calendar fields as UTC. Golden case
+// `a-meeting-date-that-is-the-machines-midnight`.
 function latestIso(...values: (string | undefined)[]): string | null {
   const times = values
-    .map((v) => (v ? new Date(v).getTime() : NaN))
+    .map((v) => {
+      const iso = sourceIso(v);
+      return iso ? Date.parse(iso) : NaN;
+    })
     .filter((t) => !Number.isNaN(t));
   if (times.length === 0) return null;
   return new Date(Math.max(...times)).toISOString();
@@ -341,9 +351,13 @@ function isoDay(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
+// UTC MUTATORS, NOT LOCAL ONES. setMonth/getMonth walk the RUNTIME'S calendar,
+// so the window bound this sends to Legistar moved by a day near a month
+// boundary depending on who ran the capture - the same class as the date parse
+// this file's latestIso was fixed for, one level along.
 function backfillBound(now: Date): string {
   const d = new Date(now);
-  d.setMonth(d.getMonth() - BACKFILL_MONTHS);
+  d.setUTCMonth(d.getUTCMonth() - BACKFILL_MONTHS);
   return isoDay(d);
 }
 
@@ -377,7 +391,7 @@ export function matterBound(
   if (!newestHeld) return { since: floor, reason: 'backfill' };
   const d = new Date(newestHeld);
   if (Number.isNaN(d.getTime())) return { since: floor, reason: 'backfill' };
-  d.setDate(d.getDate() - OVERLAP_DAYS);
+  d.setUTCDate(d.getUTCDate() - OVERLAP_DAYS);
   const since = isoDay(d);
   // Never reach further back than the backfill bound, and never further forward
   // than it either: a jurisdiction whose newest held matter is ancient must not

@@ -28,6 +28,7 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { bestTargetForClustering, strongBypassesGate } from './targets';
 import { matterRefFromUrl } from './sources/legistar-urls';
+import { sourceIso } from './sources/source-date';
 import { documentShape, isFetchedFile } from '../../lib/document-shape';
 import { applicantTypeIsPublicAgency, nameableApplicantOf } from '../../lib/applicant-type';
 import {
@@ -157,24 +158,49 @@ const INLINE: Record<string, () => string | null> = {
   },
 
   'a-meeting-date-that-is-the-machines-midnight': () => {
-    // PENDING. Reports what the tree does today and does not fail the gate.
+    // TWO HALVES, BECAUSE EITHER ALONE CAN PASS ON A TREE THAT IS BROKEN.
     //
-    // CHECKED AGAINST THE SOURCE, NOT AGAINST new Date's BEHAVIOUR HERE. The
-    // defect only shows up off UTC, so a behavioural assertion would report
-    // PASSES NOW on the hosted runner while the call sites are unchanged - the
-    // machine answering for the code, which is the defect itself one level up.
-    // These three sites are where a date reaches the corpus through a local-time
-    // parse; each was read on 2026-09-11 and each is named in the case.
-    const sites: [string, RegExp][] = [
-      ['sources/agenda-portal.ts', /new Date\(dateM\[1\]\)\.toISOString\(\)/],
-      ['sources/legistar.ts', /new Date\(v\)\.getTime\(\)/],
-      ['sources/nyc-zap.ts', /iso: new Date\(v\)\.toISOString\(\)/],
+    // The behaviour half asserts what sourceIso answers. On the hosted runner,
+    // which is UTC, `new Date` answers the same thing, so this half would go on
+    // passing if every call site were reverted. The needle half is what catches
+    // that: each writer has to route through the helper.
+    const tz = -new Date().getTimezoneOffset() / 60;
+
+    // A zoneless value keeps the day its publisher wrote. The two shapes that
+    // produced all 1,204 shifted rows.
+    if (sourceIso('December 15, 2025')?.slice(0, 10) !== '2025-12-15') {
+      return `free text loses its day at UTC${tz >= 0 ? '+' : ''}${tz}: the Anaheim defect`;
+    }
+    if (sourceIso('2026-07-13T00:00:00')?.slice(0, 10) !== '2026-07-13') {
+      return 'a naive ISO datetime loses its day: the Legistar and ZAP defect';
+    }
+    if (sourceIso('15-Jul-2026')?.slice(0, 10) !== '2026-07-15') return 'a day-month-year value loses its day: the World Bank shape';
+    if (sourceIso('Dec 12, 2025')?.slice(0, 10) !== '2025-12-12') return 'a short free-text date loses its day: the serper shape';
+    // An ISO date-only string was always right and must stay right.
+    if (sourceIso('2026-07-13') !== '2026-07-13T00:00:00.000Z') return 'an ISO date-only value no longer reads as UTC midnight';
+    // A STATED ZONE IS THE PUBLISHER'S OWN ANSWER AND IS NOT OVERRIDDEN. This is
+    // the half a blunter fix would break: TED, AusTender, UK tenders and SAM.gov
+    // all publish an offset, and re-reading those as UTC would move them.
+    if (sourceIso('2026-07-17T06:55:29Z') !== '2026-07-17T06:55:29.000Z') return 'a Z-bearing value was rewritten';
+    if (sourceIso('2026-07-13T00:00:00-04:00') !== '2026-07-13T04:00:00.000Z') return 'a stated offset was discarded';
+    // Absence stays absence.
+    if (sourceIso(null) !== null || sourceIso('') !== null || sourceIso('not a date') !== null) {
+      return 'an unreadable value became a date';
+    }
+
+    // The writers. Each one is where a market's dates come from.
+    const routed: [string, RegExp][] = [
+      ['sources/types.ts (toIso, 30 call sites)', /return sourceIso\(value\)/],
+      ['sources/agenda-portal.ts (Anaheim meeting date)', /sourceIso\(dateM\[1\]\)/],
+      ['sources/legistar.ts (matter dates)', /const iso = sourceIso\(v\)/],
+      ['sources/nyc-zap.ts (ZAP date columns)', /const iso = sourceIso\(v\)/],
+      ['sources/serper.ts (press dates)', /return sourceIso\(s\)/],
+      ['sources/lasvegas.ts (PrimeGov meeting date)', /sourceIso\(m\.dateTime\)/],
+      ['sources/ceqanet.ts (CEQA date)', /sourceIso\(r\.date\)/],
     ];
-    const open = sites.filter(([f, re]) => re.test(readFileSync(`agents/scraper/${f}`, 'utf8')));
-    if (open.length === 0) return null;
-    return `${open.length} of 3 call sites still parse a source date in the runtime's local time (${open
-      .map(([f]) => f)
-      .join(', ')}); 821 of 1,126 dated records carry the local-midnight signature`;
+    const unrouted = routed.filter(([f, re]) => !re.test(readFileSync(`agents/scraper/${f.split(' ')[0]}`, 'utf8')));
+    if (unrouted.length) return `${unrouted.length} writer(s) no longer route through sourceIso: ${unrouted.map(([f]) => f).join(', ')}`;
+    return null;
   },
 
   'the-disney-district-packets-are-paged-and-never-read': () => {
