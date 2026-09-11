@@ -375,6 +375,68 @@ async function main(): Promise<void> {
   console.log('  that includes occurred_at, so correcting a lead date without correcting the event it');
   console.log('  already produced makes the next event pass insert a SECOND event for the same filing,');
   console.log('  one day apart, and both would print in a client document.');
+
+  // ---- 8. DID ANY ALREADY-SENT DOCUMENT LOSE OR GAIN A PROJECT? -----------
+  //
+  // The question asked of a count of rows is "how many lines moved". The
+  // question asked of a CLIENT is "did a project fall off my document". Those
+  // are different and only the second one matters, so it is measured on the
+  // rule report-build actually applies:
+  //
+  //   membership  a project is in the document when it has an undismissed
+  //               record whose FIRST_SEEN falls in the period (report-build
+  //               :566-567). first_seen is written from a zero-argument
+  //               `new Date()` and has no source string to misparse.
+  //   what moved   events, scoped on occurred_at (:675-676), which DO carry it.
+  //
+  // The hypothetical column is the point of the section: what the same windows
+  // would have done had membership been dated on published_date. That is the
+  // exposure this corpus did not have, and the reason it did not have it is one
+  // deliberate line in report-build rather than luck.
+  console.log('');
+  console.log('-'.repeat(104));
+  console.log('8. PER DELIVERED WINDOW: DID A PROJECT CHANGE SIDES, OR ONLY A LINE?');
+  console.log('-'.repeat(104));
+  const nameOf = new Map(projects.map((p) => [String(p.id), tidy(p.name)]));
+  const projectsIn = (s: number, u: number, column: 'first_seen' | 'published_date', fix: boolean): Set<string> => {
+    const out = new Set<string>();
+    for (const r of leads) {
+      if (String(r.status) === 'dismissed' || !r.project_id) continue;
+      const iso = tidy(column === 'first_seen' ? r.first_seen : r.published_date);
+      if (!iso) continue;
+      const v = new Date(fix && isShifted(iso) ? corrected(iso) : iso).getTime();
+      if (v >= s && v < u) out.add(String(r.project_id));
+    }
+    return out;
+  };
+  const seen = new Set<string>();
+  for (const d of deliveries) {
+    const since = tidy(d.period_start);
+    const until = tidy(d.period_end);
+    if (!since || !until) continue;
+    const k = `${since}|${until}`;
+    if (seen.has(k)) continue;
+    seen.add(k);
+    const s = new Date(since).getTime();
+    const u = new Date(until).getTime();
+    const before = projectsIn(s, u, 'first_seen', false);
+    const after = projectsIn(s, u, 'first_seen', true);
+    const lost = [...before].filter((p) => !after.has(p));
+    const gained = [...after].filter((p) => !before.has(p));
+    const hypoBefore = projectsIn(s, u, 'published_date', false);
+    const hypoAfter = projectsIn(s, u, 'published_date', true);
+    const hypoMoved = [...hypoBefore].filter((p) => !hypoAfter.has(p)).length + [...hypoAfter].filter((p) => !hypoBefore.has(p)).length;
+    console.log(
+      `  [${since.slice(0, 10)} .. ${until.slice(0, 10)}]  projects ${before.size} -> ${after.size}   ` +
+        `lost ${lost.length}  gained ${gained.length}   ` +
+        `(had membership been dated on published_date: ${hypoMoved} would have moved)`
+    );
+    for (const p of [...lost, ...gained]) console.log(`      ${nameOf.get(p) ?? p}`);
+  }
+  console.log('');
+  console.log('  first_seen carries the local-midnight signature on 0 of 2,465 rows, so nothing that');
+  console.log('  decides MEMBERSHIP moves. What moves is the date printed beside a line, and the');
+  console.log('  events inside the What moved section.');
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1]).href) {
