@@ -35,6 +35,14 @@ never been captured, and they hold 30 unread items worth 188 facts.
 **So reader 3 is not a reader and it is not an egress wall. It is an adapter
 pointed at the wrong host for half its market.**
 
+**A CORRECTION TO THIS FILE, 2026-09-11.** The line below reporting that 0 of
+the 44 agendas carry vote language was measured with a regex that could not
+match anything: the probe's `` had been written into the source as a literal
+backspace. Re-measured with the repaired pattern, the figure is unchanged and
+the conclusion holds, but it was not evidence when it was published. See
+BRIEF-U-ANAHEIM-REPOINT.md section 5, and golden case
+`a-control-character-inside-a-regex`.
+
 **It emits no condition, and none is possible from what is reachable.** 0
 conditions over all 44 agendas, 0 over every document already held. The count
 stays where it has been: **1,474 condition facts in the corpus, every one

@@ -669,7 +669,7 @@ async function main(): Promise<void> {
     // shapes - DocumentCenter serves "Planning Commission ACTION Agenda" and
     // AgendaCenter serves the agenda.
     if (/ACTION\s+AGENDA/i.test(text.slice(0, 4000))) pcActionAgendas++;
-    if (/(VOTE|Motion carried|AYES|NOES)/i.test(text)) pcWithVote++;
+    if (/\b(VOTE|Motion carried|AYES|NOES)\b/i.test(text)) pcWithVote++;
     for (const h of text.matchAll(/ITEM\s+NO\.\s*(\d{1,2})\s+([^\n]{0,120})/gi)) {
       pcItems++;
       if (held) pcItemsHeldDate++;

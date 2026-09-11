@@ -29,6 +29,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { bestTargetForClustering, strongBypassesGate } from './targets';
 import { matterRefFromUrl } from './sources/legistar-urls';
 import { sourceIso } from './sources/source-date';
+import { readAnaheimFacts } from './readers/anaheim-agenda';
 import { documentShape, isFetchedFile } from '../../lib/document-shape';
 import { applicantTypeIsPublicAgency, nameableApplicantOf } from '../../lib/applicant-type';
 import {
@@ -154,6 +155,75 @@ const INLINE: Record<string, () => string | null> = {
     if (documentShape('https://lasvegas.primegov.com/Portal/Meeting?f=agenda.pdf') !== 'listing') {
       return 'a listing page carrying a filename in its query read as a file';
     }
+    return null;
+  },
+
+  'a-negation-read-as-its-opposite': () => {
+    // The real sentence, from the 2025-01-27 Anaheim Planning Commission action
+    // agenda. Trimmed to what the reader needs to see: an item block, the
+    // negation, the action, and the motion line the action ends at.
+    const doc = [
+      'CITY OF ANAHEIM PLANNING COMMISSION ACTION AGENDA JANUARY 27, 2025',
+      'ITEM NO. 2 DEVELOPMENT APPLICATION NO. 2024-00546',
+      'Location: 1234 South Example Street.',
+      'Environmental Determination: Under the California Environmental Quality',
+      'Act (CEQA) Guidelines, CEQA does not apply to disapproved projects.',
+      'Approved Resolution No. PC2025-003.',
+      'MOTION: (Perez/Lieberman)',
+      'VOTE: 6-1',
+    ].join('\n');
+    const facts = readAnaheimFacts(doc, { application: 'DEVELOPMENT APPLICATION NO. 2024-00546' });
+    const action = facts.find((f) => f.kind === 'commission_action');
+    if (!action) return 'the commission action is no longer read at all';
+    if (/^approved projects/i.test(action.display)) {
+      return `the action was read out of the middle of "disapproved": ${action.display.slice(0, 60)}`;
+    }
+    if (!/^Approved Resolution No\. PC2025-003/i.test(action.display)) {
+      return `the action does not start where the sentence does: ${action.display.slice(0, 60)}`;
+    }
+    // And the vote, because a decision with no vote is half a decision.
+    if (facts.find((f) => f.kind === 'the_vote')?.display !== '6-1') return 'the vote is not read';
+    return null;
+  },
+
+  'a-control-character-inside-a-regex': () => {
+    // PENDING. Reports what the tree holds today and does not fail the gate.
+    //
+    // FOUR CHARACTERS, NOT ALL OF THEM. BEL, BS, VT and FF are what a written-out
+    // \a, \b, \v or \f becomes when a tool interprets the escape, and none has a
+    // use here. The control characters this deliberately does NOT flag are the
+    // literal 0x00-0x1f inside the character classes in company-hygiene.ts and
+    // http.ts, which exist to MATCH control characters, the 0x1a
+    // nyc-city-record.ts replaces, and the zip magic bytes quoted in a comment in
+    // document-shape.ts. A blanket rule flags all four and gets turned off.
+    const MANGLED: Record<number, string> = { 7: '\\a', 8: '\\b', 11: '\\v', 12: '\\f' };
+    const roots = ['agents', 'lib', 'dashboard/lib'];
+    const offenders: string[] = [];
+    const walk = (dir: string): void => {
+      let entries: { name: string; isDirectory: () => boolean }[];
+      try {
+        entries = readdirSync(dir, { withFileTypes: true }) as unknown as { name: string; isDirectory: () => boolean }[];
+      } catch {
+        return;
+      }
+      for (const e of entries) {
+        const path = `${dir}/${e.name}`;
+        if (e.isDirectory()) {
+          if (e.name === 'node_modules' || e.name.startsWith('.')) continue;
+          walk(path);
+          continue;
+        }
+        if (!/\.(ts|tsx)$/.test(e.name)) continue;
+        const text = readFileSync(path, 'utf8');
+        const bad = [...text].filter((ch) => MANGLED[ch.charCodeAt(0)] !== undefined);
+        if (!bad.length) continue;
+        const lines = text.split('\n');
+        const at = lines.findIndex((l) => [...l].some((ch) => MANGLED[ch.charCodeAt(0)] !== undefined));
+        offenders.push(`${path}:${at + 1} carries ${bad.length} x ${MANGLED[bad[0].charCodeAt(0)]}`);
+      }
+    };
+    for (const r of roots) walk(r);
+    if (offenders.length) return `a written-out escape became a control character: ${offenders.join('; ')}`;
     return null;
   },
 
