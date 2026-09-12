@@ -158,6 +158,35 @@ const INLINE: Record<string, () => string | null> = {
     return null;
   },
 
+  'a-migration-that-needs-a-session': () => {
+    // The migration directory, read rather than remembered. A quarantined file
+    // is exempt: it is kept as a record and carries DO NOT RUN at the top.
+    const dir = 'agents/scraper/migrations';
+    let names: string[];
+    try {
+      names = (readdirSync(dir) as unknown as string[]).filter((n) => n.endsWith('.sql'));
+    } catch {
+      return 'the migration directory could not be read';
+    }
+    const offenders: string[] = [];
+    for (const n of names) {
+      const sql = readFileSync(`${dir}/${n}`, 'utf8');
+      if (/DO NOT RUN/i.test(sql)) continue;
+      // Comments carry the reasoning, including the words themselves, so only
+      // the statements are judged: every line that is not a -- comment.
+      const statements = sql
+        .split('\n')
+        .filter((l) => !/^\s*--/.test(l))
+        .join('\n');
+      const needs: string[] = [];
+      if (/\bCREATE\s+(GLOBAL\s+|LOCAL\s+)?TEMP(ORARY)?\s+TABLE\b/i.test(statements)) needs.push('a temp table');
+      if (/\bSET\s+LOCAL\b/i.test(statements)) needs.push('SET LOCAL');
+      if (needs.length) offenders.push(`${n} needs ${needs.join(' and ')}`);
+    }
+    if (offenders.length) return `a migration depends on session state: ${offenders.join('; ')}`;
+    return null;
+  },
+
   'a-negation-read-as-its-opposite': () => {
     // The real sentence, from the 2025-01-27 Anaheim Planning Commission action
     // agenda. Trimmed to what the reader needs to see: an item block, the

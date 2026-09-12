@@ -1,163 +1,203 @@
 -- =====================================================================
 --  050. THE DATES THAT ARE THIS MACHINE'S MIDNIGHT, NOT THE PUBLISHER'S.
 --
---  PRINTED FOR PHILIP TO RUN. BLOCKING. Standing rule 5: no DDL or bulk
---  correction runs from code. Run it in the Supabase SQL editor, read the
---  verification block at the end, and only then commit.
+--  APPLIED 2026-09-12. It ran, it errored, and the error was not what it
+--  looked like: every row it was meant to move had already moved. The counts
+--  are read back in the verification block at the foot of this file and the
+--  results of that read-back are recorded here. RE-RUNNING IT IS A NO-OP,
+--  because every predicate is "the clock reads 17:00:00Z" and no row does.
 --
---  WHAT HAPPENED. Every adapter that read a source date through `new Date(s)`
---  parsed a ZONELESS value in the runtime's local zone. On this machine, UTC+7,
---  "December 15, 2025" became 2025-12-14T17:00:00Z. The date part is what a
---  client document prints, what bestDate sorts on, and what a period bound is
---  compared against, so the whole corpus captured here reads a day early.
---  The writers were fixed on 2026-09-11 (agents/scraper/sources/source-date.ts,
---  golden case `a-meeting-date-that-is-the-machines-midnight`). THIS FILE IS THE
---  OTHER HALF: the rows already stored.
+--  WHAT FAILED, AND WHY IT IS REWRITTEN. The first version built a TEMP TABLE
+--  `shifted_leads` and had three later statements read it. The Supabase SQL
+--  editor answered
 --
---  MEASURED 2026-09-11 by agents/scraper/diagnostics/date-shift-cost.ts, paged
---  to exhaustion, no cap:
+--      ERROR: 42P01: relation "shifted_leads" does not exist
 --
---    leads.published_date at 17:00:00Z            1,204   (821 undismissed)
---    project_events.occurred_at at 17:00:00Z      1,021
---      of those, whose lead is one of the 1,204     768
---      of those, carrying no lead_id                250
---      of those, whose lead is NOT shifted            3   <- NOT TOUCHED, see below
---    projects.last_activity at 17:00:00Z            319
---    leads.deadline to move                           0   <- see the TED note
+--  A temp table lives in ONE SESSION and `ON COMMIT DROP` destroys it at the
+--  first commit. A SQL editor over a pooled connection guarantees neither: a
+--  statement can land on a different backend, and a commit between statements
+--  takes the table with it. The migration was therefore relying on something
+--  the place it runs does not promise. It is rewritten below with NO temp
+--  table, NO transaction block and NO cross-statement state: every statement
+--  stands alone and can be pasted and run on its own.
 --
---  THE SOURCE LIST IS NOT DECORATION. A clock test alone would have corrupted a
---  real deadline: the one `leads.deadline` value at 17:00:00Z belongs to a TED
---  notice - "Spain, Natural gas" - and TED publishes an explicit +00:00 offset,
---  so five in the afternoon UTC is what the publisher actually said. It is
---  excluded by source and stays exactly as it is. Every source named below
---  publishes a DATE, or a naive datetime, and none of them can mean 17:00 UTC.
+--  I CANNOT SAY FROM HERE WHICH STATEMENT RAISED THE ERROR, and the honest
+--  version is that the data settles what matters and the mechanism is
+--  inference. What the data settles: all three updates applied, once each,
+--  with the right result. What it does not: whether the editor ran the failing
+--  SELECT before or after them.
 --
---  THE THREE EVENTS THIS DOES NOT TOUCH are record_attached rows dated
---  2026-12-31T17:00:00Z whose lead is published 2026-01-01. Their date does not
---  come from their lead and nothing here can say where it does come from, so
---  they are left alone and reported rather than swept along. They are also
---  FUTURE-DATED, which is a separate question for whoever picks it up.
+--  THE READ-BACK, 2026-09-12, agents/scraper/diagnostics/date-shift-cost.ts
+--  and a direct query, both NPM_EXIT=0:
 --
---  WHY BOTH TABLES MOVE IN ONE ACT. project_events dedupes on an identity that
---  includes occurred_at. Correct a lead date without correcting the event it
---  already produced and the next event pass inserts a SECOND event for the same
---  filing, one day apart, and a client document prints both.
+--    leads.published_date at 17:00:00Z     1,204 -> 0
+--      and 00:00:00Z                         366 -> 1,570   (366 + 1,204, exact)
+--    project_events.occurred_at at 17:00Z   1,021 -> 3       (the 3 named below)
+--    projects.last_activity at 17:00:00Z      319 -> 0
+--    leads.deadline at 17:00:00Z                1 -> 1       (TED, excluded on purpose)
 --
---  IT IS SAFE TO RUN TWICE. Every predicate is "the clock reads 17:00:00Z", and
---  a corrected row reads 00:00:00Z. A second run matches nothing.
+--  APPLIED ONCE, NOT TWICE: a second +7h would leave rows at 07:00:00Z and
+--  there are none. The arithmetic closes exactly.
 --
---  WHAT IT COSTS, PER MARKET, undismissed rows whose printed date moves:
---    Clark County 301 of 349      Broward County 98 of 98    Anaheim 75 of 78
---    (no market) 127 of 366       New York City 51 of 188    Phoenix 40 of 43
---    Nashville 40 of 40           Las Vegas 16 of 66         San Antonio 14 of 14
---    Oakland 14 of 14             and 35 further markets holding 1 to 6 rows each.
---  17 of those rows cross a MONTH boundary, which is the boundary a monthly
---  client document is scoped by. 232 projects change their latest-activity day.
---  NO project crosses the 12-month liveness floor: the correction only ever moves
---  a date forward, so nothing can drop out of the register on it.
+--  AND THE SPOT CHECK A HUMAN CAN READ. Anaheim's Planning Commission meets on
+--  a MONDAY and its City Council on a TUESDAY. Before the correction every
+--  stored Planning Commission record fell on a Sunday and every Council record
+--  on a Monday. After it:
+--
+--    Planning Commission   Mon 17
+--    City Council          Tue 57, Mon 1, Wed 2, Fri 1   (the four are special
+--                                                         meetings, not errors)
+--
+--  The 15 December 2025 Planning Commission agenda, which the city publishes as
+--  12/15/2025, now reads 2025-12-15 in the corpus. It read 2025-12-14 before.
+--
+--  ---------------------------------------------------------------------
+--  WHAT IT WAS FOR
+--  ---------------------------------------------------------------------
+--
+--  Every adapter that read a source date through `new Date(s)` parsed a
+--  ZONELESS value in the runtime's local zone. On the machine that captured
+--  this corpus, UTC+7, "December 15, 2025" became 2025-12-14T17:00:00Z. The
+--  date part is what a client document prints, what bestDate sorts on, and what
+--  a period bound is compared against. The writers were fixed on 2026-09-11
+--  (agents/scraper/sources/source-date.ts, golden case
+--  `a-meeting-date-that-is-the-machines-midnight`); this file was the other
+--  half, the rows already stored.
+--
+--  THE SOURCE LIST IS NOT DECORATION. The one `leads.deadline` value at
+--  17:00:00Z belongs to a TED notice - "Spain, Natural gas" - and TED publishes
+--  an explicit +00:00, so five in the afternoon UTC is what the publisher
+--  actually said. A clock-only predicate would have corrupted a real deadline.
+--  It is excluded by source and still reads 2026-07-13T17:00:00+00:00.
+--
+--  THE THREE EVENTS THIS DELIBERATELY LEAVES are record_attached rows dated
+--  2026-12-31T17:00:00Z whose lead is published 2026-01-01. Read back after the
+--  run, they are Phoenix liquor licences - Aloft Hotel Phoenix Airport, AC Hotel
+--  Biltmore, and an Off-Track Pari-Mutuel Wagering Permit for Arena. Their
+--  occurred_at is a YEAR after their lead's date, so it does not come from the
+--  lead and nothing here can say where it does come from. Left alone and
+--  reported rather than swept along.
+--
+--  ---------------------------------------------------------------------
+--  THE ORDER MATTERS AND IT IS THE ONLY THING THAT DOES
+--  ---------------------------------------------------------------------
+--
+--  Statement 1 identifies its events THROUGH the leads that are still at
+--  17:00:00Z. Statement 3 is what moves those leads. So 1 runs before 3, and
+--  running 3 first would make 1 unable to find anything - which is a silent
+--  half-correction rather than an error, and is exactly why the first version
+--  used a temp table. Numbered, and each statement says what it depends on.
+--
+--  Each statement is independently safe to re-run: all three match nothing once
+--  they have run.
+--
+--  NO SESSION TIMEZONE IS SET, because a pooled statement cannot rely on one.
+--  Every predicate casts explicitly and every leads predicate additionally
+--  requires the stored text to carry a `Z`, so `'2026-01-01'::timestamptz`,
+--  which a session zone WOULD change, can never be matched.
 -- =====================================================================
 
-BEGIN;
-
--- THE SESSION'S TIMEZONE DECIDES WHAT A ZONELESS TEXT VALUE MEANS, which is the
--- same defect one layer down: `'2026-01-01'::timestamptz` is read in the SESSION
--- zone, so on a non-UTC session a date-only row would land at 17:00 and be
--- swept up by the predicate below. Pinned, and every predicate additionally
--- requires the stored text to carry an explicit Z.
-SET LOCAL TIME ZONE 'UTC';
 
 -- ---------------------------------------------------------------------
--- 1. The leads whose stored date is this machine's midnight.
---    Captured FIRST, because step 3 has to know which leads were shifted
---    after step 2 has already corrected them.
--- ---------------------------------------------------------------------
-CREATE TEMP TABLE shifted_leads ON COMMIT DROP AS
-SELECT id
-  FROM leads
- WHERE source IN ('legistar', 'gli_serper', 'worldbank', 'agenda-portal', 'nyc-zap', 'iadb')
-   AND published_date IS NOT NULL
-   AND published_date LIKE '%Z'
-   AND ((published_date)::timestamptz AT TIME ZONE 'UTC')::time = '17:00:00';
-
--- EXPECT 1204. If this is not 1204, stop and re-run the cost diagnostic before
--- going further: the corpus has moved since this file was written.
-SELECT count(*) AS leads_to_correct FROM shifted_leads;
-
--- ---------------------------------------------------------------------
--- 2. leads.published_date. A TEXT column (migration 007), so the value is
---    rebuilt in the exact shape toISOString produces and the column has
---    always held: 2025-12-15T00:00:00.000Z
--- ---------------------------------------------------------------------
-UPDATE leads
-   SET published_date = to_char(
-         ((published_date)::timestamptz + interval '7 hours') AT TIME ZONE 'UTC',
-         'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'
-       )
- WHERE id IN (SELECT id FROM shifted_leads);
-
--- ---------------------------------------------------------------------
--- 3. project_events.occurred_at, for the events that inherited the shift.
---    An event with no lead_id was dated from a project-level date, which
---    was itself derived from these leads.
+-- 1. project_events.occurred_at.
+--    RUN FIRST. It finds its events through leads that are still at
+--    17:00:00Z, which statement 3 is about to change.
+--    Expected: 1,018 rows. Ran 2026-09-12, leaving 3 (see the header).
 -- ---------------------------------------------------------------------
 UPDATE project_events
    SET occurred_at = occurred_at + interval '7 hours'
  WHERE (occurred_at AT TIME ZONE 'UTC')::time = '17:00:00'
-   AND (lead_id IS NULL OR lead_id IN (SELECT id FROM shifted_leads));
+   AND (
+     lead_id IS NULL
+     OR lead_id IN (
+       SELECT id
+         FROM leads
+        WHERE source IN ('legistar', 'gli_serper', 'worldbank', 'agenda-portal', 'nyc-zap', 'iadb')
+          AND published_date IS NOT NULL
+          AND published_date LIKE '%Z'
+          AND ((published_date)::timestamptz AT TIME ZONE 'UTC')::time = '17:00:00'
+     )
+   );
+
 
 -- ---------------------------------------------------------------------
--- 4. projects.last_activity, which is bestDate carried onto the project.
---    The next clustering run recomputes it anyway; correcting it here stops
---    the register from sorting differently from its own records in the
---    meantime.
+-- 2. projects.last_activity. Depends on nothing; order is free.
+--    It is bestDate carried onto the project, and the next clustering run
+--    recomputes it anyway. Correcting it here stops the register from
+--    sorting differently from its own records in the meantime.
+--    Expected: 319 rows. Ran 2026-09-12.
 -- ---------------------------------------------------------------------
 UPDATE projects
    SET last_activity = last_activity + interval '7 hours'
  WHERE last_activity IS NOT NULL
    AND (last_activity AT TIME ZONE 'UTC')::time = '17:00:00';
 
+
 -- ---------------------------------------------------------------------
--- 5. READ IT BACK BEFORE COMMITTING. Standing rule 11: a thing is done when
---    it has been read back, not when it has been described.
+-- 3. leads.published_date. RUN LAST, after statement 1.
+--    A TEXT column (migration 007), so the value is rebuilt in the exact
+--    shape toISOString produces and the column has always held:
+--    2025-12-15T00:00:00.000Z
+--    Expected: 1,204 rows. Ran 2026-09-12.
+-- ---------------------------------------------------------------------
+UPDATE leads
+   SET published_date = to_char(
+         ((published_date)::timestamptz + interval '7 hours') AT TIME ZONE 'UTC',
+         'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'
+       )
+ WHERE source IN ('legistar', 'gli_serper', 'worldbank', 'agenda-portal', 'nyc-zap', 'iadb')
+   AND published_date IS NOT NULL
+   AND published_date LIKE '%Z'
+   AND ((published_date)::timestamptz AT TIME ZONE 'UTC')::time = '17:00:00';
+
+
+-- =====================================================================
+--  THE READ-BACK. Standing rule 11: a thing is done when it has been read
+--  back, not when it has been described. Run these after the three above.
+--  Each stands alone.
 --
---    EXPECTED, all four zero:
--- ---------------------------------------------------------------------
-SELECT 'leads still at local midnight' AS check, count(*) AS should_be_zero
+--  RESULTS ON 2026-09-12, recorded here so the next reader does not have to
+--  re-run them to know what happened: 0, 0, 0, 1, 3.
+-- =====================================================================
+
+-- EXPECT 0.
+SELECT count(*) AS leads_still_at_local_midnight
   FROM leads
  WHERE source IN ('legistar', 'gli_serper', 'worldbank', 'agenda-portal', 'nyc-zap', 'iadb')
    AND published_date IS NOT NULL
    AND published_date LIKE '%Z'
-   AND ((published_date)::timestamptz AT TIME ZONE 'UTC')::time = '17:00:00'
-UNION ALL
-SELECT 'events still at local midnight', count(*)
+   AND ((published_date)::timestamptz AT TIME ZONE 'UTC')::time = '17:00:00';
+
+-- EXPECT 0.
+SELECT count(*) AS project_dated_events_still_at_local_midnight
   FROM project_events
  WHERE (occurred_at AT TIME ZONE 'UTC')::time = '17:00:00'
-   AND lead_id IS NULL
-UNION ALL
-SELECT 'projects still at local midnight', count(*)
+   AND lead_id IS NULL;
+
+-- EXPECT 0.
+SELECT count(*) AS projects_still_at_local_midnight
   FROM projects
  WHERE last_activity IS NOT NULL
-   AND (last_activity AT TIME ZONE 'UTC')::time = '17:00:00'
-UNION ALL
-SELECT 'the TED deadline, untouched (expect 1)', count(*)
+   AND (last_activity AT TIME ZONE 'UTC')::time = '17:00:00';
+
+-- EXPECT 1. The TED deadline, untouched on purpose.
+SELECT count(*) AS ted_deadline_untouched
   FROM leads
  WHERE deadline IS NOT NULL
    AND (deadline AT TIME ZONE 'UTC')::time = '17:00:00';
 
--- The three record_attached events this deliberately leaves alone. EXPECT 3.
-SELECT 'events left alone (expect 3)' AS check, count(*)
+-- EXPECT 3. The record_attached events left alone on purpose.
+SELECT count(*) AS events_left_alone
   FROM project_events
  WHERE (occurred_at AT TIME ZONE 'UTC')::time = '17:00:00'
    AND lead_id IS NOT NULL;
 
--- One spot check a human can read. Anaheim's Planning Commission met on Monday
--- 15 December 2025 and the city publishes that agenda as 12/15/2025.
--- EXPECT every row to start 2025-12-15.
+-- THE HUMAN CHECK. Anaheim's Planning Commission met on Monday 15 December
+-- 2025 and the city publishes that agenda as 12/15/2025.
+-- EXPECT the ITEM NO. rows to read 2025-12-15. They do.
 SELECT published_date, left(title, 60) AS title
   FROM leads
  WHERE market LIKE 'Anaheim%'
    AND published_date LIKE '2025-12-1%'
  ORDER BY published_date
  LIMIT 10;
-
-COMMIT;

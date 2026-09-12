@@ -184,7 +184,46 @@ rather than pending. Its check has two halves on purpose: the behavioural half
 would pass on the UTC runner however the call sites were written, so the second
 half asserts that each of the seven writers still routes through the helper.
 
-## 6. THE MIGRATION, PRINTED AND BLOCKING
+## 6. THE MIGRATION, RUN 2026-09-12
+
+**It ran, it reported an error, and the error was not what it looked like.** The
+editor answered `ERROR: 42P01: relation "shifted_leads" does not exist`, and read
+back immediately afterwards every row it was meant to move had moved, once:
+
+```
+  leads.published_date at 17:00:00Z    1,204 -> 0
+    and at 00:00:00Z                     366 -> 1,570   (366 + 1,204, exact)
+  project_events.occurred_at           1,021 -> 3       (the 3 named below)
+  projects.last_activity                 319 -> 0
+  leads.deadline                           1 -> 1       (TED, excluded on purpose)
+```
+
+**Applied once, not twice**: a second +7h would leave rows at 07:00:00Z and there
+are none.
+
+**The human check passes.** Anaheim's Planning Commission meets on a Monday and
+its Council on a Tuesday. Before the correction every stored Planning Commission
+record fell on a **Sunday** and every Council record on a **Monday**. After it,
+Planning Commission Mon 17; City Council Tue 57, with one Monday, two Wednesdays
+and one Friday that are special meetings. The 15 December 2025 agenda now reads
+2025-12-15 and read 2025-12-14 before.
+
+**What failed was the temp table, and it has been removed.** The first version
+built `shifted_leads` inside a `BEGIN`/`COMMIT` with `ON COMMIT DROP` and had
+three later statements read it. A temp table lives in one session and
+`ON COMMIT DROP` destroys it at the first commit; a SQL editor over a pooled
+connection promises neither. The migration was relying on something the place it
+runs does not offer. It is rewritten with no temp table, no transaction block and
+no session setting: **every statement stands alone**, the one real dependency is
+stated as an order (the event update runs before the lead update, because it
+finds its events through the leads that update is about to change), and every
+predicate matches nothing once it has run. Golden case
+`a-migration-that-needs-a-session`.
+
+I cannot say from here which statement raised the error and the honest version is
+that the data settles what matters while the mechanism is inference.
+
+## 6a. WHAT IT WAS, AS PRINTED
 
 `agents/scraper/migrations/050_correct_local_midnight_dates.sql`. Standing rule
 5: it is printed for Philip to run and nothing here runs it.
