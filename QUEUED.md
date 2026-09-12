@@ -16,7 +16,8 @@ Last updated 2026-09-12.
    cadence by Philip on 2026-09-12, because both are things a reader sees and
    neither has ever worked.
 3. **The body-read gate for Legistar markets**, costed per market.
-4. **The weekly cadence.**
+4. **The weekly cadence**, which entries 3 and 4 below both make sharper: it is
+   the run nobody watches.
 
 ---
 
@@ -107,7 +108,65 @@ there are none to lose.
 
 ---
 
-## 3. THE TWO CLIENT-FACING REGEXES
+## 3. A PAGE-LEVEL RETRY FOR LEGISTAR
+
+**Queued 2026-09-12, from the fresh run.**
+
+**What was measured.** The government lane took THREE passes to complete, with no
+code change between them:
+
+| pass | Legistar jurisdictions in |
+|---|---|
+| 1 | **0 of 7** - every Matters request timed out |
+| 2 | 4 of 7 |
+| 3 | **7 of 7**, zero timeouts, Clark pulling 427 matters over 3 pages |
+
+Hand-run, the adapter's exact query answers in 2.6 to 3.8 seconds against a 30
+second timeout (`clark 200, 336,797b, 3.84s`). It is the connection, not the
+query.
+
+**The cost of not fixing it.** Pass 1 lost seven markets and roughly 123 records.
+The run reported it correctly - `*** TRUNCATED ***`, `PARTIAL HARVEST`, and a
+`TOTAL DEATH` alarm against a baseline of 123 - and then stopped. **Nothing
+retries.** I noticed and re-ran three times by hand. On a Monday, under the
+weekly cadence, nobody does that: the job finishes green, `PARTIAL HARVEST` sits
+in the middle of a long report, and the week is silently short.
+
+**What decides it.** Whether a page-level retry belongs in `fetchJson` for this
+adapter or in the lane around it, and how many attempts before the honest
+`incomplete` verdict is the right answer rather than a cover for a dead feed.
+The existing behaviour must survive: a feed that is genuinely dead still has to
+report `PARTIAL HARVEST` rather than retry forever.
+
+---
+
+## 4. SERPER CREDITS AS A MONITORED PREREQUISITE
+
+**Queued 2026-09-12, from the fresh run. Philip's to top up; the check is ours.**
+
+`npm run scrape:all` on 2026-09-12 wrote nothing:
+
+```
+Serper "...": failed: HTTP 400 - Not enough credits     (every query)
+TOTAL DEATH  fetched nothing  adapter:serper  [fetched 0, kept 0, usually 731.7]
+```
+
+**Serper is the only active source in that half of the run** - `Fetched per
+source: 0 serper` - so feasibility, TED CPV, GLI Tier 1 and the fuel module all
+reported zero behind it.
+
+**The failure presents as `NPM_EXIT=0`.** The alarms fired; the exit code did
+not. A weekly job would look green.
+
+**What decides it.** Whether the prerequisite check that already runs before the
+weekly capture - the six required secrets - should also cost one Serper call and
+refuse the run with a named reason when the account has no credit. That is the
+same shape as checking the secrets: a prerequisite that is cheaper to test than
+to discover.
+
+---
+
+## 5. THE TWO CLIENT-FACING REGEXES
 
 **Queued 2026-09-11, promoted ahead of the cadence 2026-09-12.** Golden case
 `a-control-character-inside-a-regex`, guard `pending`.
